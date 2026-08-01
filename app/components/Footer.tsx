@@ -33,32 +33,35 @@ const linkColumns = [
         title: "Company",
         links: [
             { label: "About", href: "#about" },
-            { label: "Services", href: "#services" },
             { label: "Careers", href: "#careers" },
+            { label: "Partners", href: "#partners" },
         ],
     },
     {
         title: "Services",
         links: [
-            { label: "Same-Day Delivery", href: "#services" },
+            { label: "Metro Manila Delivery", href: "#services" },
             { label: "Nationwide Shipping", href: "#services" },
-            { label: "Bulk & Business", href: "#services" },
+            { label: "Freight & Cargo Forwarding", href: "#services" },
+            { label: "E-commerce Drop-off", href: "#services" },
         ],
     },
     {
         title: "Support",
         links: [
-            { label: "Track Package", href: "#track" },
-            { label: "Contact Us", href: "#contact" },
-            { label: "FAQs", href: "#faq" },
+            { label: "Track & Trace", href: "#track" },
+            { label: "FAQs", href: "#support" },
+            { label: "Shipping Guide", href: "#support" },
+            { label: "Claims & Insurance", href: "#support" },
         ],
     },
 ];
 
 export default function Footer() {
     return (
-        <footer className="relative w-full overflow-hidden rounded-t-[2.5rem] bg-[#0B1E3D] pt-16">
-            <span className="pointer-events-none absolute -bottom-6 left-4 select-none text-[7rem] sm:text-[10rem] md:text-[13rem] font-extrabold leading-none tracking-tight text-white/[0.04] font-bricolage">
+        <footer className="relative w-full overflow-hidden rounded-t-[2.5rem] bg-ink pt-16">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent" />
+            <span className="pointer-events-none absolute -bottom-6 left-4 select-none font-bricolage text-[7rem] font-extrabold leading-none tracking-tight text-paper/[0.04] sm:text-[10rem] md:text-[13rem]">
                 AIRSHIP
             </span>
 
@@ -73,13 +76,13 @@ export default function Footer() {
                             className="h-9 w-auto object-contain brightness-0 invert"
                         />
                     </Link>
-                    <p className="text-sm leading-relaxed text-white/55 font-rethink">
+                    <p className="font-rethink text-sm leading-relaxed text-paper/55">
                         Fast, reliable courier and delivery services you can trust —
                         every parcel, every time.
                     </p>
 
                     <div>
-                        <h4 className="mb-3 text-sm font-semibold text-white font-bricolage">
+                        <h4 className="mb-3 font-bricolage text-sm font-semibold text-paper">
                             Socials
                         </h4>
                         <div className="flex items-center gap-3">
@@ -87,19 +90,24 @@ export default function Footer() {
                                 href="https://web.facebook.com/profile.php?id=61571986650033"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white transition-colors hover:bg-white/10"
+                                aria-label="Facebook"
+                                className="flex h-9 w-9 items-center justify-center rounded-full border border-paper/15 text-paper transition-colors hover:border-accent hover:text-accent"
                             >
                                 <FacebookIcon />
                             </a>
                             <a
-                                href="#"
-                                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white transition-colors hover:bg-white/10"
+                                href="https://www.instagram.com/airshipexpresss"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Instagram"
+                                className="flex h-9 w-9 items-center justify-center rounded-full border border-paper/15 text-paper transition-colors hover:border-accent hover:text-accent"
                             >
                                 <InstagramIcon />
                             </a>
                             <a
                                 href="#"
-                                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white transition-colors hover:bg-white/10"
+                                aria-label="TikTok"
+                                className="flex h-9 w-9 items-center justify-center rounded-full border border-paper/15 text-paper transition-colors hover:border-accent hover:text-accent"
                             >
                                 <TikTokIcon />
                             </a>
@@ -109,13 +117,13 @@ export default function Footer() {
 
                 {linkColumns.map((col) => (
                     <div key={col.title}>
-                        <h4 className="mb-4 text-sm font-semibold text-white font-bricolage">
+                        <h4 className="mb-4 font-bricolage text-sm font-semibold text-paper">
                             {col.title}
                         </h4>
-                        <ul className="flex flex-col gap-2.5 text-sm text-white/55 font-rethink">
+                        <ul className="flex flex-col gap-2.5 font-rethink text-sm text-paper/55">
                             {col.links.map((l) => (
                                 <li key={l.label}>
-                                    <Link href={l.href} className="transition-colors hover:text-white">
+                                    <Link href={l.href} className="transition-colors hover:text-accent">
                                         {l.label}
                                     </Link>
                                 </li>
@@ -125,25 +133,28 @@ export default function Footer() {
                 ))}
             </div>
 
-            <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-3 border-t border-white/10 px-6 py-6 text-sm text-white/55 font-rethink sm:flex-row sm:items-center sm:justify-center sm:gap-8">
+            <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-3 border-t border-dashed border-paper/10 px-6 py-6 font-rethink text-sm text-paper/55 sm:flex-row sm:items-center sm:justify-center sm:gap-8">
+                <a href="tel:+639454418789" className="flex items-center gap-2 transition-colors hover:text-paper">
+                    <Phone className="h-4 w-4 text-accent" /> 0945 441 8789
+                </a>
+                <a
+                    href="mailto:airshipexpress.s@gmail.com"
+                    className="flex items-center gap-2 transition-colors hover:text-paper"
+                >
+                    <Mail className="h-4 w-4 text-accent" /> airshipexpress.s@gmail.com
+                </a>
                 <span className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" /> +63 900 000 0000
-                </span>
-                <span className="flex items-center gap-2">
-                    <Mail className="h-4 w-4" /> hello@airshipexpress.ph
-                </span>
-                <span className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" /> Metro Manila, PH
+                    <MapPin className="h-4 w-4 text-accent" /> Binondo, Manila, PH
                 </span>
             </div>
 
-            <div className="relative flex w-full flex-col items-center justify-between gap-3 border-t border-white/10 px-6 py-6 text-xs text-white/40 font-rethink sm:flex-row">
+            <div className="relative flex w-full flex-col items-center justify-between gap-3 border-t border-paper/10 px-6 py-6 font-rethink text-xs text-paper/40 sm:flex-row">
                 <span>© {new Date().getFullYear()} Airship Express. All rights reserved.</span>
                 <div className="flex items-center gap-6">
-                    <Link href="#" className="hover:text-white/70 transition-colors">
+                    <Link href="#" className="transition-colors hover:text-paper/70">
                         Privacy Policy
                     </Link>
-                    <Link href="#" className="hover:text-white/70 transition-colors">
+                    <Link href="#" className="transition-colors hover:text-paper/70">
                         Terms of Service
                     </Link>
                 </div>

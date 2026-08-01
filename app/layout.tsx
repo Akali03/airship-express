@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Rethink_Sans } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "./components/ThemeProvider";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -25,10 +26,27 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${rethink.variable} h-full antialiased bg-[#FEFEFE]`}
+      className={`${bricolage.variable} ${rethink.variable} h-full antialiased bg-[#FCFBF9]`}
+      suppressHydrationWarning
     >
-      <body className="h-[100dvh] overflow-hidden font-rethink bg-[#FEFEFE]">
-        {children}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var theme = localStorage.getItem('airship-theme');
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="h-[100dvh] overflow-hidden font-rethink bg-[#FCFBF9] dark:bg-ink">
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
