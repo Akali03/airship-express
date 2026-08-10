@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
+import { supabase } from '@/app/lib/supabase/client';
+
 
 export default function HRLoginPage() {
     const router = useRouter();
@@ -38,8 +40,21 @@ export default function HRLoginPage() {
                 setError(base + debug);
                 return;
             }
+            const data = await res.json();
+
+            // Hydrate the browser Supabase client with the server-issued session
+            if (data.session) {
+                const { error: setSessionError } = await supabase.auth.setSession({
+                    access_token: data.session.access_token,
+                    refresh_token: data.session.refresh_token,
+                });
+                if (setSessionError) {
+                    console.error('Failed to sync session client-side:', setSessionError);
+                }
+            }
 
             router.push('/payroll-benefits-dashboard');
+            router.refresh();
         } catch {
             setError('Something went wrong. Try again.');
         } finally {

@@ -86,5 +86,9 @@ export async function POST(request: Request) {
     employeeId,
     fullName: employee.full_name,
     role: employee.role,
+    session: {
+      access_token: session.session.access_token,
+      refresh_token: session.session.refresh_token,
+    },
   });
 }
