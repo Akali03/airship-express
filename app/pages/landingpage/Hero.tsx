@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, type Variants } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import {
     ArrowRight,
     MapPin,
@@ -31,8 +31,69 @@ const deliverySteps = [
 
 const BLUR_THRESHOLD = 180;
 
-export default function Hero() {
+// hydration-safe reduced-motion check
+// server always renders as "false" (matchMedia doesn't exist there), so we
+// hold the client at "false" too until after mount, then sync to the real value.
+function useSafeReducedMotion() {
+    const prefersReduced = useReducedMotion();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => setMounted(true), []);
+
+    return mounted ? !!prefersReduced : false;
+}
+
+// split text
+function SplitWords({
+    text,
+    className = "",
+    delay = 0,
+    stagger = 0.05,
+    ready,
+    reduceMotion,
+}: {
+    text: string;
+    className?: string;
+    delay?: number;
+    stagger?: number;
+    ready: boolean;
+    reduceMotion: boolean;
+}) {
+    const words = text.split(" ");
+
+    return (
+        <span className={className} aria-label={text}>
+            {words.map((word, i) => (
+                <span
+                    key={i}
+                    aria-hidden="true"
+                    className="inline-block overflow-hidden pb-1 pr-[0.28em] align-bottom"
+                >
+                    <motion.span
+                        className="inline-block will-change-[transform,opacity,filter]"
+                        initial={{ y: "110%", opacity: 0, filter: reduceMotion ? "blur(0px)" : "blur(8px)" }}
+                        animate={
+                            ready
+                                ? { y: "0%", opacity: 1, filter: "blur(0px)" }
+                                : { y: "110%", opacity: 0, filter: reduceMotion ? "blur(0px)" : "blur(8px)" }
+                        }
+                        transition={{
+                            duration: reduceMotion ? 0.01 : 0.6,
+                            delay: reduceMotion ? 0 : delay + i * stagger,
+                            ease: [0.22, 1, 0.36, 1],
+                        }}
+                    >
+                        {word}
+                    </motion.span>
+                </span>
+            ))}
+        </span>
+    );
+}
+
+export default function Hero({ ready = true }: { ready?: boolean }) {
     const [scrolledPast, setScrolledPast] = useState(false);
+    const reduceMotion = useSafeReducedMotion();
 
     useEffect(() => {
         const scrollEl = document.querySelector<HTMLElement>(".scroll-container");
@@ -55,10 +116,10 @@ export default function Hero() {
             <div className="pointer-events-none absolute -top-32 -left-32 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
             <div className="pointer-events-none absolute -top-20 -right-24 h-72 w-72 rounded-full blur-3xl transition-colors duration-500 bg-ink/5 dark:bg-paper/5" />
 
-            {/* Floating cards — desktop only */}
+            {/* floating cards */}
             <motion.div
                 initial={{ opacity: 0, y: 16, rotate: -3 }}
-                animate={{ opacity: 1, y: 0, rotate: -3 }}
+                animate={ready ? { opacity: 1, y: 0, rotate: -3 } : { opacity: 0, y: 16, rotate: -3 }}
                 transition={{ duration: 0.7, delay: 0.2 }}
                 className="absolute left-4 top-16 z-10 hidden w-52 overflow-hidden rounded-2xl border shadow-xl sm:block md:left-10 lg:left-16 border-line bg-white dark:border-paper/10 dark:bg-ink"
             >
@@ -79,7 +140,7 @@ export default function Hero() {
 
             <motion.div
                 initial={{ opacity: 0, y: 16, rotate: 3 }}
-                animate={{ opacity: 1, y: 0, rotate: 3 }}
+                animate={ready ? { opacity: 1, y: 0, rotate: 3 } : { opacity: 0, y: 16, rotate: 3 }}
                 transition={{ duration: 0.7, delay: 0.35 }}
                 className="absolute bottom-12 right-4 z-10 hidden w-52 overflow-hidden rounded-2xl border shadow-xl md:right-10 lg:right-16 xl:block border-line bg-white dark:border-paper/10 dark:bg-ink"
             >
@@ -102,7 +163,7 @@ export default function Hero() {
 
             <div
                 aria-hidden
-                className="pointer-events-none absolute -bottom-10 left-8 hidden h-24 w-24 rounded-full border-[14px] border-accent/60 lg:block"
+                className="pointer-none absolute -bottom-10 left-8 hidden h-24 w-24 rounded-full border-[14px] border-accent/60 lg:block"
                 style={{ clipPath: "inset(0 0 50% 0)" }}
             />
             <div aria-hidden className="pointer-events-none absolute bottom-24 right-0 hidden h-16 w-16 rounded-tl-full bg-accent/20 lg:block" />
@@ -113,7 +174,7 @@ export default function Hero() {
                     <motion.div
                         variants={fadeUp}
                         initial="hidden"
-                        animate="show"
+                        animate={ready ? "show" : "hidden"}
                         custom={0}
                         className="mb-4 flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-center font-rethink text-[11px] font-medium sm:mb-5 sm:px-4 sm:text-xs md:text-sm border-line bg-white text-muted dark:border-paper/15 dark:bg-paper/5 dark:text-paper/70"
                     >
@@ -124,32 +185,41 @@ export default function Hero() {
                         For online sellers, businesses & individuals
                     </motion.div>
 
-                    <motion.div
-                        variants={fadeUp}
-                        initial="hidden"
-                        animate="show"
-                        custom={1}
-                        className="flex w-full max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-2"
-                    >
+                    {/* heading */}
+                    <div className="flex w-full max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-2">
                         <h1 className="font-bricolage text-[1.9rem] font-extrabold leading-[1.08] tracking-[-0.03em] sm:text-[38px] sm:leading-[1.1] sm:tracking-[-0.04em] md:text-[48px] md:leading-[1.12] lg:text-[54px] lg:leading-[1.05] text-ink dark:text-paper">
-                            We Deliver Parcels
+                            <SplitWords text="We Deliver Parcels" delay={0.15} stagger={0.05} ready={ready} reduceMotion={reduceMotion} />
                         </h1>
-                        <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-accent px-2.5 sm:h-10 sm:px-4 md:h-12 md:px-5 lg:h-14 lg:px-6">
+
+                        <motion.span
+                            initial={{ opacity: 0, scale: 0.85, filter: reduceMotion ? "blur(0px)" : "blur(6px)" }}
+                            animate={
+                                ready
+                                    ? { opacity: 1, scale: 1, filter: "blur(0px)" }
+                                    : { opacity: 0, scale: 0.85, filter: reduceMotion ? "blur(0px)" : "blur(6px)" }
+                            }
+                            transition={{ duration: reduceMotion ? 0.01 : 0.5, delay: reduceMotion ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-full bg-accent px-2.5 sm:h-10 sm:px-4 md:h-12 md:px-5 lg:h-14 lg:px-6"
+                        >
                             <Clock className="h-3.5 w-3.5 text-paper sm:h-5 sm:w-5 md:h-6 md:w-6" />
                             <span className="font-bricolage text-xs font-extrabold text-paper sm:text-base md:text-xl lg:text-2xl">
                                 Same-Day
                             </span>
-                        </span>
+                        </motion.span>
+
                         <h1 className="font-bricolage text-[1.9rem] font-extrabold leading-[1.08] tracking-[-0.03em] sm:text-[38px] sm:leading-[1.1] sm:tracking-[-0.04em] md:text-[48px] md:leading-[1.12] lg:text-[54px] lg:leading-[1.05] text-ink dark:text-paper">
-                            Every Time
+                            <SplitWords text="Every Time" delay={0.65} stagger={0.05} ready={ready} reduceMotion={reduceMotion} />
                         </h1>
-                    </motion.div>
+                    </div>
 
                     <motion.p
-                        variants={fadeUp}
-                        initial="hidden"
-                        animate="show"
-                        custom={2}
+                        initial={{ opacity: 0, y: 12, filter: reduceMotion ? "blur(0px)" : "blur(6px)" }}
+                        animate={
+                            ready
+                                ? { opacity: 1, y: 0, filter: "blur(0px)" }
+                                : { opacity: 0, y: 12, filter: reduceMotion ? "blur(0px)" : "blur(6px)" }
+                        }
+                        transition={{ duration: reduceMotion ? 0.01 : 0.6, delay: reduceMotion ? 0 : 1, ease: [0.22, 1, 0.36, 1] }}
                         className="mt-3 max-w-full text-center font-rethink text-sm font-normal leading-relaxed sm:mt-4 sm:max-w-[560px] sm:text-base lg:text-lg text-muted dark:text-paper/60"
                     >
                         Airship Express Courier Services gets your parcels where they need
@@ -160,8 +230,8 @@ export default function Hero() {
                     <motion.div
                         variants={fadeUp}
                         initial="hidden"
-                        animate="show"
-                        custom={3}
+                        animate={ready ? "show" : "hidden"}
+                        custom={5.5}
                         className="mt-5 flex w-full max-w-sm flex-col gap-3 sm:mt-6 sm:w-auto sm:max-w-none sm:flex-row sm:justify-center"
                     >
                         <motion.a
@@ -189,8 +259,8 @@ export default function Hero() {
                     <motion.div
                         variants={fadeUp}
                         initial="hidden"
-                        animate="show"
-                        custom={4}
+                        animate={ready ? "show" : "hidden"}
+                        custom={6.5}
                         className="mt-6 w-full max-w-3xl rounded-3xl border p-3.5 shadow-[0_20px_50px_-25px_rgba(28,27,31,0.15)] sm:mt-8 sm:p-5 lg:mt-10 lg:p-6 border-line bg-gradient-to-b from-white to-line/20 dark:border-paper/10 dark:bg-paper/[0.03] dark:from-transparent dark:to-transparent"
                     >
                         <div className="flex items-center justify-between gap-0.5 sm:gap-4">

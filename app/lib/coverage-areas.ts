@@ -2,8 +2,6 @@ export interface CoverageArea {
   name: string;
   lat: number;
   lng: number;
-  /** Brand-safe categorical color unique to this city, used for its map
-   * pin, its coverage halo, and its legend dot — keeping all three in sync. */
   color: string;
 }
 

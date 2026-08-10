@@ -27,78 +27,30 @@ const links: NavLink[] = [
     href: "#services",
     wide: true,
     children: [
-      {
-        label: "Metro Manila Delivery",
-        desc: "Same-day pickup and drop-off within the metro.",
-        href: "#services",
-      },
-      {
-        label: "Nationwide Shipping",
-        desc: "Door-to-door delivery across the Philippines.",
-        href: "#services",
-      },
-      {
-        label: "Freight & Cargo Forwarding",
-        desc: "Bulk and palletized cargo handled end to end.",
-        href: "#services",
-      },
-      {
-        label: "E-commerce Drop-off",
-        desc: "Authorized drop-off for Shopee, Lazada, TikTok Shop & more.",
-        href: "#services",
-      },
-      {
-        label: "Warehousing & Storage",
-        desc: "Short and long-term storage for your inventory.",
-        href: "#services",
-      },
-      {
-        label: "Free Pickup & Packaging",
-        desc: "We collect and pack your parcel at no extra cost.",
-        href: "#services",
-      },
+      { label: "Metro Manila Delivery", desc: "Same-day pickup and drop-off within the metro.", href: "#services" },
+      { label: "Nationwide Shipping", desc: "Door-to-door delivery across the Philippines.", href: "#services" },
+      { label: "Freight & Cargo Forwarding", desc: "Bulk and palletized cargo handled end to end.", href: "#services" },
+      { label: "E-commerce Drop-off", desc: "Authorized drop-off for Shopee, Lazada, TikTok Shop & more.", href: "#services" },
+      { label: "Warehousing & Storage", desc: "Short and long-term storage for your inventory.", href: "#services" },
+      { label: "Free Pickup & Packaging", desc: "We collect and pack your parcel at no extra cost.", href: "#services" },
     ],
   },
   {
     label: "Track & Trace",
     href: "#track",
     children: [
-      {
-        label: "Track a Package",
-        desc: "Check the live status of your delivery.",
-        href: "#track",
-      },
-      {
-        label: "Bulk Tracking",
-        desc: "Track multiple waybills at once.",
-        href: "#track",
-      },
-      {
-        label: "Delivery Timelines",
-        desc: "Expected delivery windows by area.",
-        href: "#track",
-      },
+      { label: "Track a Package", desc: "Check the live status of your delivery.", href: "#track" },
+      { label: "Bulk Tracking", desc: "Track multiple waybills at once.", href: "#track" },
+      { label: "Delivery Timelines", desc: "Expected delivery windows by area.", href: "#track" },
     ],
   },
   {
     label: "Partners",
     href: "#partners",
     children: [
-      {
-        label: "Become a Reseller",
-        desc: "Offer Airship Express delivery under your brand.",
-        href: "#partners",
-      },
-      {
-        label: "Drop-off Locations",
-        desc: "Find an authorized branch near you.",
-        href: "#partners",
-      },
-      {
-        label: "Franchise Opportunities",
-        desc: "Open an Airship Express branch in your area.",
-        href: "#partners",
-      },
+      { label: "Become a Reseller", desc: "Offer Airship Express delivery under your brand.", href: "#partners" },
+      { label: "Drop-off Locations", desc: "Find an authorized branch near you.", href: "#partners" },
+      { label: "Franchise Opportunities", desc: "Open an Airship Express branch in your area.", href: "#partners" },
     ],
   },
   {
@@ -114,26 +66,10 @@ const links: NavLink[] = [
     label: "Contact",
     href: "#contact",
     children: [
-      {
-        label: "Message us on Facebook",
-        desc: "Fastest way to reach our team.",
-        href: "https://web.facebook.com/profile.php?id=61571986650033",
-      },
-      {
-        label: "Call or text",
-        desc: "0945 441 8789 · (02) 8911-1888",
-        href: "tel:+639454418789",
-      },
-      {
-        label: "Email us",
-        desc: "airshipexpress.s@gmail.com",
-        href: "mailto:airshipexpress.s@gmail.com",
-      },
-      {
-        label: "Visit our branch",
-        desc: "352 Escolta St., Tomas Pinpin, Binondo, Manila",
-        href: "#contact",
-      },
+      { label: "Message us on Facebook", desc: "Fastest way to reach our team.", href: "https://web.facebook.com/profile.php?id=61571986650033" },
+      { label: "Call or text", desc: "0945 441 8789 · (02) 8911-1888", href: "tel:+639454418789" },
+      { label: "Email us", desc: "airshipexpress.s@gmail.com", href: "mailto:airshipexpress.s@gmail.com" },
+      { label: "Visit our branch", desc: "352 Escolta St., Tomas Pinpin, Binondo, Manila", href: "#contact" },
     ],
   },
 ];
@@ -156,21 +92,13 @@ function useIsOpenNow() {
 
 const panelVariants: Variants = {
   hidden: { clipPath: "inset(0 0 100% 0)" },
-  show: {
-    clipPath: "inset(0 0 0% 0)",
-    transition: { duration: 0.65, ease: [0.76, 0, 0.24, 1] },
-  },
-  exit: {
-    clipPath: "inset(0 0 100% 0)",
-    transition: { duration: 0.45, ease: [0.76, 0, 0.24, 1] },
-  },
+  show: { clipPath: "inset(0 0 0% 0)", transition: { duration: 0.65, ease: [0.76, 0, 0.24, 1] } },
+  exit: { clipPath: "inset(0 0 100% 0)", transition: { duration: 0.45, ease: [0.76, 0, 0.24, 1] } },
 };
 
 const listVariants: Variants = {
   hidden: {},
-  show: {
-    transition: { staggerChildren: 0.055, delayChildren: 0.4 },
-  },
+  show: { transition: { staggerChildren: 0.055, delayChildren: 0.4 } },
 };
 
 const itemVariants: Variants = {
@@ -178,11 +106,37 @@ const itemVariants: Variants = {
   show: { opacity: 1, x: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
 };
 
+// entrance sequence, plays once `ready` flips true after the loader exits
+const topBarVariants: Variants = {
+  hidden: { opacity: 0, y: -10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const logoVariants: Variants = {
+  hidden: { opacity: 0, y: -8, filter: "blur(4px)" },
+  show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const navItemVariants: Variants = {
+  hidden: { opacity: 0, y: -6 },
+  show: (i: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, delay: 0.15 + i * 0.05, ease: [0.22, 1, 0.36, 1] },
+  }),
+};
+
+const actionsVariants: Variants = {
+  hidden: { opacity: 0, y: -8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, delay: 0.4, ease: [0.22, 1, 0.36, 1] } },
+};
+
 interface NavbarProps {
   onMenuOpenChange?: (open: boolean) => void;
+  ready?: boolean;
 }
 
-export default function Navbar({ onMenuOpenChange }: NavbarProps) {
+export default function Navbar({ onMenuOpenChange, ready = true }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileChild, setMobileChild] = useState<number | null>(null);
   const isOpen = useIsOpenNow();
@@ -242,8 +196,13 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
 
   return (
     <header className="sticky top-0 z-50 w-full">
-      {/* desktop */}
-      <div className="hidden border-b border-paper/10 bg-ink lg:block">
+      {/* desktop info bar */}
+      <motion.div
+        variants={topBarVariants}
+        initial="hidden"
+        animate={ready ? "show" : "hidden"}
+        className="hidden border-b border-paper/10 bg-ink lg:block"
+      >
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-between px-6 font-rethink text-xs text-paper/70 lg:px-8">
           <div className="flex items-center gap-5">
             <a href="tel:+639454418789" className="flex items-center gap-1.5 transition-colors hover:text-paper">
@@ -276,33 +235,39 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
             </a>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* main bar */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      <div
         className={`relative z-50 w-full border-b transition-all duration-300 ${scrolled
           ? "border-line bg-paper/90 shadow-sm shadow-ink/5 backdrop-blur-md dark:border-paper/10 dark:bg-ink/90 dark:shadow-black/20"
           : "border-transparent bg-transparent backdrop-blur-0"
           }`}
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center">
-            <Image
-              src="/images/logo-remove-bg.png"
-              alt="Airship Express"
-              width={130}
-              height={36}
-              priority
-              className="h-7 w-auto object-contain sm:h-8 dark:brightness-0 dark:invert"
-            />
-          </Link>
+          <motion.div variants={logoVariants} initial="hidden" animate={ready ? "show" : "hidden"}>
+            <Link href="/" className="flex shrink-0 items-center">
+              <Image
+                src="/images/logo-remove-bg.png"
+                alt="Airship Express"
+                width={130}
+                height={36}
+                priority
+                className="h-7 w-auto object-contain sm:h-8 dark:brightness-0 dark:invert"
+              />
+            </Link>
+          </motion.div>
 
           <nav className="hidden items-center gap-0.5 lg:flex">
-            {links.map((link) => (
-              <div key={link.href} className="group relative">
+            {links.map((link, i) => (
+              <motion.div
+                key={link.href}
+                custom={i}
+                variants={navItemVariants}
+                initial="hidden"
+                animate={ready ? "show" : "hidden"}
+                className="group relative"
+              >
                 <Link
                   href={link.href}
                   className="flex items-center gap-1 rounded-md px-2.5 py-2 font-rethink text-sm font-medium text-muted transition-colors hover:bg-line/40 hover:text-ink dark:text-paper/60 dark:hover:bg-paper/10 dark:hover:text-paper"
@@ -330,11 +295,16 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
                     ))}
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
           </nav>
 
-          <div className="hidden items-center gap-2 lg:flex xl:gap-3">
+          <motion.div
+            variants={actionsVariants}
+            initial="hidden"
+            animate={ready ? "show" : "hidden"}
+            className="hidden items-center gap-2 lg:flex xl:gap-3"
+          >
             <ThemeToggle />
             <a
               href="#track"
@@ -352,9 +322,14 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
               Book a Delivery
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
             </a>
-          </div>
+          </motion.div>
 
-          <div className="flex items-center gap-2 lg:hidden">
+          <motion.div
+            variants={actionsVariants}
+            initial="hidden"
+            animate={ready ? "show" : "hidden"}
+            className="flex items-center gap-2 lg:hidden"
+          >
             <ThemeToggle />
             <button
               onClick={() => setMobileOpen((v) => !v)}
@@ -388,9 +363,9 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
                 )}
               </AnimatePresence>
             </button>
-          </div>
+          </motion.div>
         </div>
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {mobileOpen && (
@@ -402,7 +377,6 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
             exit="exit"
             className="fixed inset-x-0 top-16 bottom-0 z-40 overflow-hidden bg-paper dark:bg-ink lg:hidden"
           >
-            {/* scanner-line sweep on open, evokes a parcel barcode scan */}
             <motion.div
               initial={{ top: "0%", opacity: 1 }}
               animate={{ top: "100%", opacity: 0 }}
@@ -503,10 +477,7 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
                 animate="show"
                 className="relative shrink-0 border-t border-line px-5 pb-6 pt-5 dark:border-paper/10"
               >
-                <div
-                  aria-hidden
-                  className="absolute -top-2.5 left-0 right-0 flex justify-between px-1"
-                >
+                <div aria-hidden className="absolute -top-2.5 left-0 right-0 flex justify-between px-1">
                   {Array.from({ length: 14 }).map((_, i) => (
                     <span key={i} className="h-1.5 w-1.5 rounded-full bg-paper dark:bg-ink" />
                   ))}

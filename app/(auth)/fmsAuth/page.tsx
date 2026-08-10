@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
 
-export default function PayrollLoginPage() {
+export default function fmsAuth() {
     const router = useRouter();
     const [employeeId, setEmployeeId] = useState('');
     const [password, setPassword] = useState('');

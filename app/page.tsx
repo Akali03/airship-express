@@ -21,6 +21,7 @@ export default function Home() {
   const galleryRef = useRef<HTMLDivElement>(null);
   const lenisRef = useRef<Lenis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [heroReady, setHeroReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -73,9 +74,6 @@ export default function Home() {
     };
   }, []);
 
-  // When the mobile menu opens, stop Lenis so wheel/touch input no longer
-  // drives the page's smooth scroll — the menu's own overflow-y-auto panel
-  // handles its scrolling independently.
   useEffect(() => {
     if (menuOpen) {
       lenisRef.current?.stop();
@@ -86,13 +84,15 @@ export default function Home() {
 
   return (
     <>
-      {loading && <Loader onComplete={() => setLoading(false)} />}
+      {loading && (
+        <Loader
+          onComplete={() => {
+            setLoading(false);
+            setHeroReady(true);
+          }}
+        />
+      )}
 
-      {/* Site-wide custom cursor. Tracks mouse position over the scroll
-          container itself, so it's active across the whole page rather than
-          just one section. lg:cursor-none below hides the native cursor on
-          desktop only — mobile/tablet never sets it, since there's no mouse
-          there to replace. */}
       <CustomCursor containerRef={scrollRef} />
 
       <div
@@ -101,9 +101,9 @@ export default function Home() {
           }`}
       >
         <div>
-          <Navbar onMenuOpenChange={setMenuOpen} />
+          <Navbar onMenuOpenChange={setMenuOpen} ready={heroReady} />
 
-          <Hero />
+          <Hero ready={heroReady} />
 
           <LogoMarquee />
           <Services />
