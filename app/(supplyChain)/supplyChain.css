@@ -4,7 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-.dark,
+/* .dark,
 .dark * {
   --background: #1c1b1f !important;
   --foreground: #f4f3f6 !important;
@@ -20,7 +20,7 @@
 .dark .min-h-screen,
 .dark main {
   background-color: #1c1b1f !important;
-}
+} */
 
 html,
 body {
