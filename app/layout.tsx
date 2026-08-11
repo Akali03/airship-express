@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Rethink_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Toaster } from "sonner";
@@ -31,23 +32,25 @@ export default function RootLayout({
       className={`${bricolage.variable} ${rethink.variable} h-full antialiased bg-[#FCFBF9]`}
       suppressHydrationWarning
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function () {
-                try {
-                  var theme = localStorage.getItem('airship-theme');
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  }
-                } catch (e) {}
-              })();
-            `,
-          }}
-        />
-      </head>
       <body className="h-[100dvh] overflow-hidden font-rethink bg-[#FCFBF9] dark:bg-ink">
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`
+    (function () {
+      try {
+        var theme = localStorage.getItem('airship-theme');
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  `}
+        </Script>
+
+        <ThemeProvider>
+          <ConfirmProvider>
+            {children}
+          </ConfirmProvider>
+        </ThemeProvider>
 
         <Toaster
           position="top-right"
@@ -55,12 +58,7 @@ export default function RootLayout({
           closeButton
           duration={3000}
         />
-        <ThemeProvider>
-          <ConfirmProvider>
-            {children}
-          </ConfirmProvider>
-        </ThemeProvider>
-      </body>
-    </html>
+      </body >
+    </html >
   );
 }
