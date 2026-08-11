@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Rethink_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { Toaster } from "sonner";
+import { ConfirmProvider } from "./(supplyChain)/components/ui/ConfirmModal";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -46,7 +48,18 @@ export default function RootLayout({
         />
       </head>
       <body className="h-[100dvh] overflow-hidden font-rethink bg-[#FCFBF9] dark:bg-ink">
-        <ThemeProvider>{children}</ThemeProvider>
+
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          duration={3000}
+        />
+        <ThemeProvider>
+          <ConfirmProvider>
+            {children}
+          </ConfirmProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
