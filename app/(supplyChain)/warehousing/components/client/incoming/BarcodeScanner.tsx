@@ -221,25 +221,25 @@ export default function BarcodeScanner({
 
     return (
         <Portal>
-            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-200">
-                <div className="bg-white rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]">
+            <div className="fixed inset-0 bg-slate-950/70 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-200 text-slate-900 dark:text-slate-100">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl dark:shadow-black/60 border border-slate-200/80 dark:border-slate-800 flex flex-col max-h-[90vh]">
                     <div className="flex justify-between items-center mb-4 pb-1">
                         <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-pink-50 border border-pink-100 flex items-center justify-center text-pink-600">
+                            <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-900/40 flex items-center justify-center text-pink-600 dark:text-pink-400">
                                 <i className="fas fa-camera text-base"></i>
                             </div>
                             <div>
-                                <h2 className="text-base font-bold text-slate-900 leading-tight">
+                                <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
                                     Scan Barcode
                                 </h2>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
                                     Align barcode within the target frame
                                 </p>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-1 rounded-full font-semibold">
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 px-2.5 py-1 rounded-full font-semibold">
                                 <i className="fas fa-circle-check text-[10px]"></i>
                                 {scannedCount} scanned
                             </span>
@@ -247,17 +247,17 @@ export default function BarcodeScanner({
                                 type="button"
                                 onClick={handleClose}
                                 aria-label="Close modal"
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500/20 cursor-pointer"
                             >
                                 <i className="fas fa-xmark text-lg"></i>
                             </button>
                         </div>
                     </div>
 
-                    <div className="relative bg-slate-950 rounded-xl overflow-hidden aspect-video shadow-inner flex items-center justify-center">
+                    <div className="relative bg-slate-950 rounded-xl overflow-hidden aspect-video shadow-inner flex items-center justify-center border border-slate-800">
                         {status === "error" ? (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-slate-900">
-                                <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-3">
+                                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mb-3">
                                     <i className="fas fa-triangle-exclamation text-xl"></i>
                                 </div>
                                 <p className="text-center text-xs font-medium text-slate-300 max-w-xs">
@@ -266,7 +266,7 @@ export default function BarcodeScanner({
                                 <button
                                     type="button"
                                     onClick={handleClose}
-                                    className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 rounded-lg text-white text-xs font-semibold transition-colors border border-slate-700"
+                                    className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 rounded-lg text-white text-xs font-semibold transition-colors border border-slate-700 cursor-pointer"
                                 >
                                     Close Window
                                 </button>
@@ -291,7 +291,7 @@ export default function BarcodeScanner({
 
                                 {(status === "processing" || status === "cooldown") && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40 backdrop-blur-xs pointer-events-none z-10">
-                                        <div className="text-white text-center bg-slate-900/80 backdrop-blur-md px-5 py-3.5 rounded-xl border border-white/10 shadow-lg">
+                                        <div className="text-white text-center bg-slate-900/90 dark:bg-slate-900 backdrop-blur-md px-5 py-3.5 rounded-xl border border-white/10 dark:border-slate-800 shadow-lg">
                                             <div className="flex items-center gap-3">
                                                 {status === "processing" ? (
                                                     <i className="fas fa-arrows-rotate fa-spin text-xl text-amber-400"></i>
@@ -300,7 +300,7 @@ export default function BarcodeScanner({
                                                 )}
                                                 <div className="text-left">
                                                     <p className="text-xs font-bold">
-                                                        {status === "processing" ? "Reading barcode..." : "Cooldconfigured..."}
+                                                        {status === "processing" ? "Reading barcode..." : "Cooldown..."}
                                                     </p>
                                                     {lastScanned && (
                                                         <p className="text-[11px] font-mono text-slate-300 mt-0.5">
@@ -314,7 +314,7 @@ export default function BarcodeScanner({
                                 )}
 
                                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                                    <div className="relative w-52 h-52 border-2 border-pink-500/40 rounded-xl bg-pink-500/5 shadow-[0_0_0_9999px_rgba(15,23,42,0.4)]">
+                                    <div className="relative w-52 h-52 border-2 border-pink-500/40 rounded-xl bg-pink-500/5 shadow-[0_0_0_9999px_rgba(15,23,42,0.5)]">
                                         <div className="absolute -top-0.5 -left-0.5 w-4 h-4 border-t-2 border-l-2 border-pink-500 rounded-tl"></div>
                                         <div className="absolute -top-0.5 -right-0.5 w-4 h-4 border-t-2 border-r-2 border-pink-500 rounded-tr"></div>
                                         <div className="absolute -bottom-0.5 -left-0.5 w-4 h-4 border-b-2 border-l-2 border-pink-500 rounded-bl"></div>
@@ -326,7 +326,7 @@ export default function BarcodeScanner({
                                     </div>
                                 </div>
 
-                                <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[11px] font-medium flex items-center gap-2 border border-white/10 z-10">
+                                <div className="absolute top-3 right-3 bg-slate-900/90 dark:bg-slate-900/80 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[11px] font-medium flex items-center gap-2 border border-white/10 dark:border-slate-800 z-10">
                                     <span
                                         className={`w-2 h-2 rounded-full ${status === "scanning"
                                             ? "bg-emerald-400 animate-pulse"
@@ -342,7 +342,7 @@ export default function BarcodeScanner({
                                     </span>
                                 </div>
 
-                                <div className="absolute bottom-2 inset-x-3 bg-slate-900/80 backdrop-blur-md text-white px-3.5 py-2 rounded-lg text-xs flex items-center justify-between border border-white/10 z-10">
+                                <div className="absolute bottom-2 inset-x-3 bg-slate-900/90 dark:bg-slate-900/80 backdrop-blur-md text-white px-3.5 py-2 rounded-lg text-xs flex items-center justify-between border border-white/10 dark:border-slate-800 z-10">
                                     <span className={`flex items-center gap-1.5 font-medium ${getStatusColor?.() || "text-slate-300"}`}>
                                         <i className={`fas ${getStatusIcon?.() || "fa-camera"}`}></i>
                                         {getStatusText?.() || "Position barcode inside frame"}
@@ -362,7 +362,7 @@ export default function BarcodeScanner({
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="w-full px-4 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 active:bg-pink-700 text-white font-semibold text-xs transition-all shadow-sm shadow-pink-600/20 active:scale-[0.99] flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-pink-500/30"
+                            className="w-full px-4 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 active:bg-pink-700 text-white font-semibold text-xs transition-all shadow-sm shadow-pink-600/20 active:scale-[0.99] flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-pink-500/30 cursor-pointer"
                         >
                             <i className="fas fa-check text-xs"></i>
                             <span>Done Scanning</span>

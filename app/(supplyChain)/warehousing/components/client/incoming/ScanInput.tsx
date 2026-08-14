@@ -165,11 +165,11 @@ export default function ScanInput({
 
     return (
         <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4 text-slate-900 dark:text-slate-100">
                 <div className="flex-1">
-                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800">
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                         <svg
-                            className="h-3.5 w-3.5 text-pink-500"
+                            className="h-3.5 w-3.5 text-pink-500 dark:text-pink-400"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -196,20 +196,20 @@ export default function ScanInput({
                             autoCorrect="off"
                             autoCapitalize="off"
                             placeholder={isListening ? 'Scanning...' : 'Type or scan barcode'}
-                            className={`h-11 w-full rounded-xl border bg-white pl-3.5 pr-28 font-mono text-sm text-slate-900 placeholder:text-slate-400 transition-all focus-visible:outline-none focus-visible:ring-2 ${isListening
-                                ? 'border-emerald-500 focus-visible:ring-emerald-500/20'
-                                : 'border-slate-300 focus-visible:border-pink-500 focus-visible:ring-pink-500/20'
-                                } ${isScanning ? 'cursor-not-allowed bg-slate-50 opacity-75' : ''}`}
+                            className={`h-11 w-full rounded-xl border bg-white dark:bg-slate-900 pl-3.5 pr-28 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all focus-visible:outline-none focus-visible:ring-2 ${isListening
+                                ? 'border-emerald-500 dark:border-emerald-600 focus-visible:ring-emerald-500/20'
+                                : 'border-slate-300 dark:border-slate-800 focus-visible:border-pink-500 focus-visible:ring-pink-500/20'
+                                } ${isScanning ? 'cursor-not-allowed bg-slate-50 dark:bg-slate-800/50 opacity-75' : ''}`}
                         />
 
                         <span
                             className={`absolute right-2.5 inline-flex select-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-mono font-semibold transition-colors ${isListening
-                                ? 'border-emerald-200/80 bg-emerald-50 text-emerald-700'
-                                : 'border-slate-200 bg-slate-100 text-slate-500'
+                                ? 'border-emerald-200/80 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                : 'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
                                 }`}
                         >
                             <span
-                                className={`h-1.5 w-1.5 rounded-full ${isListening ? 'animate-pulse bg-emerald-500' : 'bg-slate-400'
+                                className={`h-1.5 w-1.5 rounded-full ${isListening ? 'animate-pulse bg-emerald-500 dark:bg-emerald-400' : 'bg-slate-400 dark:bg-slate-500'
                                     }`}
                             />
                             {isListening ? (isScanning ? '...' : 'listening') : 'paused'}
@@ -217,9 +217,9 @@ export default function ScanInput({
                     </div>
 
                     {isListening && (
-                        <div className="mt-1.5 flex items-center gap-2 text-[11px] font-medium text-emerald-600 transition-all">
+                        <div className="mt-1.5 flex items-center gap-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 transition-all">
                             <span className="flex items-center gap-1.5">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                                 Scanner active and ready
                             </span>
                         </div>
@@ -230,30 +230,30 @@ export default function ScanInput({
                     <button
                         type="button"
                         onClick={handleStart}
-                        className={`group relative inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-xs font-bold text-white transition-all duration-75 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 sm:flex-initial ${isListening
-                            ? 'border-b-4 border-amber-700 bg-amber-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] hover:bg-amber-400 focus-visible:ring-amber-400/30'
-                            : 'border-b-4 border-emerald-800 bg-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] hover:bg-emerald-500 focus-visible:ring-emerald-500/30'
+                        className={`group relative inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-xs font-semibold text-white transition-all duration-75 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 sm:flex-initial cursor-pointer ${isListening
+                            ? 'bg-amber-600 hover:bg-amber-700 focus-visible:ring-amber-500/30'
+                            : 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500/30'
                             }`}
                     >
                         {isListening ? (
-                            <svg className="h-4 w-4 drop-shadow" fill="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                             </svg>
                         ) : (
-                            <svg className="h-4 w-4 drop-shadow" fill="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
                         )}
-                        <span className="tracking-wide drop-shadow-sm">{isListening ? 'Pause' : 'Start'}</span>
+                        <span className="tracking-wide">{isListening ? 'Pause' : 'Start'}</span>
                     </button>
 
                     <button
                         type="button"
                         onClick={() => setShowScanner(true)}
-                        className="group relative inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border-b-4 border-pink-800 bg-pink-600 px-5 text-xs font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-75 hover:bg-pink-500 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/30 sm:flex-initial"
+                        className="group relative inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-pink-600 hover:bg-pink-700 px-5 text-xs font-semibold text-white transition-all duration-75 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/30 sm:flex-initial cursor-pointer"
                     >
                         <svg
-                            className="h-4 w-4 text-pink-100 drop-shadow"
+                            className="h-4 w-4 text-pink-100"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -270,7 +270,7 @@ export default function ScanInput({
                                 d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
                             />
                         </svg>
-                        <span className="tracking-wide drop-shadow-sm">Camera</span>
+                        <span className="tracking-wide">Camera</span>
                     </button>
                 </div>
             </div>

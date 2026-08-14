@@ -251,19 +251,20 @@ export function IncomingTable({
     };
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition-all">
             {duplicateCount > 0 && (
-                <div className="px-4 py-3 bg-red-50 border-b border-red-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-red-700">
-                        <i className="fas fa-exclamation-triangle text-red-500"></i>
-                        <span className="font-medium">{duplicateCount} duplicate barcode(s) detected</span>
-                        <span className="text-xs text-red-500 font-normal">
+                <div className="px-4 py-3 bg-rose-50/80 dark:bg-rose-950/40 border-b border-rose-200/80 dark:border-rose-900/40 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-rose-700 dark:text-rose-300 font-medium">
+                        <i className="fas fa-exclamation-triangle text-rose-500 dark:text-rose-400 shrink-0"></i>
+                        <span>{duplicateCount} duplicate barcode(s) detected</span>
+                        <span className="text-[11px] text-rose-500/80 dark:text-rose-400/70 font-normal hidden sm:inline">
                             (Rows with duplicate barcodes are highlighted)
                         </span>
                     </div>
                     <button
+                        type="button"
                         onClick={scrollToFirstDuplicate}
-                        className="text-xs font-medium text-red-600 hover:text-red-700 hover:underline transition-colors"
+                        className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:underline transition-colors shrink-0 cursor-pointer"
                     >
                         <i className="fas fa-arrow-down mr-1"></i>
                         View duplicates
@@ -279,7 +280,7 @@ export function IncomingTable({
                 floating={false}
                 additionalInfo={
                     pendingSelectedCount > 0 && pendingSelectedCount < selectedIds.size && (
-                        <span className="text-pink-200 text-xs font-normal ml-1">
+                        <span className="text-pink-200 dark:text-pink-300 text-xs font-normal ml-1">
                             ({pendingSelectedCount} pending, {selectedIds.size - pendingSelectedCount} already received)
                         </span>
                     )
@@ -308,34 +309,34 @@ export function IncomingTable({
                 onClear={() => setSelectedIds(new Set())}
             />
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto bg-white dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800">
                 {/* Mobile Select All Bar - Visible only on mobile */}
-                <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-slate-50/80 border-b border-slate-200/60">
-                    <label className="flex items-center gap-2.5 cursor-pointer">
+                <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200/60 dark:border-slate-800">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
                         <input
                             type="checkbox"
                             checked={allSelected}
                             onChange={handleSelectAll}
-                            className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
                         />
-                        <span className="text-xs font-medium text-slate-700">
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                             Select All
                         </span>
-                        <span className="text-[10px] text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded-full font-semibold">
                             {initialParcels.length}
                         </span>
                     </label>
                     {selectedIds.size > 0 && (
-                        <span className="text-xs font-medium text-pink-600 bg-pink-50 px-2.5 py-1 rounded-full">
+                        <span className="text-xs font-medium text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/50 border border-pink-100 dark:border-pink-900/40 px-2.5 py-1 rounded-full">
                             {selectedIds.size} selected
                         </span>
                     )}
                 </div>
 
-                <table className="table-pro">
+                <table className="table-pro w-full border-collapse text-left">
                     <thead>
-                        <tr>
-                            <th className="text-center">
+                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
+                            <th className="text-center py-3.5 px-4 w-10">
                                 <input
                                     type="checkbox"
                                     checked={allSelected}
@@ -345,28 +346,33 @@ export function IncomingTable({
                                         }
                                     }}
                                     onChange={handleSelectAll}
-                                    className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500 focus:ring-2 cursor-pointer"
+                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-pink-500 focus:ring-pink-500 focus:ring-2 cursor-pointer accent-pink-500"
                                 />
                             </th>
-                            <th>#</th>
-                            <th>Barcode</th>
-                            <th>Tracking</th>
-                            <th>Sender</th>
-                            <th>Customer</th>
-                            <th>Customer Number</th>
-                            <th>Destination</th>
-                            <th>Region</th>
-                            <th>Courier</th>
-                            <th>Status</th>
-                            <th className="text-right">Action</th>
+                            <th className="py-3.5 px-3">#</th>
+                            <th className="py-3.5 px-4">Barcode</th>
+                            <th className="py-3.5 px-4">Tracking</th>
+                            <th className="py-3.5 px-4">Sender</th>
+                            <th className="py-3.5 px-4">Customer</th>
+                            <th className="py-3.5 px-4">Customer Number</th>
+                            <th className="py-3.5 px-4">Destination</th>
+                            <th className="py-3.5 px-4">Region</th>
+                            <th className="py-3.5 px-4">Courier</th>
+                            <th className="py-3.5 px-4">Status</th>
+                            <th className="py-3.5 px-4 text-right">Action</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs text-slate-700 dark:text-slate-300">
                         {initialParcels.length === 0 ? (
                             <tr>
-                                <td colSpan={12} className="p-6 text-center text-slate-500">
-                                    <i className="fas fa-box-open mr-2"></i>
-                                    No pending parcels in queue
+                                <td colSpan={12} className="p-16 text-center text-slate-400 dark:text-slate-500">
+                                    <div className="flex flex-col items-center justify-center space-y-2.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/50">
+                                            <i className="fas fa-box-open text-base"></i>
+                                        </div>
+                                        <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No pending parcels in queue</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs">All incoming parcels have been processed or the queue is currently clear.</p>
+                                    </div>
                                 </td>
                             </tr>
                         ) : (
@@ -386,14 +392,16 @@ export function IncomingTable({
             </div>
 
             {totalItems > 0 && (
-                <TablePagination
-                    page={page}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    pageSize={10}
-                    onPageChange={onPageChange}
-                    isLoading={isLoading}
-                />
+                <div className="border-t border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900">
+                    <TablePagination
+                        page={page}
+                        totalPages={totalPages}
+                        totalItems={totalItems}
+                        pageSize={10}
+                        onPageChange={onPageChange}
+                        isLoading={isLoading}
+                    />
+                </div>
             )}
         </div>
     );
