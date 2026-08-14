@@ -1,7 +1,7 @@
 
 import { Metadata } from 'next';
 import { Suspense } from 'react';
-import InventoryClient from './InventoryClient';
+import InventoryClient from './InventoryContentWrapper';
 import { PageSkeleton } from '../components/ui/SkeletonLoader';
 import { SessionGuard } from '../components/server/SessionGuard';
 

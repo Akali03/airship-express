@@ -3,7 +3,7 @@ import Cards from '../components/global/Cards';
 import { DownloadBtn } from "../components/global/Buttons";
 import AiQuestions from "../components/global/AiQuestions";
 import { SessionGuard } from '../components/server/SessionGuard';
-import ExecutiveCharts from '../components/client/ExecutiveCharts';
+import ExecutiveCharts from './components/ExecutiveCharts';
 
 export default function Home() {
   return (
