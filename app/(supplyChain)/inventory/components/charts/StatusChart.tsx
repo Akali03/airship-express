@@ -18,6 +18,31 @@ const STATUS_MAP: Record<string, string> = {
     'Out of Stock': 'out-of-stock',
 };
 
+// Using the same beautiful colors from the doughnut chart
+const COLORS = {
+    available: {
+        main: '#10B981', // Emerald
+        light: '#D1FAE5',
+        hover: '#059669',
+        text: '#065F46',
+    },
+    'low-stock': {
+        main: '#F59E0B', // Amber
+        light: '#FEF3C7',
+        hover: '#D97706',
+        text: '#92400E',
+    },
+    'out-of-stock': {
+        main: '#EF4444', // Red
+        light: '#FEE2E2',
+        hover: '#DC2626',
+        text: '#991B1B',
+    },
+};
+
+// The full palette from the doughnut chart for the chart colors
+const DOUGHNUT_COLORS = ['#EC4899', '#F472B6', '#F9A8D4', '#FBCFE8', '#8B5CF6', '#A78BFA', '#C4B5FD', '#6366F1', '#818CF8', '#A5B4FC'];
+
 export function StatusChart({ items, onStatusClick }: StatusChartProps) {
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
@@ -50,7 +75,24 @@ export function StatusChart({ items, onStatusClick }: StatusChartProps) {
 
         const labels = Object.keys(statusData);
         const values = Object.values(statusData);
-        const colors = ['#34D399', '#FBBF24', '#F87171']; // Refined Emerald, Amber, Red
+
+        // Use the pink/purple/indigo palette for the chart
+        const colors = DOUGHNUT_COLORS.slice(0, labels.length);
+
+        // Hover colors - slightly darker versions
+        const hoverColors = colors.map(color => {
+            if (color === '#EC4899') return '#BE185D';
+            if (color === '#F472B6') return '#DB2777';
+            if (color === '#F9A8D4') return '#F472B6';
+            if (color === '#FBCFE8') return '#F9A8D4';
+            if (color === '#8B5CF6') return '#7C3AED';
+            if (color === '#A78BFA') return '#8B5CF6';
+            if (color === '#C4B5FD') return '#A78BFA';
+            if (color === '#6366F1') return '#4F46E5';
+            if (color === '#818CF8') return '#6366F1';
+            if (color === '#A5B4FC') return '#818CF8';
+            return color;
+        });
 
         const ctx = chartRef.current.getContext('2d');
         if (!ctx) return;
@@ -63,26 +105,27 @@ export function StatusChart({ items, onStatusClick }: StatusChartProps) {
                     {
                         data: values,
                         backgroundColor: colors,
-                        borderWidth: 2,
                         borderColor: '#ffffff',
-                        hoverOffset: 6,
+                        borderWidth: 3,
+                        hoverOffset: 10,
+                        hoverBackgroundColor: hoverColors,
                     },
                 ],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '70%',
+                cutout: '65%',
                 plugins: {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            boxWidth: 8,
-                            boxHeight: 8,
+                            boxWidth: 10,
+                            boxHeight: 10,
                             usePointStyle: true,
-                            padding: 12,
-                            font: { size: 11, family: 'inherit' },
-                            color: '#64748B', // slate-500
+                            padding: 14,
+                            font: { size: 11, family: 'inherit', weight: 500 },
+                            color: '#64748B',
                         },
                     },
                     tooltip: {
@@ -92,9 +135,10 @@ export function StatusChart({ items, onStatusClick }: StatusChartProps) {
                         borderColor: '#E2E8F0',
                         borderWidth: 1,
                         cornerRadius: 10,
-                        padding: 12,
-                        boxPadding: 4,
+                        padding: 14,
+                        boxPadding: 6,
                         usePointStyle: true,
+                        titleFont: { weight: 600 },
                         callbacks: {
                             label: function (context) {
                                 const label = context.label || '';
@@ -142,7 +186,7 @@ export function StatusChart({ items, onStatusClick }: StatusChartProps) {
                 type="button"
                 className="absolute top-1 right-1 z-10 p-1.5 rounded-lg 
                            text-slate-400 dark:text-slate-500 
-                           hover:text-indigo-600 dark:hover:text-indigo-400 
+                           hover:text-pink-600 dark:hover:text-pink-400 
                            hover:bg-slate-100 dark:hover:bg-slate-800/50 
                            transition-colors"
                 onClick={() => setShowInfo(!showInfo)}
@@ -170,15 +214,15 @@ export function StatusChart({ items, onStatusClick }: StatusChartProps) {
             {showInfo && (
                 <div
                     className="absolute top-4 right-1 z-20 
-                               bg-white dark:bg-ink rounded-xl shadow-xl 
-                               border border-slate-200/80 dark:border-ink/20 
+                               bg-white dark:bg-[#2a2a2e] rounded-xl shadow-xl 
+                               border border-slate-200/80 dark:border-slate-700/60 
                                p-4 w-64 animate-in fade-in zoom-in-95 duration-150"
                     onClick={() => setShowInfo(false)}
                 >
                     <div className="flex items-center justify-between mb-2 pb-2 
-                                    border-b border-slate-100 dark:border-ink/20">
+                                    border-b border-slate-100 dark:border-slate-700/60">
                         <h4 className="font-semibold text-slate-900 dark:text-white text-xs flex items-center gap-2">
-                            <i className="fas fa-chart-pie text-indigo-500 dark:text-indigo-400" />
+                            <i className="fas fa-chart-pie text-pink-500 dark:text-pink-400" />
                             Status Breakdown
                         </h4>
                         <button
@@ -186,7 +230,7 @@ export function StatusChart({ items, onStatusClick }: StatusChartProps) {
                             onClick={() => setShowInfo(false)}
                             className="text-slate-400 dark:text-slate-500 
                                      hover:text-slate-600 dark:hover:text-slate-300 
-                                     p-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/50 
+                                     p-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700/50 
                                      transition-colors"
                         >
                             <i className="fas fa-times text-xs" />
@@ -197,33 +241,41 @@ export function StatusChart({ items, onStatusClick }: StatusChartProps) {
                         Displays item stock distribution. Hover over segments to see percentages, or click any segment to filter the list.
                     </p>
 
-                    <div className="grid grid-cols-1 gap-1.5 pt-1 border-t border-slate-100 dark:border-ink/20">
+                    <div className="grid grid-cols-1 gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-700/60">
                         <div className="flex items-center justify-between text-[11px]">
                             <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
                                 Available
                             </span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            <span className="font-semibold text-slate-800 dark:text-white">
                                 {items.filter((i) => i.status === 'available').length}
                             </span>
                         </div>
                         <div className="flex items-center justify-between text-[11px]">
                             <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                                <span className="w-2 h-2 rounded-full bg-amber-500" />
                                 Low Stock
                             </span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            <span className="font-semibold text-slate-800 dark:text-white">
                                 {items.filter((i) => i.status === 'low-stock').length}
                             </span>
                         </div>
                         <div className="flex items-center justify-between text-[11px]">
                             <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                                <span className="w-2 h-2 rounded-full bg-rose-400" />
+                                <span className="w-2 h-2 rounded-full bg-rose-500" />
                                 Out of Stock
                             </span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            <span className="font-semibold text-slate-800 dark:text-white">
                                 {items.filter((i) => i.status === 'out-of-stock').length}
                             </span>
+                        </div>
+                    </div>
+
+                    {/* Legend with counts */}
+                    <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500">
+                            <span>Total Items</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{items.length}</span>
                         </div>
                     </div>
                 </div>

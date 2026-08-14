@@ -20,7 +20,25 @@ type CategoryStats = {
     totalValue: number;
 };
 
-const COLORS = ['#6366F1', '#EC4899', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#14B8A6'];
+// Updated colors matching the doughnut chart
+const COLORS = [
+    '#EC4899', // Pink
+    '#F472B6', // Light Pink
+    '#F9A8D4', // Lighter Pink
+    '#FBCFE8', // Lightest Pink
+    '#8B5CF6', // Purple
+    '#A78BFA', // Light Purple
+    '#C4B5FD', // Lighter Purple
+    '#6366F1', // Indigo
+    '#818CF8', // Light Indigo
+    '#A5B4FC', // Lighter Indigo
+    '#3B82F6', // Blue
+    '#60A5FA', // Light Blue
+    '#10B981', // Emerald
+    '#34D399', // Light Emerald
+    '#F59E0B', // Amber
+    '#FBBF24', // Light Amber
+];
 
 function buildCategoryData(items: InventoryItem[]): Record<string, CategoryStats> {
     const data: Record<string, CategoryStats> = {};
@@ -196,7 +214,7 @@ export function CategoryChart({ items, onCategoryClick }: CategoryChartProps) {
                 type="button"
                 className="absolute top-1 right-1 z-10 p-1.5 rounded-lg 
                            text-slate-400 dark:text-slate-500 
-                           hover:text-indigo-600 dark:hover:text-indigo-400 
+                           hover:text-pink-600 dark:hover:text-pink-400 
                            hover:bg-slate-100 dark:hover:bg-slate-800/50 
                            transition-colors"
                 onClick={() => setShowInfo(!showInfo)}
@@ -232,7 +250,7 @@ export function CategoryChart({ items, onCategoryClick }: CategoryChartProps) {
                     <div className="flex items-center justify-between mb-2 pb-2 
                                     border-b border-slate-100 dark:border-ink/20">
                         <h4 className="font-semibold text-slate-900 dark:text-white text-xs flex items-center gap-2">
-                            <i className="fas fa-chart-bar text-indigo-500 dark:text-indigo-400" />
+                            <i className="fas fa-chart-bar text-pink-500 dark:text-pink-400" />
                             Category Breakdown
                         </h4>
                         <button
@@ -250,8 +268,8 @@ export function CategoryChart({ items, onCategoryClick }: CategoryChartProps) {
                     <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
                         <p className="leading-relaxed">
                             Shows inventory distribution across categories.
-                            <span className="font-medium text-indigo-600 dark:text-indigo-400 ml-1">Hover</span> bars for full stats,
-                            <span className="font-medium text-indigo-600 dark:text-indigo-400 ml-1">click</span> to filter items.
+                            <span className="font-medium text-pink-600 dark:text-pink-400 ml-1">Hover</span> bars for full stats,
+                            <span className="font-medium text-pink-600 dark:text-pink-400 ml-1">click</span> to filter items.
                         </p>
 
                         <div className="flex items-center gap-3 pt-2 border-t border-slate-100 dark:border-ink/20 text-[11px]">
@@ -384,14 +402,14 @@ function CategoryTooltipContent({
             {/* Header */}
             <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-100">
                 <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-50 border border-indigo-100 dark:border-indigo-100 flex items-center justify-center text-indigo-600 dark:text-indigo-600 shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-pink-50 dark:bg-pink-50 border border-pink-100 dark:border-pink-100 flex items-center justify-center text-pink-600 dark:text-pink-600 shrink-0">
                         <i className="fas fa-boxes-stacked text-xs" />
                     </div>
                     <h4 className="font-bold text-slate-900 dark:text-slate-900 text-sm truncate" title={category}>
                         {category}
                     </h4>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-50 text-indigo-700 dark:text-indigo-700 text-[11px] font-bold border border-indigo-100 dark:border-indigo-100 shrink-0">
+                <span className="px-2 py-0.5 rounded-full bg-pink-50 dark:bg-pink-50 text-pink-700 dark:text-pink-700 text-[11px] font-bold border border-pink-100 dark:border-pink-100 shrink-0">
                     {percentage}%
                 </span>
             </div>
@@ -437,12 +455,12 @@ function CategoryTooltipContent({
 
             {/* Total Value */}
             {data.totalValue > 0 && (
-                <div className="bg-indigo-50/40 dark:bg-indigo-50/40 border border-indigo-100/80 dark:border-indigo-100/80 rounded-xl p-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-600 text-[11px] font-medium">
+                <div className="bg-pink-50/40 dark:bg-pink-50/40 border border-pink-100/80 dark:border-pink-100/80 rounded-xl p-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-pink-600 dark:text-pink-600 text-[11px] font-medium">
                         <i className="fas fa-coins text-xs" />
                         <span>Total Value</span>
                     </div>
-                    <div className="font-bold text-indigo-900 dark:text-indigo-900 text-xs">
+                    <div className="font-bold text-pink-900 dark:text-pink-900 text-xs">
                         ₱{data.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                 </div>
@@ -489,7 +507,7 @@ function CategoryTooltipContent({
 
             {/* Footer */}
             <div className="text-[10px] text-slate-400 dark:text-slate-400 text-center pt-1 border-t border-slate-100 dark:border-slate-100 font-medium">
-                Click bar to filter by <span className="text-indigo-600 dark:text-indigo-600 font-semibold">{category}</span>
+                Click bar to filter by <span className="text-pink-600 dark:text-pink-600 font-semibold">{category}</span>
             </div>
         </div>
     );
