@@ -87,6 +87,35 @@ function NotFoundPage() {
     );
 }
 
+const checkDeviceBlocked = async (userId: string, userAgent: string, sessionToken: string): Promise<{ blocked: boolean; reason?: string; device_name?: string }> => {
+    try {
+        const response = await fetch('/api/supplyChain/check-blocked-device', {
+            method: 'GET',
+            headers: {
+                'user-id': userId,
+                'user-agent': userAgent,
+                'x-session-token': sessionToken,
+            },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error('API error checking blocked device:', data.error);
+            return { blocked: false };
+        }
+
+        return {
+            blocked: data.blocked || false,
+            reason: data.reason,
+            device_name: data.device_name,
+        };
+    } catch (error) {
+        console.error('Error checking blocked device:', error);
+        return { blocked: false };
+    }
+};
+
 export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
     const router = useRouter();
     const pathname = usePathname();
@@ -146,23 +175,6 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
             });
         } catch (error) {
             console.error('Deactivate session error:', error);
-        }
-    }, []);
-
-    const checkDeviceBlocked = useCallback(async (userId: string, userAgent: string) => {
-        try {
-            const { data, error } = await supabase
-                .from('blocked_devices')
-                .select('id, device_name, reason, status')
-                .eq('user_id', userId)
-                .eq('user_agent', userAgent)
-                .eq('status', 'blocked')
-                .maybeSingle();
-
-            if (error) return null;
-            return data;
-        } catch (error) {
-            return null;
         }
     }, []);
 
@@ -367,9 +379,9 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                 const userId = data.user?.id || localStorage.getItem('user_id');
 
                 if (userId && !isBlockedRef.current && !isLoggingOutRef.current) {
-                    const blockedDevice = await checkDeviceBlocked(userId, userAgent);
-                    if (blockedDevice) {
-                        await handleDeviceBlocked(userId, userAgent, blockedDevice.reason);
+                    const blockedResult = await checkDeviceBlocked(userId, userAgent, sessionToken);
+                    if (blockedResult.blocked) {
+                        await handleDeviceBlocked(userId, userAgent, blockedResult.reason);
                         return;
                     }
                 }
@@ -393,6 +405,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                 setGuardState('authorized');
 
             } catch (error) {
+                console.error('Session check error:', error);
                 await handleInvalidSession('Session verification failed.');
             } finally {
                 isCheckingRef.current = false;
@@ -400,7 +413,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
         };
 
         checkSession();
-    }, [router, requiredRole, pathname, hasValidLocalStorage, shouldSkipCheck, handleInvalidSession, clearSessionData, getSessionToken, checkDeviceBlocked, handleDeviceBlocked]);
+    }, [router, requiredRole, pathname, hasValidLocalStorage, shouldSkipCheck, handleInvalidSession, clearSessionData, getSessionToken, handleDeviceBlocked]);
 
     useEffect(() => {
         hasShownSessionClearedToastRef.current = false;

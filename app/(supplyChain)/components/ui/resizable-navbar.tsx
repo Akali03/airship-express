@@ -283,6 +283,7 @@ export const NavbarLogo = () => {
           alt="Airship"
           width={36}
           height={36}
+          priority
           className="h-7 w-auto object-contain"
         />
       </div>
