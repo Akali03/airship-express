@@ -104,6 +104,7 @@ interface BlockedDevice {
     ip_address: string;
     blocked_at: string;
     blocked_by: string;
+    email: string;
     reason: string;
     status: 'blocked' | 'unblocked';
     unblocked_at: string | null;
@@ -142,7 +143,7 @@ interface UserActivity {
     };
 }
 
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 50;
 
 export default function UserActivityPage() {
     const router = useRouter();
@@ -248,21 +249,15 @@ export default function UserActivityPage() {
 
     const fetchSessions = async () => {
         try {
-            const { data: blockedData, error: blockedError } = await supabase
-                .from('blocked_devices')
-                .select('id, user_agent, ip_address, status')
-                .eq('status', 'blocked');
-
-            if (blockedError) throw blockedError;
-
-            const blockedSet = new Set();
-            (blockedData || []).forEach(d => {
-                blockedSet.add(`${d.user_agent}_${d.ip_address || 'unknown'}`);
-            });
-
-            const { data: sessionsData, error: sessionsError } = await supabase
-                .from('sessions')
-                .select(`
+            // Fetch blocked devices and sessions in parallel
+            const [blockedResult, sessionsResult] = await Promise.all([
+                supabase
+                    .from('blocked_devices')
+                    .select('id, user_agent, ip_address, email, status')
+                    .eq('status', 'blocked'),
+                supabase
+                    .from('sessions')
+                    .select(`
                     *,
                     users!inner(
                         display_name,
@@ -270,20 +265,31 @@ export default function UserActivityPage() {
                         role
                     )
                 `)
-                .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+            ]);
 
-            if (sessionsError) throw sessionsError;
+            if (blockedResult.error) throw blockedResult.error;
+            if (sessionsResult.error) throw sessionsResult.error;
 
-            const sessionsWithBlockStatus = (sessionsData || []).map(session => {
-                const key = `${session.user_agent}_${session.ip_address || 'unknown'}`;
-                const isBlocked = blockedSet.has(key);
-                const blockedDevice = (blockedData || []).find(d =>
-                    `${d.user_agent}_${d.ip_address || 'unknown'}` === key
-                );
+            const blockedData = blockedResult.data || [];
+            const sessionsData = sessionsResult.data || [];
+
+            // Create a Map for O(1) lookups instead of Set + find
+            const blockedMap = new Map();
+            blockedData.forEach(d => {
+                const key = `${d.user_agent}_${d.ip_address || 'unknown'}_${d.email || ''}`;
+                blockedMap.set(key, d.id);
+            });
+
+            const sessionsWithBlockStatus = sessionsData.map(session => {
+                const sessionEmail = session.email || session.users?.email || '';
+                const key = `${session.user_agent}_${session.ip_address || 'unknown'}_${sessionEmail}`;
+                const blockedDeviceId = blockedMap.get(key);
+
                 return {
                     ...session,
-                    is_blocked: isBlocked,
-                    blocked_device_id: isBlocked ? blockedDevice?.id : undefined
+                    is_blocked: !!blockedDeviceId,
+                    blocked_device_id: blockedDeviceId || undefined
                 };
             });
 
@@ -312,7 +318,8 @@ export default function UserActivityPage() {
                         .from('blocked_devices')
                         .select('*', { count: 'exact', head: true })
                         .eq('user_agent', device.user_agent)
-                        .eq('ip_address', device.ip_address || '');
+                        .eq('ip_address', device.ip_address || '')
+                        .eq('email', device.email || '');  // ← Include email for accurate counting
 
                     return {
                         ...device,
@@ -428,7 +435,7 @@ export default function UserActivityPage() {
         }
     };
 
-    const handleBlockDevice = async (sessionId: string, userAgent: string, ipAddress?: string, userName?: string) => {
+    const handleBlockDevice = async (sessionId: string, userAgent: string, ipAddress?: string, userName?: string, email?: string) => {
         const session = sessions.find(s => s.id === sessionId);
         if (session?.user_id) {
             const isAdmin = await isTargetUserAdmin(session.user_id);
@@ -440,7 +447,7 @@ export default function UserActivityPage() {
 
         const confirmed = await confirm({
             title: 'Block Device',
-            message: `Are you sure you want to block this device?\n\nDevice: ${userName || 'Unknown'}\nIP: ${ipAddress || 'Unknown'}`,
+            message: `Are you sure you want to block this device?\n\nDevice: ${userName || 'Unknown'}\nIP: ${ipAddress || 'Unknown'}\nEmail: ${email || 'Unknown'}`,
             confirmText: 'Block Device',
             cancelText: 'Cancel',
             confirmVariant: 'danger',
@@ -450,43 +457,43 @@ export default function UserActivityPage() {
 
         try {
             const userId = session?.user_id || currentUserId || '00000000-0000-0000-0000-000000000000';
+            const userEmail = email || session?.email || session?.users?.email || '';
 
-            const { data: existingBlocked } = await supabase
+            // Check both blocked and unblocked in a single query
+            const { data: existingDevice, error: checkError } = await supabase
                 .from('blocked_devices')
                 .select('id, status')
                 .eq('user_agent', userAgent)
                 .eq('ip_address', ipAddress || '')
-                .eq('status', 'blocked')
+                .eq('email', userEmail)
                 .maybeSingle();
 
-            if (existingBlocked) {
-                toast.warning('This device is already blocked');
-                await fetchSessions();
-                return;
-            }
+            if (checkError) throw checkError;
 
-            const { data: existingUnblocked } = await supabase
-                .from('blocked_devices')
-                .select('id')
-                .eq('user_agent', userAgent)
-                .eq('ip_address', ipAddress || '')
-                .eq('status', 'unblocked')
-                .maybeSingle();
+            if (existingDevice) {
+                if (existingDevice.status === 'blocked') {
+                    toast.warning('This device is already blocked');
+                    await fetchSessions();
+                    return;
+                } else if (existingDevice.status === 'unblocked') {
+                    // Update to blocked
+                    const { error: updateError } = await supabase
+                        .from('blocked_devices')
+                        .update({
+                            status: 'blocked',
+                            blocked_at: new Date().toISOString(),
+                            blocked_by: userId,
+                            reason: 'Blocked by admin',
+                            updated_at: new Date().toISOString(),
+                            unblocked_at: null,
+                        })
+                        .eq('id', existingDevice.id);
 
-            if (existingUnblocked) {
-                await supabase
-                    .from('blocked_devices')
-                    .update({
-                        status: 'blocked',
-                        blocked_at: new Date().toISOString(),
-                        blocked_by: userId,
-                        reason: 'Blocked by admin',
-                        updated_at: new Date().toISOString(),
-                        unblocked_at: null,
-                    })
-                    .eq('id', existingUnblocked.id);
+                    if (updateError) throw updateError;
+                }
             } else {
-                await supabase
+                // Insert new
+                const { error: insertError } = await supabase
                     .from('blocked_devices')
                     .insert({
                         user_id: userId,
@@ -494,12 +501,15 @@ export default function UserActivityPage() {
                         user_agent: userAgent,
                         ip_address: ipAddress || 'Unknown',
                         status: 'blocked',
+                        email: userEmail,
                         reason: 'Blocked by admin',
                         blocked_at: new Date().toISOString(),
                         blocked_by: userId,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                     });
+
+                if (insertError) throw insertError;
             }
 
             toast.success('Device blocked successfully');
@@ -510,7 +520,7 @@ export default function UserActivityPage() {
         }
     };
 
-    const handleUnblockDevice = async (deviceId: string) => {
+    const handleUnblockDevice = async (deviceId: string, email: string) => {
         const confirmed = await confirm({
             title: 'Unblock Device',
             message: 'Are you sure you want to unblock this device?',
@@ -529,7 +539,8 @@ export default function UserActivityPage() {
                     unblocked_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                 })
-                .eq('id', deviceId);
+                .eq('id', deviceId)
+                .eq('email', email);
 
             toast.success('Device unblocked successfully');
             await fetchAllData();
@@ -698,19 +709,17 @@ export default function UserActivityPage() {
             return;
         }
 
-        let hasAdmin = false;
-        for (const sessionId of selectedSessions) {
+        // Check for admin users first (optimization: check all at once)
+        const adminCheckPromises = Array.from(selectedSessions).map(async (sessionId) => {
             const session = sessions.find(s => s.id === sessionId);
             if (session?.user_id) {
-                const isAdmin = await isTargetUserAdmin(session.user_id);
-                if (isAdmin) {
-                    hasAdmin = true;
-                    break;
-                }
+                return await isTargetUserAdmin(session.user_id);
             }
-        }
+            return false;
+        });
 
-        if (hasAdmin) {
+        const adminResults = await Promise.all(adminCheckPromises);
+        if (adminResults.some(isAdmin => isAdmin)) {
             toast.warning('Cannot block admin users');
             return;
         }
@@ -727,41 +736,96 @@ export default function UserActivityPage() {
 
         try {
             let blockedCount = 0;
+            let skippedCount = 0;
 
-            for (const sessionId of selectedSessions) {
-                const session = sessions.find(s => s.id === sessionId);
-                if (session) {
+            // Process sessions in batches to avoid overwhelming the database
+            const sessionIds = Array.from(selectedSessions);
+            const batchSize = 5;
+
+            for (let i = 0; i < sessionIds.length; i += batchSize) {
+                const batch = sessionIds.slice(i, i + batchSize);
+
+                await Promise.all(batch.map(async (sessionId) => {
+                    const session = sessions.find(s => s.id === sessionId);
+                    if (!session) return;
+
+                    const sessionEmail = session.email || session.users?.email || '';
+
+                    // First, check if already blocked for this specific user
                     const { data: existingBlocked } = await supabase
                         .from('blocked_devices')
-                        .select('id, status')
+                        .select('id')
                         .eq('user_agent', session.user_agent)
                         .eq('ip_address', session.ip_address || '')
+                        .eq('email', sessionEmail)
                         .eq('status', 'blocked')
                         .maybeSingle();
 
-                    if (existingBlocked) continue;
+                    if (existingBlocked) {
+                        skippedCount++;
+                        return;
+                    }
 
-                    await supabase
+                    // Check for unblocked record
+                    const { data: existingUnblocked } = await supabase
                         .from('blocked_devices')
-                        .insert({
-                            user_id: session.user_id || currentUserId || '00000000-0000-0000-0000-000000000000',
-                            device_name: session.users?.display_name || 'Unknown Device',
-                            user_agent: session.user_agent,
-                            ip_address: session.ip_address || 'Unknown',
-                            status: 'blocked',
-                            reason: 'Blocked by admin (bulk action)',
-                            blocked_at: new Date().toISOString(),
-                            blocked_by: currentUserId || '00000000-0000-0000-0000-000000000000',
-                            created_at: new Date().toISOString(),
-                            updated_at: new Date().toISOString(),
-                        });
+                        .select('id')
+                        .eq('user_agent', session.user_agent)
+                        .eq('ip_address', session.ip_address || '')
+                        .eq('email', sessionEmail)
+                        .eq('status', 'unblocked')
+                        .maybeSingle();
 
-                    blockedCount++;
-                }
+                    const userId = session.user_id || currentUserId || '00000000-0000-0000-0000-000000000000';
+                    const deviceName = session.users?.display_name || session.hr_employee_name || 'Unknown Device';
+
+                    if (existingUnblocked) {
+                        // Update existing unblocked record
+                        const { error: updateError } = await supabase
+                            .from('blocked_devices')
+                            .update({
+                                status: 'blocked',
+                                blocked_at: new Date().toISOString(),
+                                blocked_by: userId,
+                                reason: 'Blocked by admin (bulk action)',
+                                updated_at: new Date().toISOString(),
+                                unblocked_at: null,
+                            })
+                            .eq('id', existingUnblocked.id);
+
+                        if (!updateError) blockedCount++;
+                    } else {
+                        // Insert new blocked device
+                        const { error: insertError } = await supabase
+                            .from('blocked_devices')
+                            .insert({
+                                user_id: userId,
+                                device_name: deviceName,
+                                user_agent: session.user_agent,
+                                ip_address: session.ip_address || 'Unknown',
+                                status: 'blocked',
+                                email: sessionEmail,
+                                reason: 'Blocked by admin (bulk action)',
+                                blocked_at: new Date().toISOString(),
+                                blocked_by: userId,
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString(),
+                            });
+
+                        if (!insertError) blockedCount++;
+                    }
+                }));
             }
 
+            // Show results
             if (blockedCount > 0) {
                 toast.success(`Blocked ${blockedCount} device(s)`);
+            }
+            if (skippedCount > 0) {
+                toast.info(`${skippedCount} device(s) were already blocked`);
+            }
+            if (blockedCount === 0 && skippedCount === 0) {
+                toast.warning('No devices were blocked');
             }
 
             setSelectedSessions(new Set());
@@ -1280,7 +1344,9 @@ export default function UserActivityPage() {
                                                     <td className="py-3 px-4 text-right">
                                                         <div className="flex items-center justify-end gap-1.5">
                                                             {isBlocked ? (
-                                                                <span className="text-xs text-slate-400 italic">Blocked</span>
+                                                                <span className="text-xs text-slate-400 italic" title={`Blocked for ${session.email || session.users?.email}`}>
+                                                                    Blocked
+                                                                </span>
                                                             ) : (
                                                                 <button
                                                                     onClick={() =>
@@ -1288,7 +1354,8 @@ export default function UserActivityPage() {
                                                                             session.id,
                                                                             session.user_agent,
                                                                             session.ip_address,
-                                                                            userName
+                                                                            userName,
+                                                                            session.email
                                                                         )
                                                                     }
                                                                     disabled={isAdmin}
@@ -1447,7 +1514,7 @@ export default function UserActivityPage() {
                                                         <div className="flex items-center justify-end gap-1.5">
                                                             {device.status === 'blocked' && (
                                                                 <button
-                                                                    onClick={() => handleUnblockDevice(device.id)}
+                                                                    onClick={() => handleUnblockDevice(device.id, device.email)}
                                                                     className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5"
                                                                 >
                                                                     <Undo className="w-3 h-3" />

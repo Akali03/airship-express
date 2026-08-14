@@ -1,4 +1,3 @@
-// app/(supplyChain)/layout.tsx
 'use client';
 
 import "./supplyChain.css";
@@ -6,9 +5,11 @@ import AceternityNavbar, { ShadUiNav } from "./components/global/Navbar";
 import { AIProvider, useAI } from "./ai/services/AIContext";
 import AIChatbot from "./ai/services/AIChatbot";
 import { SessionGuard } from "./components/server/SessionGuard";
+import { OfflineDetector } from "./components/global/OfflineDetector";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { Toaster } from "sonner";
 
 function AIChatbotWrapper() {
   const { isOpen, closeChat } = useAI();
@@ -43,29 +44,35 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="font-rethink bg-[#FCFBF9] dark:bg-ink">
-      <AnimatePresence mode="wait">
-        {!isAIOpen && (
-          <motion.div
-            initial={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            transition={{
-              duration: 0.3,
-              ease: "easeInOut"
-            }}
-          >
-            <AceternityNavbar />
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <OfflineDetector
+      autoReconnect={true}
+      reconnectInterval={30000}
+      blurAmount={4}
+    >
+      <div className="font-rethink bg-[#FCFBF9] dark:bg-ink">
+        <AnimatePresence mode="wait">
+          {!isAIOpen && (
+            <motion.div
+              initial={{ y: 0, opacity: 1 }}
+              exit={{ y: -100, opacity: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: "easeInOut"
+              }}
+            >
+              <AceternityNavbar />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <main className="main-shell mt-18">
-        {children}
-      </main>
+        <main className="main-shell mt-18">
+          {children}
+        </main>
 
-      <ShadUiNav />
-      <AIChatbotWrapper />
-    </div>
+        <ShadUiNav />
+        <AIChatbotWrapper />
+      </div>
+    </OfflineDetector>
   );
 }
 

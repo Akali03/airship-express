@@ -94,9 +94,6 @@ export async function GET(request: Request) {
         const role = searchParams.get('role');
         const loggedInEmail = searchParams.get('email');
 
-        console.log('📝 employees API called');
-        console.log('📝 Role:', role);
-        console.log('📝 Logged in email:', loggedInEmail);
 
         if (!role) {
             return NextResponse.json(
@@ -113,7 +110,6 @@ export async function GET(request: Request) {
         // Check if the logged-in user has a remembered session
         if (loggedInEmail) {
             try {
-                console.log('🔍 Checking session for email:', loggedInEmail);
                 const { data: sessions, error } = await supabase
                     .from('sessions')
                     .select('email, remember_me, expires_at, is_active')
@@ -124,19 +120,15 @@ export async function GET(request: Request) {
                     // Check if active
                     if (sessions.is_active && new Date(sessions.expires_at) > new Date()) {
                         activeEmails = [sessions.email];
-                        console.log('✅ Found active session for:', sessions.email);
                     }
 
                     // Check if remembered
                     if (sessions.remember_me && new Date(sessions.expires_at) > new Date()) {
                         rememberedEmails = [sessions.email];
-                        console.log('✅ Found remembered email:', sessions.email);
                     }
                 } else {
-                    console.log('⚠️ No session found for:', loggedInEmail);
                 }
             } catch (error) {
-                console.error('Error checking session:', error);
             }
         }
 
@@ -146,15 +138,8 @@ export async function GET(request: Request) {
             is_active: activeEmails.includes(emp.email) // 🔥 Add is_active flag
         }));
 
-        console.log('📤 Returning employees:', employeesWithStatus.map(e => ({
-            name: e.display_name,
-            remembered: e.remembered,
-            is_active: e.is_active
-        })));
-
         return NextResponse.json(employeesWithStatus);
     } catch (error) {
-        console.error('Error fetching employees from HR:', error);
         return NextResponse.json(
             { message: 'Failed to fetch employees from HR system' },
             { status: 500 }

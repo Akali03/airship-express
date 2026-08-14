@@ -140,8 +140,12 @@ div {
     @apply text-left py-3.5 px-4;
   }
 
-  .table-pro thead tr{
+  .table-pro thead tr {
     @apply border-b border-slate-200/60 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase select-none;
+  }
+
+  .table-pro tbody {
+    padding: 10px;
   }
 
   .table-pro tbody td {
@@ -149,15 +153,46 @@ div {
   }
 
   .table-pro tbody tr {
-    @apply transition-colors duration-150;
+    @apply transition-all duration-200;
   }
 
+  /* Light mode hover */
   .table-pro tbody tr:hover {
-    @apply bg-slate-50/80;
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    transform: translateY(-1px);
   }
 
   .table-pro tbody tr:last-child td {
     @apply border-b-0;
+  }
+
+  /* Dark mode table row styles */
+  .dark .table-pro tbody tr {
+    background: #2d2d32 !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+    transition: all 0.2s ease !important;
+  }
+
+  /* Dark mode hover */
+  .dark .table-pro tbody tr:hover {
+    background: #3a3a40 !important;
+    border-color: rgba(236, 72, 153, 0.2) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    transform: translateY(-1px);
+  }
+
+  /* Dark mode selected/highlighted row */
+  .dark .table-pro tbody tr.bg-pink-50\/30 {
+    background: rgba(236, 72, 153, 0.15) !important;
+    border-color: rgba(236, 72, 153, 0.3) !important;
+  }
+
+  .dark .table-pro tbody tr.bg-pink-50\/30:hover {
+    background: rgba(236, 72, 153, 0.22) !important;
+    border-color: rgba(236, 72, 153, 0.4) !important;
   }
 
   @media (max-width: 768px) {
@@ -167,34 +202,99 @@ div {
       box-sizing: border-box;
     }
 
+    .table-pro tbody {
+      padding: 8px;
+    }
+
     .table-pro thead {
       display: none;
     }
 
     .table-pro tbody tr {
-      @apply block w-full p-3.5 mb-3 rounded-2xl bg-white border border-slate-200/80 shadow-xs transition-all duration-200 active:scale-[0.99] active:bg-slate-50/50;
+      @apply block w-full p-4 mb-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-md transition-all duration-200 active:scale-[0.99];
       box-sizing: border-box;
+      background: #ffffff !important;
+      border-color: #e2e8f0 !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+      padding: 16px !important;
+      margin-bottom: 12px !important;
+      border-radius: 16px !important;
+      transition: all 0.2s ease !important;
+    }
+
+    /* Light mode mobile hover */
+    .table-pro tbody tr:hover {
+      background: #f1f5f9 !important;
+      border-color: #94a3b8 !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    /* Active/tap state for mobile */
+    .table-pro tbody tr:active {
+      transform: scale(0.98) !important;
+    }
+
+    /* Dark mode mobile card styles */
+    .dark .table-pro tbody tr {
+      background: #2d2d32 !important;
+      border-color: rgba(255, 255, 255, 0.12) !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    /* Dark mode mobile hover */
+    .dark .table-pro tbody tr:hover {
+      background: #3a3a40 !important;
+      border-color: rgba(236, 72, 153, 0.2) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    .dark .table-pro tbody tr:active {
+      background: #3a3a40 !important;
     }
 
     .table-pro tbody tr.bg-pink-50\/30 {
       @apply border-pink-300/80 ring-1 ring-pink-500/20 bg-pink-50/20;
     }
 
+    .dark .table-pro tbody tr.bg-pink-50\/30 {
+      background: rgba(236, 72, 153, 0.12) !important;
+      border-color: rgba(236, 72, 153, 0.3) !important;
+      ring: 1px solid rgba(236, 72, 153, 0.2) !important;
+    }
+
+    .dark .table-pro tbody tr.bg-pink-50\/30:hover {
+      background: rgba(236, 72, 153, 0.2) !important;
+    }
+
     .table-pro tbody td {
-      @apply flex justify-between items-center py-2 px-0 text-xs text-right border-b border-slate-100 gap-3 w-full min-w-0;
+      @apply flex justify-between items-center py-2.5 px-0 text-xs text-right border-b border-slate-100 gap-3 w-full min-w-0;
       box-sizing: border-box;
       word-break: break-word;
     }
 
+    .dark .table-pro tbody td {
+      border-color: rgba(255, 255, 255, 0.06) !important;
+    }
+
     .table-pro tbody td:last-child {
-      @apply border-b-0 pb-0 pt-2.5 mt-1 border-t border-slate-100;
+      @apply border-b-0 pb-0 pt-3 mt-1 border-t border-slate-100;
+    }
+
+    .dark .table-pro tbody td:last-child {
+      border-color: rgba(255, 255, 255, 0.06) !important;
     }
 
     .table-pro tbody td[data-label]::before {
       content: attr(data-label);
       letter-spacing: 0.05em;
       font-size: 10px;
-      @apply font-bold text-slate-400 uppercase flex-shrink-0 text-left select-none max-w-[40%];
+      @apply font-bold text-slate-500 uppercase flex-shrink-0 text-left select-none max-w-[40%];
+    }
+
+    .dark .table-pro tbody td[data-label]::before {
+      color: #8a8a8e !important;
     }
 
     .table-pro tbody td > * {
@@ -215,11 +315,24 @@ div {
     }
 
     .table-pro tbody td[data-label="Actions"] > div {
-      @apply flex w-full justify-between items-center gap-1 bg-slate-50/80 p-1 rounded-xl border border-slate-100 overflow-x-auto;
+      @apply flex w-full justify-between items-center gap-1 bg-slate-50/80 p-1.5 rounded-xl border border-slate-200/80 overflow-x-auto;
+    }
+
+    .dark .table-pro tbody td[data-label="Actions"] > div {
+      background: rgba(255, 255, 255, 0.03) !important;
+      border-color: rgba(255, 255, 255, 0.08) !important;
     }
 
     .table-pro tbody td[data-label="Actions"] button {
       @apply flex-1 py-2 justify-center flex items-center text-slate-600 hover:bg-white rounded-lg shadow-2xs transition-all text-xs;
+    }
+
+    .dark .table-pro tbody td[data-label="Actions"] button {
+      color: #b1b1b1 !important;
+    }
+
+    .dark .table-pro tbody td[data-label="Actions"] button:hover {
+      background: rgba(255, 255, 255, 0.05) !important;
     }
 
     .table-pro tbody td[colSpan] {
@@ -233,6 +346,64 @@ div {
     .table-pro tbody td .status-badge,
     .table-pro tbody td .chip {
       @apply text-[10px] font-semibold py-0.5 px-2.5 rounded-lg whitespace-nowrap;
+    }
+
+    /* Improved text colors for mobile */
+    .table-pro tbody td .font-semibold,
+    .table-pro tbody td .font-medium,
+    .table-pro tbody td .font-bold {
+      color: #0f172a !important;
+    }
+
+    .dark .table-pro tbody td .font-semibold,
+    .dark .table-pro tbody td .font-medium,
+    .dark .table-pro tbody td .font-bold {
+      color: #f1f1f1 !important;
+    }
+
+    .table-pro tbody td .text-slate-500,
+    .table-pro tbody td .text-slate-400 {
+      color: #64748b !important;
+    }
+
+    .dark .table-pro tbody td .text-slate-500,
+    .dark .table-pro tbody td .text-slate-400 {
+      color: #8a8a8e !important;
+    }
+
+    /* Subtle gradient border for cards */
+    .table-pro tbody tr::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), transparent 50%, rgba(236, 72, 153, 0.05));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .dark .table-pro tbody tr::before {
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), transparent 50%, rgba(236, 72, 153, 0.05));
+    }
+
+    /* Alternating row backgrounds */
+    .table-pro tbody tr:nth-child(even) {
+      background: #fafafa !important;
+    }
+
+    .dark .table-pro tbody tr:nth-child(even) {
+      background: #27272b !important;
+    }
+
+    /* Status badge improvements */
+    .table-pro tbody td .status-badge {
+      font-size: 11px !important;
+      padding: 3px 12px !important;
+      border-radius: 20px !important;
+      font-weight: 600 !important;
     }
   }
 
@@ -576,6 +747,10 @@ details > summary {
 details > summary::-webkit-details-marker {
   display: none;
 }
+
+/* ============================================
+   DARK MODE OVERRIDES
+   ============================================ */
 
 .dark .bgCard {
   background: var(--color-ink, #2a2a2e) !important;
@@ -1023,31 +1198,36 @@ details > summary::-webkit-details-marker {
 
 @media (max-width: 768px) {
   .dark .table-pro tbody tr {
-    background: var(--color-ink, #2a2a2e) !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
+    background: #2d2d32 !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
   }
-  
+
+  .dark .table-pro tbody tr:hover {
+    background: #3a3a40 !important;
+    border-color: rgba(236, 72, 153, 0.2) !important;
+  }
+
   .dark .table-pro tbody td {
     border-color: rgba(255, 255, 255, 0.06) !important;
   }
-  
+
   .dark .table-pro tbody td[data-label]::before {
     color: #6a6a6e !important;
   }
-  
+
   .dark .table-pro tbody td[data-label="Actions"] > div {
     background: var(--color-ink, #2a2a2e) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
   }
-  
+
   .dark .table-pro tbody td[data-label="Actions"] button {
     color: #b1b1b1 !important;
   }
-  
+
   .dark .table-pro tbody td[data-label="Actions"] button:hover {
     background: rgba(255, 255, 255, 0.05) !important;
   }
-  
+
   .dark .table-pro tbody tr.bg-pink-50\/30 {
     background: rgba(236, 72, 153, 0.15) !important;
   }

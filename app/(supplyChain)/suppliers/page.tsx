@@ -856,7 +856,7 @@ export default function Suppliers() {
 
                     <div className="card flex flex-col">
                         {/* Filter Bar - Stays fixed */}
-                        <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center gap-3">
+                        <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center gap-3 ">
                             {/* Title & Badge */}
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-pink-500" />
@@ -866,34 +866,37 @@ export default function Suppliers() {
                             </div>
 
                             {/* Search Input */}
-                            <div className="relative flex-1 sm:flex-initial sm:max-w-xs ml-auto">
-                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
-                                <input
-                                    type="text"
-                                    placeholder="Search suppliers…"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full py-1.5 pl-8 pr-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all"
-                                />
+                            <div className="flex gap-2 items-center ml-auto">
+                                <div className="relative flex-1 sm:flex-initial sm:max-w-xs ml-auto">
+                                    <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search suppliers…"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full py-1.5 pl-8 pr-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all"
+                                    />
+                                </div>
+
+                                {/* Category Filter Select */}
+                                <div className="relative max-w-[180px] w-full sm:w-auto">
+                                    <select
+                                        value={categoryFilter}
+                                        onChange={(e) => setCategoryFilter(e.target.value)}
+                                        aria-label="Filter by category"
+                                        className="w-full py-1.5 pl-3 pr-8 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all cursor-pointer appearance-none"
+                                    >
+                                        <option value="">All categories</option>
+                                        {categories.map((cat) => (
+                                            <option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
+                                                {cat}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none" />
+                                </div>
                             </div>
 
-                            {/* Category Filter Select */}
-                            <div className="relative max-w-[180px] w-full sm:w-auto">
-                                <select
-                                    value={categoryFilter}
-                                    onChange={(e) => setCategoryFilter(e.target.value)}
-                                    aria-label="Filter by category"
-                                    className="w-full py-1.5 pl-3 pr-8 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all cursor-pointer appearance-none"
-                                >
-                                    <option value="">All categories</option>
-                                    {categories.map((cat) => (
-                                        <option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
-                                            {cat}
-                                        </option>
-                                    ))}
-                                </select>
-                                <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none" />
-                            </div>
 
                             {/* Bulk Delete Action */}
                             {selectedSuppliers.size > 0 && (

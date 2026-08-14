@@ -594,10 +594,6 @@ export default function DashboardPanel() {
                             <span className="text-slate-300 dark:text-slate-600">•</span>
                             <span className="text-slate-500 dark:text-slate-400">Warehouse</span>
                         </div>
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[11px] font-semibold border border-emerald-200/60 dark:border-emerald-900/40">
-                            <i className="fas fa-circle text-[6px] text-emerald-500 dark:text-emerald-400 animate-pulse" />
-                            <span>Live</span>
-                        </div>
                     </div>
 
                     <div>
