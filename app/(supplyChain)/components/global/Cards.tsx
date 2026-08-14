@@ -129,67 +129,77 @@ export default function Cards({
 
             <div className={`relative w-full h-full duration-500 preserve-3d ${flipped ? 'rotate-y-180' : ''}`}>
                 {/* Front Card */}
-                <div className="absolute inset-0 backface-hidden card kpi 
-                                bg-paper dark:bg-ink/90 
-                                p-4 rounded-xl shadow 
-                                border border-line dark:border-ink/20 
-                                flex flex-col justify-between 
-                                group-hover:shadow-lg group-hover:shadow-pink-500/20 dark:group-hover:shadow-pink-500/30 
-                                transition-shadow duration-200">
-                    <div className={`label text-xs font-semibold uppercase tracking-wider flex items-center gap-2 
-                                    ${frontTextColor}`}>
-                        <i className={frontIcon}></i> {header}
+                <div className="absolute inset-0 backface-hidden card kpi bg-paper dark:bg-slate-900/95 p-4 rounded-xl border border-line dark:border-white/10 shadow-sm flex flex-col justify-between group-hover:shadow-lg group-hover:shadow-pink-500/10 dark:group-hover:shadow-black/50 dark:group-hover:border-white/15 transition-all duration-200">
+                    {/* Header & Icon */}
+                    <div className={`label text-xs font-semibold uppercase tracking-wider flex items-center gap-2 ${frontTextColor}`}>
+                        <i className={frontIcon} />
+                        <span>{header}</span>
                     </div>
-                    <div className={`value text-2xl sm:text-3xl font-bold text-ink dark:text-white`}>
+
+                    {/* Metric Value */}
+                    <div className="value text-2xl sm:text-3xl font-bold tracking-tight text-ink dark:text-slate-100 my-1">
                         {data}
                     </div>
-                    <div className={`delta delta-up text-sm flex items-center gap-2 ${descriptionTextColor}`}>
-                        <i className={arrow}></i>
-                        <span>{description}</span>
-                        <span className="ml-auto text-[10px] text-muted dark:text-muted 
-                                        group-hover:text-accent dark:group-hover:text-accent transition-colors">
-                            <i className="fas fa-info-circle"></i>
+
+                    {/* Delta & Footer */}
+                    <div className={`delta text-xs sm:text-sm flex items-center gap-1.5 ${descriptionTextColor}`}>
+                        <i className={`${arrow} text-xs`} />
+                        <span className="font-medium">{description}</span>
+
+                        <span className="ml-auto text-xs text-slate-400 dark:text-slate-500 group-hover:text-pink-500 dark:group-hover:text-pink-400 transition-colors">
+                            <i className="fas fa-info-circle" />
                         </span>
                     </div>
                 </div>
 
                 {/* Back Card */}
-                <div className={`absolute inset-0 backface-hidden rotate-y-180 ${backBg} text-white p-4 rounded-xl shadow flex flex-col justify-between`}>
+                <div
+                    className={`absolute inset-0 backface-hidden rotate-y-180 ${backBg} dark:bg-slate-900/95 text-white dark:text-slate-100 p-4 rounded-xl shadow-md border border-transparent dark:border-white/10 flex flex-col justify-between`}
+                >
                     <div className="overflow-y-auto max-h-full scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-                        <div className={`text-xs font-semibold tracking-wider ${headerTextColor} uppercase mb-2 flex items-center gap-2`}>
-                            <i className={backIcon}></i>
-                            {backHeader}
+                        {/* Header */}
+                        <div
+                            className={`text-xs font-semibold tracking-wider ${headerTextColor} dark:text-pink-400 uppercase mb-2 flex items-center gap-2`}
+                        >
+                            <i className={backIcon} />
+                            <span>{backHeader}</span>
                         </div>
-                        <div className="text-sm text-white/90 dark:text-white/90 space-y-1.5 leading-relaxed">
+
+                        {/* Content */}
+                        <div className="text-sm text-white/90 dark:text-slate-300 space-y-1.5 leading-relaxed font-normal">
                             {backDescription.split('\n').map((line, i) => {
                                 const formattedLine = line
-                                    .replace(/📦/g, '<i class="fas fa-box text-white/70 dark:text-white/70 mr-1"></i>')
-                                    .replace(/📊/g, '<i class="fas fa-chart-bar text-white/70 dark:text-white/70 mr-1"></i>')
-                                    .replace(/🏆/g, '<i class="fas fa-trophy text-yellow-300 mr-1"></i>')
-                                    .replace(/⏰/g, '<i class="fas fa-clock text-blue-300 mr-1"></i>')
-                                    .replace(/📈/g, '<i class="fas fa-chart-line text-emerald-300 mr-1"></i>')
-                                    .replace(/📅/g, '<i class="fas fa-calendar-day text-purple-300 mr-1"></i>')
-                                    .replace(/🚚/g, '<i class="fas fa-truck text-amber-300 mr-1"></i>');
+                                    .replace(/📦/g, '<i class="fas fa-box text-white/70 dark:text-slate-400 mr-1.5"></i>')
+                                    .replace(/📊/g, '<i class="fas fa-chart-bar text-white/70 dark:text-slate-400 mr-1.5"></i>')
+                                    .replace(/🏆/g, '<i class="fas fa-trophy text-yellow-300 dark:text-yellow-400 mr-1.5"></i>')
+                                    .replace(/⏰/g, '<i class="fas fa-clock text-blue-300 dark:text-sky-400 mr-1.5"></i>')
+                                    .replace(/📈/g, '<i class="fas fa-chart-line text-emerald-300 dark:text-emerald-400 mr-1.5"></i>')
+                                    .replace(/📅/g, '<i class="fas fa-calendar-day text-purple-300 dark:text-purple-400 mr-1.5"></i>')
+                                    .replace(/🚚/g, '<i class="fas fa-truck text-amber-300 dark:text-amber-400 mr-1.5"></i>');
 
                                 return (
                                     <p key={i} dangerouslySetInnerHTML={{ __html: formattedLine }} />
                                 );
                             })}
                         </div>
+
+                        {/* Optional Link */}
                         {tooltipLink && (
                             <Link
                                 href={tooltipLink}
-                                className="inline-block mt-3 text-xs text-white/80 hover:text-white transition-colors font-medium flex items-center gap-1"
+                                className="inline-flex items-center gap-1.5 mt-3 px-2 py-1 -ml-2 rounded-lg text-xs font-medium text-white/90 dark:text-slate-200 hover:text-white dark:hover:text-white hover:bg-white/10 dark:hover:bg-white/5 transition-all w-fit cursor-pointer"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                View Details
-                                <i className="fas fa-arrow-right text-[10px]"></i>
+                                <span>View Details</span>
+                                <i className="fas fa-arrow-right text-[10px]" />
                             </Link>
                         )}
                     </div>
-                    <div className="text-[10px] text-white/50 dark:text-white/50 text-right mt-2 flex items-center justify-end gap-1">
-                        <i className="fas fa-mouse-pointer"></i>
-                        Click to close info
+
+                    {/* Footer Hint */}
+                    <div className="text-[10px] text-white/60 dark:text-slate-500 text-right mt-2 flex items-center justify-end gap-1.5 select-none">
+                        <i className="fas fa-mouse-pointer text-[9px]" />
+                        <span>Click to close info</span>
                     </div>
                 </div>
             </div>

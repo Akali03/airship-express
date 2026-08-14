@@ -3,12 +3,12 @@
 
 import "./supplyChain.css";
 import AceternityNavbar, { ShadUiNav } from "./components/global/Navbar";
-import { AIProvider } from "./ai/services/AIContext";
+import { AIProvider, useAI } from "./ai/services/AIContext";
 import AIChatbot from "./ai/services/AIChatbot";
-import { useAI } from "./ai/services/AIContext";
 import { SessionGuard } from "./components/server/SessionGuard";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 
 function AIChatbotWrapper() {
   const { isOpen, closeChat } = useAI();
@@ -18,12 +18,13 @@ function AIChatbotWrapper() {
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const { isOpen: isAIOpen } = useAI();
 
   useEffect(() => {
     const sessionToken = localStorage.getItem('session_token');
 
     if (!sessionToken) {
-      router.push('/SupplyChain');
+      router.push('/scAuth');
       return;
     }
 
@@ -32,10 +33,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-gray-600">Verifying session...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Verifying session...</p>
         </div>
       </div>
     );
@@ -43,10 +44,25 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="font-rethink bg-[#FCFBF9] dark:bg-ink">
-      <AceternityNavbar />
+      <AnimatePresence mode="wait">
+        {!isAIOpen && (
+          <motion.div
+            initial={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            transition={{
+              duration: 0.3,
+              ease: "easeInOut"
+            }}
+          >
+            <AceternityNavbar />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="main-shell mt-18">
         {children}
       </main>
+
       <ShadUiNav />
       <AIChatbotWrapper />
     </div>
@@ -59,10 +75,10 @@ export default function SupplyChainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AIProvider>
-      <SessionGuard requiredRole={['Admin', 'Manager', 'Employee', 'Operator', 'Executive']}>
+    <SessionGuard requiredRole={['Admin', 'Manager', 'Employee', 'Operator', 'Executive']}>
+      <AIProvider>
         <LayoutContent>{children}</LayoutContent>
-      </SessionGuard>
-    </AIProvider>
+      </AIProvider>
+    </SessionGuard>
   );
 }
