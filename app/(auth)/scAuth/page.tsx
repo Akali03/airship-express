@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
 import { useConfirm } from '@/app/(supplyChain)/components/ui/ConfirmModal';
 import { OfflineDetector } from '@/app/(supplyChain)/components/global/OfflineDetector';
+import { user } from '@/app/(supplyChain)/lib/services/Class/user';
 
 export default function SupplyChainLoginPage() {
     const router = useRouter();
@@ -756,6 +757,7 @@ export default function SupplyChainLoginPage() {
             }
 
             localStorage.setItem('session_token', data.session_token);
+            localStorage.setItem('session_id', data.session_id);
             localStorage.setItem('user_role', data.role);
             localStorage.setItem('session_expires', data.expires_at);
             localStorage.setItem('user_name', selectedEmployee.display_name);

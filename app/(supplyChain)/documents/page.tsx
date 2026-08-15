@@ -11,7 +11,7 @@ import { Pagination } from "@/app/(supplyChain)/components/global/pagination";
 import { SessionGuard } from "../components/server/SessionGuard";
 import { BulkActionsToolbar } from "../components/global/BulkActionsToolbar";
 import { TableContentLoader } from "../components/global/Loader";
-import { user } from "@/app/(supplyChain)/lib/services/Class/user"
+import { user } from "@/app/(supplyChain)/lib/services/Class/user";
 
 interface Document {
     id: string;
@@ -30,7 +30,8 @@ interface Document {
     created_at: string;
     updated_at: string;
     version: number;
-    created_by?: string | null;
+    session_id?: string | null;
+    role?: string | null;
 }
 
 interface Supplier {
@@ -57,8 +58,8 @@ interface Activity {
 }
 
 const DEFAULT_USER = {
-    name: user.getName(),
-    email: user.getEmail()
+    name: user.getName() || 'System User',
+    email: user.getEmail() || 'system@company.com'
 };
 
 export default function Documents() {
@@ -95,6 +96,8 @@ export default function Documents() {
     const [totalActivities, setTotalActivities] = useState(0);
     const [userName, setUserName] = useState<string>(DEFAULT_USER.name);
     const [userEmail, setUserEmail] = useState<string>(DEFAULT_USER.email);
+    const [userRole, setUserRole] = useState<string>("");
+    const [userSessionId, setUserSessionId] = useState<string | null>(null);
     const [archiveCount, setArchiveCount] = useState(0);
     const [activityDateFrom, setActivityDateFrom] = useState("");
     const [activityDateTo, setActivityDateTo] = useState("");
@@ -117,21 +120,23 @@ export default function Documents() {
 
     const getCurrentUser = useCallback(async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
                 const { data: userData, error } = await supabase
                     .from('users')
-                    .select('display_name, email, role')
-                    .eq('id', user.id)
+                    .select('display_name, email, role, session_id')
+                    .eq('id', authUser.id)
                     .single();
 
                 if (error) {
                     console.error('Error fetching user from users table:', error);
-                    setUserEmail(user.email || DEFAULT_USER.email);
-                    setUserName(user.user_metadata?.full_name || user.email || DEFAULT_USER.name);
+                    setUserEmail(authUser.email || DEFAULT_USER.email);
+                    setUserName(authUser.user_metadata?.full_name || authUser.email || DEFAULT_USER.name);
                 } else if (userData) {
                     setUserEmail(userData.email || DEFAULT_USER.email);
                     setUserName(userData.display_name || userData.email || DEFAULT_USER.name);
+                    setUserRole(userData.role || '');
+                    setUserSessionId(userData.session_id || null);
                     if (userData.role) {
                         localStorage.setItem('user_role', userData.role);
                     }
@@ -139,11 +144,15 @@ export default function Documents() {
             } else {
                 setUserName(DEFAULT_USER.name);
                 setUserEmail(DEFAULT_USER.email);
+                setUserRole('');
+                setUserSessionId(null);
             }
         } catch (error) {
             console.error('Error getting user:', error);
             setUserName(DEFAULT_USER.name);
             setUserEmail(DEFAULT_USER.email);
+            setUserRole('');
+            setUserSessionId(null);
         }
     }, []);
 
@@ -265,7 +274,6 @@ export default function Documents() {
 
     const fetchStatistics = useCallback(async () => {
         try {
-            // Get total count of all documents
             const { count: totalCount, error: totalError } = await supabase
                 .from('documents')
                 .select('*', { count: 'exact', head: true });
@@ -273,7 +281,6 @@ export default function Documents() {
             if (totalError) throw totalError;
             setTotalFiles(totalCount || 0);
 
-            // Get total count of photos
             const { count: photosCount, error: photosError } = await supabase
                 .from('documents')
                 .select('*', { count: 'exact', head: true })
@@ -282,9 +289,7 @@ export default function Documents() {
             if (photosError) throw photosError;
             setTotalPhotos(photosCount || 0);
 
-            // Calculate total documents (total - photos)
             setTotalDocuments((totalCount || 0) - (photosCount || 0));
-
         } catch (error) {
             console.error('Error fetching statistics:', error);
         }
@@ -343,6 +348,40 @@ export default function Documents() {
             return null;
         }
     }, [userName, userEmail]);
+
+    // Insert document with session_id and role
+    const insertDocument = useCallback(async (documentData: any) => {
+        const insertData = {
+            ...documentData,
+            session_id: userSessionId || null,
+            role: userRole || null,
+        };
+
+        const { data, error } = await supabase
+            .from('documents')
+            .insert(insertData)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }, [userSessionId, userRole]);
+
+    // Update document with session_id and role
+    const updateDocument = useCallback(async (id: string, updates: any) => {
+        const updateData = {
+            ...updates,
+            session_id: userSessionId || null,
+            role: userRole || null,
+        };
+
+        const { error } = await supabase
+            .from('documents')
+            .update(updateData)
+            .eq('id', id);
+
+        if (error) throw error;
+    }, [userSessionId, userRole]);
 
     const downloadFile = useCallback(async (doc: Document) => {
         try {
@@ -411,9 +450,10 @@ export default function Documents() {
                 version: doc.version,
                 created_at: doc.created_at,
                 updated_at: doc.updated_at,
-                created_by: doc.created_by || null,
                 deleted_by: deletedBy,
                 original_id: doc.id,
+                session_id: doc.session_id || null,
+                role: doc.role || null,
             };
 
             const { error: archiveError } = await supabase
@@ -444,11 +484,12 @@ export default function Documents() {
             await fetchArchiveCount();
             await fetchDocuments(false);
             await fetchActivities();
+            await fetchStatistics();
         } catch (error) {
             console.error('Delete error:', error);
             toast.error('Failed to delete document', { id: toastId });
         }
-    }, [userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, confirm]);
+    }, [userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, fetchStatistics, confirm]);
 
     const downloadSelectedFiles = useCallback(async () => {
         if (selectedDocIds.size === 0) {
@@ -569,9 +610,10 @@ export default function Documents() {
                         version: doc.version,
                         created_at: doc.created_at,
                         updated_at: doc.updated_at,
-                        created_by: doc.created_by || null,
                         deleted_by: deletedBy,
                         original_id: doc.id,
+                        session_id: doc.session_id || null,
+                        role: doc.role || null,
                     };
 
                     const { error: archiveError } = await supabase
@@ -616,13 +658,14 @@ export default function Documents() {
             await fetchArchiveCount();
             await fetchDocuments(false);
             await fetchActivities();
+            await fetchStatistics();
         } catch (error) {
             console.error('Bulk delete error:', error);
             toast.error('Failed to delete documents', { id: toastId });
         } finally {
             setIsBulkDeleting(false);
         }
-    }, [selectedDocIds, documents, userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, confirm]);
+    }, [selectedDocIds, documents, userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, fetchStatistics, confirm]);
 
     const deleteSelectedActivities = useCallback(async () => {
         if (selectedActivityIds.size === 0) {
@@ -725,23 +768,28 @@ export default function Documents() {
                     continue;
                 }
 
+                // Insert with session_id and role
+                const insertData = {
+                    title: `${documentType} - ${file.name}`,
+                    file_name: file.name,
+                    file_size: file.size,
+                    file_type: file.type || fileExt || 'unknown',
+                    storage_path: filePath,
+                    category: category,
+                    document_type: documentType,
+                    supplier: supplier,
+                    po_number: poNumber,
+                    parcel_batch: parcelBatch,
+                    uploaded_by: uploadedBy,
+                    notes: notes,
+                    version: 1,
+                    session_id: userSessionId || null,
+                    role: userRole || null,
+                };
+
                 const { error: insertError } = await supabase
                     .from('documents')
-                    .insert({
-                        title: `${documentType} - ${file.name}`,
-                        file_name: file.name,
-                        file_size: file.size,
-                        file_type: file.type || fileExt || 'unknown',
-                        storage_path: filePath,
-                        category: category,
-                        document_type: documentType,
-                        supplier: supplier,
-                        po_number: poNumber,
-                        parcel_batch: parcelBatch,
-                        uploaded_by: uploadedBy,
-                        notes: notes,
-                        version: 1,
-                    });
+                    .insert(insertData);
 
                 if (insertError) {
                     console.error('Insert error:', insertError);
@@ -784,6 +832,7 @@ export default function Documents() {
                 setSelectedFiles([]);
                 setUploadProgress(0);
                 setIsUploadModalOpen(false);
+                await fetchStatistics();
                 await fetchDocuments(false);
             }
         } catch (error) {
@@ -818,6 +867,8 @@ export default function Documents() {
                 notes: formData.get('notes') as string || null,
                 updated_at: new Date().toISOString(),
                 version: (editingDoc.version || 0) + 1,
+                session_id: userSessionId || null,
+                role: userRole || null,
             };
 
             const { error } = await supabase
@@ -994,12 +1045,9 @@ export default function Documents() {
         fetchActivities();
     }, [debouncedActivitySearch, activityFilter, activityDateFrom, activityDateTo, activityPage]);
 
-
-
     if (loading) {
         return <PageSkeleton />;
     }
-
     return (
         <SessionGuard requiredRole={['Admin', 'Manager', 'Employee']}>
             <div className="p-6 space-y-6 bgCard dark:bg-ink/90">

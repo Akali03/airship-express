@@ -17,7 +17,7 @@ const HR_DUMMY_DATA = {
             id: '22222222-2222-2222-2222-222222222222',
             employee_id: 'EMP-002',
             display_name: 'Sarah Johnson',
-            email: 'sarah.johnson@company.com',
+            email: 'hotd0dg3@gmail.com',
             role: 'Admin',
             department: 'Management',
             position: 'Supply Chain Director'
@@ -57,7 +57,7 @@ const HR_DUMMY_DATA = {
             id: '66666666-6666-6666-6666-666666666666',
             employee_id: 'EMP-006',
             display_name: 'Jane Lee',
-            email: 'hotd0dg3@gmail.com',
+            email: 'sarah.johnson@company.com',
             role: 'Employee',
             department: 'Warehouse',
             position: 'Inventory Specialist'
