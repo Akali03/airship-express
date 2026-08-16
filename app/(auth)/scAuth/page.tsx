@@ -30,12 +30,12 @@ import { toast } from 'sonner';
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
 import { useConfirm } from '@/app/(supplyChain)/components/ui/ConfirmModal';
 import { OfflineDetector } from '@/app/(supplyChain)/components/global/OfflineDetector';
-import { user } from '@/app/(supplyChain)/lib/services/Class/user';
 
 export default function SupplyChainLoginPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
 
+    // login form
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -43,12 +43,14 @@ export default function SupplyChainLoginPage() {
     const [loginError, setLoginError] = useState<string | null>(null);
     const [loggedInUser, setLoggedInUser] = useState<any>(null);
 
+    // employee selection
     const [employees, setEmployees] = useState<any[]>([]);
     const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
 
+    // remembered session
     const [isRemembered, setIsRemembered] = useState(false);
     const [isCheckingRemembered, setIsCheckingRemembered] = useState(false);
     const [rememberedData, setRememberedData] = useState<any>(null);
@@ -65,6 +67,7 @@ export default function SupplyChainLoginPage() {
     const [isCurrentlyActive, setIsCurrentlyActive] = useState(false);
     const [isSelectionLocked, setIsSelectionLocked] = useState(false);
 
+    // device blocking
     const [isDeviceBlocked, setIsDeviceBlocked] = useState(false);
     const [blockedDeviceId, setBlockedDeviceId] = useState<string | null>(null);
     const [showAppealModal, setShowAppealModal] = useState(false);
@@ -73,11 +76,27 @@ export default function SupplyChainLoginPage() {
     const [existingAppeal, setExistingAppeal] = useState<any>(null);
     const [isEditingAppeal, setIsEditingAppeal] = useState(false);
 
+    // password setup
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [tempToken, setTempToken] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isCreatingUser, setIsCreatingUser] = useState(false);
+    const [useHrPassword, setUseHrPassword] = useState(false);
+    const [hrPassword, setHrPassword] = useState('');
+    const [hrHasPassword, setHrHasPassword] = useState(false);
+    const [selectedEmployeeForPassword, setSelectedEmployeeForPassword] = useState<any>(null);
+
+    // remembered password modal
+    const [showRememberedPasswordModal, setShowRememberedPasswordModal] = useState(false);
+    const [rememberedPassword, setRememberedPassword] = useState('');
+
     const lastCheckRef = useRef<number>(0);
     const isCheckingRef = useRef<boolean>(false);
     const checkCacheDuration = 60 * 1000;
     const { confirm } = useConfirm();
 
+    // clear all session data
     const clearUserSession = useCallback(async () => {
         const sessionToken = localStorage.getItem('session_token');
 
@@ -90,6 +109,9 @@ export default function SupplyChainLoginPage() {
             } catch (error) {
             }
         }
+
+        await supabase.auth.signOut();
+
         localStorage.removeItem('session_token');
         localStorage.removeItem('user_role');
         localStorage.removeItem('user_name');
@@ -97,13 +119,16 @@ export default function SupplyChainLoginPage() {
         localStorage.removeItem('session_expires');
         localStorage.removeItem('logged_in_email');
         localStorage.removeItem('user_agent');
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('session_backup');
         document.cookie = 'session_token=; path=/; max-age=0';
     }, []);
 
+    // check if device is blocked
     const checkIfDeviceBlocked = async (userId: string, userAgent: string): Promise<any> => {
         try {
             const { data: userData, error: userError } = await supabase
-                .from('users')
+                .from('role_based_accounts')
                 .select('role')
                 .eq('id', userId)
                 .maybeSingle();
@@ -134,6 +159,7 @@ export default function SupplyChainLoginPage() {
         }
     };
 
+    // check for existing appeal
     const checkExistingAppeal = async (blockedDeviceId: string) => {
         try {
             const { data, error } = await supabase
@@ -163,6 +189,7 @@ export default function SupplyChainLoginPage() {
         }
     }, [isDeviceBlocked, blockedDeviceId]);
 
+    // submit appeal
     const handleSubmitAppeal = async () => {
         if (!appealMessage.trim()) {
             toast.error('Please enter an appeal message');
@@ -217,6 +244,7 @@ export default function SupplyChainLoginPage() {
         }
     };
 
+    // update appeal
     const handleUpdateAppeal = async () => {
         if (!appealMessage.trim()) {
             toast.error('Please enter an appeal message');
@@ -256,6 +284,7 @@ export default function SupplyChainLoginPage() {
         }
     };
 
+    // delete appeal
     const handleDeleteAppeal = async () => {
         if (!existingAppeal?.id) {
             toast.error('No appeal found to delete');
@@ -293,6 +322,7 @@ export default function SupplyChainLoginPage() {
         }
     };
 
+    // check for existing session on load
     useEffect(() => {
         const checkExistingSession = async () => {
             const sessionToken = localStorage.getItem('session_token');
@@ -341,6 +371,37 @@ export default function SupplyChainLoginPage() {
 
                     localStorage.setItem('user_role', data.user.role);
 
+                    try {
+                        const { data: { session } } = await supabase.auth.getSession();
+
+                        if (!session) {
+                            console.log('Remembered login: No Supabase session, attempting to restore...');
+
+                            const storedRefreshToken = localStorage.getItem('supabase_refresh_token');
+
+                            if (storedRefreshToken) {
+                                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession({
+                                    refresh_token: storedRefreshToken,
+                                });
+
+                                if (refreshError) {
+                                    console.error('Refresh token failed:', refreshError.message);
+                                    localStorage.removeItem('supabase_refresh_token');
+                                } else if (refreshData.session) {
+                                    console.log('Supabase session restored via refresh token!');
+                                    console.log('User:', refreshData.session?.user?.email);
+                                    localStorage.setItem('supabase_refresh_token', refreshData.session.refresh_token);
+                                }
+                            } else {
+                                console.warn('No refresh token found for Supabase session');
+                            }
+                        } else {
+                            console.log('Supabase session already exists for remembered login:', session?.user?.email);
+                        }
+                    } catch (error) {
+                        console.error('Error restoring Supabase session:', error);
+                    }
+
                     const roleRedirects: Record<string, string> = {
                         'Admin': '/executive',
                         'Manager': '/warehousing?tab=incoming',
@@ -357,6 +418,7 @@ export default function SupplyChainLoginPage() {
                 await clearUserSession();
                 toast.error('Session expired. Please login again.');
             } catch (error) {
+                console.error('Error checking remembered session:', error);
             } finally {
                 isCheckingRef.current = false;
                 setIsLoading(false);
@@ -366,6 +428,7 @@ export default function SupplyChainLoginPage() {
         checkExistingSession();
     }, [clearUserSession]);
 
+    // countdown timer for otp resend
     useEffect(() => {
         if (countdown > 0) {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -373,6 +436,7 @@ export default function SupplyChainLoginPage() {
         }
     }, [countdown]);
 
+    // handle employee selection
     const handleEmployeeSelect = async (employee: any) => {
         if (isSelectionLocked || isCheckingRemembered || isRequestingOTP || isDeviceBlocked) return;
 
@@ -436,7 +500,8 @@ export default function SupplyChainLoginPage() {
         }
     };
 
-    const handleLoginWithRemembered = async () => {
+    // show password modal for remembered login
+    const handleLoginWithRemembered = () => {
         if (!selectedEmployee || isDeviceBlocked) {
             if (isDeviceBlocked) {
                 toast.error('This device is blocked. Please submit an appeal.');
@@ -444,26 +509,70 @@ export default function SupplyChainLoginPage() {
             return;
         }
 
-        setIsLoggingInWithRemembered(true);
-        try {
-            toast.success(`Logging in as ${selectedEmployee.display_name}...`);
+        setShowRememberedPasswordModal(true);
+        setRememberedPassword('');
+    };
 
+    const handleVerifyRememberedPassword = async () => {
+        if (!rememberedPassword.trim()) {
+            toast.error('Please enter your password');
+            return;
+        }
+
+        setIsLoggingInWithRemembered(true);
+
+        try {
             const userRole = rememberedData?.role ||
                 loggedInUser?.role ||
                 localStorage.getItem('user_role') ||
                 'Employee';
 
-            const sessionToken = rememberedData?.session_token;
+            const sessionToken = rememberedData?.session_token || localStorage.getItem('session_token');
 
+            // verify password with supabase
+            try {
+                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                    email: selectedEmployee.email,
+                    password: rememberedPassword,
+                });
+
+                if (signInError) {
+                    console.error('Supabase sign in error:', signInError.message);
+                    toast.error('Invalid password. Please try again.');
+                    setRememberedPassword('');
+                    setIsLoggingInWithRemembered(false);
+                    return;
+                }
+
+                console.log('Supabase Auth login successful!');
+
+                if (signInData.session) {
+                    localStorage.setItem('supabase_refresh_token', signInData.session.refresh_token);
+                    localStorage.setItem('supabase_user_email', selectedEmployee.email);
+                    await supabase.auth.setSession({
+                        access_token: signInData.session.access_token,
+                        refresh_token: signInData.session.refresh_token,
+                    });
+                }
+            } catch (authError) {
+                console.error('Auth error:', authError);
+                toast.error('Authentication failed. Please try again.');
+                setRememberedPassword('');
+                setIsLoggingInWithRemembered(false);
+                return;
+            }
+
+            // activate remembered session
             if (sessionToken) {
                 const currentUserAgent = navigator.userAgent;
 
-                const blockedDevice = await checkIfDeviceBlocked(rememberedData.user_id, currentUserAgent);
+                const blockedDevice = await checkIfDeviceBlocked(rememberedData?.user_id || loggedInUser?.id, currentUserAgent);
                 if (blockedDevice) {
                     setIsDeviceBlocked(true);
                     setBlockedDeviceId(blockedDevice.id);
                     toast.error(`This device is blocked. Reason: ${blockedDevice.reason || 'Blocked by admin'}`);
                     setIsLoggingInWithRemembered(false);
+                    setShowRememberedPasswordModal(false);
                     return;
                 }
 
@@ -479,10 +588,9 @@ export default function SupplyChainLoginPage() {
                 if (!updateRes.ok) {
                     toast.error('Session activation failed. Please login with OTP.');
                     setIsLoggingInWithRemembered(false);
+                    setShowRememberedPasswordModal(false);
                     return;
                 }
-
-                const updateData = await updateRes.json();
 
                 localStorage.setItem('session_token', sessionToken);
             } else {
@@ -490,10 +598,12 @@ export default function SupplyChainLoginPage() {
                 if (!existingToken) {
                     toast.error('No session found. Please login with OTP.');
                     setIsLoggingInWithRemembered(false);
+                    setShowRememberedPasswordModal(false);
                     return;
                 }
             }
 
+            // store user data
             localStorage.setItem('user_role', userRole);
             localStorage.setItem('user_name', selectedEmployee.display_name);
             localStorage.setItem('user_email', selectedEmployee.email);
@@ -504,17 +614,20 @@ export default function SupplyChainLoginPage() {
                 'Employee': '/documents',
             };
 
-            setTimeout(() => {
-                setShowEmployeeModal(false);
-                router.push(roleRedirects[userRole] || '/warehousing');
-            }, 1000);
+            toast.success('Login successful!');
+            setShowRememberedPasswordModal(false);
+            setShowEmployeeModal(false);
+            router.push(roleRedirects[userRole] || '/warehousing');
+
         } catch (error) {
-            toast.error('Failed to login. Please request OTP.');
+            console.error('Error logging in:', error);
+            toast.error('Failed to login. Please try again.');
         } finally {
             setIsLoggingInWithRemembered(false);
         }
     };
 
+    // main login handler
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault();
         setLoginError(null);
@@ -528,7 +641,15 @@ export default function SupplyChainLoginPage() {
         try {
             await supabase.auth.signOut();
 
-            localStorage.clear();
+            localStorage.removeItem('session_token');
+            localStorage.removeItem('user_role');
+            localStorage.removeItem('user_name');
+            localStorage.removeItem('user_email');
+            localStorage.removeItem('session_expires');
+            localStorage.removeItem('logged_in_email');
+            localStorage.removeItem('user_agent');
+            localStorage.removeItem('user_id');
+            localStorage.removeItem('session_backup');
 
             document.cookie.split(";").forEach(c => {
                 document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toISOString() + ";path=/");
@@ -544,7 +665,6 @@ export default function SupplyChainLoginPage() {
 
             const data = await res.json();
 
-
             if (!res.ok) {
                 setLoginError(data.message || 'Invalid email or password.');
                 return;
@@ -558,7 +678,6 @@ export default function SupplyChainLoginPage() {
             localStorage.setItem('user_name', data.user.display_name || 'User');
             localStorage.setItem('user_id', data.user.id);
 
-
             await loadEmployeesFromHR(data.user.role);
             setShowEmployeeModal(true);
         } catch (err) {
@@ -568,10 +687,10 @@ export default function SupplyChainLoginPage() {
         }
     }
 
+    // load employees from hr system
     async function loadEmployeesFromHR(role: string) {
         setIsLoadingEmployees(true);
         try {
-
             const userEmail = loggedInUser?.email;
             const params = new URLSearchParams();
             params.append('role', role);
@@ -595,6 +714,7 @@ export default function SupplyChainLoginPage() {
         }
     }
 
+    // request otp
     async function requestOTP() {
         if (!selectedEmployee || isDeviceBlocked) {
             if (isDeviceBlocked) {
@@ -654,6 +774,7 @@ export default function SupplyChainLoginPage() {
         }
     }
 
+    // resend otp
     async function resendOTP() {
         if (!selectedEmployee || isDeviceBlocked) {
             if (isDeviceBlocked) {
@@ -747,6 +868,7 @@ export default function SupplyChainLoginPage() {
                     rememberMe: rememberMe,
                     email: selectedEmployee.email,
                     employeeName: selectedEmployee.display_name,
+                    employeeRole: selectedEmployee.role,
                 }),
             });
 
@@ -756,24 +878,51 @@ export default function SupplyChainLoginPage() {
                 throw new Error(data.message || 'Invalid OTP');
             }
 
-            localStorage.setItem('session_token', data.session_token);
-            localStorage.setItem('session_id', data.session_id);
-            localStorage.setItem('user_role', data.role);
-            localStorage.setItem('session_expires', data.expires_at);
-            localStorage.setItem('user_name', selectedEmployee.display_name);
-            localStorage.setItem('user_email', selectedEmployee.email);
+            // 🔥 FIX: Store session token but show password modal instead of auto-login
+            if (data.userExists) {
+                // Store session token temporarily
+                localStorage.setItem('session_token', data.session_token);
+                localStorage.setItem('user_role', data.role);
+                localStorage.setItem('user_name', data.employee.display_name);
+                localStorage.setItem('user_email', data.employee.email);
 
-            const maxAge = rememberMe ? 15 * 24 * 60 * 60 : 8 * 60 * 60;
-            document.cookie = `session_token=${data.session_token}; path=/; max-age=${maxAge}`;
+                // 🔥 Show remembered password modal instead of auto-login
+                setSelectedEmployee({
+                    id: data.employee.id || selectedEmployee.id,
+                    display_name: data.employee.display_name,
+                    email: data.employee.email,
+                    role: data.employee.role || selectedEmployee.role,
+                    employee_id: selectedEmployee.employee_id,
+                    department: selectedEmployee.department,
+                    position: selectedEmployee.position,
+                });
 
-            toast.success(`Login successful! ${rememberMe ? 'Remembered 15 days' : 'Session 8 hours'}`);
-            setOtpSuccess('Verification successful!');
+                // Store remembered data for password verification
+                setRememberedData({
+                    session_token: data.session_token,
+                    role: data.role,
+                    user_id: data.userId,
+                });
 
-            await loadEmployeesFromHR(loggedInUser.role);
-            await new Promise(resolve => setTimeout(resolve, 500));
+                setShowRememberedPasswordModal(true);
+                setRememberedPassword('');
+                setOtpSent(false);
+                setShowEmployeeModal(false);
 
-            setShowEmployeeModal(false);
-            router.push(data.redirect_url);
+            } else {
+                // User doesn't exist - show password setup modal
+                setTempToken(data.tempToken);
+                setHrHasPassword(data.hrHasPassword);
+                setHrPassword(data.hrPassword || '');
+                setSelectedEmployeeForPassword({
+                    ...data.employee,
+                    role: data.employee.role || selectedEmployee.role
+                });
+                setUseHrPassword(data.hrHasPassword);
+                setShowPasswordModal(true);
+                setOtpSent(false);
+                setShowEmployeeModal(false);
+            }
         } catch (err: any) {
             toast.error(err.message);
             setOtpError(err.message);
@@ -784,6 +933,101 @@ export default function SupplyChainLoginPage() {
         }
     }
 
+    // create account
+    async function handleCreateAccount() {
+        if (!useHrPassword) {
+            if (newPassword.length < 6) {
+                toast.error('Password must be at least 6 characters');
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                toast.error('Passwords do not match');
+                return;
+            }
+        }
+
+        setIsCreatingUser(true);
+
+        try {
+            const res = await fetch('/api/supplyChain/create-auth-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: selectedEmployeeForPassword.email,
+                    password: newPassword,
+                    displayName: selectedEmployeeForPassword.display_name,
+                    role: selectedEmployeeForPassword.role,
+                    tempToken: tempToken,
+                    useHrPassword: useHrPassword,
+                    hrPassword: useHrPassword ? hrPassword : null,
+                    rememberMe: rememberMe,
+                }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                toast.success('Account created successfully!');
+
+                if (data.access_token) {
+                    const { error: sessionError } = await supabase.auth.setSession({
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token || '',
+                    });
+
+                    if (sessionError) {
+                        console.error('Error setting Supabase session:', sessionError);
+                    } else {
+                        console.log('Supabase session set successfully!');
+                        const { data: { session } } = await supabase.auth.getSession();
+                        console.log('User:', session?.user?.email);
+                        console.log('User ID:', session?.user?.id);
+                    }
+                } else {
+                    console.warn('No access token available for Supabase session');
+                    const password = useHrPassword ? hrPassword : newPassword;
+                    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                        email: selectedEmployeeForPassword.email,
+                        password: password,
+                    });
+
+                    if (signInError) {
+                        console.error('Fallback sign in error:', signInError);
+                        toast.warning('Please login again to refresh your session');
+                    } else {
+                        console.log('Fallback sign in successful!');
+                        const { error: sessionError } = await supabase.auth.setSession({
+                            access_token: signInData.session?.access_token || '',
+                            refresh_token: signInData.session?.refresh_token || '',
+                        });
+                        if (sessionError) {
+                            console.error('Error setting session:', sessionError);
+                        }
+                    }
+                }
+
+                localStorage.setItem('session_token', data.session_token);
+                localStorage.setItem('user_role', data.role);
+                localStorage.setItem('user_name', selectedEmployeeForPassword.display_name);
+                localStorage.setItem('user_email', selectedEmployeeForPassword.email);
+                if (data.remember_me) {
+                    localStorage.setItem('session_expires', data.expires_at);
+                }
+
+                setShowPasswordModal(false);
+                setShowEmployeeModal(false);
+                router.push(data.redirect_url);
+            } else {
+                toast.error(data.message || 'Failed to create account');
+            }
+        } catch (error) {
+            toast.error('Something went wrong');
+        } finally {
+            setIsCreatingUser(false);
+        }
+    }
+
+    // otp input handlers
     function handleOtpChange(index: number, value: string) {
         if (!/^\d*$/.test(value)) return;
         const newOtp = [...otpCode];
@@ -809,6 +1053,7 @@ export default function SupplyChainLoginPage() {
         document.getElementById('otp-5')?.focus();
     }
 
+    // filter employees by search
     const filteredEmployees = employees.filter(emp =>
         (emp.display_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (emp.employee_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -820,6 +1065,7 @@ export default function SupplyChainLoginPage() {
         : filteredEmployees;
     const remainingCount = filteredEmployees.length - 5;
 
+    // get role color
     const getRoleColor = (role: string) => {
         switch (role) {
             case 'Admin': return 'bg-purple-100 text-purple-700 border-purple-200';
@@ -831,12 +1077,14 @@ export default function SupplyChainLoginPage() {
         }
     };
 
+    // close modal and cleanup
     const handleCloseModal = async () => {
         setShowEmployeeModal(false);
         await clearUserSession();
         router.push('/scAuth');
     };
 
+    // open appeal modal
     const openAppealModal = () => {
         if (existingAppeal) {
             setAppealMessage(existingAppeal.appeal_message);
@@ -848,6 +1096,7 @@ export default function SupplyChainLoginPage() {
         setShowAppealModal(true);
     };
 
+    // loading state
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1096,6 +1345,7 @@ export default function SupplyChainLoginPage() {
                                 </div>
 
                                 {isDeviceBlocked ? (
+                                    // device blocked view
                                     <div className="p-6 text-center">
                                         <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                                             <AlertTriangle className="h-8 w-8 text-red-500" />
@@ -1172,6 +1422,7 @@ export default function SupplyChainLoginPage() {
                                         </button>
                                     </div>
                                 ) : !otpSent ? (
+                                    // employee selection view
                                     <>
                                         <div className="p-3.5 sm:p-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
                                             <div className="relative">
@@ -1329,20 +1580,11 @@ export default function SupplyChainLoginPage() {
                                                 ) : selectedEmployee && isRemembered ? (
                                                     <button
                                                         onClick={handleLoginWithRemembered}
-                                                        disabled={isCheckingRemembered || isLoggingInWithRemembered || isDeviceBlocked}
+                                                        disabled={isCheckingRemembered || isDeviceBlocked}
                                                         className="flex-1 sm:flex-initial px-5 py-2 bg-emerald-600 text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
                                                     >
-                                                        {isLoggingInWithRemembered ? (
-                                                            <>
-                                                                <Loader2 className="animate-spin" size={15} />
-                                                                <span>Logging in...</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <LogIn size={15} />
-                                                                <span>Login</span>
-                                                            </>
-                                                        )}
+                                                        <LogIn size={15} />
+                                                        <span>Login</span>
                                                     </button>
                                                 ) : (
                                                     <button
@@ -1367,6 +1609,7 @@ export default function SupplyChainLoginPage() {
                                         </div>
                                     </>
                                 ) : (
+                                    // otp verification view
                                     <div className="p-6 sm:p-8">
                                         <div className="text-center mb-6">
                                             <div className="w-12 h-12 sm:w-14 sm:h-14 bg-accent/10 ring-1 ring-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-3.5 shadow-sm">
@@ -1502,6 +1745,215 @@ export default function SupplyChainLoginPage() {
                     )}
                 </AnimatePresence>
 
+                {/* password setup modal */}
+                <AnimatePresence>
+                    {showPasswordModal && selectedEmployeeForPassword && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+                            >
+                                <div className="text-center mb-6">
+                                    <div className="w-14 h-14 bg-accent/10 ring-1 ring-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
+                                        <User className="text-accent" size={28} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900">Set Up Your Account</h3>
+                                    <p className="text-sm text-gray-500 mt-1.5">
+                                        Create your account to access the supply chain system
+                                    </p>
+                                </div>
+
+                                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                                    <p className="text-xs text-gray-500">Employee</p>
+                                    <p className="font-medium text-gray-900">{selectedEmployeeForPassword.display_name}</p>
+                                    <p className="text-sm text-gray-600">{selectedEmployeeForPassword.email}</p>
+                                    {selectedEmployeeForPassword.employee_id && (
+                                        <p className="text-xs text-gray-400 mt-1">ID: {selectedEmployeeForPassword.employee_id}</p>
+                                    )}
+                                    {selectedEmployeeForPassword.department && (
+                                        <p className="text-xs text-gray-400">{selectedEmployeeForPassword.department} • {selectedEmployeeForPassword.position}</p>
+                                    )}
+                                    <span className={`inline-block mt-2 text-[10px] font-medium px-2.5 py-0.5 rounded-md ${getRoleColor(selectedEmployeeForPassword.role)}`}>
+                                        {selectedEmployeeForPassword.role}
+                                    </span>
+                                </div>
+
+                                {hrHasPassword && (
+                                    <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                        <label className="flex items-start gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={useHrPassword}
+                                                onChange={(e) => setUseHrPassword(e.target.checked)}
+                                                className="mt-1 w-4 h-4 text-accent rounded border-gray-300 focus:ring-accent"
+                                            />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-800">
+                                                    Use HR system password
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Your password will be synced from the HR system
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                )}
+
+                                {!useHrPassword && (
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                New Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={newPassword}
+                                                onChange={(e) => setNewPassword(e.target.value)}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition"
+                                                placeholder="Enter password (min 6 characters)"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Confirm Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={confirmPassword}
+                                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition"
+                                                placeholder="Confirm your password"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        onClick={() => {
+                                            setShowPasswordModal(false);
+                                            setOtpSent(true);
+                                            setShowEmployeeModal(true);
+                                        }}
+                                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={handleCreateAccount}
+                                        disabled={isCreatingUser}
+                                        className="flex-1 px-4 py-2.5 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isCreatingUser ? (
+                                            <>
+                                                <Loader2 className="animate-spin" size={16} />
+                                                Creating...
+                                            </>
+                                        ) : (
+                                            'Create Account'
+                                        )}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* remembered login password modal */}
+                <AnimatePresence>
+                    {showRememberedPasswordModal && selectedEmployee && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+                            >
+                                <div className="text-center mb-6">
+                                    <div className="w-14 h-14 bg-emerald-50 ring-1 ring-emerald-200 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
+                                        <LogIn className="text-emerald-600" size={28} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900">Login as {selectedEmployee.display_name}</h3>
+                                    <p className="text-sm text-gray-500 mt-1.5">
+                                        Enter your password to continue
+                                    </p>
+                                </div>
+
+                                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                                    <p className="text-xs text-gray-500">Account</p>
+                                    <p className="font-medium text-gray-900">{selectedEmployee.display_name}</p>
+                                    <p className="text-sm text-gray-600">{selectedEmployee.email}</p>
+                                    {selectedEmployee.employee_id && (
+                                        <p className="text-xs text-gray-400 mt-1">ID: {selectedEmployee.employee_id}</p>
+                                    )}
+                                    {selectedEmployee.department && (
+                                        <p className="text-xs text-gray-400">{selectedEmployee.department} • {selectedEmployee.position}</p>
+                                    )}
+                                    <span className={`inline-block mt-2 text-[10px] font-medium px-2.5 py-0.5 rounded-md ${getRoleColor(selectedEmployee.role)}`}>
+                                        {selectedEmployee.role}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Password
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={rememberedPassword}
+                                            onChange={(e) => setRememberedPassword(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleVerifyRememberedPassword();
+                                                }
+                                            }}
+                                            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition"
+                                            placeholder="Enter your password"
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        onClick={() => {
+                                            setShowRememberedPasswordModal(false);
+                                            setRememberedPassword('');
+                                        }}
+                                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleVerifyRememberedPassword}
+                                        disabled={isLoggingInWithRemembered || !rememberedPassword.trim()}
+                                        className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isLoggingInWithRemembered ? (
+                                            <>
+                                                <Loader2 className="animate-spin" size={16} />
+                                                Verifying...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <LogIn size={16} />
+                                                Login
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                <p className="mt-3 text-center text-xs text-gray-400">
+                                    This is a remembered session. Your password is required for security.
+                                </p>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
                 {/* appeal modal */}
                 <AnimatePresence>
                     {showAppealModal && (
@@ -1540,6 +1992,7 @@ export default function SupplyChainLoginPage() {
 
                                 <div className="p-6 space-y-4">
                                     {existingAppeal && !isEditingAppeal ? (
+                                        // view existing appeal
                                         <>
                                             <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                                                 <div className="flex items-center justify-between mb-2">
@@ -1606,9 +2059,9 @@ export default function SupplyChainLoginPage() {
                                                 <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 text-center">
                                                     <p className="text-sm text-gray-600">
                                                         {existingAppeal.status === 'approved' ? (
-                                                            <span className="text-emerald-600">✅ Your appeal has been approved!</span>
+                                                            <span className="text-emerald-600">Your appeal has been approved!</span>
                                                         ) : (
-                                                            <span className="text-red-600">❌ Your appeal was rejected.</span>
+                                                            <span className="text-red-600">Your appeal was rejected.</span>
                                                         )}
                                                     </p>
                                                     {existingAppeal.response_message && (
@@ -1620,6 +2073,7 @@ export default function SupplyChainLoginPage() {
                                             )}
                                         </>
                                     ) : (
+                                        // submit/edit appeal form
                                         <>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1683,6 +2137,5 @@ export default function SupplyChainLoginPage() {
                 </AnimatePresence>
             </>
         </OfflineDetector>
-
     );
 }

@@ -118,6 +118,8 @@ export default function Documents() {
     const [totalPhotos, setTotalPhotos] = useState(0);
     const [totalDocuments, setTotalDocuments] = useState(0);
 
+
+
     const getCurrentUser = useCallback(async () => {
         try {
             const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -155,6 +157,8 @@ export default function Documents() {
             setUserSessionId(null);
         }
     }, []);
+
+
 
     const fetchDocuments = useCallback(async (showLoading = true) => {
         try {
@@ -351,6 +355,10 @@ export default function Documents() {
 
     // Insert document with session_id and role
     const insertDocument = useCallback(async (documentData: any) => {
+        if (!documentData.title) {
+            throw new Error('Document title is required');
+        }
+
         const insertData = {
             ...documentData,
             session_id: userSessionId || null,
@@ -1966,8 +1974,8 @@ export default function Documents() {
                                     <input
                                         name="title"
                                         defaultValue={editingDoc.title}
-                                        className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-not-allowed"
-                                        required readOnly disabled
+                                        className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                                        required
                                     />
                                 </div>
 
