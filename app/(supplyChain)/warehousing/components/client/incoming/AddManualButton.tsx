@@ -343,16 +343,16 @@ function ManualEntryModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 transform transition-all max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/70 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl dark:shadow-black/70 border border-slate-100 dark:border-slate-800 transform transition-all max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-5">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Add Manual Entry</h2>
-                        <p className="text-xs text-slate-500 mt-0.5">Enter details to add a new parcel manually</p>
+                        <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Add Manual Entry</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Enter details to add a new parcel manually</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200 flex items-center justify-center transition-all"
+                        className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition-all cursor-pointer"
                         disabled={isLoading}
                         aria-label="Close"
                     >
@@ -361,28 +361,28 @@ function ManualEntryModal({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="flex items-center gap-3 rounded-xl border border-pink-100 bg-pink-50/60 p-3.5">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-pink-100 text-pink-600">
+                    <div className="flex items-center gap-3 rounded-xl border border-pink-100 dark:border-pink-950/60 bg-pink-50/60 dark:bg-pink-950/20 p-3.5">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-400">
                             <i className="fas fa-info-circle text-xs"></i>
                         </div>
-                        <p className="text-xs font-medium text-pink-950">
+                        <p className="text-xs font-medium text-pink-950 dark:text-pink-200">
                             Tracking number will be auto-generated upon submission.
                             <br />
-                            All fields marked with <span className="text-pink-500 font-bold">*</span> are required.
+                            All fields marked with <span className="text-pink-500 dark:text-pink-400 font-bold">*</span> are required.
                         </p>
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                             Barcode <span className="text-pink-500">*</span>
                         </label>
                         <input
                             type="text"
                             value={formData.barcode}
                             onChange={handleBarcodeChange}
-                            className={`w-full rounded-xl border bg-slate-50 px-3.5 py-2.5 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.barcode.length > 0 && formData.barcode.trim().length === 0
-                                ? 'border-amber-500'
-                                : 'border-slate-200'
+                            className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/40 px-3.5 py-2.5 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.barcode.length > 0 && formData.barcode.trim().length === 0
+                                ? 'border-amber-500 dark:border-amber-500/80'
+                                : 'border-slate-200 dark:border-slate-700/80'
                                 }`}
                             placeholder="Scan or enter barcode"
                             required
@@ -394,26 +394,26 @@ function ManualEntryModal({
                             maxLength={50}
                         />
                         {formData.barcode.length > 0 && formData.barcode.trim().length === 0 && (
-                            <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
+                            <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                                 <i className="fas fa-exclamation-triangle"></i> Cannot contain only spaces
                             </p>
                         )}
                     </div>
 
-                    <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
-                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <div className="space-y-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 p-4">
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                             Sender Information
                         </span>
 
                         <div>
-                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                 Sender Name
                             </label>
                             <input
                                 type="text"
                                 value={formData.sender_name}
                                 onChange={handleTextChange('sender_name')}
-                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.sender_name && formData.sender_name.trim().length === 0 ? 'border-amber-500' : 'border-slate-200'
+                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.sender_name && formData.sender_name.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
                                     }`}
                                 placeholder="Enter sender name (optional)"
                                 disabled={isLoading}
@@ -422,14 +422,14 @@ function ManualEntryModal({
                         </div>
 
                         <div>
-                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                 Customer Name
                             </label>
                             <input
                                 type="text"
                                 value={formData.customer_name}
                                 onChange={handleTextChange('customer_name')}
-                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.customer_name && formData.customer_name.trim().length === 0 ? 'border-amber-500' : 'border-slate-200'
+                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.customer_name && formData.customer_name.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
                                     }`}
                                 placeholder="Enter customer name (optional)"
                                 disabled={isLoading}
@@ -438,14 +438,14 @@ function ManualEntryModal({
                         </div>
 
                         <div>
-                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                                Customer Number <span className="text-amber-500 text-[10px]">(digits only, max 11)</span>
+                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                Customer Number <span className="text-amber-500 dark:text-amber-400 text-[10px]">(digits only, max 11)</span>
                             </label>
                             <input
                                 type="text"
                                 value={formData.customer_number}
                                 onChange={handleCustomerNumberChange}
-                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.customer_number && !/^\d+$/.test(formData.customer_number) ? 'border-amber-500' : 'border-slate-200'
+                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.customer_number && !/^\d+$/.test(formData.customer_number) ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
                                     }`}
                                 placeholder="Enter customer number (optional)"
                                 disabled={isLoading}
@@ -454,12 +454,12 @@ function ManualEntryModal({
                                 pattern="[0-9]*"
                             />
                             {formData.customer_number && !/^\d+$/.test(formData.customer_number) && (
-                                <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
+                                <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                                     <i className="fas fa-exclamation-triangle"></i> Only digits are allowed
                                 </p>
                             )}
                             {formData.customer_number && /^\d+$/.test(formData.customer_number) && (
-                                <p className="mt-1 text-[11px] text-slate-400">
+                                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                                     <i className="fas fa-check-circle text-emerald-500 mr-1"></i>
                                     {formData.customer_number.length} / 11 digits
                                 </p>
@@ -467,20 +467,20 @@ function ManualEntryModal({
                         </div>
                     </div>
 
-                    <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
-                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <div className="space-y-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 p-4">
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                             Delivery Destination
                         </span>
 
                         <div>
-                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                 Street Address <span className="text-pink-500">*</span>
                             </label>
                             <input
                                 type="text"
                                 value={formData.address}
                                 onChange={handleTextChange('address')}
-                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.address.length > 0 && formData.address.trim().length === 0 ? 'border-amber-500' : 'border-slate-200'
+                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.address.length > 0 && formData.address.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
                                     }`}
                                 placeholder="Enter complete street address"
                                 required
@@ -491,14 +491,14 @@ function ManualEntryModal({
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div className="relative">
-                                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                     City <span className="text-pink-500">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={formData.city}
                                     onChange={handleTextChange('city')}
-                                    className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.city.length > 0 && formData.city.trim().length === 0 ? 'border-amber-500' : 'border-slate-200'
+                                    className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.city.length > 0 && formData.city.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
                                         }`}
                                     placeholder="Enter city"
                                     required
@@ -508,16 +508,16 @@ function ManualEntryModal({
                                     onBlur={() => setTimeout(() => setShowCitySuggestions(false), 200)}
                                 />
                                 {showCitySuggestions && filteredCities.length > 0 && (
-                                    <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                                    <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
                                         {filteredCities.map((loc, index) => (
                                             <button
                                                 key={index}
                                                 type="button"
-                                                className="flex w-full flex-col px-4 py-2 text-left text-sm transition-colors hover:bg-pink-50"
+                                                className="flex w-full flex-col px-4 py-2 text-left text-sm transition-colors hover:bg-pink-50 dark:hover:bg-slate-800 cursor-pointer"
                                                 onClick={() => selectCity(loc)}
                                             >
-                                                <span className="font-semibold text-slate-800">{loc.city}</span>
-                                                <span className="text-xs text-slate-400">
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200">{loc.city}</span>
+                                                <span className="text-xs text-slate-400 dark:text-slate-500">
                                                     {loc.province} • {loc.region}
                                                 </span>
                                             </button>
@@ -527,14 +527,14 @@ function ManualEntryModal({
                             </div>
 
                             <div>
-                                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                     Province <span className="text-pink-500">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={formData.province}
                                     onChange={handleTextChange('province')}
-                                    className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.province.length > 0 && formData.province.trim().length === 0 ? 'border-amber-500' : 'border-slate-200'
+                                    className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.province.length > 0 && formData.province.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
                                         }`}
                                     placeholder="Enter province"
                                     required
@@ -544,14 +544,14 @@ function ManualEntryModal({
                             </div>
 
                             <div>
-                                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                     Region <span className="text-pink-500">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={formData.region}
                                     onChange={handleRegionChange}
-                                    className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all ${formData.region.length > 0 && formData.region.trim().length === 0 ? 'border-amber-500' : 'border-slate-200'
+                                    className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.region.length > 0 && formData.region.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
                                         }`}
                                     placeholder="e.g. NCR"
                                     required
@@ -561,11 +561,11 @@ function ManualEntryModal({
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
-                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-2xs">
+                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                 Destination Preview
                             </p>
-                            <p className="text-xs font-medium text-slate-700">
+                            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
                                 {formData.address && formData.city && formData.province ? (
                                     <span className="flex items-center gap-1.5">
                                         <i className="fas fa-map-pin text-pink-500"></i>
@@ -573,30 +573,30 @@ function ManualEntryModal({
                                             }`}
                                     </span>
                                 ) : (
-                                    <span className="text-slate-400 italic">Complete address, city, and province to preview...</span>
+                                    <span className="text-slate-400 dark:text-slate-500 italic">Complete address, city, and province to preview...</span>
                                 )}
                             </p>
                         </div>
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                             Courier
                         </label>
                         <select
                             value={formData.courier_id}
                             onChange={(e) => setFormData({ ...formData, courier_id: e.target.value })}
-                            className="w-full cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all"
+                            className="w-full cursor-pointer rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all"
                             disabled={isLoading || loadingCouriers}
                         >
-                            <option value="">Select courier</option>
+                            <option value="" className="dark:bg-slate-900">Select courier</option>
                             {loadingCouriers ? (
-                                <option value="" disabled>Loading couriers...</option>
+                                <option value="" disabled className="dark:bg-slate-900">Loading couriers...</option>
                             ) : couriers.length === 0 ? (
-                                <option value="" disabled>No couriers found</option>
+                                <option value="" disabled className="dark:bg-slate-900">No couriers found</option>
                             ) : (
                                 couriers.map((courier) => (
-                                    <option key={courier.id} value={courier.id}>
+                                    <option key={courier.id} value={courier.id} className="dark:bg-slate-900">
                                         {courier.code} - {courier.name}
                                     </option>
                                 ))
@@ -604,18 +604,18 @@ function ManualEntryModal({
                         </select>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                    <div className="flex items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98]"
+                            className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 active:scale-[0.98] cursor-pointer"
                             disabled={isLoading}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-pink-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-pink-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             disabled={isLoading}
                         >
                             {isLoading ? (

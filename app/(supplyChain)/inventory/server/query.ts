@@ -72,7 +72,7 @@ export async function fetchInventoryItems(params: {
             };
         }
 
-        const { page = 1, limit = 15, search = '', category = 'all', status = 'all' } = params;
+        const { page = 1, limit = 30, search = '', category = 'all', status = 'all' } = params;
         const from = (page - 1) * limit;
         const to = from + limit - 1;
 
@@ -359,7 +359,7 @@ export async function fetchInventoryPageData(params: {
             }),
             fetchParcels({
                 page: params.parcelPage || 1,
-                limit: params.parcelLimit || 15,
+                limit: params.parcelLimit || 30,
                 search: params.parcelSearch || '',
                 status: params.parcelStatus || '',
                 dateFrom: params.parcelDateFrom || '',

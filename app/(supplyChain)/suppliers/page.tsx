@@ -1,1068 +1,1918 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import Chart from "chart.js/auto";
+import { useEffect, useRef, useState } from "react";
+import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend, ArcElement, DoughnutController } from "chart.js";
 import { SessionGuard } from "../components/server/SessionGuard";
+import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
+import Cards from "../components/global/Cards";
+import { toast } from "sonner";
+import { useConfirm } from "../components/ui/ConfirmModal";
+import { Pagination } from "../components/global/pagination";
 
-declare global {
-    interface Window {
-        openSupplierModal?: (supplierId: string) => void;
-        closeModal?: (supplierId: string) => void;
-        openNewSupplierModal?: () => void;
-        closeNewSupplierModal?: () => void;
-        handleNewSupplier?: () => void;
-    }
-}
+let isRegistered = false;
 
-interface SupplierData {
-    id: string;
+interface Supplier {
+    id: number;
     name: string;
-    contact: string;
+    category: string;
+    contact_person: string;
     phone: string;
     email: string;
     location: string;
-    category: string;
-    products: string[];
-    totalOrders: number;
-    totalSpent: number;
-    avgOrder: number;
-    orders: Array<{ po: string; item: string; amount: string; status: string }>;
+    products: string;
+    notes: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
+interface PurchaseOrder {
+    id: string;
+    po_number: string;
+    request_id: string | null;
+    supplier_id: number | null;
+    supplier_name: string;
+    total_amount: number;
+    status: string;
+    delivery_date: string | null;
+    notes: string | null;
+    items: any[];
+    created_by: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+const ITEMS_PER_PAGE = 10;
+
 export default function Suppliers() {
+    const { confirm } = useConfirm();
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [categoryFilter, setCategoryFilter] = useState("");
+    const [categories, setCategories] = useState<string[]>([]);
+    const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+    const [showModal, setShowModal] = useState(false);
+    const [showNewSupplierModal, setShowNewSupplierModal] = useState(false);
+    const [showEditSupplierModal, setShowEditSupplierModal] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [selectedSuppliers, setSelectedSuppliers] = useState<Set<number>>(new Set());
+    const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+    const [selectedPurchaseOrders, setSelectedPurchaseOrders] = useState<Set<string>>(new Set());
+    const [isDeletingPO, setIsDeletingPO] = useState(false);
+    const [currentPOPage, setCurrentPOPage] = useState(1);
+    const PO_ITEMS_PER_PAGE = 15;
+    const paginatedPurchaseOrders = purchaseOrders.slice(
+        (currentPOPage - 1) * PO_ITEMS_PER_PAGE,
+        currentPOPage * PO_ITEMS_PER_PAGE
+    );
+    const POTotalPages = Math.ceil(purchaseOrders.length / PO_ITEMS_PER_PAGE);
+
+    const [currentPage, setCurrentPage] = useState(1);
+
+    const [newSupplier, setNewSupplier] = useState({
+        name: "",
+        category: "",
+        contact_person: "",
+        phone: "",
+        email: "",
+        location: "",
+        products: "",
+        notes: "",
+    });
+
     const activityChartRef = useRef<HTMLCanvasElement>(null);
     const activityChartInstance = useRef<Chart | null>(null);
+    const categoryChartRef = useRef<HTMLCanvasElement>(null);
+    const categoryChartInstance = useRef<Chart | null>(null);
 
-    const showToast = (message: string, type: string = "info") => {
-        alert(message);
+    useEffect(() => {
+        if (!isRegistered) {
+            Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend, ArcElement, DoughnutController);
+            isRegistered = true;
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchSuppliers();
+        fetchPurchaseOrders();
+    }, []);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, categoryFilter]);
+
+    const fetchSuppliers = async () => {
+        setIsLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from("suppliers")
+                .select("*")
+                .order("name");
+
+            if (error) throw error;
+
+            setSuppliers(data || []);
+
+            const uniqueCategories = [...new Set(data?.map(s => s.category).filter(Boolean))];
+            setCategories(uniqueCategories);
+        } catch (error) {
+            console.error("Error fetching suppliers:", error);
+            toast.error("Failed to load suppliers");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const supplierData: Record<string, SupplierData> = {
-        "SUP-001": {
-            id: "SUP-001",
-            name: "ABC Tire Center",
-            contact: "Juan Santos",
-            phone: "+63 912 345 6789",
-            email: "sales@abctires.ph",
-            location: "Manila",
-            category: "Tire Supplier",
-            products: ["Truck Tires", "Tire Tubes", "Wheel Accessories"],
-            totalOrders: 15,
-            totalSpent: 280000,
-            avgOrder: 18700,
-            orders: [
-                { po: "PO-2026-0031", item: "4 Truck Tires", amount: "₱ 40,000", status: "Delivered" },
-                { po: "PO-2026-0028", item: "6 Tire Tubes", amount: "₱ 18,000", status: "Delivered" },
-                { po: "PO-2026-0022", item: "8 Truck Tires", amount: "₱ 80,000", status: "Delivered" },
-            ],
-        },
-        "SUP-002": {
-            id: "SUP-002",
-            name: "AutoPro Parts",
-            contact: "Ligaya Reyes",
-            phone: "+63 923 456 7890",
-            email: "orders@autopro.ph",
-            location: "Quezon City",
-            category: "Auto Parts Supplier",
-            products: ["Brake Components", "Engine Parts", "Filters"],
-            totalOrders: 12,
-            totalSpent: 195000,
-            avgOrder: 16300,
-            orders: [
-                { po: "PO-2026-0032", item: "Brake Pads Set (10)", amount: "₱ 18,500", status: "Delivered" },
-                { po: "PO-2026-0025", item: "Engine Filters (20)", amount: "₱ 15,000", status: "Delivered" },
-            ],
-        },
-        "SUP-003": {
-            id: "SUP-003",
-            name: "Prime Fuel Supply",
-            contact: "Noel Aquino",
-            phone: "+63 934 567 8901",
-            email: "info@primefuel.ph",
-            location: "Pasig",
-            category: "Fuel Supplier",
-            products: ["Diesel", "Gasoline", "Lubricants"],
-            totalOrders: 8,
-            totalSpent: 142000,
-            avgOrder: 17800,
-            orders: [
-                { po: "PO-2026-0033", item: "Diesel Fuel 500L", amount: "₱ 32,500", status: "In Transit" },
-                { po: "PO-2026-0029", item: "Lubricants (20L)", amount: "₱ 12,000", status: "Delivered" },
-            ],
-        },
-        "SUP-004": {
-            id: "SUP-004",
-            name: "Packaging Solutions",
-            contact: "Maria Cruz",
-            phone: "+63 945 678 9012",
-            email: "info@packaging.ph",
-            location: "Makati",
-            category: "Packaging",
-            products: ["Shipping Boxes", "Packaging Tape", "Bubble Wrap"],
-            totalOrders: 6,
-            totalSpent: 85000,
-            avgOrder: 14200,
-            orders: [
-                { po: "PO-2026-0034", item: "Shipping Boxes (500)", amount: "₱ 12,800", status: "Confirmed" },
-                { po: "PO-2026-0026", item: "Packaging Tape (100)", amount: "₱ 8,500", status: "Delivered" },
-            ],
-        },
-        "SUP-005": {
-            id: "SUP-005",
-            name: "Office Depot",
-            contact: "Ramon Tan",
-            phone: "+63 956 789 0123",
-            email: "orders@officedepot.ph",
-            location: "Mandaluyong",
-            category: "Office Supplies",
-            products: ["Paper", "Ink Cartridges", "Office Furniture"],
-            totalOrders: 6,
-            totalSpent: 65000,
-            avgOrder: 10800,
-            orders: [
-                { po: "PO-2026-0030", item: "Printer Paper (10)", amount: "₱ 8,500", status: "Delivered" },
-                { po: "PO-2026-0024", item: "Ink Cartridges (20)", amount: "₱ 12,000", status: "Delivered" },
-            ],
-        },
+    const fetchPurchaseOrders = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("purchase_orders")
+                .select("*")
+                .order("created_at", { ascending: false })
+                .limit(50);
+
+            if (error) throw error;
+            setPurchaseOrders(data || []);
+        } catch (error) {
+            console.error("Error fetching purchase orders:", error);
+        }
+    };
+
+    const handleAddSupplier = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+
+        try {
+            const { data, error } = await supabase
+                .from("suppliers")
+                .insert({
+                    name: newSupplier.name,
+                    category: newSupplier.category,
+                    contact_person: newSupplier.contact_person,
+                    phone: newSupplier.phone,
+                    email: newSupplier.email,
+                    location: newSupplier.location,
+                    products: newSupplier.products,
+                    notes: newSupplier.notes,
+                    is_active: true,
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            toast.success(`Supplier "${data.name}" added successfully!`);
+            setShowNewSupplierModal(false);
+            setNewSupplier({
+                name: "",
+                category: "",
+                contact_person: "",
+                phone: "",
+                email: "",
+                location: "",
+                products: "",
+                notes: "",
+            });
+            fetchSuppliers();
+        } catch (error: any) {
+            console.error("Error adding supplier:", error);
+            toast.error(error.message || "Failed to add supplier");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleUpdateSupplier = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingSupplier) return;
+
+        setIsSubmitting(true);
+
+        try {
+            const { error } = await supabase
+                .from("suppliers")
+                .update({
+                    name: editingSupplier.name,
+                    category: editingSupplier.category,
+                    contact_person: editingSupplier.contact_person,
+                    phone: editingSupplier.phone,
+                    email: editingSupplier.email,
+                    location: editingSupplier.location,
+                    products: editingSupplier.products,
+                    notes: editingSupplier.notes,
+                    is_active: editingSupplier.is_active,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", editingSupplier.id);
+
+            if (error) throw error;
+
+            toast.success(`Supplier "${editingSupplier.name}" updated successfully!`);
+            setShowEditSupplierModal(false);
+            setEditingSupplier(null);
+            fetchSuppliers();
+        } catch (error: any) {
+            console.error("Error updating supplier:", error);
+            toast.error(error.message || "Failed to update supplier");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteSupplier = async (supplierId: number, supplierName: string) => {
+        const confirmed = await confirm({
+            title: "Delete Supplier",
+            message: `Are you sure you want to delete "${supplierName}"? This action cannot be undone.`,
+            confirmText: "Delete",
+            cancelText: "Cancel",
+            confirmVariant: "danger",
+        });
+
+        if (!confirmed) return;
+
+        try {
+            const { error } = await supabase
+                .from("suppliers")
+                .delete()
+                .eq("id", supplierId);
+
+            if (error) throw error;
+
+            toast.success(`Supplier "${supplierName}" deleted successfully!`);
+            fetchSuppliers();
+            setShowModal(false);
+        } catch (error: any) {
+            console.error("Error deleting supplier:", error);
+            toast.error(error.message || "Failed to delete supplier");
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedSuppliers.size === 0) {
+            toast.warning("Please select at least one supplier");
+            return;
+        }
+
+        const confirmed = await confirm({
+            title: "Delete Selected Suppliers",
+            message: `Are you sure you want to delete ${selectedSuppliers.size} selected supplier(s)? This action cannot be undone.`,
+            confirmText: "Delete All",
+            cancelText: "Cancel",
+            confirmVariant: "danger",
+        });
+
+        if (!confirmed) return;
+
+        try {
+            const { error } = await supabase
+                .from("suppliers")
+                .delete()
+                .in("id", Array.from(selectedSuppliers));
+
+            if (error) throw error;
+
+            toast.success(`${selectedSuppliers.size} supplier(s) deleted successfully!`);
+            setSelectedSuppliers(new Set());
+            fetchSuppliers();
+        } catch (error: any) {
+            console.error("Error bulk deleting suppliers:", error);
+            toast.error(error.message || "Failed to delete suppliers");
+        }
+    };
+
+    const handleDeletePurchaseOrder = async (poId: string, poNumber: string) => {
+        const confirmed = await confirm({
+            title: "Delete Purchase Order",
+            message: `Are you sure you want to delete PO "${poNumber}"? This action cannot be undone.`,
+            confirmText: "Delete",
+            cancelText: "Cancel",
+            confirmVariant: "danger",
+        });
+
+        if (!confirmed) return;
+
+        try {
+            const { error } = await supabase
+                .from("purchase_orders")
+                .delete()
+                .eq("id", poId);
+
+            if (error) throw error;
+
+            toast.success(`PO "${poNumber}" deleted successfully!`);
+            fetchPurchaseOrders();
+            // Also refresh suppliers to update order counts
+            fetchSuppliers();
+        } catch (error: any) {
+            console.error("Error deleting purchase order:", error);
+            toast.error(error.message || "Failed to delete purchase order");
+        }
+    };
+
+    const handleBulkDeletePurchaseOrders = async () => {
+        if (selectedPurchaseOrders.size === 0) {
+            toast.warning("Please select at least one purchase order to delete");
+            return;
+        }
+
+        const confirmed = await confirm({
+            title: "Delete Selected Purchase Orders",
+            message: `Are you sure you want to delete ${selectedPurchaseOrders.size} selected purchase order(s)? This action cannot be undone.`,
+            confirmText: `Delete ${selectedPurchaseOrders.size}`,
+            cancelText: "Cancel",
+            confirmVariant: "danger",
+        });
+
+        if (!confirmed) return;
+
+        try {
+            const { error } = await supabase
+                .from("purchase_orders")
+                .delete()
+                .in("id", Array.from(selectedPurchaseOrders));
+
+            if (error) throw error;
+
+            toast.success(`${selectedPurchaseOrders.size} purchase order(s) deleted successfully!`);
+            setSelectedPurchaseOrders(new Set());
+            fetchPurchaseOrders();
+            fetchSuppliers();
+        } catch (error: any) {
+            console.error("Error bulk deleting purchase orders:", error);
+            toast.error(error.message || "Failed to delete purchase orders");
+        }
+    };
+
+    const handleToggleSelectPO = (poId: string) => {
+        const newSelected = new Set(selectedPurchaseOrders);
+        if (newSelected.has(poId)) {
+            newSelected.delete(poId);
+        } else {
+            newSelected.add(poId);
+        }
+        setSelectedPurchaseOrders(newSelected);
+    };
+
+    const handleSelectAllPO = () => {
+        if (selectedPurchaseOrders.size === paginatedPurchaseOrders.length) {
+            setSelectedPurchaseOrders(new Set());
+        } else {
+            setSelectedPurchaseOrders(new Set(paginatedPurchaseOrders.map(po => po.id)));
+        }
+    };
+
+    const handleToggleSelect = (supplierId: number) => {
+        const newSelected = new Set(selectedSuppliers);
+        if (newSelected.has(supplierId)) {
+            newSelected.delete(supplierId);
+        } else {
+            newSelected.add(supplierId);
+        }
+        setSelectedSuppliers(newSelected);
+    };
+
+    const handleSelectAll = () => {
+        if (selectedSuppliers.size === filteredSuppliers.length) {
+            setSelectedSuppliers(new Set());
+        } else {
+            setSelectedSuppliers(new Set(filteredSuppliers.map(s => s.id)));
+        }
+    };
+
+    const handleToggleActive = async (supplierId: number, currentStatus: boolean) => {
+        try {
+            const { error } = await supabase
+                .from("suppliers")
+                .update({
+                    is_active: !currentStatus,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", supplierId);
+
+            if (error) throw error;
+
+            toast.success(`Supplier ${!currentStatus ? 'activated' : 'deactivated'} successfully!`);
+            fetchSuppliers();
+        } catch (error: any) {
+            console.error("Error toggling supplier status:", error);
+            toast.error(error.message || "Failed to update supplier status");
+        }
+    };
+
+    const filteredSuppliers = suppliers.filter(supplier => {
+        const matchesSearch = supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            supplier.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            supplier.email?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = !categoryFilter || supplier.category === categoryFilter;
+        return matchesSearch && matchesCategory;
+    });
+
+    const totalPages = Math.ceil(filteredSuppliers.length / ITEMS_PER_PAGE);
+    const paginatedSuppliers = filteredSuppliers.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    const activeSuppliers = suppliers.filter(s => s.is_active).length;
+    const totalOrders = purchaseOrders.length;
+
+    const supplierOrderCounts = suppliers.map(s => ({
+        ...s,
+        orderCount: purchaseOrders.filter(po => po.supplier_id === s.id).length,
+        totalSpent: purchaseOrders
+            .filter(po => po.supplier_id === s.id)
+            .reduce((sum, po) => sum + (po.total_amount || 0), 0)
+    }));
+
+    const topSupplier = supplierOrderCounts.length > 0
+        ? supplierOrderCounts.reduce((a, b) => a.orderCount > b.orderCount ? a : b)
+        : null;
+
+    const categoryCount = suppliers.reduce((acc: Record<string, number>, s) => {
+        acc[s.category] = (acc[s.category] || 0) + 1;
+        return acc;
+    }, {});
+    const topCategory = Object.entries(categoryCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+
+    const getStatusBadge = (status: string) => {
+        const statusMap: Record<string, { bg: string; text: string; dot: string }> = {
+            'Draft': { bg: "bg-slate-50 dark:bg-slate-700/50", text: "text-slate-600 dark:text-slate-300", dot: "bg-slate-400 dark:bg-slate-500" },
+            'Sent': { bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-600 dark:text-blue-400", dot: "bg-blue-400 dark:bg-blue-500" },
+            'Confirmed': { bg: "bg-indigo-50 dark:bg-indigo-900/20", text: "text-indigo-600 dark:text-indigo-400", dot: "bg-indigo-400 dark:bg-indigo-500" },
+            'Delivered': { bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-400 dark:bg-emerald-500" },
+            'Cancelled': { bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400", dot: "bg-red-400 dark:bg-red-500" },
+        };
+        const style = statusMap[status] || statusMap['Draft'];
+        return (
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${style.bg} ${style.text}`}>
+                {status}
+            </span>
+        );
+    };
+
+    const statusCounts = purchaseOrders.reduce((acc, po) => {
+        acc[po.status] = (acc[po.status] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const supplierStats = {
+        totalOrders: purchaseOrders.length,
+        totalSpent: purchaseOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0),
+        topSupplierName: topSupplier?.name || "N/A",
+        topSupplierOrders: topSupplier?.orderCount || 0,
+        statusCounts,
+    };
+
+    const createActivityChart = () => {
+        if (activityChartInstance.current) {
+            activityChartInstance.current.destroy();
+            activityChartInstance.current = null;
+        }
+
+        if (!activityChartRef.current) return;
+
+        const ctx = activityChartRef.current.getContext('2d');
+        if (!ctx) return;
+
+        if (suppliers.length === 0 || purchaseOrders.length === 0) {
+            return;
+        }
+
+        const topSuppliers = [...supplierOrderCounts]
+            .sort((a, b) => b.orderCount - a.orderCount)
+            .slice(0, 5);
+
+        const displaySuppliers = topSuppliers.some(s => s.orderCount > 0)
+            ? topSuppliers
+            : suppliers.slice(0, 5).map(s => ({
+                ...s,
+                orderCount: 0,
+                totalSpent: 0
+            }));
+
+        const orderCounts = displaySuppliers.map(s => s.orderCount);
+        const spendingData = displaySuppliers.map(s => s.totalSpent / 1000);
+
+        activityChartInstance.current = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: displaySuppliers.map(s => s.name.length > 12 ? s.name.substring(0, 12) + "..." : s.name),
+                datasets: [
+                    {
+                        label: "Orders",
+                        data: orderCounts,
+                        backgroundColor: "#EC4899",
+                        borderRadius: 8,
+                        barThickness: 28,
+                        order: 1,
+                    },
+                    {
+                        label: "Spent (₱K)",
+                        data: spendingData,
+                        backgroundColor: "#F472B6",
+                        borderRadius: 8,
+                        barThickness: 28,
+                        order: 2,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: "top",
+                        labels: {
+                            boxWidth: 12,
+                            boxHeight: 12,
+                            usePointStyle: true,
+                            font: { size: 10, weight: 500 },
+                            padding: 16,
+                            color: "#64748b",
+                        },
+                    },
+                    tooltip: {
+                        backgroundColor: "#1e293b",
+                        titleColor: "#f1f5f9",
+                        bodyColor: "#cbd5e1",
+                        borderColor: "#334155",
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function (context) {
+                                let label = context.dataset.label || '';
+                                let value = context.parsed.y || 0;
+                                if (context.dataset.label === "Spent (₱K)") {
+                                    return `${label}: ₱${(value * 1000).toLocaleString()}`;
+                                }
+                                return `${label}: ${value}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: 10 },
+                            maxRotation: 35,
+                            minRotation: 0,
+                            color: "#94a3b8",
+                        }
+                    },
+                    y: {
+                        grid: { color: "#f1f5f9", },
+                        beginAtZero: true,
+                        ticks: {
+                            font: { size: 10 },
+                            color: "#94a3b8",
+                            stepSize: Math.max(1, Math.ceil(Math.max(...orderCounts, ...spendingData) / 5)),
+                        },
+                    },
+                },
+            },
+        });
+    };
+
+    const createCategoryChart = () => {
+        if (categoryChartInstance.current) {
+            categoryChartInstance.current.destroy();
+            categoryChartInstance.current = null;
+        }
+
+        if (!categoryChartRef.current) return;
+
+        const ctx = categoryChartRef.current.getContext('2d');
+        if (!ctx) return;
+
+        if (suppliers.length === 0) return;
+
+        const categoryData = suppliers.reduce((acc: Record<string, number>, s) => {
+            acc[s.category] = (acc[s.category] || 0) + 1;
+            return acc;
+        }, {});
+
+        const colors = [
+            "#EC4899", "#F472B6", "#F9A8D4", "#FBCFE8",
+            "#8B5CF6", "#A78BFA", "#C4B5FD",
+            "#6366F1", "#818CF8", "#A5B4FC"
+        ];
+
+        const entries = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
+        const labels = entries.map(e => e[0]);
+        const data = entries.map(e => e[1]);
+
+        categoryChartInstance.current = new Chart(ctx, {
+            type: "doughnut",
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderWidth: 2,
+                    borderColor: "#ffffff",
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "65%",
+                plugins: {
+                    legend: {
+                        position: "right",
+                        labels: {
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            usePointStyle: true,
+                            font: { size: 10, weight: 500 },
+                            padding: 12,
+                            color: "#64748b",
+                        },
+                    },
+                    tooltip: {
+                        backgroundColor: "#1e293b",
+                        titleColor: "#f1f5f9",
+                        bodyColor: "#cbd5e1",
+                        borderColor: "#334155",
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function (context) {
+                                const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                                const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                return `${context.label}: ${context.parsed} (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+            },
+        });
     };
 
     useEffect(() => {
-        if (typeof window === "undefined") return;
-
-        function getElement<T extends HTMLElement>(id: string): T | null {
-            return document.getElementById(id) as T | null;
-        }
-
-        // Modal functions
-        window.openSupplierModal = function (supplierId: string) {
-            const modal = getElement<HTMLDivElement>("modal-" + supplierId);
-            if (modal) {
-                modal.classList.remove("hidden");
-                document.body.style.overflow = "hidden";
-            }
-        };
-
-        window.closeModal = function (supplierId: string) {
-            const modal = getElement<HTMLDivElement>("modal-" + supplierId);
-            if (modal) {
-                modal.classList.add("hidden");
-                document.body.style.overflow = "auto";
-            }
-        };
-
-        window.openNewSupplierModal = function () {
-            const modal = getElement<HTMLDivElement>("newSupplierModal");
-            if (modal) {
-                modal.classList.remove("hidden");
-                modal.classList.add("flex");
-                document.body.style.overflow = "hidden";
-            }
-        };
-
-        window.closeNewSupplierModal = function () {
-            const modal = getElement<HTMLDivElement>("newSupplierModal");
-            if (modal) {
-                modal.classList.add("hidden");
-                modal.classList.remove("flex");
-                document.body.style.overflow = "auto";
-                // Reset form
-                const inputs = modal.querySelectorAll("input, textarea, select");
-                inputs.forEach((input: any) => {
-                    if (input.type === "text" || input.type === "email" || input.type === "tel") {
-                        input.value = "";
-                    } else if (input.tagName === "SELECT") {
-                        input.value = "";
-                    } else if (input.tagName === "TEXTAREA") {
-                        input.value = "";
-                    }
-                });
-            }
-        };
-
-        window.handleNewSupplier = function () {
-            const name = (document.getElementById("supplierName") as HTMLInputElement)?.value;
-            const category = (document.getElementById("supplierCategory") as HTMLSelectElement)?.value;
-            const contact = (document.getElementById("supplierContact") as HTMLInputElement)?.value;
-            const phone = (document.getElementById("supplierPhone") as HTMLInputElement)?.value;
-            const email = (document.getElementById("supplierEmail") as HTMLInputElement)?.value;
-            const location = (document.getElementById("supplierLocation") as HTMLInputElement)?.value;
-
-            if (!name || !category || !contact || !phone || !email || !location) {
-                showToast("Please fill in all required fields", "error");
-                return;
-            }
-
-            if (window.closeNewSupplierModal) window.closeNewSupplierModal();
-            showToast(` Supplier "${name}" has been added successfully!`, "info");
-
-            setTimeout(() => {
-                showToast(" New supplier registered in the directory", "info");
-            }, 1000);
-        };
-
-        // Close modal when clicking outside
-        document.addEventListener("click", function (e) {
-            const modals = document.querySelectorAll('[id^="modal-"]');
-            modals.forEach((modal) => {
-                if (e.target === modal) {
-                    modal.classList.add("hidden");
-                    document.body.style.overflow = "auto";
-                }
-            });
-            const newModal = document.getElementById("newSupplierModal");
-            if (e.target === newModal && window.closeNewSupplierModal) {
-                window.closeNewSupplierModal();
-            }
-        });
-
-        // Close modal on Escape key
-        document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") {
-                const modals = document.querySelectorAll('[id^="modal-"]:not(.hidden)');
-                modals.forEach((modal) => {
-                    modal.classList.add("hidden");
-                    document.body.style.overflow = "auto";
-                });
-                const newModal = document.getElementById("newSupplierModal");
-                if (newModal && !newModal.classList.contains("hidden") && window.closeNewSupplierModal) {
-                    window.closeNewSupplierModal();
-                }
-            }
-        });
-
-        // Create chart
-        function createActivityChart() {
-            if (activityChartInstance.current) {
-                activityChartInstance.current.destroy();
-                activityChartInstance.current = null;
-            }
-
-            if (activityChartRef.current && Chart) {
-                activityChartInstance.current = new Chart(activityChartRef.current, {
-                    type: "bar",
-                    data: {
-                        labels: ["ABC Tires", "AutoPro", "Prime Fuel", "Packaging", "Office Depot"],
-                        datasets: [
-                            {
-                                label: "Total Orders",
-                                data: [15, 12, 8, 6, 6],
-                                backgroundColor: "#EC4899",
-                                borderRadius: 6,
-                                barThickness: 32,
-                                order: 1,
-                            },
-                            {
-                                label: "Spent (₱K)",
-                                data: [280, 195, 142, 85, 65],
-                                backgroundColor: "#F472B6",
-                                borderRadius: 6,
-                                barThickness: 32,
-                                order: 2,
-                            },
-                        ],
-                    },
-                    options: {
-                        plugins: {
-                            legend: {
-                                position: "top",
-                                labels: {
-                                    boxWidth: 12,
-                                    boxHeight: 12,
-                                    usePointStyle: true,
-                                    font: { size: 10 },
-                                },
-                            },
-                        },
-                        scales: {
-                            x: { grid: { display: false } },
-                            y: {
-                                grid: { color: "#F1F5F9" },
-                                beginAtZero: true,
-                            },
-                        },
-                    },
-                });
-            }
-        }
-
-        createActivityChart();
-
-        // Top Suppliers by Orders
-        const topSuppliers = document.getElementById("topSuppliers");
-        if (topSuppliers) {
-            const suppliers = [
-                { name: "ABC Tire Center", orders: 15, spent: "₱ 280K", category: "Tire Supplier" },
-                { name: "AutoPro Parts", orders: 12, spent: "₱ 195K", category: "Auto Parts" },
-                { name: "Prime Fuel Supply", orders: 8, spent: "₱ 142K", category: "Fuel Supplier" },
-                { name: "Packaging Solutions", orders: 6, spent: "₱ 85K", category: "Packaging" },
-            ];
-
-            const colors = ["bg-pink-500", "bg-rose-400", "bg-fuchsia-400", "bg-purple-400"];
-            topSuppliers.innerHTML = "";
-            suppliers.forEach((s, index) => {
-                const initials = s.name
-                    .split(" ")
-                    .map((x: string) => x[0])
-                    .join("");
-                const li = document.createElement("li");
-                li.className =
-                    "flex items-center gap-3 p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition";
-                li.innerHTML = `
-          <div class="w-8 h-8 rounded-full ${colors[index]} text-white flex items-center justify-center font-bold text-xs flex-shrink-0">${initials}</div>
-          <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm">${s.name}</div>
-            <div class="text-xs text-slate-500">${s.category} · ${s.orders} orders</div>
-          </div>
-          <div class="text-sm font-semibold text-slate-900">${s.spent}</div>
-        `;
-                topSuppliers.appendChild(li);
-            });
-        }
-
-        // Search and filter functionality
-        const searchInput = getElement<HTMLInputElement>("sSearch");
-        const categoryFilter = getElement<HTMLSelectElement>("sCategory");
-        const tableRows = document.querySelectorAll("#sTable tbody tr");
-
-        function filterTable() {
-            const searchTerm = searchInput?.value?.toLowerCase() || "";
-            const categoryValue = categoryFilter?.value || "";
-
-            tableRows.forEach((row) => {
-                const text = row.textContent?.toLowerCase() || "";
-                const cells = row.querySelectorAll("td");
-                const categoryCell = cells[2];
-                const categoryText = categoryCell ? categoryCell.textContent?.trim() || "" : "";
-
-                const matchesSearch = text.includes(searchTerm);
-                const matchesCategory = !categoryValue || categoryText === categoryValue;
-
-                (row as HTMLElement).style.display =
-                    matchesSearch && matchesCategory ? "" : "none";
-            });
-        }
-
-        if (searchInput) searchInput.addEventListener("input", filterTable);
-        if (categoryFilter) categoryFilter.addEventListener("change", filterTable);
+        const timer = setTimeout(() => {
+            createActivityChart();
+            createCategoryChart();
+        }, 300);
 
         return () => {
+            clearTimeout(timer);
             if (activityChartInstance.current) {
                 activityChartInstance.current.destroy();
                 activityChartInstance.current = null;
             }
+            if (categoryChartInstance.current) {
+                categoryChartInstance.current.destroy();
+                categoryChartInstance.current = null;
+            }
         };
+    }, [suppliers, purchaseOrders]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (activityChartInstance.current) {
+                activityChartInstance.current.resize();
+            }
+            if (categoryChartInstance.current) {
+                categoryChartInstance.current.resize();
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     return (
         <SessionGuard requiredRole={['Admin', 'Employee']}>
             <main className="main-shell bgCard">
                 <div className="p-6 space-y-6 fade-in">
-                    <div className="flex items-start justify-between gap-4 flex-wrap">
-                        <div>
-                            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
+                    <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-3.5">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl 
+                    bg-pink-50 dark:bg-pink-950/30 
+                    border border-pink-100 dark:border-pink-800/30 
+                    flex items-center justify-center text-pink-600 dark:text-pink-400 
+                    text-lg sm:text-xl shadow-2xs shrink-0 mt-0.5">
+                            <i className="fas fa-handshake"></i>
+                        </div>
+
+                        <div className="w-full min-w-0">
+                            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
                                 Supplier &amp; Vendor Management
                             </h1>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                                 Track supplier purchases, order frequency, and spending patterns.
                             </p>
-                        </div>
-                        <button
-                            className="btn-primary"
-                            onClick={() => {
-                                if (window.openNewSupplierModal) window.openNewSupplierModal();
-                            }}
-                        >
-                            + New Supplier
-                        </button>
-                    </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="card kpi">
-                            <div className="label">Active Suppliers</div>
-                            <div className="value">8</div>
-                            <div className="delta delta-up">▲ 2</div>
-                        </div>
-                        <div className="card kpi">
-                            <div className="label">Total Purchases (YTD)</div>
-                            <div className="value">47</div>
-                            <div className="delta delta-up">▲ 12%</div>
-                        </div>
-                        <div className="card kpi">
-                            <div className="label">Most Active Supplier</div>
-                            <div className="value text-base font-semibold mt-2">ABC Tires</div>
-                            <div className="delta text-slate-500">15 orders</div>
-                        </div>
-                        <div className="card kpi">
-                            <div className="label">Top Spending Category</div>
-                            <div className="value text-base font-semibold mt-2">Spare Parts</div>
-                            <div className="delta text-slate-500">₱ 450K</div>
-                        </div>
-                    </div>
-
-                    <div className="card">
-                        <div className="p-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
-                            <div className="font-semibold text-slate-900">Supplier Directory</div>
-                            <input
-                                id="sSearch"
-                                className="input max-w-xs ml-auto"
-                                placeholder="Search suppliers…"
-                            />
-                            <select id="sCategory" className="input max-w-[180px]" defaultValue="">
-                                <option value="">All categories</option>
-                                <option value="Tire Supplier">Tire Supplier</option>
-                                <option value="Auto Parts Supplier">Auto Parts Supplier</option>
-                                <option value="Fuel Supplier">Fuel Supplier</option>
-                                <option value="Packaging">Packaging</option>
-                            </select>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="table-pro" id="sTable">
-                                <thead>
-                                    <tr>
-                                        <th>Supplier ID</th>
-                                        <th>Supplier Name</th>
-                                        <th>Category</th>
-                                        <th>Products / Services</th>
-                                        <th>Total Orders</th>
-                                        <th>Total Spent</th>
-                                        <th>Last Order</th>
-                                        <th>Status</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td data-label="Supplier ID" className="font-mono text-xs">
-                                            SUP-001
-                                        </td>
-                                        <td data-label="Supplier Name">
-                                            <div className="font-medium">ABC Tire Center</div>
-                                            <div className="text-xs text-slate-500">sales@abctires.ph</div>
-                                        </td>
-                                        <td data-label="Category">Tire Supplier</td>
-                                        <td data-label="Products / Services">
-                                            Truck tires, tubes, wheel accessories
-                                        </td>
-                                        <td data-label="Total Orders" className="font-medium text-center">
-                                            15
-                                        </td>
-                                        <td data-label="Total Spent" className="font-medium">
-                                            ₱ 280,000
-                                        </td>
-                                        <td data-label="Last Order" className="text-xs text-slate-500">
-                                            2026-07-18
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>Active
-                                            </span>
-                                        </td>
-                                        <td data-label="Action" className="text-right">
-                                            <button
-                                                className="btn-ghost !py-1 !px-2 text-xs"
-                                                onClick={() => {
-                                                    if (window.openSupplierModal) window.openSupplierModal("SUP-001");
-                                                }}
-                                            >
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td data-label="Supplier ID" className="font-mono text-xs">
-                                            SUP-002
-                                        </td>
-                                        <td data-label="Supplier Name">
-                                            <div className="font-medium">AutoPro Parts</div>
-                                            <div className="text-xs text-slate-500">orders@autopro.ph</div>
-                                        </td>
-                                        <td data-label="Category">Auto Parts Supplier</td>
-                                        <td data-label="Products / Services">
-                                            Brake components, engine parts, filters
-                                        </td>
-                                        <td data-label="Total Orders" className="font-medium text-center">
-                                            12
-                                        </td>
-                                        <td data-label="Total Spent" className="font-medium">
-                                            ₱ 195,000
-                                        </td>
-                                        <td data-label="Last Order" className="text-xs text-slate-500">
-                                            2026-07-17
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>Active
-                                            </span>
-                                        </td>
-                                        <td data-label="Action" className="text-right">
-                                            <button
-                                                className="btn-ghost !py-1 !px-2 text-xs"
-                                                onClick={() => {
-                                                    if (window.openSupplierModal) window.openSupplierModal("SUP-002");
-                                                }}
-                                            >
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td data-label="Supplier ID" className="font-mono text-xs">
-                                            SUP-003
-                                        </td>
-                                        <td data-label="Supplier Name">
-                                            <div className="font-medium">Prime Fuel Supply</div>
-                                            <div className="text-xs text-slate-500">info@primefuel.ph</div>
-                                        </td>
-                                        <td data-label="Category">Fuel Supplier</td>
-                                        <td data-label="Products / Services">
-                                            Diesel, gasoline, lubricants
-                                        </td>
-                                        <td data-label="Total Orders" className="font-medium text-center">
-                                            8
-                                        </td>
-                                        <td data-label="Total Spent" className="font-medium">
-                                            ₱ 142,000
-                                        </td>
-                                        <td data-label="Last Order" className="text-xs text-slate-500">
-                                            2026-07-16
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>Inactive
-                                            </span>
-                                        </td>
-                                        <td data-label="Action" className="text-right">
-                                            <button
-                                                className="btn-ghost !py-1 !px-2 text-xs"
-                                                onClick={() => {
-                                                    if (window.openSupplierModal) window.openSupplierModal("SUP-003");
-                                                }}
-                                            >
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td data-label="Supplier ID" className="font-mono text-xs">
-                                            SUP-004
-                                        </td>
-                                        <td data-label="Supplier Name">
-                                            <div className="font-medium">Packaging Solutions</div>
-                                            <div className="text-xs text-slate-500">info@packaging.ph</div>
-                                        </td>
-                                        <td data-label="Category">Packaging</td>
-                                        <td data-label="Products / Services">
-                                            Shipping boxes, tape, bubble wrap
-                                        </td>
-                                        <td data-label="Total Orders" className="font-medium text-center">
-                                            6
-                                        </td>
-                                        <td data-label="Total Spent" className="font-medium">
-                                            ₱ 85,000
-                                        </td>
-                                        <td data-label="Last Order" className="text-xs text-slate-500">
-                                            2026-07-15
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>Active
-                                            </span>
-                                        </td>
-                                        <td data-label="Action" className="text-right">
-                                            <button
-                                                className="btn-ghost !py-1 !px-2 text-xs"
-                                                onClick={() => {
-                                                    if (window.openSupplierModal) window.openSupplierModal("SUP-004");
-                                                }}
-                                            >
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td data-label="Supplier ID" className="font-mono text-xs">
-                                            SUP-005
-                                        </td>
-                                        <td data-label="Supplier Name">
-                                            <div className="font-medium">Office Depot</div>
-                                            <div className="text-xs text-slate-500">orders@officedepot.ph</div>
-                                        </td>
-                                        <td data-label="Category">Office Supplies</td>
-                                        <td data-label="Products / Services">
-                                            Paper, ink, office furniture
-                                        </td>
-                                        <td data-label="Total Orders" className="font-medium text-center">
-                                            6
-                                        </td>
-                                        <td data-label="Total Spent" className="font-medium">
-                                            ₱ 65,000
-                                        </td>
-                                        <td data-label="Last Order" className="text-xs text-slate-500">
-                                            2026-07-14
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>Active
-                                            </span>
-                                        </td>
-                                        <td data-label="Action" className="text-right">
-                                            <button
-                                                className="btn-ghost !py-1 !px-2 text-xs"
-                                                onClick={() => {
-                                                    if (window.openSupplierModal) window.openSupplierModal("SUP-005");
-                                                }}
-                                            >
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div data-pager className="p-4 border-t border-slate-100 flex items-center justify-between">
-                            <span className="text-sm text-slate-500">Showing 5 of 5 suppliers</span>
-                            <div className="flex gap-1">
-                                <button className="btn-ghost !py-1 !px-3 text-xs" disabled>
-                                    Prev
-                                </button>
-                                <button className="btn-ghost !py-1 !px-3 text-xs bg-pink-50 border-pink-200">
-                                    1
-                                </button>
-                                <button className="btn-ghost !py-1 !px-3 text-xs" disabled>
-                                    Next
-                                </button>
+                            <div className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 
+                      px-2.5 py-1.5 sm:py-1 rounded-lg 
+                      bg-slate-100/80 dark:bg-slate-800/50 
+                      border border-slate-200/60 dark:border-ink/20 
+                      text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 max-w-full">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                <i className="fas fa-users text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500"></i>
+                                <span>Total Suppliers:</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px] sm:max-w-none">
+                                    {suppliers.length}
+                                </span>
+                                <span className="text-slate-400 dark:text-slate-500 font-normal sm:border-l sm:border-slate-300/60 sm:pl-2 sm:ml-0.5 truncate max-w-[180px] sm:max-w-none">
+                                    {suppliers.filter(s => s.is_active).length} active
+                                </span>
                             </div>
                         </div>
+
+                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 mt-2 sm:mt-0">
+                            {selectedSuppliers.size > 0 && (
+                                <button
+                                    type="button"
+                                    className="btn-danger w-full sm:w-auto justify-center"
+                                    onClick={handleBulkDelete}
+                                >
+                                    Delete Selected ({selectedSuppliers.size})
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                className="btn-primary w-full sm:w-auto justify-center"
+                                onClick={() => setShowNewSupplierModal(true)}
+                            >
+                                + New Supplier
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                        <div className="card p-5 xl:col-span-2">
-                            <div className="flex items-center justify-between mb-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <Cards
+                            frontIcon="fas fa-building mr-1"
+                            header="Active Suppliers"
+                            data={activeSuppliers.toString()}
+                            arrow="fas fa-arrow-up mr-1"
+                            description="Total active suppliers"
+                            backBg="bg-slate-900"
+                            backHeader="Supplier Stats"
+                            headerTextColor="text-slate-400"
+                            backDescription={`Total suppliers: ${suppliers.length}, Active: ${activeSuppliers}`}
+                            tooltip="View all suppliers"
+                            tooltipLink="#supplierTableId"
+                            badge={`${activeSuppliers} Active`}
+                        />
+                        <Cards
+                            frontIcon="fas fa-shopping-cart mr-1"
+                            header="Total Purchases"
+                            data={supplierStats.totalOrders.toString()}
+                            arrow="fas fa-arrow-up mr-1"
+                            description="Orders placed"
+                            backBg="bg-slate-900"
+                            backHeader="Order Stats"
+                            headerTextColor="text-slate-400"
+                            backDescription={`Total purchase orders placed across all suppliers`}
+                            tooltip="View all purchase orders"
+                            tooltipLink="/purchase-order"
+                            badge={`${supplierStats.totalOrders} Total`}
+                        />
+                        <Cards
+                            frontIcon="fas fa-trophy mr-1"
+                            header="Top Supplier"
+                            data={supplierStats.topSupplierName}
+                            arrow="fas fa-arrow-up mr-1"
+                            description={`${supplierStats.topSupplierOrders} orders`}
+                            backBg="bg-slate-900"
+                            backHeader="Top Supplier Details"
+                            headerTextColor="text-slate-200"
+                            backDescription={topSupplier ? `${topSupplier.category} - ${topSupplier.location}` : "No suppliers yet"}
+                            tooltip="View supplier details"
+                            tooltipLink={topSupplier ? `/supplier/${topSupplier.id}` : "#"}
+                            badge={topSupplier ? "⭐ Top" : "No Data"}
+                        />
+                        <Cards
+                            frontIcon="fas fa-tags mr-1"
+                            header="Top Category"
+                            data={topCategory}
+                            arrow="fas fa-arrow-up mr-1"
+                            description="Most common supplier type"
+                            backBg="bg-slate-900"
+                            backHeader="Category Breakdown"
+                            headerTextColor="text-slate-200"
+                            backDescription={`${topCategory} is the most common supplier category`}
+                            tooltip="View category details"
+                            tooltipLink="#"
+                            badge={topCategory || "N/A"}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+                        <div className="card p-5 xl:col-span-3">
+                            <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <div className="font-semibold text-slate-900">Purchase Activity by Supplier</div>
-                                    <div className="text-xs text-slate-500">Total orders and spending per supplier</div>
+                                    <div className="font-semibold text-slate-900 dark:text-white">Purchase Activity by Supplier</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">Total orders and spending per supplier</div>
                                 </div>
                             </div>
-                            <canvas ref={activityChartRef} className="mt-3" height="110"></canvas>
+                            <div className="h-56 relative">
+                                {isLoading ? (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                                    </div>
+                                ) : suppliers.length === 0 ? (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+                                        <i className="fas fa-building text-4xl mb-3 opacity-30"></i>
+                                        <span className="text-sm font-medium">No suppliers registered yet</span>
+                                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Add a supplier to start tracking purchases</span>
+                                    </div>
+                                ) : purchaseOrders.length === 0 ? (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+                                        <i className="fas fa-shopping-cart text-4xl mb-3 opacity-30"></i>
+                                        <span className="text-sm font-medium">No purchase orders yet</span>
+                                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Create a purchase order to see activity data</span>
+                                    </div>
+                                ) : (
+                                    <canvas ref={activityChartRef} className="w-full h-full"></canvas>
+                                )}
+                            </div>
                         </div>
-                        <div className="card p-5">
-                            <div className="font-semibold text-slate-900">Top Suppliers by Orders</div>
-                            <div className="text-xs text-slate-500 mb-3">Most frequently used suppliers</div>
-                            <ul className="space-y-3" id="topSuppliers"></ul>
+
+                        <div className="card p-5 xl:col-span-2">
+                            <div className="font-semibold text-slate-900 dark:text-white mb-1">Supplier Categories</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">Distribution by category</div>
+                            <div className="h-56 relative">
+                                {isLoading ? (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                                    </div>
+                                ) : suppliers.length === 0 ? (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+                                        <i className="fas fa-chart-pie text-4xl mb-3 opacity-30"></i>
+                                        <span className="text-sm font-medium">No data available</span>
+                                    </div>
+                                ) : (
+                                    <canvas ref={categoryChartRef} className="w-full h-full"></canvas>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="card">
-                        <div className="p-4 border-b border-slate-100">
-                            <div className="font-semibold text-slate-900">Recent Purchase History</div>
-                            <p className="text-xs text-slate-500">Latest orders placed with suppliers</p>
+                    <div className="card flex flex-col">
+                        {/* Filter Bar - Stays fixed */}
+                        <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center gap-3 ">
+                            {/* Title & Badge */}
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-pink-500" />
+                                <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
+                                    Supplier Directory
+                                </h2>
+                            </div>
+
+                            {/* Search Input */}
+                            <div className="flex gap-2 items-center ml-auto">
+                                <div className="relative flex-1 sm:flex-initial sm:max-w-xs ml-auto">
+                                    <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search suppliers…"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full py-1.5 pl-8 pr-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all"
+                                    />
+                                </div>
+
+                                {/* Category Filter Select */}
+                                <div className="relative max-w-[180px] w-full sm:w-auto">
+                                    <select
+                                        value={categoryFilter}
+                                        onChange={(e) => setCategoryFilter(e.target.value)}
+                                        aria-label="Filter by category"
+                                        className="w-full py-1.5 pl-3 pr-8 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all cursor-pointer appearance-none"
+                                    >
+                                        <option value="">All categories</option>
+                                        {categories.map((cat) => (
+                                            <option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
+                                                {cat}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none" />
+                                </div>
+                            </div>
+
+
+                            {/* Bulk Delete Action */}
+                            {selectedSuppliers.size > 0 && (
+                                <button
+                                    onClick={handleBulkDelete}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/40 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors cursor-pointer"
+                                >
+                                    <i className="fas fa-trash-alt text-[10px]" />
+                                    <span>Delete Selected ({selectedSuppliers.size})</span>
+                                </button>
+                            )}
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="table-pro">
-                                <thead>
-                                    <tr>
-                                        <th>Order #</th>
-                                        <th>Supplier</th>
-                                        <th>Item</th>
-                                        <th>Amount</th>
-                                        <th>Date</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td data-label="Order #" className="font-mono text-xs">
-                                            PO-2026-0031
-                                        </td>
-                                        <td data-label="Supplier">ABC Tire Center</td>
-                                        <td data-label="Item">4 Truck Tires</td>
-                                        <td data-label="Amount" className="font-medium">
-                                            ₱ 40,000
-                                        </td>
-                                        <td data-label="Date" className="text-xs text-slate-500">
-                                            2026-07-18
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="status-badge status-delivered">Delivered</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td data-label="Order #" className="font-mono text-xs">
-                                            PO-2026-0032
-                                        </td>
-                                        <td data-label="Supplier">AutoPro Parts</td>
-                                        <td data-label="Item">Brake Pads Set (10)</td>
-                                        <td data-label="Amount" className="font-medium">
-                                            ₱ 18,500
-                                        </td>
-                                        <td data-label="Date" className="text-xs text-slate-500">
-                                            2026-07-17
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="status-badge status-delivered">Delivered</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td data-label="Order #" className="font-mono text-xs">
-                                            PO-2026-0033
-                                        </td>
-                                        <td data-label="Supplier">Prime Fuel Supply</td>
-                                        <td data-label="Item">Diesel Fuel 500L</td>
-                                        <td data-label="Amount" className="font-medium">
-                                            ₱ 32,500
-                                        </td>
-                                        <td data-label="Date" className="text-xs text-slate-500">
-                                            2026-07-16
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="status-badge status-transit">In Transit</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td data-label="Order #" className="font-mono text-xs">
-                                            PO-2026-0034
-                                        </td>
-                                        <td data-label="Supplier">Packaging Solutions</td>
-                                        <td data-label="Item">Shipping Boxes (500)</td>
-                                        <td data-label="Amount" className="font-medium">
-                                            ₱ 12,800
-                                        </td>
-                                        <td data-label="Date" className="text-xs text-slate-500">
-                                            2026-07-15
-                                        </td>
-                                        <td data-label="Status">
-                                            <span className="status-badge status-confirmed">Confirmed</span>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+
+                        {/* Scrollable Table Container - Only this scrolls */}
+                        <div className="flex-1 overflow-y-auto max-h-[500px] relative">
+                            {isLoading ? (
+                                <div className="text-center py-12">
+                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading suppliers...</p>
+                                </div>
+                            ) : filteredSuppliers.length === 0 ? (
+                                <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                                    No suppliers found
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="table-pro w-full text-left text-xs border-collapse p-1" id="supplierTableId">
+                                        <thead className="bg-slate-50/75 dark:bg-slate-900/50 border-b border-slate-200/80 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                                            <tr>
+                                                <th className="w-10 py-3.5 px-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSuppliers.size === filteredSuppliers.length && filteredSuppliers.length > 0}
+                                                        onChange={handleSelectAll}
+                                                        aria-label="Select all suppliers"
+                                                        className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"
+                                                    />
+                                                </th>
+                                                <th className="py-3.5 px-4">Supplier ID</th>
+                                                <th className="py-3.5 px-4">Supplier Name</th>
+                                                <th className="py-3.5 px-4">Category</th>
+                                                <th className="py-3.5 px-4">Contact</th>
+                                                <th className="py-3.5 px-4">Location</th>
+                                                <th className="py-3.5 px-4">Status</th>
+                                                <th className="py-3.5 px-4 text-right!">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                            {paginatedSuppliers.map((supplier) => (
+                                                <tr
+                                                    key={supplier.id}
+                                                    className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                                                >
+                                                    {/* Checkbox */}
+                                                    <td className="py-3 px-4">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedSuppliers.has(supplier.id)}
+                                                            onChange={() => handleToggleSelect(supplier.id)}
+                                                            aria-label={`Select ${supplier.name}`}
+                                                            className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"
+                                                        />
+                                                    </td>
+
+                                                    {/* Supplier ID */}
+                                                    <td data-label="Supplier ID" className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                                        SUP-{String(supplier.id).padStart(3, '0')}
+                                                    </td>
+
+                                                    {/* Supplier Name & Email */}
+                                                    <td data-label="Supplier Name" className="py-3 px-4">
+                                                        <div className="font-semibold text-slate-900 dark:text-slate-100">{supplier.name}</div>
+                                                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{supplier.email}</div>
+                                                    </td>
+
+                                                    {/* Category */}
+                                                    <td data-label="Category" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium">
+                                                        {supplier.category}
+                                                    </td>
+
+                                                    {/* Contact Person & Phone */}
+                                                    <td data-label="Contact" className="py-3 px-4">
+                                                        <div className="text-slate-800 dark:text-slate-200 font-medium">{supplier.contact_person}</div>
+                                                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{supplier.phone}</div>
+                                                    </td>
+
+                                                    {/* Location */}
+                                                    <td data-label="Location" className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                                                        {supplier.location}
+                                                    </td>
+
+                                                    {/* Status Badge */}
+                                                    <td data-label="Status" className="py-3 px-4">
+                                                        <button
+                                                            onClick={() => handleToggleActive(supplier.id, supplier.is_active)}
+                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer ${supplier.is_active
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40 dark:hover:bg-emerald-900/40'
+                                                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700/60 dark:hover:bg-slate-800'
+                                                                }`}
+                                                        >
+                                                            <span>{supplier.is_active ? 'Active' : 'Inactive'}</span>
+                                                        </button>
+                                                    </td>
+
+                                                    {/* Actions */}
+                                                    <td data-label="Action" className="py-3 px-4 text-right">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <button
+                                                                className="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium cursor-pointer"
+                                                                onClick={() => {
+                                                                    setSelectedSupplier(supplier);
+                                                                    setShowModal(true);
+                                                                }}
+                                                            >
+                                                                View
+                                                            </button>
+                                                            <button
+                                                                className="px-2.5 py-1 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors font-medium cursor-pointer"
+                                                                onClick={() => {
+                                                                    setEditingSupplier({ ...supplier });
+                                                                    setShowEditSupplierModal(true);
+                                                                }}
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                className="px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-medium cursor-pointer"
+                                                                onClick={() => handleDeleteSupplier(supplier.id, supplier.name)}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Pagination Bar - Stays fixed */}
+                        <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
+                                <span className="text-slate-500 dark:text-slate-400 font-medium">
+                                    Showing <span className="font-semibold text-slate-800 dark:text-white">
+                                        {filteredSuppliers.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0}
+                                    </span> to{' '}
+                                    <span className="font-semibold text-slate-800 dark:text-white">
+                                        {Math.min(currentPage * ITEMS_PER_PAGE, filteredSuppliers.length)}
+                                    </span> of{' '}
+                                    <span className="font-semibold text-slate-800 dark:text-white">
+                                        {filteredSuppliers.length}
+                                    </span> suppliers
+                                </span>
+
+                                {selectedSuppliers.size > 0 && (
+                                    <div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-white/10 animate-in fade-in duration-150">
+                                        <span className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold border border-purple-200/60 dark:border-purple-800/40 shadow-2xs">
+                                            {selectedSuppliers.size} selected
+                                        </span>
+
+                                        <button
+                                            onClick={handleBulkDelete}
+                                            className="px-3 py-1.5 text-xs font-semibold bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-xl border border-red-200/60 dark:border-red-800/40 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+                                        >
+                                            <i className="fas fa-trash-alt text-xs" />
+                                            <span>Delete Selected</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                setSelectedSuppliers(new Set());
+                                            }}
+                                            className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                                            title="Clear selection"
+                                            aria-label="Clear selection"
+                                        >
+                                            <i className="fas fa-times text-xs" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {filteredSuppliers.length > ITEMS_PER_PAGE && (
+                                <Pagination
+                                    currentPage={currentPage}
+                                    totalPages={totalPages}
+                                    onPageChange={setCurrentPage}
+                                />
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Recent Purchase History - Separate card */}
+                    <div className="card flex flex-col">
+                        {/* Header - Stays fixed */}
+                        <div className="flex-shrink-0 px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <div className="flex items-center gap-2.5 mb-1">
+                                    <div className="w-2 h-2 rounded-full bg-pink-500" />
+                                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                        Recent Purchase History
+                                    </h3>
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Latest orders placed with suppliers
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {selectedPurchaseOrders.size > 0 && (
+                                    <button
+                                        onClick={handleBulkDeletePurchaseOrders}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/40 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors cursor-pointer"
+                                    >
+                                        <i className="fas fa-trash-alt text-[10px]" />
+                                        <span>Delete Selected ({selectedPurchaseOrders.size})</span>
+                                    </button>
+                                )}
+                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200/60 dark:border-slate-700/60">
+                                    {purchaseOrders?.length || 0} Total
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Scrollable Table Container */}
+                        <div className="flex-1 overflow-y-auto max-h-[300px]">
+                            <div className="overflow-x-auto">
+                                <table className="table-pro w-full text-left text-xs border-collapse p-1" id="purchaseOrderTableId">
+                                    <thead className="bg-slate-50/75 dark:bg-slate-900/50 border-b border-slate-200/80 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px] sticky top-0 z-10">
+                                        <tr>
+                                            <th className="w-10 py-3.5 px-4">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPurchaseOrders.size === paginatedPurchaseOrders.length && paginatedPurchaseOrders.length > 0}
+                                                    onChange={handleSelectAllPO}
+                                                    aria-label="Select all purchase orders"
+                                                    className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"
+                                                />
+                                            </th>
+                                            <th className="py-3.5 px-4">Order #</th>
+                                            <th className="py-3.5 px-4">Supplier</th>
+                                            <th className="py-3.5 px-4">Total</th>
+                                            <th className="py-3.5 px-4">Date</th>
+                                            <th className="py-3.5 px-4">Status</th>
+                                            <th className="py-3.5 px-4 text-right!">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                        {paginatedPurchaseOrders.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500">
+                                                    <div className="flex flex-col items-center justify-center gap-1.5">
+                                                        <i className="fas fa-shopping-cart text-3xl mb-2 opacity-30" />
+                                                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">No purchase orders found</span>
+                                                        <span className="text-xs text-slate-400">Orders placed will appear here automatically.</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedPurchaseOrders.map((order) => {
+                                                const isSelected = selectedPurchaseOrders.has(order.id);
+                                                return (
+                                                    <tr
+                                                        key={order.id}
+                                                        className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected
+                                                            ? 'bg-pink-50/40 dark:bg-pink-950/20'
+                                                            : ''
+                                                            }`}
+                                                    >
+                                                        <td className="py-3.5 px-4">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => handleToggleSelectPO(order.id)}
+                                                                aria-label={`Select ${order.po_number}`}
+                                                                className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"
+                                                            />
+                                                        </td>
+                                                        <td data-label="Order #" className="py-3.5 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                                            {order.po_number}
+                                                        </td>
+                                                        <td data-label="Supplier" className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200">
+                                                            {order.supplier_name}
+                                                        </td>
+                                                        <td data-label="Total" className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                                                            ₱{order.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                                        </td>
+                                                        <td data-label="Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                                            {new Date(order.created_at).toLocaleDateString(undefined, {
+                                                                year: 'numeric',
+                                                                month: 'short',
+                                                                day: 'numeric',
+                                                            })}
+                                                        </td>
+                                                        <td data-label="Status" className="py-3.5 px-4">
+                                                            {getStatusBadge(order.status)}
+                                                        </td>
+                                                        <td data-label="Actions" className="py-3.5 px-4 text-right">
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const supplier = suppliers.find(s => s.id === order.supplier_id);
+                                                                        if (supplier) {
+                                                                            setSelectedSupplier(supplier);
+                                                                            setShowModal(true);
+                                                                        } else {
+                                                                            toast.info('Supplier details not found');
+                                                                        }
+                                                                    }}
+                                                                    className="px-2.5 py-1 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors font-medium cursor-pointer text-xs"
+                                                                >
+                                                                    <i className="fas fa-eye mr-1.5" />
+                                                                    View
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeletePurchaseOrder(order.id, order.po_number)}
+                                                                    className="px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-medium cursor-pointer text-xs"
+                                                                >
+                                                                    <i className="fas fa-trash-alt mr-1.5" />
+                                                                    Delete
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Pagination Bar - Always show when there are orders */}
+                        <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
+                                <span className="text-slate-500 dark:text-slate-400 font-medium">
+                                    Showing <span className="font-semibold text-slate-800 dark:text-white">
+                                        {purchaseOrders.length > 0 ? ((currentPOPage - 1) * PO_ITEMS_PER_PAGE) + 1 : 0}
+                                    </span> to{' '}
+                                    <span className="font-semibold text-slate-800 dark:text-white">
+                                        {Math.min(currentPOPage * PO_ITEMS_PER_PAGE, purchaseOrders.length)}
+                                    </span> of{' '}
+                                    <span className="font-semibold text-slate-800 dark:text-white">
+                                        {purchaseOrders.length}
+                                    </span> orders
+                                </span>
+
+                                {selectedPurchaseOrders.size > 0 && (
+                                    <div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-white/10 animate-in fade-in duration-150">
+                                        <span className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold border border-purple-200/60 dark:border-purple-800/40 shadow-2xs">
+                                            {selectedPurchaseOrders.size} selected
+                                        </span>
+                                        <button
+                                            onClick={() => setSelectedPurchaseOrders(new Set())}
+                                            className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                                            title="Clear selection"
+                                            aria-label="Clear selection"
+                                        >
+                                            <i className="fas fa-times text-xs" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Always show pagination if there are orders, regardless of count */}
+                            {purchaseOrders.length > 0 && (
+                                <Pagination
+                                    currentPage={currentPOPage}
+                                    totalPages={POTotalPages}
+                                    onPageChange={setCurrentPOPage}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {Object.keys(supplierData).map((id) => {
-                    const supplier = supplierData[id];
-                    return (
-                        <div
-                            key={id}
-                            id={"modal-" + id}
-                            className="fixed inset-0 z-[90] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 hidden"
-                        >
-                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200">
-                                <div className="p-6">
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div>
-                                            <div className="text-xl font-semibold text-slate-900">
-                                                {supplier.name}
-                                            </div>
-                                            <div className="text-sm text-slate-500">
-                                                {id} · {supplier.category}
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => {
-                                                if (window.closeModal) window.closeModal(id);
-                                            }}
-                                            className="p-1 rounded-lg hover:bg-slate-100"
-                                        >
-                                            <svg
-                                                className="w-5 h-5 text-slate-400"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M6 18L18 6M6 6l12 12"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
+                {showModal && selectedSupplier && (
+                    <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
 
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <div className="bg-slate-50 p-3 rounded-lg">
-                                            <div className="text-xs text-slate-500">Contact Person</div>
-                                            <div className="font-medium">{supplier.contact}</div>
-                                        </div>
-                                        <div className="bg-slate-50 p-3 rounded-lg">
-                                            <div className="text-xs text-slate-500">Phone</div>
-                                            <div className="font-medium">{supplier.phone}</div>
-                                        </div>
-                                        <div className="bg-slate-50 p-3 rounded-lg">
-                                            <div className="text-xs text-slate-500">Email</div>
-                                            <div className="font-medium text-sm">{supplier.email}</div>
-                                        </div>
-                                        <div className="bg-slate-50 p-3 rounded-lg">
-                                            <div className="text-xs text-slate-500">Location</div>
-                                            <div className="font-medium">{supplier.location}</div>
-                                        </div>
-                                    </div>
-
-                                    <div className="mb-4">
-                                        <div className="text-sm font-semibold text-slate-900 mb-2">
-                                            Products / Services
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {supplier.products.map((product, idx) => (
-                                                <span
-                                                    key={idx}
-                                                    className="px-2.5 py-1 bg-pink-50 text-pink-600 rounded-full text-xs font-medium"
-                                                >
-                                                    {product}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="mb-4">
-                                        <div className="text-sm font-semibold text-slate-900 mb-2">
-                                            Purchase Activity
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                                <div className="text-xs text-slate-500">Total Orders</div>
-                                                <div className="font-bold text-lg text-slate-900">
-                                                    {supplier.totalOrders}
-                                                </div>
-                                            </div>
-                                            <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                                <div className="text-xs text-slate-500">Total Spent</div>
-                                                <div className="font-bold text-lg text-slate-900">
-                                                    ₱ {(supplier.totalSpent / 1000).toFixed(0)}K
-                                                </div>
-                                            </div>
-                                            <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                                <div className="text-xs text-slate-500">Avg. Order</div>
-                                                <div className="font-bold text-lg text-slate-900">
-                                                    ₱ {(supplier.avgOrder / 1000).toFixed(1)}K
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-sm font-semibold text-slate-900 mb-2">
-                                            Order History
-                                        </div>
-                                        <ul className="space-y-2 text-sm">
-                                            {supplier.orders.map((order, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg"
-                                                >
-                                                    <div>
-                                                        <div className="font-medium">{order.po}</div>
-                                                        <div className="text-xs text-slate-500">
-                                                            {order.item} · {order.amount}
-                                                        </div>
-                                                    </div>
-                                                    <span
-                                                        className={`text-xs ${order.status === "Delivered"
-                                                            ? "text-emerald-600"
-                                                            : order.status === "In Transit"
-                                                                ? "text-amber-600"
-                                                                : "text-blue-600"
-                                                            }`}
-                                                    >
-                                                        {order.status}
-                                                    </span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-
-                                    <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end gap-2">
-                                        <button
-                                            className="btn-ghost"
-                                            onClick={() => {
-                                                if (window.closeModal) window.closeModal(id);
-                                            }}
-                                        >
-                                            Close
-                                        </button>
-                                        <button
-                                            className="btn-primary"
-                                            onClick={() =>
-                                                showToast(`Creating new PO for ${supplier.name}`, "info")
-                                            }
-                                        >
-                                            Create Order
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-
-                <div
-                    id="newSupplierModal"
-                    className="fixed inset-0 z-[90] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 hidden"
-                >
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200">
-                        <div className="p-6">
-                            <div className="flex items-start justify-between mb-4">
+                            {/* Header */}
+                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-start justify-between bg-slate-50/50 dark:bg-slate-900/50">
                                 <div>
-                                    <div className="text-xl font-semibold text-slate-900">Add New Supplier</div>
-                                    <p className="text-sm text-slate-500 mt-1">
-                                        Register a new supplier for procurement
-                                    </p>
+                                    <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+                                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                            {selectedSupplier.name}
+                                        </h2>
+                                        <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200/80 dark:border-slate-700/60">
+                                            SUP-{String(selectedSupplier.id).padStart(3, '0')}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                        <span>Category:</span>
+                                        <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                                            {selectedSupplier.category || 'General'}
+                                        </span>
+                                    </div>
                                 </div>
+
                                 <button
-                                    onClick={() => {
-                                        if (window.closeNewSupplierModal) window.closeNewSupplierModal();
-                                    }}
-                                    className="p-1 rounded-lg hover:bg-slate-100"
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    aria-label="Close modal"
                                 >
-                                    <svg
-                                        className="w-5 h-5 text-slate-400"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                        />
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                 </button>
                             </div>
 
-                            <form
-                                className="mt-4 space-y-4"
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    if (window.handleNewSupplier) window.handleNewSupplier();
-                                }}
-                            >
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-500">
-                                            Supplier Name *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            id="supplierName"
-                                            className="input mt-1"
-                                            placeholder="e.g. ABC Tire Center"
-                                            required
-                                        />
+                            {/* Scrollable Body */}
+                            <div className="p-6 overflow-y-auto space-y-5">
+
+                                {/* Contact Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {/* Contact Person */}
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-user text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Contact Person
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                                {selectedSupplier.contact_person || '—'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-500">
-                                            Category *
-                                        </label>
-                                        <select id="supplierCategory" className="input mt-1" required defaultValue="">
-                                            <option value="">Select category</option>
-                                            <option value="Tire Supplier">Tire Supplier</option>
-                                            <option value="Auto Parts Supplier">Auto Parts Supplier</option>
-                                            <option value="Fuel Supplier">Fuel Supplier</option>
-                                            <option value="Packaging">Packaging</option>
-                                            <option value="Office Supplies">Office Supplies</option>
-                                            <option value="Warehouse Equipment">Warehouse Equipment</option>
-                                            <option value="Other">Other</option>
-                                        </select>
+
+                                    {/* Phone Number */}
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-phone text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Phone Number
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">
+                                                {selectedSupplier.phone || '—'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Email Address */}
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-envelope text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Email Address
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 truncate font-mono">
+                                                {selectedSupplier.email || '—'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Location */}
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-map-marker-alt text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Location
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                                {selectedSupplier.location || '—'}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Products & Services */}
+                                {selectedSupplier.products && (
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500">
-                                            Contact Person *
+                                        <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                            Products & Services
+                                        </h3>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {selectedSupplier.products.split(',').map((product: string, idx: number) => (
+                                                <span
+                                                    key={idx}
+                                                    className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60 rounded-lg text-xs font-medium"
+                                                >
+                                                    {product.trim()}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Internal Notes */}
+                                {selectedSupplier.notes && (
+                                    <div>
+                                        <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                            Internal Notes
+                                        </h3>
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/80 leading-relaxed whitespace-pre-wrap">
+                                            {selectedSupplier.notes}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Recent Purchase Orders */}
+                                {purchaseOrders.filter((po) => po.supplier_id === selectedSupplier.id).length > 0 && (
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                Recent Purchase Orders
+                                            </h3>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                                Showing last 5
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                            {purchaseOrders
+                                                .filter((po) => po.supplier_id === selectedSupplier.id)
+                                                .slice(0, 5)
+                                                .map((po) => (
+                                                    <div
+                                                        key={po.id}
+                                                        className="flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40 px-3.5 py-2.5 rounded-xl border border-slate-100 dark:border-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                                {po.po_number}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-3.5">
+                                                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-mono">
+                                                                ₱{po.total_amount?.toLocaleString() || '0'}
+                                                            </span>
+                                                            <div>{getStatusBadge(po.status)}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Sticky Actions Footer */}
+                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteSupplier(selectedSupplier.id, selectedSupplier.name)}
+                                    className="px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                                >
+                                    Delete Supplier
+                                </button>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowModal(false)}
+                                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
+                                    >
+                                        Close
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditingSupplier({ ...selectedSupplier });
+                                            setShowEditSupplierModal(true);
+                                            setShowModal(false);
+                                        }}
+                                        className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 shadow-xs shadow-pink-500/20 transition-all cursor-pointer"
+                                    >
+                                        Edit Supplier
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                )}
+
+                {showNewSupplierModal && (
+                    <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                        <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                                            Add New Supplier
+                                        </h2>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Register and manage a procurement vendor profile
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewSupplierModal(false)}
+                                    aria-label="Close modal"
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Form Body */}
+                            <form onSubmit={handleAddSupplier} className="flex-1 overflow-y-auto p-6 space-y-4.5">
+                                {/* Row 1: Name & Category */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Supplier Name <span className="text-rose-500">*</span>
                                         </label>
                                         <input
                                             type="text"
-                                            id="supplierContact"
-                                            className="input mt-1"
-                                            placeholder="Full name"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            placeholder="e.g. Apex Tire & Auto Supplies"
+                                            value={newSupplier.name}
+                                            onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
                                             required
                                         />
                                     </div>
+
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500">
-                                            Phone Number *
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Category <span className="text-rose-500">*</span>
+                                        </label>
+                                        <div className="relative">
+                                            <select
+                                                className="w-full px-3.5 py-2 pr-9 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all appearance-none cursor-pointer shadow-2xs"
+                                                value={newSupplier.category}
+                                                onChange={(e) => setNewSupplier({ ...newSupplier, category: e.target.value })}
+                                                required
+                                            >
+                                                <option value="" disabled className="dark:bg-slate-900 text-slate-400">
+                                                    Select category
+                                                </option>
+                                                {categories.map((cat) => (
+                                                    <option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
+                                                        {cat}
+                                                    </option>
+                                                ))}
+                                                <option value="Other" className="dark:bg-slate-900 dark:text-slate-200">
+                                                    Other
+                                                </option>
+                                            </select>
+                                            <svg
+                                                className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Row 2: Contact Person & Phone */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Contact Person <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            placeholder="Full Name"
+                                            value={newSupplier.contact_person}
+                                            onChange={(e) => setNewSupplier({ ...newSupplier, contact_person: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Phone Number <span className="text-rose-500">*</span>
                                         </label>
                                         <input
                                             type="tel"
-                                            id="supplierPhone"
-                                            className="input mt-1"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                             placeholder="+63 912 345 6789"
+                                            value={newSupplier.phone}
+                                            onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
                                             required
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Row 3: Email & Location */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500">
-                                            Email *
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Email Address <span className="text-rose-500">*</span>
                                         </label>
                                         <input
                                             type="email"
-                                            id="supplierEmail"
-                                            className="input mt-1"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                             placeholder="contact@supplier.com"
+                                            value={newSupplier.email}
+                                            onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
                                             required
                                         />
                                     </div>
+
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500">
-                                            Location *
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Location / Address <span className="text-rose-500">*</span>
                                         </label>
                                         <input
                                             type="text"
-                                            id="supplierLocation"
-                                            className="input mt-1"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                             placeholder="City, Province"
+                                            value={newSupplier.location}
+                                            onChange={(e) => setNewSupplier({ ...newSupplier, location: e.target.value })}
                                             required
                                         />
                                     </div>
                                 </div>
 
+                                {/* Row 4: Products / Services */}
                                 <div>
-                                    <label className="text-xs font-medium text-slate-500">
-                                        Products / Services
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Products / Services Offered
                                     </label>
                                     <textarea
-                                        id="supplierProducts"
-                                        className="input mt-1"
                                         rows={2}
-                                        placeholder="List products or services offered"
-                                    ></textarea>
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
+                                        placeholder="e.g. Heavy equipment tires, brake pads, routine maintenance services"
+                                        value={newSupplier.products}
+                                        onChange={(e) => setNewSupplier({ ...newSupplier, products: e.target.value })}
+                                    />
                                 </div>
 
+                                {/* Row 5: Notes */}
                                 <div>
-                                    <label className="text-xs font-medium text-slate-500">Notes</label>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Internal Notes
+                                    </label>
                                     <textarea
-                                        id="supplierNotes"
-                                        className="input mt-1"
                                         rows={2}
-                                        placeholder="Additional information about the supplier"
-                                    ></textarea>
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
+                                        placeholder="Payment terms, delivery lead times, or special remarks"
+                                        value={newSupplier.notes}
+                                        onChange={(e) => setNewSupplier({ ...newSupplier, notes: e.target.value })}
+                                    />
                                 </div>
 
-                                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                                {/* Action Footer */}
+                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
                                     <button
                                         type="button"
-                                        className="btn-ghost"
-                                        onClick={() => {
-                                            if (window.closeNewSupplierModal) window.closeNewSupplierModal();
-                                        }}
+                                        onClick={() => setShowNewSupplierModal(false)}
+                                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
                                     >
                                         Cancel
                                     </button>
-                                    <button type="submit" className="btn-primary">
-                                        Add Supplier
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 transition-all shadow-xs shadow-pink-500/20 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        {isSubmitting && (
+                                            <svg className="w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                            </svg>
+                                        )}
+                                        <span>{isSubmitting ? "Adding..." : "Add Supplier"}</span>
                                     </button>
                                 </div>
                             </form>
+
                         </div>
                     </div>
-                </div>
+                )}
+
+                {showEditSupplierModal && editingSupplier && (
+                    <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                        <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                                            Edit Supplier
+                                        </h2>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Update vendor records and operational status
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowEditSupplierModal(false);
+                                        setEditingSupplier(null);
+                                    }}
+                                    aria-label="Close modal"
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Form Body */}
+                            <form onSubmit={handleUpdateSupplier} className="flex-1 overflow-y-auto p-6 space-y-4.5">
+                                {/* Row 1: Name & Category */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Supplier Name <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            value={editingSupplier?.name || ""}
+                                            onChange={(e) => setEditingSupplier({ ...editingSupplier, name: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Category <span className="text-rose-500">*</span>
+                                        </label>
+                                        <div className="relative">
+                                            <select
+                                                className="w-full px-3.5 py-2 pr-9 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all appearance-none cursor-pointer shadow-2xs"
+                                                value={editingSupplier?.category || ""}
+                                                onChange={(e) => setEditingSupplier({ ...editingSupplier, category: e.target.value })}
+                                                required
+                                            >
+                                                {categories.map((cat) => (
+                                                    <option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
+                                                        {cat}
+                                                    </option>
+                                                ))}
+                                                <option value="Other" className="dark:bg-slate-900 dark:text-slate-200">
+                                                    Other
+                                                </option>
+                                            </select>
+                                            <svg
+                                                className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Row 2: Contact Person & Phone */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Contact Person <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            value={editingSupplier?.contact_person || ""}
+                                            onChange={(e) => setEditingSupplier({ ...editingSupplier, contact_person: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Phone Number <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            value={editingSupplier?.phone || ""}
+                                            onChange={(e) => setEditingSupplier({ ...editingSupplier, phone: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Row 3: Email & Location */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Email Address <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="email"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            value={editingSupplier?.email || ""}
+                                            onChange={(e) => setEditingSupplier({ ...editingSupplier, email: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Location / Address <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            value={editingSupplier?.location || ""}
+                                            onChange={(e) => setEditingSupplier({ ...editingSupplier, location: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Row 4: Products / Services */}
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Products / Services Offered
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
+                                        placeholder="List products or services offered (comma separated)"
+                                        value={editingSupplier?.products || ""}
+                                        onChange={(e) => setEditingSupplier({ ...editingSupplier, products: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* Row 5: Notes */}
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Internal Notes
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
+                                        placeholder="Additional supplier details or terms"
+                                        value={editingSupplier?.notes || ""}
+                                        onChange={(e) => setEditingSupplier({ ...editingSupplier, notes: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* Row 6: Active Status Card */}
+                                <div className="p-3 bg-slate-50/80 dark:bg-slate-800/30 rounded-xl border border-slate-200/70 dark:border-slate-800">
+                                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(editingSupplier?.is_active)}
+                                            onChange={(e) => setEditingSupplier({ ...editingSupplier, is_active: e.target.checked })}
+                                            className="w-4 h-4 rounded text-pink-500 focus:ring-pink-500/20 border-slate-300 dark:border-slate-600 dark:bg-slate-700 cursor-pointer"
+                                        />
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                                Active Vendor Status
+                                            </span>
+                                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                {editingSupplier?.is_active
+                                                    ? "This supplier is active and available for purchase orders."
+                                                    : "Inactive suppliers will be hidden from procurement selection."}
+                                            </span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {/* Action Footer */}
+                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowEditSupplierModal(false);
+                                            setEditingSupplier(null);
+                                        }}
+                                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 transition-all shadow-xs shadow-pink-500/20 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        {isSubmitting && (
+                                            <svg className="w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                            </svg>
+                                        )}
+                                        <span>{isSubmitting ? "Saving..." : "Save Changes"}</span>
+                                    </button>
+                                </div>
+                            </form>
+
+                        </div>
+                    </div>
+                )}
             </main>
         </SessionGuard>
     );

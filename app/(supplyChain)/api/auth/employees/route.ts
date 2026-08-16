@@ -13,7 +13,6 @@ export async function GET(request: Request) {
             );
         }
 
-        // Get users with the specified role
         const { data, error } = await supabase
             .from('users')
             .select('id, display_name, email, role, department')

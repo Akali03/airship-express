@@ -638,36 +638,36 @@ export default function OutgoingPanel({ isVisible = true }) {
             data-panel="outgoing"
             className={`p-4 sm:p-6 space-y-4 sm:space-y-6 ${isVisible ? '' : 'hidden'}`}
         >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
                 <div className="space-y-1.5">
                     <div className="flex items-center gap-2.5">
-                        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-pink-50 text-pink-600 ring-1 ring-pink-500/10 shrink-0">
+                        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 ring-1 ring-pink-500/10 dark:ring-pink-500/20 shrink-0">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
                             </svg>
                         </span>
-                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                             Outgoing Dispatch
                         </h1>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 font-medium">
-                        <span className="text-slate-600">Batch #P-2408</span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-slate-600">Operator: {user.getName()}</span>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400 font-medium">
+                        <span className="text-slate-700 dark:text-slate-300">Batch #P-2408</span>
+                        <span className="text-slate-300 dark:text-slate-700">•</span>
+                        <span className="text-slate-700 dark:text-slate-300">Operator: {user.getName()}</span>
 
                         {bulkQrCode && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200/80 rounded-md">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/40 rounded-md">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                                 </svg>
                                 <span>{bulkQrCode}</span>
-                                <span className="font-semibold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">
+                                <span className="font-semibold text-blue-800 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/60 px-1.5 py-0.5 rounded">
                                     {bulkScannedCount} parcels
                                 </span>
                                 <button
                                     onClick={clearBulkFilter}
-                                    className="p-0.5 text-blue-500 hover:text-blue-900 hover:bg-blue-100 rounded transition-colors"
+                                    className="p-0.5 text-blue-500 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded transition-colors cursor-pointer"
                                     title="Clear filter"
                                 >
                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
@@ -678,23 +678,26 @@ export default function OutgoingPanel({ isVisible = true }) {
                         )}
 
                         {selectedDriver && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-md">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/40 rounded-md">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
                                 <span>{selectedDriver}</span>
                                 <button
                                     onClick={clearDriverFilter}
-                                    className="p-0.5 text-emerald-500 hover:text-emerald-900 hover:bg-emerald-100 rounded transition-colors"
+                                    className="p-0.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded transition-colors cursor-pointer"
                                     title="Clear driver"
                                 >
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
                                 </button>
                             </span>
                         )}
 
                         {!hasActiveFilter && (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100/70 px-2 py-0.5 rounded-md">
-                                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 px-2 py-0.5 rounded-md">
+                                <svg className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                                 </svg>
                                 Showing all ready parcels
@@ -709,7 +712,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                             type="button"
                             onClick={handleBatchRemove}
                             disabled={selectedIds.size === 0}
-                            className="relative inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border-b-4 border-amber-600 bg-amber-400 px-4 text-xs font-bold text-slate-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] transition-all duration-75 hover:bg-amber-300 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50 disabled:translate-y-0 disabled:border-b-0 disabled:bg-amber-200 disabled:text-slate-400 disabled:opacity-50 disabled:shadow-none animate-in fade-in sm:w-auto"
+                            className="relative inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border-b-4 border-amber-600 dark:border-amber-700 bg-amber-400 hover:bg-amber-300 dark:bg-amber-500 dark:hover:bg-amber-400 px-4 text-xs font-bold text-slate-950 dark:text-slate-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] transition-all duration-75 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50 disabled:translate-y-0 disabled:border-b-0 disabled:bg-amber-200 dark:disabled:bg-amber-950/40 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:opacity-50 disabled:shadow-none animate-in fade-in sm:w-auto cursor-pointer"
                         >
                             <svg
                                 className="h-4 w-4 shrink-0 text-slate-950 drop-shadow-sm"
@@ -729,7 +732,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                             <span className="tracking-wide drop-shadow-sm">Remove</span>
 
                             {/* Selection Counter Badge */}
-                            <span className="inline-flex items-center rounded-md bg-amber-950/10 px-1.5 py-0.5 font-mono text-[11px] font-extrabold text-slate-950 shadow-inner">
+                            <span className="inline-flex items-center rounded-md bg-amber-950/10 dark:bg-amber-950/30 px-1.5 py-0.5 font-mono text-[11px] font-extrabold text-slate-950 dark:text-slate-900 shadow-inner">
                                 {selectedIds.size}
                             </span>
                         </button>
@@ -737,7 +740,7 @@ export default function OutgoingPanel({ isVisible = true }) {
 
                     <button
                         type="button"
-                        className="relative inline-flex w-full items-center justify-center gap-2 rounded-xl border-b-4 border-pink-700 bg-pink-500 px-5 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-75 hover:bg-pink-400 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/30 disabled:translate-y-0 disabled:border-b-0 disabled:bg-pink-300 disabled:opacity-50 disabled:shadow-none sm:w-auto"
+                        className="relative inline-flex w-full items-center justify-center gap-2 rounded-xl border-b-4 border-pink-700 dark:border-pink-800 bg-pink-500 hover:bg-pink-400 dark:bg-pink-600 dark:hover:bg-pink-500 px-5 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-75 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/30 disabled:translate-y-0 disabled:border-b-0 disabled:bg-pink-300 dark:disabled:bg-pink-950/40 disabled:opacity-50 disabled:shadow-none sm:w-auto cursor-pointer"
                         onClick={handleDispatchAll}
                         disabled={parcels.length === 0}
                     >
@@ -757,48 +760,60 @@ export default function OutgoingPanel({ isVisible = true }) {
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <i className="fas fa-user-tie"></i>
+            <div className="flex flex-wrap items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 transition-all">
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <i className="fas fa-user-tie text-pink-500 dark:text-pink-400"></i>
                     Assign Driver:
                 </label>
-                <select
-                    value={selectedDriver}
-                    onChange={(e) => {
-                        setSelectedDriver(e.target.value);
-                        setPage(1);
-                        toast.info(`Driver selected: ${e.target.value || 'None'}`, { duration: 2000 });
-                        if (isListening && inputRef.current) {
-                            setTimeout(() => inputRef.current?.focus(), 100);
-                        }
-                    }}
-                    className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer min-w-[150px]"
-                >
-                    <option value="">No driver assigned</option>
-                    {DRIVERS.map((driver) => (
-                        <option key={driver} value={driver}>{driver}</option>
-                    ))}
-                </select>
+
+                <div className="relative">
+                    <select
+                        value={selectedDriver}
+                        onChange={(e) => {
+                            setSelectedDriver(e.target.value);
+                            setPage(1);
+                            toast.info(`Driver selected: ${e.target.value || 'None'}`, { duration: 2000 });
+                            if (isListening && inputRef.current) {
+                                setTimeout(() => inputRef.current?.focus(), 100);
+                            }
+                        }}
+                        className="appearance-none bg-white dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700/80 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer min-w-[160px]"
+                    >
+                        <option value="" className="dark:bg-slate-900 text-slate-400">No driver assigned</option>
+                        {DRIVERS.map((driver) => (
+                            <option key={driver} value={driver} className="dark:bg-slate-900 dark:text-slate-200">
+                                {driver}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </div>
+
                 {selectedDriver && (
-                    <span className="text-xs text-emerald-600 flex items-center gap-1">
-                        <i className="fas fa-check-circle"></i>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                         Active: {selectedDriver}
                     </span>
                 )}
-                <span className="text-[10px] text-slate-400 ml-auto">
-                    <i className="fas fa-info-circle mr-1"></i>
-                    Selected driver will be assigned to scanned/dispatched parcels
+
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto flex items-center gap-1">
+                    <i className="fas fa-info-circle"></i>
+                    <span>Assigned to scanned or dispatched parcels</span>
                 </span>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs dark:shadow-none p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-slate-900 dark:text-slate-100">
                 <div className="lg:col-span-2 space-y-4">
                     <div className="space-y-1.5">
                         <label
                             htmlFor="outgoing-barcode"
-                            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider"
+                            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"
                         >
-                            <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <svg className="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                             </svg>
                             Barcode / Tracking Number
@@ -815,9 +830,9 @@ export default function OutgoingPanel({ isVisible = true }) {
                                     onKeyDown={handleKeyDown}
                                     onPaste={handlePaste}
                                     readOnly={!isListening}
-                                    className={`w-full h-11 bg-white border rounded-xl pl-3.5 pr-28 text-sm text-slate-900 placeholder:text-slate-400 font-mono transition-all focus:outline-none focus:ring-2 ${isListening
-                                        ? 'border-emerald-500 ring-2 ring-emerald-500/20 focus:border-emerald-500'
-                                        : 'border-slate-200 bg-slate-50/70 text-slate-400 cursor-not-allowed'
+                                    className={`w-full h-11 border rounded-xl pl-3.5 pr-28 text-sm font-mono transition-all focus:outline-none focus:ring-2 ${isListening
+                                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-emerald-500 ring-2 ring-emerald-500/20 focus:border-emerald-500'
+                                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 cursor-not-allowed'
                                         }`}
                                     placeholder={isListening ? "Scanning barcodes..." : "Click Start to enable scanning"}
                                     disabled={isScanning}
@@ -829,12 +844,12 @@ export default function OutgoingPanel({ isVisible = true }) {
 
                                 <span
                                     className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-medium px-2 py-0.5 rounded-md flex items-center gap-1.5 transition-colors ${isListening
-                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
-                                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                         }`}
                                 >
                                     <span
-                                        className={`w-1.5 h-1.5 rounded-full ${isListening ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                                        className={`w-1.5 h-1.5 rounded-full ${isListening ? 'bg-emerald-500 dark:bg-emerald-400 animate-pulse' : 'bg-slate-400 dark:bg-slate-500'
                                             }`}
                                     />
                                     {isListening ? (isScanning ? 'processing...' : 'listening') : 'paused'}
@@ -845,9 +860,9 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 <button
                                     type="button"
                                     onClick={isListening ? handleStopListening : handleStartListening}
-                                    className={`group relative inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-xs font-bold text-white transition-all duration-75 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 sm:flex-initial ${isListening
-                                        ? 'border-b-4 border-amber-700 bg-amber-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] hover:bg-amber-400 focus-visible:ring-amber-400/30'
-                                        : 'border-b-4 border-emerald-800 bg-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] hover:bg-emerald-500 focus-visible:ring-emerald-500/30'
+                                    className={`group relative inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-xs font-bold text-white transition-all duration-75 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 sm:flex-initial cursor-pointer ${isListening
+                                        ? 'border-b-4 border-amber-700 dark:border-amber-900 bg-amber-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] hover:bg-amber-400 focus-visible:ring-amber-400/30'
+                                        : 'border-b-4 border-emerald-800 dark:border-emerald-950 bg-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] hover:bg-emerald-500 focus-visible:ring-emerald-500/30'
                                         }`}
                                 >
                                     {isListening ? (
@@ -865,7 +880,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 <button
                                     type="button"
                                     onClick={() => setShowScanner(true)}
-                                    className="group relative inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border-b-4 border-pink-800 bg-pink-600 px-5 text-xs font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-75 hover:bg-pink-500 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/30 sm:flex-initial"
+                                    className="group relative inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border-b-4 border-pink-800 dark:border-pink-950 bg-pink-600 px-5 text-xs font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-75 hover:bg-pink-500 active:translate-y-1 active:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/30 sm:flex-initial cursor-pointer"
                                 >
                                     <svg
                                         className="h-4 w-4 text-pink-100 drop-shadow"
@@ -894,8 +909,8 @@ export default function OutgoingPanel({ isVisible = true }) {
                     <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                             {!isListening && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-amber-700 bg-amber-50 border border-amber-200/70 rounded-md font-medium">
-                                    <svg className="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/60 rounded-md font-medium">
+                                    <svg className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     Click <strong className="font-semibold">Start</strong> to enable scanning mode
@@ -903,8 +918,8 @@ export default function OutgoingPanel({ isVisible = true }) {
                             )}
 
                             {selectedDriver && isListening && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-emerald-700 bg-emerald-50 border border-emerald-200/70 rounded-md font-medium">
-                                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-md font-medium">
+                                    <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
                                     Assigning to: <strong className="font-semibold">{selectedDriver}</strong>
@@ -912,16 +927,16 @@ export default function OutgoingPanel({ isVisible = true }) {
                             )}
 
                             {bulkQrCode ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-blue-700 bg-blue-50 border border-blue-200/70 rounded-md font-medium">
-                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-md font-medium">
+                                    <svg className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                                     </svg>
                                     Bulk QR: <strong className="font-mono">{bulkQrCode}</strong> ({bulkScannedCount} parcels)
                                 </span>
                             ) : (
                                 isListening && (
-                                    <span className="inline-flex items-center gap-1.5 text-slate-500 font-medium">
-                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-medium">
+                                        <svg className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                                         </svg>
                                         Showing all ready parcels
@@ -930,38 +945,38 @@ export default function OutgoingPanel({ isVisible = true }) {
                             )}
                         </div>
 
-                        <div className="pt-2 border-t border-slate-100 text-xs text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                             <span className="flex items-center gap-1">
-                                1. Scan barcode to mark <span className="font-semibold text-slate-700 ml-1">Ready</span>
+                                1. Scan barcode to mark <span className="font-semibold text-slate-700 dark:text-slate-300 ml-1">Ready</span>
                             </span>
-                            <span className="hidden sm:inline text-slate-300">•</span>
-                            <span className="flex items-center gap-1 text-pink-600 font-medium">
+                            <span className="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
+                            <span className="flex items-center gap-1 text-pink-600 dark:text-pink-400 font-medium">
                                 2. Dispatch (Picked up)
                             </span>
-                            <span className="hidden sm:inline text-slate-300">•</span>
-                            <span className="flex items-center gap-1 text-slate-500">
-                                Bulk QR format: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-[11px]">BULK-XXXX</code>
+                            <span className="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
+                            <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                                Bulk QR format: <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[11px] text-slate-700 dark:text-slate-300">BULK-XXXX</code>
                             </span>
                         </div>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 lg:flex lg:flex-col lg:justify-center">
-                    <div className="bg-emerald-50/50 border border-emerald-100 p-3.5 rounded-xl flex flex-col justify-between">
-                        <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
+                    <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 p-3.5 rounded-xl flex flex-col justify-between">
+                        <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">
                             Total
                         </span>
-                        <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
+                        <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1">
                             {stats.total}
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="card border border-slate-200/80 rounded-2xl bg-white shadow-sm overflow-hidden">
+            <div className="card border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm dark:shadow-none overflow-hidden text-slate-900 dark:text-slate-100">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold select-none">
+                        <thead className="bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold select-none">
                             <tr>
                                 <th className="p-3.5 pl-4 w-10">
                                     <input
@@ -973,10 +988,10 @@ export default function OutgoingPanel({ isVisible = true }) {
                                             }
                                         }}
                                         onChange={handleSelectAll}
-                                        className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 focus:ring-2 cursor-pointer transition-colors"
+                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500/20 focus:ring-2 cursor-pointer transition-colors"
                                     />
                                 </th>
-                                <th className="p-3.5 w-10 text-slate-400">#</th>
+                                <th className="p-3.5 w-10 text-slate-400 dark:text-slate-500">#</th>
                                 <th className="p-3.5">Barcode</th>
                                 <th className="p-3.5">Tracking</th>
                                 <th className="p-3.5">Courier</th>
@@ -986,16 +1001,16 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 <th className="p-3.5 pr-4 text-right">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium text-slate-700 dark:text-slate-300">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={9} className="py-12 text-center text-slate-500">
+                                    <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400">
                                         <div className="flex flex-col items-center justify-center gap-2">
                                             <svg className="w-6 h-6 text-pink-500 animate-spin" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
-                                            <span className="text-xs font-semibold text-slate-600">Loading parcels...</span>
+                                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Loading parcels...</span>
                                         </div>
                                     </td>
                                 </tr>
@@ -1003,21 +1018,21 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 <tr>
                                     <td colSpan={9} className="py-12 text-center">
                                         <div className="flex flex-col items-center justify-center gap-3">
-                                            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                                            <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
                                                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                                 </svg>
                                             </div>
                                             <div>
-                                                <p className="text-slate-600 font-semibold text-sm">No parcels ready for pickup</p>
-                                                <p className="text-slate-400 text-xs mt-0.5">
+                                                <p className="text-slate-600 dark:text-slate-200 font-semibold text-sm">No parcels ready for pickup</p>
+                                                <p className="text-slate-400 dark:text-slate-400 text-xs mt-0.5">
                                                     {bulkQrCode ? `No parcels found with bulk QR: ${bulkQrCode}` : 'Scan barcodes to mark parcels as ready'}
                                                 </p>
                                             </div>
                                             {bulkQrCode && (
                                                 <button
                                                     onClick={clearBulkFilter}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-600 font-semibold text-xs transition-colors"
+                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-pink-50 dark:bg-pink-950/40 hover:bg-pink-100 dark:hover:bg-pink-900/50 text-pink-600 dark:text-pink-400 font-semibold text-xs transition-colors cursor-pointer"
                                                 >
                                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1028,7 +1043,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                             {selectedDriver && !bulkQrCode && (
                                                 <button
                                                     onClick={clearDriverFilter}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-semibold text-xs transition-colors"
+                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 font-semibold text-xs transition-colors cursor-pointer"
                                                 >
                                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1045,7 +1060,9 @@ export default function OutgoingPanel({ isVisible = true }) {
                                     return (
                                         <tr
                                             key={parcel.id}
-                                            className={`transition-colors ${isSelected ? 'bg-pink-50/40 hover:bg-pink-50/70' : 'hover:bg-slate-50/80'
+                                            className={`transition-colors ${isSelected
+                                                ? 'bg-pink-50/40 dark:bg-pink-950/20 hover:bg-pink-50/70 dark:hover:bg-pink-950/35'
+                                                : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/60'
                                                 }`}
                                         >
                                             <td className="p-3.5 pl-4">
@@ -1053,16 +1070,16 @@ export default function OutgoingPanel({ isVisible = true }) {
                                                     type="checkbox"
                                                     checked={isSelected}
                                                     onChange={() => handleSelect(parcel.id)}
-                                                    className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 focus:ring-2 cursor-pointer transition-colors"
+                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500/20 focus:ring-2 cursor-pointer transition-colors"
                                                 />
                                             </td>
-                                            <td className="p-3.5 font-bold text-slate-400">{index + 1}</td>
+                                            <td className="p-3.5 font-bold text-slate-400 dark:text-slate-500">{index + 1}</td>
                                             <td className="p-3.5">
-                                                <div className="inline-flex items-center gap-1.5 font-mono text-slate-900 font-semibold">
+                                                <div className="inline-flex items-center gap-1.5 font-mono text-slate-900 dark:text-slate-100 font-semibold">
                                                     <span>{parcel.barcode}</span>
                                                     {parcel.bulk_qr_code && (
                                                         <span
-                                                            className="inline-flex items-center p-1 rounded bg-blue-50 text-blue-600 border border-blue-200/60"
+                                                            className="inline-flex items-center p-1 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/50"
                                                             title={`Bulk QR: ${parcel.bulk_qr_code}`}
                                                         >
                                                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -1072,26 +1089,26 @@ export default function OutgoingPanel({ isVisible = true }) {
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="p-3.5 font-mono text-slate-500">{parcel.tracking_number}</td>
+                                            <td className="p-3.5 font-mono text-slate-500 dark:text-slate-400">{parcel.tracking_number}</td>
                                             <td className="p-3.5">
                                                 <span className={`inline-flex items-center gap-1.5 font-semibold ${getCourierColor(parcel.courier)}`}>
                                                     <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 17a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4zM4 9h11v6H4V9zm11 0h3l3 3v3h-6V9z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 17a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4Z mercancadosM4 9h11v6H4V9zm11 0h3l3 3v3h-6V9z" />
                                                     </svg>
                                                     {getCourierDisplay(parcel.courier, parcel.courier_id)}
                                                 </span>
                                             </td>
-                                            <td className="p-3.5 text-slate-600">{parcel.destination || 'N/A'}</td>
+                                            <td className="p-3.5 text-slate-600 dark:text-slate-300">{parcel.destination || 'N/A'}</td>
                                             <td className="p-3.5">
                                                 {parcel.driver_name ? (
-                                                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md">
-                                                        <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/50 px-2 py-0.5 rounded-md">
+                                                        <svg className="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                         </svg>
                                                         {parcel.driver_name}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-xs text-slate-400 italic">Unassigned</span>
+                                                    <span className="text-xs text-slate-400 dark:text-slate-500 italic">Unassigned</span>
                                                 )}
                                             </td>
                                             <td className="p-3.5">
@@ -1103,7 +1120,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                                 <div className="flex items-center justify-end gap-1">
                                                     <button
                                                         type="button"
-                                                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-pink-600 hover:text-pink-700 hover:bg-pink-100/60 active:scale-95 transition-all"
+                                                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 hover:bg-pink-100/60 dark:hover:bg-pink-950/50 active:scale-95 transition-all cursor-pointer"
                                                         onClick={() => handleSingleDispatch(parcel.id, parcel.barcode)}
                                                         aria-label="Dispatch parcel"
                                                         title="Dispatch (Picked Up)"
@@ -1114,7 +1131,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 active:scale-95 transition-all"
+                                                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 active:scale-95 transition-all cursor-pointer"
                                                         onClick={() => handleRemoveFromReady(parcel.id, parcel.barcode)}
                                                         aria-label="Remove from ready"
                                                         title="Move back to received"
@@ -1133,21 +1150,21 @@ export default function OutgoingPanel({ isVisible = true }) {
                     </table>
                 </div>
 
-                <div className="p-3.5 sm:p-4 bg-white border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3">
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-slate-500">
+                <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                         <span>Showing {parcels.length} of {stats.total} parcel(s) ready for pickup</span>
                         {bulkQrCode && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-600 border border-blue-200/60">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/50">
                                 filtered by bulk QR
                             </span>
                         )}
                         {selectedDriver && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/50">
                                 filtered by driver
                             </span>
                         )}
                         {!hasActiveFilter && (
-                            <span className="text-slate-400">(all ready parcels)</span>
+                            <span className="text-slate-400 dark:text-slate-500">(all ready parcels)</span>
                         )}
                     </div>
 
@@ -1157,7 +1174,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 type="button"
                                 disabled={page === 1}
                                 onClick={() => handlePageChange(page - 1)}
-                                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed flex items-center gap-1.5"
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -1173,7 +1190,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 type="button"
                                 disabled={page === totalPages}
                                 onClick={() => handlePageChange(page + 1)}
-                                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed flex items-center gap-1.5"
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
                             >
                                 Next
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

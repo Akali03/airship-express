@@ -7,6 +7,7 @@ import { supabase } from '../lib/services/client/supabase';
 import { toast } from 'sonner';
 import { PageSkeleton } from '../components/ui/SkeletonLoader';
 import { SessionGuard } from '../components/server/SessionGuard';
+import { TableContentLoader } from '../components/global/Loader';
 
 interface MediaItem {
     id: string;
@@ -532,13 +533,6 @@ export default function MediaGallery() {
     return (
         <SessionGuard requiredRole={['Admin', 'Manager', 'Employee']}>
             <div className="mx-auto p-6 bg-slate-50 dark:bg-ink/40 min-h-screen bgCard dark:bg-ink/80">
-                {fetching && !loadingMore && !isInitialLoad && mediaItems.length > 0 && (
-                    <div className="fixed top-4 right-4 z-50 bg-white dark:bg-ink rounded-xl shadow-lg dark:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6)] border border-slate-200 dark:border-ink/20 px-4 py-2 flex items-center gap-2 animate-in slide-in-from-top-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-pink-500 dark:text-pink-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Updating...</span>
-                    </div>
-                )}
-
                 <div className="mb-8 space-y-4">
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -144,6 +144,7 @@ export function AceternityNavbar() {
             }
 
             if (typeof window !== 'undefined') {
+                // Clear main session data
                 localStorage.removeItem('session_token');
                 localStorage.removeItem('user_role');
                 localStorage.removeItem('session_expires');
@@ -152,8 +153,25 @@ export function AceternityNavbar() {
                 localStorage.removeItem('logged_in_email');
                 localStorage.removeItem('user_agent');
                 localStorage.removeItem('user_ip');
+                localStorage.removeItem('user_id');
 
+                // Clear all backup data
+                localStorage.removeItem('session_backup');
+                localStorage.removeItem('session_backup_2');
+                localStorage.removeItem('session_backup_3');
+
+                // Clear sessionStorage backup
+                try {
+                    sessionStorage.removeItem('session_backup');
+                } catch (e) {
+                    // sessionStorage might not be available
+                }
+
+                // Clear cookie backups
                 document.cookie = 'session_token=; path=/; max-age=0';
+                document.cookie = 'session_backup=; path=/; max-age=0';
+                document.cookie = 'session_backup_2=; path=/; max-age=0';
+                document.cookie = 'session_backup_3=; path=/; max-age=0';
             }
 
             toast.success('Logged out successfully');
@@ -162,6 +180,7 @@ export function AceternityNavbar() {
         } catch (error) {
             console.error('Logout error:', error);
             if (typeof window !== 'undefined') {
+
                 localStorage.removeItem('session_token');
                 localStorage.removeItem('user_role');
                 localStorage.removeItem('session_expires');
@@ -170,7 +189,23 @@ export function AceternityNavbar() {
                 localStorage.removeItem('logged_in_email');
                 localStorage.removeItem('user_agent');
                 localStorage.removeItem('user_ip');
+                localStorage.removeItem('user_id');
+
+                // Clear all backup data
+                localStorage.removeItem('session_backup');
+                localStorage.removeItem('session_backup_2');
+                localStorage.removeItem('session_backup_3');
+
+
+                try {
+                    sessionStorage.removeItem('session_backup');
+                } catch (e) {
+
+                }
                 document.cookie = 'session_token=; path=/; max-age=0';
+                document.cookie = 'session_backup=; path=/; max-age=0';
+                document.cookie = 'session_backup_2=; path=/; max-age=0';
+                document.cookie = 'session_backup_3=; path=/; max-age=0';
             }
             toast.error('Logout failed. Please try again.');
             router.push('/scAuth');
@@ -180,9 +215,8 @@ export function AceternityNavbar() {
     };
 
     return (
-        <Navbar className="top-0 dark:border-slate-700/60 bg-white/10 dark:bg-[#1c1b1f]/10 backdrop-blur-sm">
+        <Navbar className="top-0 dark:border-slate-700/60 bg-white/10 dark:bg-[#1c1b1f]/10 backdrop-blur-sm cursor-pointer">
             <NavBody visible={false}>
-                {/* brand / logo */}
                 <button
                     onClick={() => router.back()}
                     className="flex items-center gap-3 group"
@@ -193,14 +227,13 @@ export function AceternityNavbar() {
                         width={48}
                         height={48}
                         priority
-                        className="h-auto w-auto dark:ring-slate-700/60 group-hover:ring-pink-500/30 transition-all duration-300"
+                        className="dark:ring-slate-700/60 group-hover:ring-pink-500/30 transition-all duration-300"
                     />
                     <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm tracking-tight">
                         Airship <span className="text-pink-500 dark:text-pink-400">Express</span>
                     </span>
                 </button>
 
-                {/* main nav links */}
                 <div className="hidden lg:flex flex-1 items-center justify-center gap-2">
                     {filteredNav.map((group: any) => (
                         <div key={group.section} className="relative group">
@@ -223,7 +256,7 @@ export function AceternityNavbar() {
                             </button>
 
                             {openDropdown === group.section && (
-                                <div className="absolute left-0 top-full mt-2 w-64 rounded-xl 
+                                <div className="absolute left-0 top-full  w-64 rounded-xl 
                                             bg-white dark:bg-[#2a2a2e] 
                                             p-2 shadow-lg dark:shadow-[0_20px_25px_-5px_rgba(0,0,0,0.4)] 
                                             border border-slate-200/60 dark:border-slate-700/60 
@@ -253,7 +286,6 @@ export function AceternityNavbar() {
                                                             : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
                                                 )}
                                             >
-                                                {/* Active indicator */}
                                                 {active && isAuthorized && (
                                                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-full bg-pink-500 dark:bg-pink-400" />
                                                 )}
@@ -278,7 +310,6 @@ export function AceternityNavbar() {
                     ))}
                 </div>
 
-                {/* Right side - User, Notifications, Theme Toggle & Logout */}
                 <div className="hidden lg:flex items-center gap-3">
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full 
                                 bg-slate-50 dark:bg-slate-800/50 
@@ -292,10 +323,8 @@ export function AceternityNavbar() {
                         </span>
                     </div>
 
-                    {/* Notification Bell */}
                     <NotificationBell />
 
-                    {/* Theme Toggle */}
                     <ThemeToggle />
 
                     <button
@@ -322,7 +351,6 @@ export function AceternityNavbar() {
                 </div>
             </NavBody>
 
-            {/* mobile navigation */}
             <MobileNav visible={false}>
                 <MobileNavHeader>
                     <button
@@ -343,9 +371,7 @@ export function AceternityNavbar() {
                     </button>
 
                     <div className="flex items-center gap-2">
-                        {/* Theme Toggle in mobile header */}
                         <ThemeToggle />
-                        {/* Notification Bell in mobile header */}
                         <NotificationBell />
                         <MobileNavToggle isOpen={isOpen} onClick={() => setIsOpen(!isOpen)} />
                     </div>
@@ -353,7 +379,6 @@ export function AceternityNavbar() {
 
                 <MobileNavMenu isOpen={isOpen} onClose={() => setIsOpen(false)}>
                     <div className="flex flex-col h-full bg-white dark:bg-[#1c1b1f]">
-                        {/* User info in mobile - fixed header */}
                         <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200/60 dark:border-slate-700/60">
                             <div className="flex items-center gap-2">
                                 <IconUser className="h-5 w-5 text-slate-500 dark:text-slate-400" />
@@ -366,7 +391,6 @@ export function AceternityNavbar() {
                             </div>
                         </div>
 
-                        {/* Scrollable navigation items with active indicators */}
                         <div className="flex-1 overflow-y-auto px-2 py-2">
                             {filteredNav.map((group: any) => (
                                 <div key={group.section} className="w-full">
@@ -399,7 +423,6 @@ export function AceternityNavbar() {
                                                             : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
                                                 )}
                                             >
-                                                {/* Active indicator bar - left side */}
                                                 {active && isAuthorized && (
                                                     <motion.div
                                                         layoutId="mobile-active-bar"
@@ -430,7 +453,6 @@ export function AceternityNavbar() {
                             ))}
                         </div>
 
-                        {/* Mobile logout at bottom - sticky */}
                         <div className="flex-shrink-0 px-4 py-3 border-t border-slate-200/60 dark:border-slate-700/60 
                                     bg-white/80 dark:bg-[#1c1b1f]/80 backdrop-blur-sm">
                             <button
@@ -467,11 +489,11 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
     }, [isAIOpen]);
 
     const greetings = [
-        "👋 Hi there!",
+        "Hi there!",
         "Hey! How can I help?",
-        "👋 Welcome!",
+        "Welcome!",
         "Hello! Ready to assist!",
-        "💡 Ask me anything!",
+        "Ask me anything!",
     ];
     const [currentGreeting, setCurrentGreeting] = useState(greetings[0]);
 
@@ -502,7 +524,7 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
     }
 
     return (
-        <div className="fixed bottom-8 right-3 z-[9999] flex items-end gap-3">
+        <div className="fixed bottom-8 right-3 z-[9999] flex items-end gap-3 cursor-pointer">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
@@ -525,7 +547,6 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                                 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] 
                                 dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
 
-                            {/* Warehouse Link */}
                             <Link
                                 href="/warehousing"
                                 className="group relative rounded-xl 
@@ -555,10 +576,8 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                                 </svg>
                             </Link>
 
-                            {/* Divider */}
                             <div className="h-8 w-px bg-pink-100 dark:bg-pink-900/30" />
 
-                            {/* AI Robot Button */}
                             <div className="relative">
                                 <button
                                     onClick={() => {
@@ -641,7 +660,6 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                                     </div>
                                 </button>
 
-                                {/* Tooltip/Greeting */}
                                 <AnimatePresence>
                                     {isHovering && (
                                         <motion.div
@@ -677,7 +695,6 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                 )}
             </AnimatePresence>
 
-            {/* Toggle Button */}
             <motion.button
                 onClick={() => setIsOpen((prev) => !prev)}
                 whileHover={{ scale: 1.05 }}
@@ -742,5 +759,6 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
         </div>
     );
 }
+
 
 export default AceternityNavbar;

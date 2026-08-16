@@ -6,6 +6,8 @@ import Cards from '../../../components/global/Cards';
 import { LinkBtn } from '../../../components/global/Buttons';
 import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
 import { PageSkeleton } from "@/app/(supplyChain)/components/ui/SkeletonLoader";
+import AiQuestions from "@/app/(supplyChain)/components/global/AiQuestions";
+import { useAI } from "@/app/(supplyChain)/ai/services/AIContext";
 
 interface DashboardStats {
     scannedParcels: number;
@@ -41,6 +43,7 @@ interface ChartDataset {
 }
 
 export default function DashboardPanel() {
+    const { openChat } = useAI();
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstanceRef = useRef<any>(null);
     const [stats, setStats] = useState<DashboardStats>({
@@ -55,6 +58,7 @@ export default function DashboardPanel() {
     });
     const [loading, setLoading] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+    const [isMobile, setIsMobile] = useState(false);
     const [courierDetails, setCourierDetails] = useState<{
         topCourier: { name: string; count: number };
         courierBreakdown: { name: string; count: number }[];
@@ -76,7 +80,17 @@ export default function DashboardPanel() {
         alert(message);
     };
 
-    const colors = ['#EC4899', '#6366F1', '#F59E0B', '#10B981', '#8B5CF6', '#EF4444'];
+    const colors = ['#818CF8', '#F472B6', '#FBBF24', '#34D399', '#A78BFA', '#FB7185', '#60A5FA', '#FCD34D'];
+
+    // Check if mobile
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     const fetchDashboardData = useCallback(async () => {
         try {
@@ -318,9 +332,9 @@ export default function DashboardPanel() {
         }
     }, []);
 
+    // Initialize chart based on screen size
     useEffect(() => {
-        if (loading) return;
-        if (!chartRef.current) return;
+        if (loading || !chartRef.current) return;
 
         if (chartInstanceRef.current) {
             chartInstanceRef.current.destroy();
@@ -330,58 +344,210 @@ export default function DashboardPanel() {
         const ctx = chartRef.current.getContext("2d");
         if (!ctx) return;
 
-        const datasets: ChartDataset[] = stats.courierData.map((courier) => ({
-            label: courier.name,
-            data: courier.data,
-            borderColor: courier.color,
-            backgroundColor: `${courier.color}20`,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 4,
-            pointBackgroundColor: courier.color,
-            pointHoverRadius: 6,
-            pointHoverBackgroundColor: courier.color,
-        }));
+        // Mobile: Pie Chart - Enhanced
+        if (isMobile) {
+            const courierTotals: Record<string, number> = {};
+            stats.courierData.forEach((courier) => {
+                const total = courier.data.reduce((sum, val) => sum + val, 0);
+                courierTotals[courier.name] = total;
+            });
 
-        chartInstanceRef.current = new Chart(ctx, {
-            type: "line",
-            data: {
-                labels: stats.dailyFullDates,
-                datasets,
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: {
-                        display: true, position: "top",
-                        labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, font: { size: 11 }, padding: 10 },
+            const labels = Object.keys(courierTotals);
+            const data = Object.values(courierTotals);
+            const backgroundColors = labels.map((_, index) => colors[index % colors.length]);
+
+            chartInstanceRef.current = new Chart(ctx, {
+                type: "doughnut",
+                data: {
+                    labels: labels.length > 0 ? labels : ['No Data'],
+                    datasets: [{
+                        data: data.length > 0 ? data : [1],
+                        backgroundColor: backgroundColors.length > 0 ? backgroundColors : ['#818CF8'],
+                        borderWidth: 3,
+                        borderColor: '#ffffff',
+                        hoverOffset: 10,
+                        hoverBorderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '50%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 14,
+                                boxHeight: 14,
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 12,
+                                font: {
+                                    size: 11,
+                                    weight: 500 as const,
+                                    family: "'Inter', system-ui, sans-serif"
+                                },
+                                color: '#475569',
+                            },
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            titleColor: '#0f172a',
+                            bodyColor: '#475569',
+                            borderColor: '#e2e8f0',
+                            borderWidth: 1,
+                            cornerRadius: 12,
+                            padding: 14,
+                            callbacks: {
+                                label: function (context) {
+                                    const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                                    const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                                    const label = context.label || '';
+                                    return `${label}: ${context.parsed} parcels (${percentage}%)`;
+                                }
+                            }
+                        }
                     },
-                    tooltip: {
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        titleColor: '#1e293b',
-                        bodyColor: '#475569',
-                        borderColor: '#e2e8f0',
-                        borderWidth: 1,
-                        cornerRadius: 8,
-                        boxPadding: 6,
-                        usePointStyle: true,
-                        callbacks: {
-                            title: (items) => items[0].label,
-                            label: (context) => `${context.dataset.label || ''}: ${context.parsed.y || 0} parcels`,
-                            afterBody: (items) => `Total: ${items.reduce((sum, i) => sum + (i.parsed.y || 0), 0)} parcels`,
+                    animation: {
+                        animateRotate: true,
+                        duration: 800,
+                        easing: 'easeInOutQuart',
+                    },
+                },
+            });
+        }
+        // Desktop: Line Chart - Enhanced
+        else {
+            const datasets: ChartDataset[] = stats.courierData.map((courier, index) => ({
+                label: courier.name,
+                data: courier.data,
+                borderColor: courier.color,
+                backgroundColor: `${courier.color}10`,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 5,
+                pointBackgroundColor: courier.color,
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointHoverRadius: 8,
+                pointHoverBackgroundColor: courier.color,
+                pointHoverBorderColor: '#ffffff',
+                pointHoverBorderWidth: 3,
+                borderWidth: 2.5,
+            }));
+
+            chartInstanceRef.current = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: stats.dailyFullDates,
+                    datasets,
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: "top",
+                            align: "start",
+                            labels: {
+                                boxWidth: 12,
+                                boxHeight: 12,
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                font: {
+                                    size: 11,
+                                    weight: 500 as const,
+                                    family: "'Inter', system-ui, sans-serif"
+                                },
+                                padding: 15,
+                                color: '#64748b',
+                            },
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            titleColor: '#0f172a',
+                            bodyColor: '#475569',
+                            borderColor: '#e2e8f0',
+                            borderWidth: 1,
+                            cornerRadius: 12,
+                            boxPadding: 8,
+                            usePointStyle: true,
+                            padding: 14,
+                            callbacks: {
+                                title: (items) => {
+                                    return items[0].label;
+                                },
+                                label: (context) => {
+                                    const label = context.dataset.label || '';
+                                    const value = context.parsed.y || 0;
+                                    return `${label}: ${value} parcels`;
+                                },
+                                afterBody: (items) => {
+                                    const total = items.reduce((sum, i) => sum + (i.parsed.y || 0), 0);
+                                    return `📦 Total: ${total} parcels`;
+                                },
+                            },
                         },
                     },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false,
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10,
+                                    weight: 500 as const,
+                                },
+                                color: '#94a3b8',
+                            },
+                            border: {
+                                display: false,
+                            },
+                        },
+                        y: {
+                            grid: {
+                                color: "#f1f5f9",
+                            },
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                font: {
+                                    size: 10,
+                                    weight: 500 as const,
+                                },
+                                color: '#94a3b8',
+                                padding: 8,
+                            },
+                            border: {
+                                display: false,
+                            },
+                        },
+                    },
+                    hover: {
+                        mode: 'nearest',
+                        intersect: true,
+                    },
+                    elements: {
+                        line: {
+                            tension: 0.4,
+                        },
+                    },
+                    animation: {
+                        duration: 750,
+                        easing: 'easeInOutQuart',
+                    },
                 },
-                scales: {
-                    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-                    y: { grid: { color: "#F1F5F9" }, beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
-                },
-                hover: { mode: 'nearest', intersect: true },
-            },
-        });
-    }, [loading, stats.courierData, stats.dailyFullDates]);
+            });
+        }
+    }, [loading, stats.courierData, stats.dailyFullDates, isMobile]);
+
+    // Real-time subscription
     useEffect(() => {
         isMounted.current = true;
         console.log('Setting up dashboard real-time subscription...');
@@ -412,54 +578,58 @@ export default function DashboardPanel() {
         };
     }, [fetchDashboardData]);
 
-
     if (loading) {
-        return (
-            <PageSkeleton />
-        );
+        return <PageSkeleton />;
     }
 
     return (
-        <div data-panel="dashboard" className="p-4 sm:p-8 space-y-6 sm:space-y-8 mx-auto">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
+        <div data-panel="dashboard" className="p-4 sm:p-8 space-y-6 sm:space-y-8 mx-auto max-w-[1400px]">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
                 <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold border border-slate-200/60">
-                            <i className="fas fa-warehouse text-slate-400 text-[10px]"></i>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800/70 dark:text-slate-300 text-[11px] font-semibold border border-slate-200/60 dark:border-slate-700/60">
+                            <i className="fas fa-warehouse text-slate-400 dark:text-slate-400 text-[10px]" />
                             <span>Airship Express</span>
-                            <span className="text-slate-300">•</span>
-                            <span className="text-slate-500">Warehouse</span>
+                            <span className="text-slate-300 dark:text-slate-600">•</span>
+                            <span className="text-slate-500 dark:text-slate-400">Warehouse</span>
                         </div>
                     </div>
 
                     <div>
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">
+                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
                             Dashboard
                         </h1>
-                        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                             Real-time warehouse operations overview and metrics
                         </p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end shrink-0">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-                        <i className="fas fa-clock text-[11px] text-slate-400"></i>
-                        <span>Updated: <strong className="text-slate-600 font-semibold">{lastUpdated.toLocaleTimeString()}</strong></span>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-400 font-medium">
+                        <i className="fas fa-clock text-[11px] text-slate-400 dark:text-slate-500" />
+                        <span>
+                            Updated:{" "}
+                            <strong className="text-slate-600 dark:text-slate-300 font-semibold">
+                                {lastUpdated.toLocaleTimeString()}
+                            </strong>
+                        </span>
                     </div>
 
                     <button
                         type="button"
                         onClick={fetchDashboardData}
                         title="Refresh dashboard metrics"
-                        className="p-2 sm:px-3 sm:py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-xl border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                        className="p-2 sm:px-4 sm:py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 transition-all flex items-center gap-2 active:scale-95 cursor-pointer group"
                     >
-                        <i className="fas fa-rotate text-xs text-slate-500 transition-transform group-hover:rotate-180"></i>
+                        <i className="fas fa-rotate text-xs text-slate-500 dark:text-slate-400 transition-transform group-hover:rotate-180 duration-500" />
                         <span className="hidden sm:inline">Refresh</span>
                     </button>
                 </div>
             </div>
 
+            {/* Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <Cards
                     frontIcon="fas fa-box mr-1"
@@ -526,149 +696,204 @@ export default function DashboardPanel() {
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 lg:gap-8">
-                <div className="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col justify-between">
-                    <div>
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                            <h2 className="font-semibold text-slate-800 text-base flex items-center gap-2">
-                                <i className="fas fa-chart-line text-slate-400"></i>
-                                Courier Parcel Volume
-                            </h2>
-                            <span className="text-xs font-medium px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full">
-                                Last 7 days
-                            </span>
+            {/* Chart - Mobile: Doughnut, Desktop: Line */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-2xl dark:shadow-black/40 flex flex-col justify-between transition-all hover:shadow-md dark:hover:shadow-2xl">
+                <div>
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 dark:from-indigo-500 dark:to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20 dark:shadow-indigo-500/30">
+                                <i className={`fas ${isMobile ? 'fa-chart-pie' : 'fa-chart-line'} text-sm`} />
+                            </div>
+                            <div>
+                                <h2 className="font-semibold text-slate-800 dark:text-white text-sm sm:text-base">
+                                    {isMobile ? 'Courier Distribution' : 'Courier Parcel Volume'}
+                                </h2>
+                                <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                                    {isMobile ? 'Total parcels by courier' : 'Daily volume over 7 days'}
+                                </p>
+                            </div>
                         </div>
-                        <div className="mt-4 relative min-h-[200px]">
-                            <canvas ref={chartRef} height="120"></canvas>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-medium px-2.5 py-1 bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 rounded-full border border-slate-200/60 dark:border-slate-700/60">
+                                {isMobile ? 'Distribution' : '7 Days'}
+                            </span>
+                            {!isMobile && stats.courierData.length > 0 && (
+                                <span className="text-[10px] font-medium px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-200/60 dark:border-indigo-900/40">
+                                    <i className="fas fa-rotate-right text-[9px] mr-1 animate-spin-slow" />
+                                    Live
+                                </span>
+                            )}
                         </div>
                     </div>
-                    <div className="mt-4 text-xs text-slate-400 flex items-center justify-center gap-1.5 pt-3 border-t border-slate-100">
-                        <i className="fas fa-circle-info"></i>
-                        <span>Hover over data points to inspect specific metrics</span>
+
+                    <div className="mt-4 relative min-h-[250px] sm:min-h-[200px]">
+                        <canvas ref={chartRef}></canvas>
                     </div>
                 </div>
 
+                <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                        <i className="fas fa-circle-info text-[10px]"></i>
+                        <span>{isMobile ? 'Pie chart shows total parcels per courier' : 'Hover over data points to inspect specific metrics'}</span>
+                    </div>
+                    {!isMobile && stats.courierData.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <div className="flex -space-x-1">
+                                {stats.courierData.slice(0, 3).map((courier, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="w-6 h-6 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center text-[8px] font-bold text-white shadow-sm"
+                                        style={{ backgroundColor: courier.color }}
+                                        title={courier.name}
+                                    >
+                                        {courier.name.charAt(0)}
+                                    </div>
+                                ))}
+                                {stats.courierData.length > 3 && (
+                                    <div className="w-6 h-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[8px] font-bold text-slate-600 dark:text-slate-300 shadow-sm">
+                                        +{stats.courierData.length - 3}
+                                    </div>
+                                )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                {stats.courierData.length} couriers
+                            </span>
+                        </div>
+                    )}
+                </div>
             </div>
 
+            {/* AI and Forecast */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col justify-between">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-2xl dark:shadow-black/40 flex flex-col justify-between transition-all hover:shadow-md dark:hover:shadow-2xl">
                     <div>
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                            <h2 className="font-semibold text-slate-800 text-base flex items-center gap-2">
-                                <i className="fas fa-robot text-pink-500"></i>
-                                Ask AI Assistant
-                            </h2>
-                            <span className="text-xs text-slate-400 font-medium">Suggested queries</span>
+                        <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-pink-500/20">
+                                <i className="fas fa-robot text-sm" />
+                            </div>
+                            <div>
+                                <h2 className="font-semibold text-slate-800 dark:text-white text-sm sm:text-base">
+                                    Ask AI Assistant
+                                </h2>
+                                <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                                    Suggested queries
+                                </p>
+                            </div>
                         </div>
-
-                        <ul className="mt-4 space-y-2.5">
-                            {[
+                        <AiQuestions
+                            title=""
+                            subtitle=""
+                            questions={[
                                 {
-                                    color: "bg-pink-500",
-                                    text: "How many parcels were received today?",
-                                    msg: `AI: Today's total: ${stats.scannedParcels} parcels received.`,
+                                    question: `How many parcels were received today? (${stats.scannedParcels})`,
+                                    color: "bg-pink-500"
                                 },
                                 {
-                                    color: "bg-amber-500",
-                                    text: "What's the expected dispatch volume for tomorrow?",
-                                    msg: `AI: Tomorrow's forecast: ${stats.forecast[0]?.parcels || 0} parcels expected.`,
+                                    question: `What's the expected dispatch volume for tomorrow? (${stats.forecast[0]?.parcels || 0})`,
+                                    color: "bg-amber-500"
                                 },
                                 {
-                                    color: "bg-blue-500",
-                                    text: "Which courier has the highest volume?",
-                                    msg: `AI: Top courier is ${courierDetails.topCourier.name} with ${courierDetails.topCourier.count} parcels.`,
+                                    question: `Which courier has the highest volume? (${courierDetails.topCourier.name}: ${courierDetails.topCourier.count})`,
+                                    color: "bg-blue-500"
                                 },
                                 {
-                                    color: "bg-emerald-500",
-                                    text: "When was the busiest day this week?",
-                                    msg: `AI: Busiest day was ${courierDetails.busiestDay.dayName} with ${courierDetails.busiestDay.count} parcels.`,
-                                },
-                            ].map((q, idx) => (
-                                <li key={idx}>
-                                    <button
-                                        className="w-full text-left flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-pink-50/60 hover:border-pink-200/80 transition-all group"
-                                        onClick={() => showToast(q.msg, "info")}
-                                    >
-                                        <span className={`w-2 h-2 rounded-full ${q.color} shrink-0`}></span>
-                                        <span className="text-xs sm:text-sm text-slate-600 group-hover:text-slate-900 font-medium transition-colors">
-                                            {q.text}
-                                        </span>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
+                                    question: `When was the busiest day this week? (${courierDetails.busiestDay.dayName}: ${courierDetails.busiestDay.count})`,
+                                    color: "bg-emerald-500"
+                                }
+                            ]}
+                            className="mt-4"
+                            gridCols="grid-cols-1"
+                        />
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-100">
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
                         <button
-                            className="btn-ghost text-xs w-full py-2 flex items-center justify-center gap-1.5 font-medium text-pink-600 hover:text-pink-700 hover:bg-pink-50/50 rounded-lg transition-all"
-                            onClick={() => showToast("Opening AI chat...", "info")}
+                            type="button"
+                            className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold text-pink-600 dark:text-pink-400 bg-pink-50/70 dark:bg-pink-950/30 hover:bg-pink-100/80 dark:hover:bg-pink-900/40 border border-pink-200/60 dark:border-pink-900/40 flex items-center justify-center gap-1.5 transition-all cursor-pointer group"
+                            onClick={() => openChat()}
                         >
-                            <i className="fas fa-comment-dots"></i>
+                            <i className="fas fa-comment-dots text-[11px] group-hover:scale-110 transition-transform" />
                             <span>Open Interactive AI Chat →</span>
                         </button>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col justify-between">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-2xl dark:shadow-black/40 flex flex-col justify-between transition-all hover:shadow-md dark:hover:shadow-2xl">
                     <div>
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                            <h2 className="font-semibold text-slate-800 text-base flex items-center gap-2">
-                                <i className="fas fa-chart-line text-indigo-500"></i>
-                                Prophet Forecast
-                            </h2>
-                            <span className="text-xs font-medium px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full">
-                                7-Day Projection
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                    <i className="fas fa-chart-line text-sm" />
+                                </div>
+                                <div>
+                                    <h2 className="font-semibold text-slate-800 dark:text-white text-sm sm:text-base">
+                                        Gemini Forecast
+                                    </h2>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                                        7-Day Projection
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="text-[11px] font-semibold px-2.5 py-1 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/40 text-indigo-700 dark:text-indigo-400 rounded-full border border-indigo-200/60 dark:border-indigo-900/40">
+                                AI Powered
                             </span>
                         </div>
 
-                        <div className="mt-4 space-y-3.5">
+                        <div className="mt-4 space-y-3">
                             {stats.forecast.length > 0 ? (
                                 stats.forecast.map((item, index) => {
                                     const isPositive = item.change > 0;
                                     return (
-                                        <div key={index} className="p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+                                        <div
+                                            key={index}
+                                            className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                        >
                                             <div className="flex items-center justify-between text-xs sm:text-sm">
-                                                <span className="font-medium text-slate-700 w-20">{item.day}</span>
-                                                <span className="font-semibold text-slate-900">
+                                                <span className="font-semibold text-slate-700 dark:text-slate-300 w-20">
+                                                    {item.day}
+                                                </span>
+                                                <span className="font-semibold text-slate-900 dark:text-white">
                                                     {item.parcels.toLocaleString()}{" "}
-                                                    <span className="text-xs font-normal text-slate-400">parcels</span>
+                                                    <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">
+                                                        parcels
+                                                    </span>
                                                 </span>
                                                 <span
-                                                    className={`font-medium flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${isPositive
-                                                        ? "bg-emerald-50 text-emerald-700"
-                                                        : "bg-amber-50 text-amber-700"
+                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${isPositive
+                                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40"
+                                                        : "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40"
                                                         }`}
                                                 >
                                                     <i
-                                                        className={`fas ${isPositive ? "fa-arrow-trend-up" : "fa-arrow-trend-down"
+                                                        className={`fas text-[10px] ${isPositive ? "fa-arrow-trend-up" : "fa-arrow-trend-down"
                                                             }`}
-                                                    ></i>
-                                                    {Math.abs(item.change)}%
+                                                    />
+                                                    <span>{Math.abs(item.change)}%</span>
                                                 </span>
                                             </div>
-                                            <div className="mt-2 w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+
+                                            <div className="mt-2.5 w-full bg-slate-200/70 dark:bg-slate-700/50 rounded-full h-1.5 overflow-hidden">
                                                 <div
-                                                    className="bg-indigo-500 h-2 rounded-full transition-all duration-500"
+                                                    className="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-500"
                                                     style={{ width: `${item.width}%` }}
-                                                ></div>
+                                                />
                                             </div>
                                         </div>
                                     );
                                 })
                             ) : (
-                                <div className="text-center text-slate-400 py-8 flex flex-col items-center justify-center">
-                                    <i className="fas fa-chart-line text-3xl mb-2 text-slate-300"></i>
-                                    <p className="text-sm">No forecast data currently available</p>
+                                <div className="text-center text-slate-400 dark:text-slate-500 py-8 flex flex-col items-center justify-center">
+                                    <i className="fas fa-chart-line text-3xl mb-2 text-slate-300 dark:text-slate-600" />
+                                    <p className="text-xs font-medium">No forecast data currently available</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-100">
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
                         <LinkBtn
                             link="/forecast"
-                            className="btn-ghost text-xs w-full py-2 flex items-center justify-center gap-1.5 font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/50 rounded-lg transition-all"
+                            className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-950/30 hover:bg-indigo-100/70 dark:hover:bg-indigo-900/40 border border-indigo-100 dark:border-indigo-900/40 transition-all flex items-center justify-center gap-1.5 cursor-pointer group"
                             icon="fas fa-arrow-trend-up"
                             label="View Full Predictive Analytics →"
                         />

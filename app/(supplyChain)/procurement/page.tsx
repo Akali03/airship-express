@@ -22,6 +22,7 @@ import {
 } from './utils/procurementApi';
 import Cards from "../components/global/Cards";
 import { SessionGuard } from "../components/server/SessionGuard";
+import { TableContentLoader } from "../components/global/Loader";
 
 // ============================================================
 // 2. TYPES & INTERFACES
@@ -268,7 +269,6 @@ export function PurchaseRequestModal({
                 className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl dark:shadow-black/60 border border-slate-100 dark:border-white/10 animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
                 <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-white/10">
                     <div className="flex items-center gap-3">
                         <span className="w-10 h-10 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-pink-100/50 dark:border-pink-500/20">
@@ -297,9 +297,7 @@ export function PurchaseRequestModal({
                     </button>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Requested By */}
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Requested By <span className="text-pink-500 dark:text-pink-400">*</span>
@@ -315,7 +313,6 @@ export function PurchaseRequestModal({
                         />
                     </div>
 
-                    {/* Supplier Dropdown */}
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Supplier <span className="text-pink-500 dark:text-pink-400">*</span>
@@ -337,7 +334,6 @@ export function PurchaseRequestModal({
                         </select>
                     </div>
 
-                    {/* Department & Priority */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
@@ -370,7 +366,6 @@ export function PurchaseRequestModal({
                         </div>
                     </div>
 
-                    {/* Estimated Amount */}
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Estimated Amount (₱)
@@ -388,7 +383,6 @@ export function PurchaseRequestModal({
                         />
                     </div>
 
-                    {/* Dynamic Items List */}
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Items List <span className="text-pink-500 dark:text-pink-400">*</span>
@@ -439,7 +433,6 @@ export function PurchaseRequestModal({
                         </div>
                     </div>
 
-                    {/* Reason */}
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Reason <span className="text-pink-500 dark:text-pink-400">*</span>
@@ -455,7 +448,6 @@ export function PurchaseRequestModal({
                         />
                     </div>
 
-                    {/* Actions */}
                     <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-white/10">
                         <button
                             type="button"
@@ -617,7 +609,6 @@ export function PurchaseOrderModal({
                 className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl dark:shadow-black/60 border border-slate-100 dark:border-white/10 animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
                 <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-white/10">
                     <div>
                         <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -643,7 +634,6 @@ export function PurchaseOrderModal({
 
                 {step === 1 && (
                     <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-                        {/* Summary Card */}
                         <div className="bg-slate-50/80 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200/80 dark:border-white/10">
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                                 <div>
@@ -681,7 +671,6 @@ export function PurchaseOrderModal({
                             </div>
                         </div>
 
-                        {/* Items List */}
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -740,7 +729,6 @@ export function PurchaseOrderModal({
                             </div>
                         </div>
 
-                        {/* Date and Grand Total */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
@@ -773,7 +761,6 @@ export function PurchaseOrderModal({
                             </div>
                         </div>
 
-                        {/* Notes Input */}
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                                 Notes
@@ -789,7 +776,6 @@ export function PurchaseOrderModal({
                             />
                         </div>
 
-                        {/* Step 1 Actions */}
                         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200/60 dark:border-white/10">
                             <button
                                 type="button"
@@ -812,7 +798,6 @@ export function PurchaseOrderModal({
 
                 {step === 2 && (
                     <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-                        {/* AI Recommendation Box */}
                         <div className="bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-slate-50 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900 border border-indigo-100 dark:border-indigo-800/30 rounded-xl p-4 sm:p-5 shadow-xs">
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300">
@@ -916,7 +901,6 @@ export function PurchaseOrderModal({
                             </div>
                         </div>
 
-                        {/* PO Summary Card */}
                         <div className="bg-slate-50/80 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200/80 dark:border-white/10">
                             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
                                 PO Summary
@@ -965,7 +949,6 @@ export function PurchaseOrderModal({
                             )}
                         </div>
 
-                        {/* Step 2 Actions */}
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200/60 dark:border-white/10">
                             <button
                                 type="button"
@@ -1048,12 +1031,10 @@ function EmptyState({
 }) {
     return (
         <div className="flex flex-col items-center justify-center py-16 px-4">
-            {/* Icon Badge */}
             <div className="w-20 h-20 rounded-3xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-400 mb-4 shadow-xs dark:shadow-black/40 transition-transform duration-300 hover:scale-105">
                 <i className={`${icon} text-3xl text-slate-400 dark:text-slate-400`} />
             </div>
 
-            {/* Content */}
             <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2 text-center">
                 {title}
             </h3>
@@ -1061,7 +1042,6 @@ function EmptyState({
                 {description}
             </p>
 
-            {/* Action Button */}
             {actionText && onAction && (
                 <button
                     onClick={onAction}
@@ -1108,7 +1088,7 @@ export default function Procurement() {
     const debouncedSearch = useDebounce(searchTerm, 300);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(10);
+    const [itemsPerPage, setItemsPerPage] = useState(15);
     const [totalItems, setTotalItems] = useState(0);
 
     const [totalCounts, setTotalCounts] = useState<{ all: number; pending: number; approved: number }>({
@@ -1132,6 +1112,22 @@ export default function Procurement() {
                 });
             }
         }
+    }, []);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 768) {
+                setItemsPerPage(10);
+            } else {
+                setItemsPerPage(15);
+            }
+        };
+
+        // Set initial value
+        handleResize();
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
@@ -1413,35 +1409,39 @@ export default function Procurement() {
         }
 
         const selectedRequests = requests.filter(r => selectedIds.has(r.id));
-        const nonPendingSelected = selectedRequests.filter(r => r.status !== "Pending");
+        const nonDeletableSelected = selectedRequests.filter(
+            r => r.status !== "Pending" && r.status !== "Rejected"
+        );
 
-        if (nonPendingSelected.length > 0) {
+        if (nonDeletableSelected.length > 0) {
             const confirmed = await confirm({
                 title: "Bulk Delete Warning",
-                message: `${nonPendingSelected.length} selected request(s) are not in "Pending" status. Only Pending requests can be deleted. Would you like to delete only the Pending ones?`,
-                confirmText: "Delete Pending Only",
+                message: `${nonDeletableSelected.length} selected request(s) are not in "Pending" or "Rejected" status. Only Pending and Rejected requests can be deleted. Would you like to delete only the eligible ones?`,
+                confirmText: "Delete Eligible Only",
                 cancelText: "Cancel",
                 confirmVariant: "danger",
             });
 
             if (!confirmed) return;
 
-            const pendingToDelete = selectedRequests.filter(r => r.status === "Pending");
-            if (pendingToDelete.length === 0) {
-                toast.warning("No pending requests selected for deletion");
+            const deletableToDelete = selectedRequests.filter(
+                r => r.status === "Pending" || r.status === "Rejected"
+            );
+            if (deletableToDelete.length === 0) {
+                toast.warning("No eligible requests selected for deletion");
                 return;
             }
 
             const confirmedFinal = await confirm({
-                title: "Delete Selected Pending Requests",
-                message: `Are you sure you want to delete ${pendingToDelete.length} pending request(s)? This action cannot be undone.`,
-                confirmText: `Delete ${pendingToDelete.length}`,
+                title: "Delete Selected Requests",
+                message: `Are you sure you want to delete ${deletableToDelete.length} request(s)? This action cannot be undone.`,
+                confirmText: `Delete ${deletableToDelete.length}`,
                 cancelText: "Cancel",
                 confirmVariant: "danger",
             });
 
             if (!confirmedFinal) return;
-            await performBulkDelete(pendingToDelete.map(r => r.id));
+            await performBulkDelete(deletableToDelete.map(r => r.id));
             return;
         }
 
@@ -1461,10 +1461,10 @@ export default function Procurement() {
         if (isSelectAll) {
             setSelectedIds(new Set());
         } else {
-            const pendingIds = filteredRequests
-                .filter(r => r.status === "Pending")
+            const selectableIds = filteredRequests
+                .filter(r => r.status === "Pending" || r.status === "Rejected")
                 .map(r => r.id);
-            setSelectedIds(new Set(pendingIds));
+            setSelectedIds(new Set(selectableIds));
         }
         setIsSelectAll(!isSelectAll);
     };
@@ -1475,16 +1475,18 @@ export default function Procurement() {
             newSet.delete(id);
         } else {
             const request = requests.find(r => r.id === id);
-            if (request && request.status !== "Pending") {
-                toast.warning("Only Pending requests can be selected for bulk operations");
+            if (request && request.status !== "Pending" && request.status !== "Rejected") {
+                toast.warning("Only Pending or Rejected requests can be selected for bulk operations");
                 return;
             }
             newSet.add(id);
         }
         setSelectedIds(newSet);
-        const pendingIds = filteredRequests.filter(r => r.status === "Pending").map(r => r.id);
-        const allSelected = pendingIds.every(id => newSet.has(id));
-        setIsSelectAll(allSelected && newSet.size === pendingIds.length);
+        const selectableIds = filteredRequests
+            .filter(r => r.status === "Pending" || r.status === "Rejected")
+            .map(r => r.id);
+        const allSelected = selectableIds.every(id => newSet.has(id));
+        setIsSelectAll(allSelected && newSet.size === selectableIds.length);
     };
 
     const handleApproveRequest = async (id: string) => {
@@ -1654,7 +1656,11 @@ export default function Procurement() {
                         labels: ['Normal', 'Urgent', 'Critical'],
                         datasets: [{
                             data: [priorityCounts.Normal, priorityCounts.Urgent, priorityCounts.Critical],
-                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                            backgroundColor: [
+                                '#F472B6', // Light Pink - Normal (least urgent)
+                                '#EC4899', // Medium Pink - Urgent 
+                                '#BE185D'
+                            ],
                             borderWidth: 2,
                             borderColor: "#fff",
                             hoverOffset: 15,
@@ -1740,11 +1746,8 @@ export default function Procurement() {
     return (
         <SessionGuard requiredRole={['Admin', 'Employee']}>
             <div className="p-6 space-y-6 fade-in bgCard">
-                {/* Header */}
                 <div className="flex items-start justify-between gap-4 flex-wrap border-b border-slate-200/80 dark:border-white/10 pb-5 transition-colors">
-                    {/* Header & Title Section */}
                     <div className="flex items-start gap-3.5">
-                        {/* Module Icon Container */}
                         <div className="w-12 h-12 rounded-2xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-800/40 flex items-center justify-center text-pink-600 dark:text-pink-400 text-xl shadow-2xs shrink-0 mt-0.5 transition-colors">
                             <i className="fas fa-shopping-cart" />
                         </div>
@@ -1757,7 +1760,6 @@ export default function Procurement() {
                                 Manage fleet maintenance, spare parts, fuel, and operational supplies.
                             </p>
 
-                            {/* Active Role Badge */}
                             <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/10 text-xs text-slate-500 dark:text-slate-400 transition-colors">
                                 <span className="w-2 h-2 rounded-full bg-pink-500 shadow-xs shadow-pink-500/50" />
                                 <i className="fas fa-user-tag text-[11px] text-slate-400 dark:text-slate-500" />
@@ -1769,7 +1771,6 @@ export default function Procurement() {
                         </div>
                     </div>
 
-                    {/* Primary Action Button */}
                     <button
                         className="px-4 py-2.5 bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 dark:from-pink-600 dark:to-pink-500 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 shadow-xs hover:shadow-pink-500/25 dark:shadow-pink-500/20 active:scale-[0.98] shrink-0 cursor-pointer"
                         onClick={() => {
@@ -1785,7 +1786,6 @@ export default function Procurement() {
                     </button>
                 </div>
 
-                {/* AI Suggested Questions */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
                     <div className="flex items-center justify-between mb-3">
                         <span className="font-semibold text-slate-900 text-sm">
@@ -1848,7 +1848,6 @@ export default function Procurement() {
                     </div>
                 </div>
 
-                {/* KPIs */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Cards
                         frontIcon="fa-solid fa-file-invoice"
@@ -1918,7 +1917,6 @@ export default function Procurement() {
                     />
                 </div>
 
-                {/* Charts */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 xl:col-span-2">
                         <div className="flex items-center justify-between">
@@ -1942,21 +1940,20 @@ export default function Procurement() {
                         </div>
                     </div>
                 </div>
-
-                {/* Purchase Requests Table */}
                 <div
                     ref={tableContainerRef}
                     id="procurement-table"
-                    className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden relative"
+                    className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden relative flex flex-col"
                 >
                     {isRefreshing && (
                         <div className="absolute top-0 left-0 right-0 h-0.5 bg-pink-100 overflow-hidden z-10">
                             <div className="h-full w-1/3 bg-pink-500 animate-[pulse_1s_ease-in-out_infinite]" />
                         </div>
                     )}
-                    <div className="p-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/60 backdrop-blur-xl transition-all">
+
+                    {/* Filter Bar - Stays fixed */}
+                    <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/60 backdrop-blur-xl transition-all">
                         <div className="flex flex-wrap items-center gap-3">
-                            {/* Header Title */}
                             <div className="font-semibold text-slate-900 dark:text-white text-sm mr-2 flex items-center gap-2">
                                 <i className="fas fa-list text-pink-500 dark:text-pink-400" />
                                 <span>Purchase Requests</span>
@@ -1968,7 +1965,6 @@ export default function Procurement() {
                                 )}
                             </div>
 
-                            {/* Search Input */}
                             <div className="relative flex-1 min-w-[200px] max-w-xs">
                                 <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
                                 <input
@@ -1979,7 +1975,6 @@ export default function Procurement() {
                                 />
                             </div>
 
-                            {/* Filter Tabs */}
                             <div className="flex gap-1 bg-slate-200/60 dark:bg-slate-800/70 p-1 rounded-xl border border-transparent dark:border-white/5">
                                 {[
                                     { key: "all", label: "All", count: totalCounts.all },
@@ -2016,47 +2011,19 @@ export default function Procurement() {
                         </div>
                     </div>
 
-                    <div className="relative rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-sm dark:shadow-black/40 overflow-hidden transition-colors">
-                        {/* Loading Transition Overlay */}
-                        {isTabTransitioning && (
-                            <div className="absolute inset-0 bg-white/20 dark:bg-slate-950/40 backdrop-blur-sm z-30 flex items-center justify-center transition-all">
-                                <div className="flex flex-col items-center gap-2.5 p-4 rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-100 dark:border-white/10">
-                                    <svg
-                                        className="w-6 h-6 animate-spin text-pink-500"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <circle
-                                            className="opacity-25"
-                                            cx="12"
-                                            cy="12"
-                                            r="10"
-                                            stroke="currentColor"
-                                            strokeWidth="4"
-                                        />
-                                        <path
-                                            className="opacity-75"
-                                            fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                        />
-                                    </svg>
-                                    <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold tracking-wide">
-                                        Loading requests...
-                                    </span>
-                                </div>
-                            </div>
-                        )}
+                    {/* Scrollable Table Container - Only this scrolls */}
+                    <div className="flex-1 overflow-y-auto max-h-[500px] relative">
 
                         <div
                             className={`transition-opacity duration-200 ${isTabTransitioning ? "opacity-30 pointer-events-none" : "opacity-100"
                                 }`}
                         >
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                                {isTabTransitioning && <TableContentLoader />}
+                                <table className="table-pro p-1">
                                     <thead>
-                                        <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/50 text-[11px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase select-none">
-                                            <th className="py-3 px-3.5 w-10 text-center">
+                                        <tr>
+                                            <th className="w-10 text-center">
                                                 <div className="flex items-center justify-center gap-1.5">
                                                     <input
                                                         type="checkbox"
@@ -2064,14 +2031,14 @@ export default function Procurement() {
                                                         checked={isSelectAll && selectedIds.size > 0}
                                                         onChange={handleSelectAll}
                                                         disabled={
-                                                            filteredRequests.filter((r) => r.status === "Pending")
+                                                            filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected")
                                                                 .length === 0
                                                         }
                                                         title={
-                                                            filteredRequests.filter((r) => r.status === "Pending")
+                                                            filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected")
                                                                 .length === 0
-                                                                ? "No pending requests to select"
-                                                                : "Select all pending requests"
+                                                                ? "No pending or rejected requests to select"
+                                                                : "Select all pending and rejected requests"
                                                         }
                                                     />
                                                     {selectedIds.size > 0 && (
@@ -2081,21 +2048,22 @@ export default function Procurement() {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th className="py-3 px-3.5">PR #</th>
-                                            <th className="py-3 px-3.5">Type</th>
-                                            <th className="py-3 px-3.5">Description</th>
-                                            <th className="py-3 px-3.5">Requested By</th>
-                                            <th className="py-3 px-3.5">Dept</th>
-                                            <th className="py-3 px-3.5">Supplier</th>
-                                            <th className="py-3 px-3.5 text-right">Amount</th>
-                                            <th className="py-3 px-3.5">Priority</th>
-                                            <th className="py-3 px-3.5">Date</th>
-                                            <th className="py-3 px-3.5">Status</th>
-                                            <th className="py-3 px-3.5 text-right">Actions</th>
+                                            <th>PR #</th>
+                                            <th>Type</th>
+                                            <th>Description</th>
+                                            <th>Requested By</th>
+                                            <th>Dept</th>
+                                            <th>Supplier</th>
+                                            <th className="text-right">Amount</th>
+                                            <th>Priority</th>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                            <th>PO Status</th>
+                                            <th className="text-right">Actions</th>
                                         </tr>
                                     </thead>
 
-                                    <tbody className="divide-y divide-slate-100 dark:divide-white/10 text-xs">
+                                    <tbody>
                                         {filteredRequests.length === 0 ? (
                                             <tr>
                                                 <td colSpan={13} className="py-12">
@@ -2132,31 +2100,33 @@ export default function Procurement() {
                                                 return (
                                                     <tr
                                                         key={req.id}
-                                                        className={`group transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/60 ${rowBusy ? "opacity-50 pointer-events-none" : ""
+                                                        className={`group transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/60 ${rowBusy ? "opacity-50 pointer-events-none " : ""
                                                             } ${isSelected
                                                                 ? "bg-pink-50/40 dark:bg-pink-950/30"
                                                                 : "bg-transparent"
                                                             }`}
                                                     >
-                                                        <td className="py-3 px-3.5 text-center">
+                                                        <td data-label="" className="text-center">
                                                             <input
                                                                 type="checkbox"
                                                                 className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/30 focus:ring-2 transition-all cursor-pointer accent-pink-600 disabled:opacity-30 disabled:cursor-not-allowed"
                                                                 checked={isSelected}
                                                                 onChange={() => handleSelectOne(req.id)}
-                                                                disabled={!isPending || rowBusy}
+                                                                disabled={!isPending && req.status !== "Rejected" || rowBusy}
                                                                 title={
-                                                                    !isPending ? "Only pending requests can be selected" : ""
+                                                                    !isPending && req.status !== "Rejected"
+                                                                        ? "Only pending or rejected requests can be selected"
+                                                                        : ""
                                                                 }
                                                             />
                                                         </td>
-                                                        <td className="py-3 px-3.5 font-mono text-xs font-semibold text-slate-900 dark:text-white">
+                                                        <td data-label="PR #" className="font-mono text-xs font-semibold text-slate-900 dark:text-white">
                                                             {req.request_number}
                                                         </td>
-                                                        <td className="py-3 px-3.5 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                        <td data-label="Type" className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                                             {req.type}
                                                         </td>
-                                                        <td className="py-3 px-3.5">
+                                                        <td data-label="Description">
                                                             <span
                                                                 className="text-slate-600 dark:text-slate-400 truncate max-w-[180px] block"
                                                                 title={req.description}
@@ -2164,22 +2134,19 @@ export default function Procurement() {
                                                                 {req.description}
                                                             </span>
                                                         </td>
-                                                        <td className="py-3 px-3.5 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                        <td data-label="Requested By" className="font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
                                                             {req.requested_by}
                                                         </td>
-                                                        <td className="py-3 px-3.5 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                                        <td data-label="Dept" className="text-slate-600 dark:text-slate-400 whitespace-nowrap">
                                                             {req.department}
                                                         </td>
-                                                        <td
-                                                            className="py-3 px-3.5 text-slate-600 dark:text-slate-400 whitespace-nowrap max-w-[140px] truncate"
-                                                            title={req.supplier_name}
-                                                        >
+                                                        <td data-label="Supplier" className="text-slate-600 dark:text-slate-400 whitespace-nowrap max-w-[140px] truncate" title={req.supplier_name}>
                                                             {req.supplier_name}
                                                         </td>
-                                                        <td className="py-3 px-3.5 text-right font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
+                                                        <td data-label="Amount" className="text-right font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
                                                             ₱{req.amount.toLocaleString()}
                                                         </td>
-                                                        <td className="py-3 px-3.5 whitespace-nowrap">
+                                                        <td data-label="Priority" className="whitespace-nowrap">
                                                             <span
                                                                 className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ${getPriorityColor(
                                                                     req.priority
@@ -2188,36 +2155,41 @@ export default function Procurement() {
                                                                 {req.priority}
                                                             </span>
                                                         </td>
-                                                        <td className="py-3 px-3.5 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                                        <td data-label="Date" className="text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
                                                             {req.date}
                                                         </td>
-                                                        <td className="py-3 px-3.5 whitespace-nowrap">
-                                                            <div className="flex flex-col gap-1 items-start">
-                                                                <span
-                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(
-                                                                        req.status
-                                                                    )}`}
-                                                                >
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                                                                    {req.status}
-                                                                </span>
-                                                                {hasPO && poStatus && (
-                                                                    <span
-                                                                        className={`text-[9px] px-1.5 py-0.5 rounded font-medium border ${getPOStatusColor(
-                                                                            poStatus
-                                                                        )}`}
-                                                                        title={`PO Status: ${poStatus}`}
-                                                                    >
-                                                                        PO: {poStatus} {poNumber && `(#${poNumber})`}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                        <td data-label="Status" className="whitespace-nowrap">
+                                                            <span
+                                                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(
+                                                                    req.status
+                                                                )}`}
+                                                            >
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                                                {req.status}
+                                                            </span>
                                                         </td>
-                                                        <td className="py-3 px-3.5 text-right whitespace-nowrap">
-                                                            <div className="flex items-center justify-end gap-1">
+                                                        <td data-label="PO Status" className="whitespace-nowrap">
+                                                            {hasPO && poStatus ? (
+                                                                <span
+                                                                    className={`text-[10px] px-2.5 py-1 rounded-full font-medium border ${getPOStatusColor(
+                                                                        poStatus
+                                                                    )}`}
+                                                                    title={`PO Status: ${poStatus} ${poNumber ? `(#${poNumber})` : ''}`}
+                                                                >
+                                                                    {poStatus} {poNumber && `#${poNumber}`}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">
+                                                                    No PO
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                {/* Loading Spinner */}
                                                                 {rowBusy && (
                                                                     <svg
-                                                                        className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500 mr-1"
+                                                                        className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500"
                                                                         fill="none"
                                                                         viewBox="0 0 24 24"
                                                                     >
@@ -2237,12 +2209,14 @@ export default function Procurement() {
                                                                     </svg>
                                                                 )}
 
+                                                                {/* State 1: Approved & No PO yet -> Action Button */}
                                                                 {req.status === "Approved" && !hasPO && (
                                                                     <button
-                                                                        className="px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200/80 dark:border-emerald-800/40 rounded-lg transition-all flex items-center gap-1 disabled:opacity-40 shadow-2xs cursor-pointer"
+                                                                        type="button"
                                                                         onClick={() => handleCreateOrder(req)}
                                                                         disabled={rowBusy}
                                                                         title="Create Purchase Order"
+                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200/80 dark:border-emerald-800/50 rounded-xl transition-all shadow-2xs disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                                                     >
                                                                         <svg
                                                                             className="w-3.5 h-3.5"
@@ -2261,115 +2235,78 @@ export default function Procurement() {
                                                                     </button>
                                                                 )}
 
+                                                                {/* State 2: Pending -> Action Toolbelt */}
                                                                 {req.status === "Pending" && (
-                                                                    <div className="flex items-center gap-0.5">
+                                                                    <div className="inline-flex items-center gap-0.5 p-0.5 bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded-xl shadow-2xs">
                                                                         <button
-                                                                            className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer"
+                                                                            type="button"
                                                                             onClick={() => handleApproveRequest(req.id)}
                                                                             disabled={rowBusy}
                                                                             title="Approve Request"
+                                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-white dark:hover:bg-slate-700/80 hover:shadow-2xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                                                         >
-                                                                            <svg
-                                                                                className="w-4 h-4"
-                                                                                fill="none"
-                                                                                stroke="currentColor"
-                                                                                strokeWidth="2.5"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    d="M5 13l4 4L19 7"
-                                                                                />
+                                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                                             </svg>
                                                                         </button>
+
                                                                         <button
-                                                                            className="p-1.5 text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                                                                            type="button"
                                                                             onClick={() => handleRejectRequest(req.id)}
                                                                             disabled={rowBusy}
                                                                             title="Reject Request"
+                                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-rose-600 dark:text-rose-400 hover:bg-white dark:hover:bg-slate-700/80 hover:shadow-2xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                                                         >
-                                                                            <svg
-                                                                                className="w-4 h-4"
-                                                                                fill="none"
-                                                                                stroke="currentColor"
-                                                                                strokeWidth="2.5"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    d="M6 18L18 6M6 6l12 12"
-                                                                                />
+                                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                                                             </svg>
                                                                         </button>
+
+                                                                        <span className="w-px h-3.5 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
                                                                         <button
-                                                                            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                                                            type="button"
                                                                             onClick={() => handleEditRequest(req.id)}
                                                                             disabled={rowBusy}
                                                                             title="Edit Request"
+                                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700/80 hover:shadow-2xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                                                         >
-                                                                            <svg
-                                                                                className="w-4 h-4"
-                                                                                fill="none"
-                                                                                stroke="currentColor"
-                                                                                strokeWidth="2"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                                                                />
+                                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                                             </svg>
                                                                         </button>
+
                                                                         <button
-                                                                            className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                                                                            type="button"
                                                                             onClick={() => handleDeleteRequest(req.id)}
                                                                             disabled={rowBusy}
                                                                             title="Delete Request"
+                                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white dark:hover:bg-slate-700/80 hover:shadow-2xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                                                         >
-                                                                            <svg
-                                                                                className="w-4 h-4"
-                                                                                fill="none"
-                                                                                stroke="currentColor"
-                                                                                strokeWidth="2"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                                />
+                                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                                             </svg>
                                                                         </button>
                                                                     </div>
                                                                 )}
 
+                                                                {/* State 3: Approved & Has PO -> Completed Tag */}
                                                                 {req.status === "Approved" && hasPO && (
                                                                     <span
-                                                                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200/90 dark:border-white/10 cursor-not-allowed select-none pointer-events-none opacity-80"
-                                                                        title="Purchase order has already been created for this request"
+                                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 select-none"
+                                                                        title="Purchase order already generated"
                                                                     >
-                                                                        <svg
-                                                                            className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500"
-                                                                            fill="none"
-                                                                            stroke="currentColor"
-                                                                            strokeWidth="2.5"
-                                                                            viewBox="0 0 24 24"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                d="M5 13l4 4L19 7"
-                                                                            />
+                                                                        <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                                         </svg>
                                                                         <span>PO Created</span>
                                                                     </span>
                                                                 )}
 
+                                                                {/* State 4: Rejected -> Minimal Tag */}
                                                                 {req.status === "Rejected" && (
-                                                                    <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-md">
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/40 rounded-md">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
                                                                         Rejected
                                                                     </span>
                                                                 )}
@@ -2385,11 +2322,16 @@ export default function Procurement() {
                         </div>
                     </div>
 
-                    <div className="pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1">
-                        {/* Left: Info & Selection Controls */}
+                    {/* Pagination Bar - Stays fixed */}
+                    <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1">
                         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
                             <span className="text-slate-500 dark:text-slate-400 font-medium">
-                                Showing <span className="font-semibold text-slate-800 dark:text-white">{requests.length}</span> of{' '}
+                                Showing <span className="font-semibold text-slate-800 dark:text-white">
+                                    {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
+                                </span> to{' '}
+                                <span className="font-semibold text-slate-800 dark:text-white">
+                                    {Math.min(currentPage * itemsPerPage, totalItems)}
+                                </span> of{' '}
                                 <span className="font-semibold text-slate-800 dark:text-white">{totalItems}</span> requests
                             </span>
 
@@ -2427,7 +2369,6 @@ export default function Procurement() {
                             )}
                         </div>
 
-                        {/* Right: Pagination Component */}
                         <Pagination
                             currentPage={currentPage}
                             totalPages={totalPages}
@@ -2436,7 +2377,6 @@ export default function Procurement() {
                     </div>
                 </div>
 
-                {/* Modals */}
                 <PurchaseRequestModal
                     isOpen={isPurchaseRequestModalOpen}
                     onClose={() => {

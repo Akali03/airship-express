@@ -8,9 +8,6 @@ export async function GET(request: Request) {
         const sessionToken = request.headers.get('x-session-token');
         const currentUserAgent = request.headers.get('user-agent') || '';
 
-        console.log('🔍 Validating session...');
-        console.log('📝 Session token:', sessionToken);
-        console.log('📱 User-Agent:', currentUserAgent);
 
         if (!sessionToken) {
             return NextResponse.json(
@@ -19,7 +16,6 @@ export async function GET(request: Request) {
             );
         }
 
-        // Get session from database
         const { data: session, error: sessionError } = await supabase
             .from('sessions')
             .select('*')
@@ -28,24 +24,15 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         if (sessionError || !session) {
-            console.log('❌ Session not found or inactive');
             return NextResponse.json(
                 { valid: false },
                 { status: 401 }
             );
         }
 
-        console.log('✅ Session found:', {
-            id: session.id,
-            email: session.email,
-            is_active: session.is_active,
-            expires_at: session.expires_at,
-            user_id: session.user_id
-        });
 
-        // Check if session is expired
+
         if (new Date(session.expires_at) < new Date()) {
-            console.log('❌ Session expired');
             await supabase
                 .from('sessions')
                 .update({ is_active: false })
@@ -57,7 +44,6 @@ export async function GET(request: Request) {
             );
         }
 
-        // Get user with role
         const { data: user, error: userError } = await supabase
             .from('users')
             .select('id, display_name, email, role, department')
@@ -65,17 +51,13 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         if (userError || !user) {
-            console.error('❌ User not found:', userError);
             return NextResponse.json(
                 { valid: false, session_cleared: true },
                 { status: 401 }
             );
         }
 
-        // 🔥 Validate role
         if (!user.role || !VALID_ROLES.includes(user.role)) {
-            console.log('❌ Invalid or missing role:', user.role);
-            // Deactivate the session
             await supabase
                 .from('sessions')
                 .update({ is_active: false })
@@ -87,15 +69,11 @@ export async function GET(request: Request) {
             );
         }
 
-        console.log('👤 User role from DB:', user.role);
 
-        // CHECK USER_AGENT
         const storedUserAgent = session.user_agent || '';
         const isSameDevice = storedUserAgent === currentUserAgent;
-        console.log('🔍 Same device?', isSameDevice);
 
         if (!isSameDevice) {
-            console.log('❌ Different device detected - invalidating session');
             await supabase
                 .from('sessions')
                 .update({ is_active: false })
@@ -118,7 +96,6 @@ export async function GET(request: Request) {
             );
         }
 
-        console.log('✅ Session valid!');
         return NextResponse.json({
             valid: true,
             user: {
@@ -130,7 +107,6 @@ export async function GET(request: Request) {
             }
         });
     } catch (error) {
-        console.error('Session validation error:', error);
         return NextResponse.json(
             { valid: false, session_cleared: true },
             { status: 500 }

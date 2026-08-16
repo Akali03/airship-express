@@ -1,14 +1,13 @@
 'use client';
 
 import { toast } from "sonner";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useConfirm } from '@/app/(supplyChain)/components/ui/ConfirmModal';
 import { useInventory } from './hooks/useInventory';
 import { useParcels } from './hooks/useParcels';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
-// ui pieces
 import { DashboardTab } from './components/tabs/DashboardTab';
 import { InventoryTab } from './components/tabs/InventoryTab';
 import { ParcelsTab } from './components/tabs/ParcelsTab';
@@ -17,14 +16,12 @@ import { EditItemModal } from './components/modals/EditItemModal';
 import { StockInModal } from './components/modals/StockInModal';
 import { StockOutModal } from './components/modals/StockOutModal';
 
-// types and helpers
 import { GroupedParcels, InventoryItem } from './types';
 import { PageSkeleton } from '../components/ui/SkeletonLoader';
 import { useDebounce } from "../hooks/useDebounce";
 import { sanitizeText } from "../components/global/sanitize";
 import { fetchInventoryPageData, type Parcel } from './server/query';
 
-// Animation variants with proper typing
 const tabVariants: Variants = {
     enter: (direction: number) => ({
         x: direction > 0 ? 30 : -30,
@@ -55,7 +52,6 @@ export default function InventoryClient() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    // Get tab from URL or default to 'dashboard'
     const initialTab = searchParams.get('tab') || 'dashboard';
     const [activeTab, setActiveTab] = useState<string>(initialTab);
     const [direction, setDirection] = useState(0);
@@ -71,7 +67,7 @@ export default function InventoryClient() {
 
     const [inventoryPage, setInventoryPage] = useState(1);
     const [parcelPage, setParcelPage] = useState(1);
-    const itemsPerPage = 15;
+    const itemsPerPage = 30;
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -83,6 +79,12 @@ export default function InventoryClient() {
     const [selectedItemForStock, setSelectedItemForStock] = useState<string>('');
 
     const [loading, setLoading] = useState(true);
+    const [loadingInventory, setLoadingInventory] = useState(false);
+    const [loadingParcels, setLoadingParcels] = useState(false);
+
+    const [dashboardItems, setDashboardItems] = useState<InventoryItem[]>([]);
+    const [dashboardStats, setDashboardStats] = useState<any>(null);
+
     const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
     const [totalInventoryItems, setTotalInventoryItems] = useState(0);
     const [inventoryTotalPages, setInventoryTotalPages] = useState(1);
@@ -90,12 +92,12 @@ export default function InventoryClient() {
     const [parcels, setParcels] = useState<Parcel[]>([]);
     const [totalParcels, setTotalParcels] = useState(0);
     const [parcelTotalPages, setParcelTotalPages] = useState(1);
-
     const [suppliers, setSuppliers] = useState<any[]>([]);
-    const [dashboardStats, setDashboardStats] = useState<any>(null);
 
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
     const debouncedParcelSearch = useDebounce(parcelSearchTerm, 300);
+
+    const isInitialLoad = useRef(true);
 
     const { confirm } = useConfirm();
     const {
@@ -109,11 +111,39 @@ export default function InventoryClient() {
         stockOut,
     } = useInventory();
 
-    // fetch everything we need
-    const fetchData = useCallback(async () => {
+    const fetchDashboardData = useCallback(async () => {
         try {
-            setLoading(true);
+            const result = await fetchInventoryPageData({
+                inventoryPage: 1,
+                inventoryLimit: 999,
+                inventorySearch: '',
+                inventoryCategory: 'all',
+                inventoryStatus: 'all',
+                parcelPage: 1,
+                parcelLimit: 5,
+                parcelSearch: '',
+                parcelStatus: '',
+                parcelDateFrom: '',
+                parcelDateTo: '',
+            });
 
+            if (result.success && result.data) {
+                setDashboardItems(result.data.inventory?.items || []);
+                setDashboardStats(result.data.stats || null);
+                setSuppliers(result.data.suppliers || []);
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard data:', error);
+        }
+    }, []);
+
+    const fetchInventoryData = useCallback(async (showLoading = true) => {
+        if (showLoading) {
+            setLoadingInventory(true);
+            setLoadingParcels(true);
+        }
+
+        try {
             const result = await fetchInventoryPageData({
                 inventoryPage: inventoryPage,
                 inventoryLimit: itemsPerPage,
@@ -128,47 +158,29 @@ export default function InventoryClient() {
                 parcelDateTo: parcelDateTo,
             });
 
-            if (!result.success) {
-                toast.error(result.error || 'Failed to load data');
-                return;
-            }
-
-            // pull out data with safe fallbacks
-            const { data } = result;
-
-            // inventory data
-            const inventoryData = data?.inventory;
-            if (inventoryData) {
-                setInventoryItems(inventoryData.items || []);
-                setTotalInventoryItems(inventoryData.totalItems || 0);
-                setInventoryTotalPages(inventoryData.totalPages || 1);
+            if (result.success && result.data) {
+                const { data } = result;
+                if (data?.inventory) {
+                    setInventoryItems(data.inventory.items || []);
+                    setTotalInventoryItems(data.inventory.totalItems || 0);
+                    setInventoryTotalPages(data.inventory.totalPages || 1);
+                }
+                if (data?.parcels) {
+                    setParcels(data.parcels.parcels || []);
+                    setTotalParcels(data.parcels.totalItems || 0);
+                    setParcelTotalPages(data.parcels.totalPages || 1);
+                }
             } else {
-                setInventoryItems([]);
-                setTotalInventoryItems(0);
-                setInventoryTotalPages(1);
+                toast.error(result.error || 'Failed to load inventory data');
             }
-
-            // parcel data
-            const parcelsData = data?.parcels;
-            if (parcelsData) {
-                setParcels(parcelsData.parcels || []);
-                setTotalParcels(parcelsData.totalItems || 0);
-                setParcelTotalPages(parcelsData.totalPages || 1);
-            } else {
-                setParcels([]);
-                setTotalParcels(0);
-                setParcelTotalPages(1);
-            }
-
-            // suppliers and stats
-            setSuppliers(data?.suppliers || []);
-            setDashboardStats(data?.stats || null);
-
         } catch (error) {
-            console.error('Error fetching data:', error);
-            toast.error('Failed to load data');
+            console.error('Error fetching inventory data:', error);
+            toast.error('Failed to load inventory data');
         } finally {
-            setLoading(false);
+            if (showLoading) {
+                setLoadingInventory(false);
+                setLoadingParcels(false);
+            }
         }
     }, [
         inventoryPage,
@@ -183,7 +195,46 @@ export default function InventoryClient() {
         parcelDateTo,
     ]);
 
-    // Sync tab with URL without page reload
+
+    useEffect(() => {
+        const loadInitialData = async () => {
+            setLoading(true);
+            await Promise.all([
+                fetchDashboardData(),
+                fetchInventoryData(true)
+            ]);
+            setLoading(false);
+            isInitialLoad.current = false;
+        };
+
+        loadInitialData();
+    }, []);
+
+    useEffect(() => {
+        if (isInitialLoad.current) return;
+
+        setInventoryPage(1);
+
+        const timeoutId = setTimeout(() => {
+            fetchInventoryData(true);
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
+    }, [
+        debouncedSearchTerm,
+        categoryFilter,
+        statusFilter,
+        debouncedParcelSearch,
+        parcelStatusFilter,
+        parcelDateFrom,
+        parcelDateTo,
+    ]);
+
+    useEffect(() => {
+        if (isInitialLoad.current) return;
+        fetchInventoryData(true);
+    }, [inventoryPage, parcelPage]);
+
     const handleTabChange = (tab: string) => {
         const tabIndex = ['dashboard', 'inventory', 'parcels'].indexOf(tab);
         const currentIndex = ['dashboard', 'inventory', 'parcels'].indexOf(activeTab);
@@ -192,33 +243,25 @@ export default function InventoryClient() {
         setActiveTab(tab);
         localStorage.setItem('inventoryActiveTab', tab);
 
-        // Update URL without reload
         const params = new URLSearchParams(searchParams.toString());
         params.set('tab', tab);
         router.replace(`/inventory?${params.toString()}`, { scroll: false });
     };
 
-    // load saved tab and initial data
     useEffect(() => {
         const savedTab = localStorage.getItem('inventoryActiveTab');
         const urlTab = searchParams.get('tab');
 
-        // Prioritize URL tab over saved tab
         if (urlTab && ['dashboard', 'inventory', 'parcels'].includes(urlTab)) {
             setActiveTab(urlTab);
         } else if (savedTab && !urlTab) {
             setActiveTab(savedTab);
-            // Update URL to match saved tab
             const params = new URLSearchParams(searchParams.toString());
             params.set('tab', savedTab);
             router.replace(`/inventory?${params.toString()}`, { scroll: false });
         }
+    }, []);
 
-        fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchData]);
-
-    // handlers for user actions
     const handleInventoryPageChange = (page: number) => {
         if (page >= 1 && page <= inventoryTotalPages && page !== inventoryPage) {
             setInventoryPage(page);
@@ -234,14 +277,20 @@ export default function InventoryClient() {
     const handleAddItem = async (data: any) => {
         await addItem(data);
         setShowAddModal(false);
-        fetchData();
+        await Promise.all([
+            fetchDashboardData(),
+            fetchInventoryData(true)
+        ]);
     };
 
     const handleUpdateItem = async (data: any) => {
         await updateItem(data);
         setShowEditModal(false);
         setEditingItem(null);
-        fetchData();
+        await Promise.all([
+            fetchDashboardData(),
+            fetchInventoryData(true)
+        ]);
     };
 
     const handleDeleteItem = async (id: string, name: string) => {
@@ -253,7 +302,10 @@ export default function InventoryClient() {
         });
         if (confirmed) {
             await deleteItem(id, name);
-            fetchData();
+            await Promise.all([
+                fetchDashboardData(),
+                fetchInventoryData(true)
+            ]);
         }
     };
 
@@ -271,20 +323,29 @@ export default function InventoryClient() {
         if (confirmed) {
             await deleteMultipleItems(Array.from(selectedIds));
             setSelectedIds(new Set());
-            fetchData();
+            await Promise.all([
+                fetchDashboardData(),
+                fetchInventoryData(true)
+            ]);
         }
     };
 
     const handleStockIn = async (itemName: string, quantity: number, supplier?: string, reference?: string, remarks?: string) => {
         await stockIn(itemName, quantity, supplier, reference, remarks);
         setShowStockInModal(false);
-        fetchData();
+        await Promise.all([
+            fetchDashboardData(),
+            fetchInventoryData(true)
+        ]);
     };
 
     const handleStockOut = async (itemName: string, quantity: number, department?: string, purpose?: string, remarks?: string) => {
         await stockOut(itemName, quantity, department, purpose, remarks);
         setShowStockOutModal(false);
-        fetchData();
+        await Promise.all([
+            fetchDashboardData(),
+            fetchInventoryData(true)
+        ]);
     };
 
     const openEditModal = (item: InventoryItem) => {
@@ -297,11 +358,33 @@ export default function InventoryClient() {
         setShowStockInModal(true);
     };
 
+    const handleCategoryClick = (category: string) => {
+        handleTabChange('inventory');
+        setCategoryFilter(category);
+        setStatusFilter('all');
+        setSearchTerm('');
+        setSelectedIds(new Set());
+        setInventoryPage(1);
+    };
+
+    const handleStatusClick = (status: string) => {
+        handleTabChange('inventory');
+        const statusMap: Record<string, string> = {
+            'Available': 'available',
+            'Low Stock': 'low-stock',
+            'Out of Stock': 'out-of-stock'
+        };
+        setStatusFilter(statusMap[status] || status.toLowerCase());
+        setCategoryFilter('all');
+        setSearchTerm('');
+        setSelectedIds(new Set());
+        setInventoryPage(1);
+    };
+
     if (loading) {
         return <PageSkeleton />;
     }
 
-    // group parcels by date for display
     const filteredGroupedParcels = parcels.reduce((acc: GroupedParcels[], parcel) => {
         const date = new Date(parcel.created_at).toLocaleDateString('en-US', {
             year: 'numeric', month: 'long', day: 'numeric'
@@ -315,24 +398,15 @@ export default function InventoryClient() {
         return acc;
     }, []);
 
-    // Map tab IDs to components with their keys
     const tabComponents = {
         dashboard: (
             <DashboardTab
                 key="dashboard"
-                inventoryItems={inventoryItems}
+                inventoryItems={dashboardItems}
                 stats={dashboardStats}
                 onStockIn={openStockInModal}
-                onCategoryClick={(category) => {
-                    handleTabChange('inventory');
-                    setCategoryFilter(category);
-                    setInventoryPage(1);
-                }}
-                onStatusClick={(status) => {
-                    handleTabChange('inventory');
-                    setStatusFilter(status);
-                    setInventoryPage(1);
-                }}
+                onCategoryClick={handleCategoryClick}
+                onStatusClick={handleStatusClick}
             />
         ),
         inventory: (
@@ -385,6 +459,7 @@ export default function InventoryClient() {
                     setShowStockOutModal(true);
                 }}
                 onAddItem={() => setShowAddModal(true)}
+                isLoading={loadingInventory}
             />
         ),
         parcels: (
@@ -399,6 +474,7 @@ export default function InventoryClient() {
                 currentPage={parcelPage}
                 totalPages={parcelTotalPages}
                 totalItems={totalParcels}
+                isLoading={loadingParcels}
                 onSearchChange={setParcelSearchTerm}
                 onStatusChange={setParcelStatusFilter}
                 onDateFromChange={setParcelDateFrom}

@@ -6,10 +6,6 @@ export async function GET(request: Request) {
         const sessionToken = request.headers.get('x-session-token');
         const currentUserAgent = request.headers.get('user-agent') || '';
 
-        console.log('🔍 check-remembered-session called');
-        console.log('📝 Session token:', sessionToken);
-        console.log('📱 User-Agent:', currentUserAgent);
-
         if (!sessionToken) {
             return NextResponse.json(
                 { remembered: false, message: 'No session token' },
@@ -17,7 +13,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // First, try to find the session by session_token WITHOUT the join
+        // find session by token
         const { data: session, error } = await supabase
             .from('sessions')
             .select('*')
@@ -25,7 +21,6 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         if (error) {
-            console.error('❌ Database error:', error);
             return NextResponse.json(
                 { remembered: false, message: 'Database error: ' + error.message },
                 { status: 500 }
@@ -33,25 +28,14 @@ export async function GET(request: Request) {
         }
 
         if (!session) {
-            console.log('❌ Session not found');
             return NextResponse.json(
                 { remembered: false, message: 'Session not found' },
                 { status: 401 }
             );
         }
 
-        console.log('✅ Session found:', {
-            id: session.id,
-            email: session.email,
-            remember_me: session.remember_me,
-            is_active: session.is_active,
-            expires_at: session.expires_at,
-            user_id: session.user_id
-        });
-
-        // Check if expired
+        // check expiration
         if (new Date(session.expires_at) < new Date()) {
-            console.log('❌ Session expired');
             await supabase
                 .from('sessions')
                 .update({ is_active: false })
@@ -63,16 +47,15 @@ export async function GET(request: Request) {
             );
         }
 
-        // Check if remembered
+        // check if remembered
         if (!session.remember_me) {
-            console.log('❌ Not a remembered session');
             return NextResponse.json(
                 { remembered: false, message: 'Not remembered' },
                 { status: 401 }
             );
         }
 
-        // Get user info separately (without join to avoid errors)
+        // get user info
         const { data: userData, error: userError } = await supabase
             .from('users')
             .select('id, display_name, email, role')
@@ -80,8 +63,7 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         if (userError) {
-            console.error('❌ User fetch error:', userError);
-            // Use session data as fallback
+            // fallback to session data
             return NextResponse.json({
                 remembered: true,
                 differentDevice: false,
@@ -99,13 +81,11 @@ export async function GET(request: Request) {
             });
         }
 
-        // Check device
+        // check if same device
         const storedUserAgent = session.user_agent || '';
         const isSameDevice = storedUserAgent === currentUserAgent;
-        console.log('📱 Same device?', isSameDevice);
 
         if (!isSameDevice) {
-            console.log('⚠️ Different device detected');
             return NextResponse.json({
                 remembered: true,
                 differentDevice: true,
@@ -123,9 +103,8 @@ export async function GET(request: Request) {
             });
         }
 
-        // Reactivate if inactive
+        // reactivate if inactive
         if (!session.is_active) {
-            console.log('🔄 Reactivating session...');
             await supabase
                 .from('sessions')
                 .update({
@@ -134,8 +113,6 @@ export async function GET(request: Request) {
                 })
                 .eq('id', session.id);
         }
-
-        console.log('✅ Session is valid and remembered!');
 
         return NextResponse.json({
             remembered: true,
@@ -153,7 +130,6 @@ export async function GET(request: Request) {
             }
         });
     } catch (error) {
-        console.error('❌ Error checking remembered session:', error);
         return NextResponse.json(
             { remembered: false, message: 'Server error: ' + (error as Error).message },
             { status: 500 }

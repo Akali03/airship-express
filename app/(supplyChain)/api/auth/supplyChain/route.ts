@@ -1,3 +1,5 @@
+// app/(supplyChain)/api/auth/supplyChain/route.ts
+
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
 import { NextResponse } from 'next/server';
 
@@ -12,52 +14,33 @@ export async function POST(request: Request) {
             );
         }
 
-        // 🔥 First, sign out any existing session
-        await supabase.auth.signOut();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Check credentials against role_based_accounts table
+        const { data: userData, error: userError } = await supabase
+            .from('role_based_accounts')
+            .select('id, email, role, status, password_hash')
+            .eq('email', email)
+            .single();
 
-        // Then sign in
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-
-        if (authError || !authData.user) {
+        if (userError || !userData) {
             return NextResponse.json(
                 { message: 'Invalid email or password' },
                 { status: 401 }
             );
         }
 
-        console.log('🔍 Auth user ID:', authData.user.id);
-        console.log('🔍 Auth user email:', authData.user.email);
-
-        // Get user from users table
-        const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('id, email, display_name, role, department, status')
-            .eq('id', authData.user.id)
-            .single();
-
-        if (userError || !userData) {
-            console.error('User not found in DB:', userError);
-            return NextResponse.json(
-                { message: 'User not found in system' },
-                { status: 404 }
-            );
-        }
-
-        console.log('✅ User from DB:', {
-            id: userData.id,
-            email: userData.email,
-            role: userData.role,
-            display_name: userData.display_name
-        });
-
+        // Check if account is active
         if (userData.status !== 'Active') {
             return NextResponse.json(
                 { message: 'Your account is inactive. Please contact HR.' },
                 { status: 403 }
+            );
+        }
+
+        // Compare password (plain text for now)
+        if (userData.password_hash !== password) {
+            return NextResponse.json(
+                { message: 'Invalid email or password' },
+                { status: 401 }
             );
         }
 
@@ -68,18 +51,16 @@ export async function POST(request: Request) {
                 user_id: userData.id,
                 action: 'LOGIN_ATTEMPT',
                 module: 'Authentication',
-                description: `User ${userData.email} logged in with password`,
-                ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
-                user_agent: request.headers.get('user-agent'),
+                description: `User ${userData.email} logged in with role ${userData.role}`,
+                ip_address: request.headers.get('x-forwarded-for') || 'Unknown',
+                user_agent: request.headers.get('user-agent') || 'Unknown',
             });
 
         return NextResponse.json({
             user: {
                 id: userData.id,
                 email: userData.email,
-                display_name: userData.display_name,
                 role: userData.role,
-                department: userData.department,
             },
         });
     } catch (error) {

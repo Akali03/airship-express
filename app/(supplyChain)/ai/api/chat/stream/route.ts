@@ -10,6 +10,8 @@ const STREAM_CONFIG = {
     CHARS_PER_CHUNK: 3,
 };
 
+// ... existing imports and config ...
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -22,7 +24,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-
         const result = await buildSystemPrompt(question, history);
 
         if (!result.isRelated || (result.response && !result.prompt)) {
@@ -31,29 +32,48 @@ export async function POST(request: NextRequest) {
                 start(controller) {
                     const chars = text.split('');
                     let index = 0;
+                    let isClosed = false;
 
                     const interval = setInterval(() => {
-                        if (index < chars.length) {
-                            const chunk = chars.slice(index, index + STREAM_CONFIG.CHARS_PER_CHUNK).join('');
-                            const full = text.substring(0, index + STREAM_CONFIG.CHARS_PER_CHUNK);
-
-                            controller.enqueue(`data: ${JSON.stringify({
-                                type: 'chunk',
-                                content: chunk,
-                                full: full,
-                            })}\n\n`);
-                            index += STREAM_CONFIG.CHARS_PER_CHUNK;
-                        } else {
+                        // Check if controller is already closed
+                        if (isClosed) {
                             clearInterval(interval);
-                            controller.enqueue(`data: ${JSON.stringify({
-                                type: 'done',
-                                content: text,
-                                meta: {
-                                    suggestions: result.suggestions || [],
-                                    classification: result.classification,
-                                }
-                            })}\n\n`);
-                            controller.close();
+                            return;
+                        }
+
+                        try {
+                            if (index < chars.length) {
+                                const chunk = chars.slice(index, index + STREAM_CONFIG.CHARS_PER_CHUNK).join('');
+                                const full = text.substring(0, index + STREAM_CONFIG.CHARS_PER_CHUNK);
+
+                                controller.enqueue(`data: ${JSON.stringify({
+                                    type: 'chunk',
+                                    content: chunk,
+                                    full: full,
+                                })}\n\n`);
+                                index += STREAM_CONFIG.CHARS_PER_CHUNK;
+                            } else {
+                                clearInterval(interval);
+                                isClosed = true;
+                                controller.enqueue(`data: ${JSON.stringify({
+                                    type: 'done',
+                                    content: text,
+                                    meta: {
+                                        suggestions: result.suggestions || [],
+                                        classification: result.classification,
+                                    }
+                                })}\n\n`);
+                                controller.close();
+                            }
+                        } catch (error) {
+                            clearInterval(interval);
+                            isClosed = true;
+                            // Only try to close if not already closed
+                            try {
+                                controller.close();
+                            } catch (e) {
+                                // Ignore if already closed
+                            }
                         }
                     }, STREAM_CONFIG.MIN_CHUNK_DELAY);
                 }
@@ -73,7 +93,6 @@ export async function POST(request: NextRequest) {
             throw new Error('No prompt available for Gemini');
         }
 
-
         const genAI = new GoogleGenAI({ apiKey });
         const streamResponse = await genAI.interactions.create({
             model: MODEL_NAME,
@@ -87,6 +106,7 @@ export async function POST(request: NextRequest) {
                     let fullContent = '';
                     let chunkCount = 0;
                     const chunks: string[] = [];
+                    let isClosed = false;
 
                     controller.enqueue(`data: ${JSON.stringify({
                         type: 'status',
@@ -94,9 +114,12 @@ export async function POST(request: NextRequest) {
                     })}\n\n`);
 
                     for await (const event of streamResponse) {
+                        // Check if controller is closed
+                        if (isClosed) break;
+
                         let chunk: string = '';
 
-                        //  SKIP thought signature events
+                        // SKIP thought signature events
                         if (event && typeof event === 'object' && 'type' in event && event.type === 'thought_signature') {
                             continue;
                         }
@@ -149,7 +172,7 @@ export async function POST(request: NextRequest) {
                             }
                         }
 
-                        //  FIX: Check if chunk is a string before using includes
+                        // FIX: Check if chunk is a string before using includes
                         if (chunk && typeof chunk === 'string' && chunk.length > 0) {
                             // Skip chunks containing signature data
                             if (chunk.includes('thought_signature') || chunk.includes('signature')) {
@@ -161,6 +184,8 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
+                    // Check if controller is still open before proceeding
+                    if (isClosed) return;
 
                     if (chunkCount === 0 || fullContent.length === 0) {
                         const fallbackText = 'I apologize, but I encountered an issue generating a response. Please try again.';
@@ -168,72 +193,110 @@ export async function POST(request: NextRequest) {
                         let index = 0;
 
                         const interval = setInterval(() => {
-                            if (index < chars.length) {
-                                const chunk = chars.slice(index, index + STREAM_CONFIG.CHARS_PER_CHUNK).join('');
-                                const full = fallbackText.substring(0, index + STREAM_CONFIG.CHARS_PER_CHUNK);
-
-                                controller.enqueue(`data: ${JSON.stringify({
-                                    type: 'chunk',
-                                    content: chunk,
-                                    full: full,
-                                })}\n\n`);
-                                index += STREAM_CONFIG.CHARS_PER_CHUNK;
-                            } else {
+                            // Check if closed
+                            if (isClosed) {
                                 clearInterval(interval);
-                                controller.enqueue(`data: ${JSON.stringify({
-                                    type: 'done',
-                                    content: fallbackText,
-                                    meta: {
-                                        suggestions: result.suggestions || [],
-                                        classification: result.classification,
-                                    }
-                                })}\n\n`);
-                                controller.close();
+                                return;
+                            }
+
+                            try {
+                                if (index < chars.length) {
+                                    const chunk = chars.slice(index, index + STREAM_CONFIG.CHARS_PER_CHUNK).join('');
+                                    const full = fallbackText.substring(0, index + STREAM_CONFIG.CHARS_PER_CHUNK);
+
+                                    controller.enqueue(`data: ${JSON.stringify({
+                                        type: 'chunk',
+                                        content: chunk,
+                                        full: full,
+                                    })}\n\n`);
+                                    index += STREAM_CONFIG.CHARS_PER_CHUNK;
+                                } else {
+                                    clearInterval(interval);
+                                    isClosed = true;
+                                    controller.enqueue(`data: ${JSON.stringify({
+                                        type: 'done',
+                                        content: fallbackText,
+                                        meta: {
+                                            suggestions: result.suggestions || [],
+                                            classification: result.classification,
+                                        }
+                                    })}\n\n`);
+                                    controller.close();
+                                }
+                            } catch (error) {
+                                clearInterval(interval);
+                                isClosed = true;
+                                try {
+                                    controller.close();
+                                } catch (e) {
+                                    // Ignore
+                                }
                             }
                         }, STREAM_CONFIG.MIN_CHUNK_DELAY);
                         return;
                     }
 
-                    //  Smoothly stream the collected content character by character
+                    // Smoothly stream the collected content character by character
                     const fullText = fullContent;
                     const chars = fullText.split('');
                     let charIndex = 0;
 
                     const interval = setInterval(() => {
-                        if (charIndex < chars.length) {
-                            const chunk = chars.slice(charIndex, charIndex + STREAM_CONFIG.CHARS_PER_CHUNK).join('');
-                            const currentFull = fullText.substring(0, charIndex + STREAM_CONFIG.CHARS_PER_CHUNK);
-
-                            controller.enqueue(`data: ${JSON.stringify({
-                                type: 'chunk',
-                                content: chunk,
-                                full: currentFull,
-                            })}\n\n`);
-                            charIndex += STREAM_CONFIG.CHARS_PER_CHUNK;
-                        } else {
+                        // Check if closed
+                        if (isClosed) {
                             clearInterval(interval);
-                            controller.enqueue(`data: ${JSON.stringify({
-                                type: 'done',
-                                content: fullText,
-                                totalChunks: chunkCount,
-                                meta: {
-                                    classification: result.classification,
-                                    resourcesUsed: result.resourcesUsed,
-                                    actionResults: result.actionResults,
-                                    knowledgeUsed: result.knowledgeUsed?.map((k: any) => k.name),
-                                    suggestions: result.suggestions || [],
-                                }
-                            })}\n\n`);
-                            controller.close();
+                            return;
+                        }
+
+                        try {
+                            if (charIndex < chars.length) {
+                                const chunk = chars.slice(charIndex, charIndex + STREAM_CONFIG.CHARS_PER_CHUNK).join('');
+                                const currentFull = fullText.substring(0, charIndex + STREAM_CONFIG.CHARS_PER_CHUNK);
+
+                                controller.enqueue(`data: ${JSON.stringify({
+                                    type: 'chunk',
+                                    content: chunk,
+                                    full: currentFull,
+                                })}\n\n`);
+                                charIndex += STREAM_CONFIG.CHARS_PER_CHUNK;
+                            } else {
+                                clearInterval(interval);
+                                isClosed = true;
+                                controller.enqueue(`data: ${JSON.stringify({
+                                    type: 'done',
+                                    content: fullText,
+                                    totalChunks: chunkCount,
+                                    meta: {
+                                        classification: result.classification,
+                                        resourcesUsed: result.resourcesUsed,
+                                        actionResults: result.actionResults,
+                                        knowledgeUsed: result.knowledgeUsed?.map((k: any) => k.name),
+                                        suggestions: result.suggestions || [],
+                                    }
+                                })}\n\n`);
+                                controller.close();
+                            }
+                        } catch (error) {
+                            clearInterval(interval);
+                            isClosed = true;
+                            try {
+                                controller.close();
+                            } catch (e) {
+                                // Ignore
+                            }
                         }
                     }, STREAM_CONFIG.MIN_CHUNK_DELAY);
 
                 } catch (error) {
-                    controller.enqueue(`data: ${JSON.stringify({
-                        type: 'error',
-                        content: error instanceof Error ? error.message : 'Unknown error',
-                    })}\n\n`);
-                    controller.close();
+                    try {
+                        controller.enqueue(`data: ${JSON.stringify({
+                            type: 'error',
+                            content: error instanceof Error ? error.message : 'Unknown error',
+                        })}\n\n`);
+                        controller.close();
+                    } catch (e) {
+                        // Ignore if controller is already closed
+                    }
                 }
             }
         });
@@ -248,14 +311,17 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-
         const errorStream = new ReadableStream({
             start(controller) {
-                controller.enqueue(`data: ${JSON.stringify({
-                    type: 'error',
-                    content: error instanceof Error ? error.message : 'Unknown error',
-                })}\n\n`);
-                controller.close();
+                try {
+                    controller.enqueue(`data: ${JSON.stringify({
+                        type: 'error',
+                        content: error instanceof Error ? error.message : 'Unknown error',
+                    })}\n\n`);
+                    controller.close();
+                } catch (e) {
+                    // Ignore
+                }
             }
         });
 

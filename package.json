@@ -16,8 +16,13 @@
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "@splinetool/react-spline": "^4.1.0",
+<<<<<<< HEAD
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.112.0",
+=======
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
+>>>>>>> f3a720e91985cf178b629fe078b386a6b124c91a
     "@tabler/icons-react": "^3.45.0",
     "@types/nodemailer": "^8.0.1",
     "@zxing/browser": "^0.2.1",

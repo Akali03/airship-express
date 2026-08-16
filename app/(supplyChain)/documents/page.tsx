@@ -10,6 +10,8 @@ import { useConfirm } from "../components/ui/ConfirmModal";
 import { Pagination } from "@/app/(supplyChain)/components/global/pagination";
 import { SessionGuard } from "../components/server/SessionGuard";
 import { BulkActionsToolbar } from "../components/global/BulkActionsToolbar";
+import { TableContentLoader } from "../components/global/Loader";
+import { user } from "@/app/(supplyChain)/lib/services/Class/user";
 
 interface Document {
     id: string;
@@ -28,7 +30,8 @@ interface Document {
     created_at: string;
     updated_at: string;
     version: number;
-    created_by?: string | null;
+    session_id?: string | null;
+    role?: string | null;
 }
 
 interface Supplier {
@@ -55,8 +58,8 @@ interface Activity {
 }
 
 const DEFAULT_USER = {
-    name: 'System User',
-    email: 'system@company.com'
+    name: user.getName() || 'System User',
+    email: user.getEmail() || 'system@company.com'
 };
 
 export default function Documents() {
@@ -93,6 +96,8 @@ export default function Documents() {
     const [totalActivities, setTotalActivities] = useState(0);
     const [userName, setUserName] = useState<string>(DEFAULT_USER.name);
     const [userEmail, setUserEmail] = useState<string>(DEFAULT_USER.email);
+    const [userRole, setUserRole] = useState<string>("");
+    const [userSessionId, setUserSessionId] = useState<string | null>(null);
     const [archiveCount, setArchiveCount] = useState(0);
     const [activityDateFrom, setActivityDateFrom] = useState("");
     const [activityDateTo, setActivityDateTo] = useState("");
@@ -109,23 +114,31 @@ export default function Documents() {
     const itemsPerPage = 10;
     const activitiesPerPage = 5;
 
+    const [totalFiles, setTotalFiles] = useState(0);
+    const [totalPhotos, setTotalPhotos] = useState(0);
+    const [totalDocuments, setTotalDocuments] = useState(0);
+
+
+
     const getCurrentUser = useCallback(async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
                 const { data: userData, error } = await supabase
                     .from('users')
-                    .select('display_name, email, role')
-                    .eq('id', user.id)
+                    .select('display_name, email, role, session_id')
+                    .eq('id', authUser.id)
                     .single();
 
                 if (error) {
                     console.error('Error fetching user from users table:', error);
-                    setUserEmail(user.email || DEFAULT_USER.email);
-                    setUserName(user.user_metadata?.full_name || user.email || DEFAULT_USER.name);
+                    setUserEmail(authUser.email || DEFAULT_USER.email);
+                    setUserName(authUser.user_metadata?.full_name || authUser.email || DEFAULT_USER.name);
                 } else if (userData) {
                     setUserEmail(userData.email || DEFAULT_USER.email);
                     setUserName(userData.display_name || userData.email || DEFAULT_USER.name);
+                    setUserRole(userData.role || '');
+                    setUserSessionId(userData.session_id || null);
                     if (userData.role) {
                         localStorage.setItem('user_role', userData.role);
                     }
@@ -133,13 +146,19 @@ export default function Documents() {
             } else {
                 setUserName(DEFAULT_USER.name);
                 setUserEmail(DEFAULT_USER.email);
+                setUserRole('');
+                setUserSessionId(null);
             }
         } catch (error) {
             console.error('Error getting user:', error);
             setUserName(DEFAULT_USER.name);
             setUserEmail(DEFAULT_USER.email);
+            setUserRole('');
+            setUserSessionId(null);
         }
     }, []);
+
+
 
     const fetchDocuments = useCallback(async (showLoading = true) => {
         try {
@@ -257,6 +276,29 @@ export default function Documents() {
         }
     }, []);
 
+    const fetchStatistics = useCallback(async () => {
+        try {
+            const { count: totalCount, error: totalError } = await supabase
+                .from('documents')
+                .select('*', { count: 'exact', head: true });
+
+            if (totalError) throw totalError;
+            setTotalFiles(totalCount || 0);
+
+            const { count: photosCount, error: photosError } = await supabase
+                .from('documents')
+                .select('*', { count: 'exact', head: true })
+                .eq('category', 'photos');
+
+            if (photosError) throw photosError;
+            setTotalPhotos(photosCount || 0);
+
+            setTotalDocuments((totalCount || 0) - (photosCount || 0));
+        } catch (error) {
+            console.error('Error fetching statistics:', error);
+        }
+    }, []);
+
     const fetchSuppliers = useCallback(async () => {
         try {
             const { data, error } = await supabase
@@ -310,6 +352,44 @@ export default function Documents() {
             return null;
         }
     }, [userName, userEmail]);
+
+    // Insert document with session_id and role
+    const insertDocument = useCallback(async (documentData: any) => {
+        if (!documentData.title) {
+            throw new Error('Document title is required');
+        }
+
+        const insertData = {
+            ...documentData,
+            session_id: userSessionId || null,
+            role: userRole || null,
+        };
+
+        const { data, error } = await supabase
+            .from('documents')
+            .insert(insertData)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }, [userSessionId, userRole]);
+
+    // Update document with session_id and role
+    const updateDocument = useCallback(async (id: string, updates: any) => {
+        const updateData = {
+            ...updates,
+            session_id: userSessionId || null,
+            role: userRole || null,
+        };
+
+        const { error } = await supabase
+            .from('documents')
+            .update(updateData)
+            .eq('id', id);
+
+        if (error) throw error;
+    }, [userSessionId, userRole]);
 
     const downloadFile = useCallback(async (doc: Document) => {
         try {
@@ -378,9 +458,10 @@ export default function Documents() {
                 version: doc.version,
                 created_at: doc.created_at,
                 updated_at: doc.updated_at,
-                created_by: doc.created_by || null,
                 deleted_by: deletedBy,
                 original_id: doc.id,
+                session_id: doc.session_id || null,
+                role: doc.role || null,
             };
 
             const { error: archiveError } = await supabase
@@ -411,11 +492,12 @@ export default function Documents() {
             await fetchArchiveCount();
             await fetchDocuments(false);
             await fetchActivities();
+            await fetchStatistics();
         } catch (error) {
             console.error('Delete error:', error);
             toast.error('Failed to delete document', { id: toastId });
         }
-    }, [userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, confirm]);
+    }, [userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, fetchStatistics, confirm]);
 
     const downloadSelectedFiles = useCallback(async () => {
         if (selectedDocIds.size === 0) {
@@ -536,9 +618,10 @@ export default function Documents() {
                         version: doc.version,
                         created_at: doc.created_at,
                         updated_at: doc.updated_at,
-                        created_by: doc.created_by || null,
                         deleted_by: deletedBy,
                         original_id: doc.id,
+                        session_id: doc.session_id || null,
+                        role: doc.role || null,
                     };
 
                     const { error: archiveError } = await supabase
@@ -583,13 +666,14 @@ export default function Documents() {
             await fetchArchiveCount();
             await fetchDocuments(false);
             await fetchActivities();
+            await fetchStatistics();
         } catch (error) {
             console.error('Bulk delete error:', error);
             toast.error('Failed to delete documents', { id: toastId });
         } finally {
             setIsBulkDeleting(false);
         }
-    }, [selectedDocIds, documents, userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, confirm]);
+    }, [selectedDocIds, documents, userName, logActivity, fetchArchiveCount, fetchDocuments, fetchActivities, fetchStatistics, confirm]);
 
     const deleteSelectedActivities = useCallback(async () => {
         if (selectedActivityIds.size === 0) {
@@ -692,23 +776,28 @@ export default function Documents() {
                     continue;
                 }
 
+                // Insert with session_id and role
+                const insertData = {
+                    title: `${documentType} - ${file.name}`,
+                    file_name: file.name,
+                    file_size: file.size,
+                    file_type: file.type || fileExt || 'unknown',
+                    storage_path: filePath,
+                    category: category,
+                    document_type: documentType,
+                    supplier: supplier,
+                    po_number: poNumber,
+                    parcel_batch: parcelBatch,
+                    uploaded_by: uploadedBy,
+                    notes: notes,
+                    version: 1,
+                    session_id: userSessionId || null,
+                    role: userRole || null,
+                };
+
                 const { error: insertError } = await supabase
                     .from('documents')
-                    .insert({
-                        title: `${documentType} - ${file.name}`,
-                        file_name: file.name,
-                        file_size: file.size,
-                        file_type: file.type || fileExt || 'unknown',
-                        storage_path: filePath,
-                        category: category,
-                        document_type: documentType,
-                        supplier: supplier,
-                        po_number: poNumber,
-                        parcel_batch: parcelBatch,
-                        uploaded_by: uploadedBy,
-                        notes: notes,
-                        version: 1,
-                    });
+                    .insert(insertData);
 
                 if (insertError) {
                     console.error('Insert error:', insertError);
@@ -751,6 +840,7 @@ export default function Documents() {
                 setSelectedFiles([]);
                 setUploadProgress(0);
                 setIsUploadModalOpen(false);
+                await fetchStatistics();
                 await fetchDocuments(false);
             }
         } catch (error) {
@@ -785,6 +875,8 @@ export default function Documents() {
                 notes: formData.get('notes') as string || null,
                 updated_at: new Date().toISOString(),
                 version: (editingDoc.version || 0) + 1,
+                session_id: userSessionId || null,
+                role: userRole || null,
             };
 
             const { error } = await supabase
@@ -947,6 +1039,7 @@ export default function Documents() {
     useEffect(() => {
         getCurrentUser();
         fetchDocuments(true);
+        fetchStatistics();
         fetchSuppliers();
         fetchActivities();
         fetchArchiveCount();
@@ -960,14 +1053,9 @@ export default function Documents() {
         fetchActivities();
     }, [debouncedActivitySearch, activityFilter, activityDateFrom, activityDateTo, activityPage]);
 
-    const totalFiles = documents.length;
-    const totalPhotos = documents.filter(d => d.category === 'photos').length;
-    const totalStorage = documents.reduce((sum, d) => sum + d.file_size, 0);
-
     if (loading) {
         return <PageSkeleton />;
     }
-
     return (
         <SessionGuard requiredRole={['Admin', 'Manager', 'Employee']}>
             <div className="p-6 space-y-6 bgCard dark:bg-ink/90">
@@ -1032,7 +1120,7 @@ export default function Documents() {
                         headerTextColor="text-muted dark:text-white/80"
                         backDescription={`Total number of files in the system: ${totalFiles}\n\nIncludes all document types\nUpdated in real-time`}
                         tooltip="View all files"
-                        tooltipLink="#"
+                        tooltipLink="/gallery"
                         badge={`${totalFiles} files`}
                     />
 
@@ -1204,8 +1292,10 @@ export default function Documents() {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-ink rounded-2xl border border-slate-200/80 dark:border-ink/20 shadow-xs overflow-hidden">
-                    <div className="border-b border-slate-100 dark:border-ink/20 bg-slate-50/50 dark:bg-slate-800/20 p-3 sm:p-4">
+                {/* Documents Table */}
+                <div className="bg-white dark:bg-ink rounded-2xl border border-slate-200/80 dark:border-ink/20 shadow-xs overflow-hidden flex flex-col">
+                    {/* Filter Bar - Stays fixed */}
+                    <div className="flex-shrink-0 border-b border-slate-100 dark:border-ink/20 bg-slate-50/50 dark:bg-slate-800/20 p-3 sm:p-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex flex-1 flex-wrap items-center gap-2.5">
                                 <div className="relative w-full sm:w-64">
@@ -1220,10 +1310,10 @@ export default function Documents() {
                                         aria-label="Search files"
                                         placeholder="Search files..."
                                         className="w-full rounded-xl border border-slate-200/80 dark:border-ink/30 
-                                                 bg-white dark:bg-ink/60 py-2 pl-8 pr-3 text-xs 
-                                                 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 
-                                                 transition-all shadow-xs 
-                                                 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                                 bg-white dark:bg-ink/60 py-2 pl-8 pr-3 text-xs 
+                                 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 
+                                 transition-all shadow-xs 
+                                 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
                                     />
                                 </div>
 
@@ -1235,9 +1325,9 @@ export default function Documents() {
                                     }}
                                     aria-label="Filter by document type"
                                     className="w-full sm:w-auto rounded-xl border border-slate-200/80 dark:border-ink/30 
-                                             bg-white dark:bg-ink/60 px-3 py-2 text-xs 
-                                             text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-xs 
-                                             focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                             bg-white dark:bg-ink/60 px-3 py-2 text-xs 
+                             text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-xs 
+                             focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
                                 >
                                     <option value="">All Types</option>
                                     <option value="Official Receipt">Official Receipt</option>
@@ -1256,9 +1346,9 @@ export default function Documents() {
                                     }}
                                     aria-label="Filter by supplier"
                                     className="w-full sm:w-auto rounded-xl border border-slate-200/80 dark:border-ink/30 
-                                             bg-white dark:bg-ink/60 px-3 py-2 text-xs 
-                                             text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-xs 
-                                             focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                             bg-white dark:bg-ink/60 px-3 py-2 text-xs 
+                             text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-xs 
+                             focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
                                 >
                                     <option value="">All Suppliers</option>
                                     {suppliers.map((s) => (
@@ -1269,7 +1359,7 @@ export default function Documents() {
                                 </select>
 
                                 <div className="flex w-full sm:w-auto items-center justify-between gap-1.5 rounded-xl 
-                                              border border-slate-200/80 dark:border-ink/30 bg-white dark:bg-ink/60 p-1 shadow-xs">
+                              border border-slate-200/80 dark:border-ink/30 bg-white dark:bg-ink/60 p-1 shadow-xs">
                                     <input
                                         type="date"
                                         value={dateFrom}
@@ -1280,7 +1370,7 @@ export default function Documents() {
                                         aria-label="Date From"
                                         title="Date From"
                                         className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs 
-                                                 text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none"
+                                 text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none"
                                     />
                                     <span aria-hidden="true" className="text-[10px] font-medium text-slate-300 dark:text-slate-500 uppercase select-none">
                                         to
@@ -1295,18 +1385,9 @@ export default function Documents() {
                                         aria-label="Date To"
                                         title="Date To"
                                         className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs 
-                                                 text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none"
+                                 text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none"
                                     />
                                 </div>
-
-                                {refreshing && (
-                                    <span role="status" className="inline-flex items-center gap-1.5 rounded-lg 
-                                                                bg-pink-50 dark:bg-pink-950/30 px-2.5 py-1 text-[11px] font-medium 
-                                                                text-pink-600 dark:text-pink-400 animate-pulse">
-                                        <i className="fas fa-spinner fa-spin text-xs" aria-hidden="true"></i>
-                                        <span>Updating...</span>
-                                    </span>
-                                )}
                             </div>
 
                             <div className="flex items-center justify-end gap-2 border-t border-slate-200/60 dark:border-ink/20 pt-2 lg:border-t-0 lg:pt-0">
@@ -1316,9 +1397,9 @@ export default function Documents() {
                                     title="Reset filters"
                                     aria-label="Reset filters"
                                     className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold 
-                                             text-slate-500 dark:text-slate-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 
-                                             hover:text-pink-600 dark:hover:text-pink-400 transition-all 
-                                             focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                             text-slate-500 dark:text-slate-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 
+                             hover:text-pink-600 dark:hover:text-pink-400 transition-all 
+                             focus:outline-none focus:ring-2 focus:ring-pink-500/20"
                                 >
                                     <i className="fas fa-filter-circle-xmark" aria-hidden="true"></i>
                                     <span>Reset</span>
@@ -1330,9 +1411,9 @@ export default function Documents() {
                                     title="Refresh list"
                                     aria-label="Refresh list"
                                     className="inline-flex items-center justify-center rounded-xl p-2 text-xs 
-                                             text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/30 
-                                             hover:text-slate-800 dark:hover:text-slate-200 transition-all 
-                                             focus:outline-none focus:ring-2 focus:ring-slate-400/20"
+                             text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/30 
+                             hover:text-slate-800 dark:hover:text-slate-200 transition-all 
+                             focus:outline-none focus:ring-2 focus:ring-slate-400/20"
                                 >
                                     <i className="fas fa-rotate" aria-hidden="true"></i>
                                 </button>
@@ -1369,16 +1450,17 @@ export default function Documents() {
                         />
                     )}
 
-                    <div className="overflow-x-auto">
+                    {/* Scrollable Table Container */}
+                    <div className="flex-1 overflow-y-auto max-h-[500px] relative">
                         <div className="md:hidden flex items-center justify-between p-3 
-                                      bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-200/60 dark:border-ink/20 rounded-t-xl">
+                      bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-200/60 dark:border-ink/20 rounded-t-xl">
                             <div className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
                                     checked={documents.length > 0 && selectedDocIds.size === documents.length}
                                     onChange={toggleSelectAllDocuments}
                                     className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                             text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                             text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
                                 />
                                 <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
                                     Select All ({documents.length})
@@ -1388,130 +1470,141 @@ export default function Documents() {
                                 {selectedDocIds.size} selected
                             </span>
                         </div>
-                        <table className="table-pro p-1">
-                            <thead>
-                                <tr>
-                                    <th className="w-10 text-center!">
-                                        <input
-                                            type="checkbox"
-                                            checked={documents.length > 0 && selectedDocIds.size === documents.length}
-                                            onChange={toggleSelectAllDocuments}
-                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                                     text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
-                                        />
-                                    </th>
-                                    <th className="w-12 text-center!">Format</th>
-                                    <th>Document Title</th>
-                                    <th>Category</th>
-                                    <th>Size</th>
-                                    <th>Supplier</th>
-                                    <th>Date Uploaded</th>
-                                    <th className="text-right!">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-ink/20 text-xs">
-                                {documents.length === 0 ? (
+                        <div className="overflow-x-auto">
+                            {refreshing && <TableContentLoader />}
+
+                            <table className="table-pro p-1">
+                                <thead>
                                     <tr>
-                                        <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                                            <div className="flex flex-col items-center justify-center gap-2">
-                                                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/30 
-                                                              flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
-                                                    <i className="fas fa-folder-open text-xl"></i>
-                                                </div>
-                                                <p className="font-semibold text-slate-600 dark:text-slate-300">No documents found</p>
-                                                <p className="text-xs text-slate-400 dark:text-slate-500">Try adjusting your filters or search terms</p>
-                                            </div>
-                                        </td>
+                                        <th className="w-10 text-center!">
+                                            <input
+                                                type="checkbox"
+                                                checked={documents.length > 0 && selectedDocIds.size === documents.length}
+                                                onChange={toggleSelectAllDocuments}
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
+                                         text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                            />
+                                        </th>
+                                        <th className="w-12 text-center!">Format</th>
+                                        <th>Document Title</th>
+                                        <th>Category</th>
+                                        <th>Size</th>
+                                        <th>Supplier</th>
+                                        <th>Date Uploaded</th>
+                                        <th className="text-right!">Actions</th>
                                     </tr>
-                                ) : (
-                                    documents.map((doc) => {
-                                        const isSelected = selectedDocIds.has(doc.id);
-                                        return (
-                                            <tr key={doc.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors group ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''}`}>
-                                                <td data-label="Select" className="py-3 px-4 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => {
-                                                            const newSelected = new Set(selectedDocIds);
-                                                            if (newSelected.has(doc.id)) {
-                                                                newSelected.delete(doc.id);
-                                                            } else {
-                                                                newSelected.add(doc.id);
-                                                            }
-                                                            setSelectedDocIds(newSelected);
-                                                        }}
-                                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                                                 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
-                                                    />
-                                                </td>
-                                                <td data-label="Format" className="py-3 px-3">
-                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm border mx-auto ${getFileColor(doc.file_type)}`}>
-                                                        <i className={`fas ${getFileIcon(doc.file_type)}`}></i>
+                                </thead>
+
+                                <tbody className="divide-y divide-slate-100 dark:divide-ink/20 text-xs">
+                                    {documents.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/30 
+                                                  flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
+                                                        <i className="fas fa-folder-open text-xl"></i>
                                                     </div>
-                                                </td>
-                                                <td data-label="Document Title" className="py-3 px-4">
-                                                    <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[220px]" title={doc.title}>
-                                                        {doc.title}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
-                                                </td>
-                                                <td data-label="Category" className="py-3 px-4">
-                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold 
-                                                                   bg-pink-50 dark:bg-pink-950/30 text-pink-600 dark:text-pink-400 
-                                                                   border border-pink-100/80 dark:border-pink-800/30">
-                                                        {doc.document_type}
-                                                    </span>
-                                                </td>
-                                                <td data-label="Size" className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">{formatFileSize(doc.file_size)}</td>
-                                                <td data-label="Supplier" className="py-3 px-4 text-slate-600 dark:text-slate-300">{doc.supplier || <span className="text-slate-300 dark:text-slate-500">—</span>}</td>
-                                                <td data-label="Date Uploaded" className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                                    {new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                                                </td>
-                                                <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap">
-                                                    <div className="inline-flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => handleViewDocument(doc)}
-                                                            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 rounded-lg transition-colors"
-                                                            title="View File"
-                                                        >
-                                                            <i className="fas fa-eye"></i>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleEditDocument(doc)}
-                                                            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition-colors"
-                                                            title="Edit Metadata"
-                                                        >
-                                                            <i className="fas fa-pen-to-square"></i>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => downloadFile(doc)}
-                                                            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/30 rounded-lg transition-colors"
-                                                            title="Download File"
-                                                        >
-                                                            <i className="fas fa-download"></i>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDelete(doc)}
-                                                            className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
-                                                            title="Delete File"
-                                                        >
-                                                            <i className="fas fa-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                                                    <p className="font-semibold text-slate-600 dark:text-slate-300">No documents found</p>
+                                                    <p className="text-xs text-slate-400 dark:text-slate-500">Try adjusting your filters or search terms</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        documents.map((doc) => {
+                                            const isSelected = selectedDocIds.has(doc.id);
+                                            return (
+                                                <tr key={doc.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors group ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''}`}>
+                                                    <td data-label="Select" className="py-3 px-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                const newSelected = new Set(selectedDocIds);
+                                                                if (newSelected.has(doc.id)) {
+                                                                    newSelected.delete(doc.id);
+                                                                } else {
+                                                                    newSelected.add(doc.id);
+                                                                }
+                                                                setSelectedDocIds(newSelected);
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
+                                                     text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                        />
+                                                    </td>
+                                                    <td data-label="Format" className="py-3 px-3">
+                                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm border mx-auto ${getFileColor(doc.file_type)}`}>
+                                                            <i className={`fas ${getFileIcon(doc.file_type)}`}></i>
+                                                        </div>
+                                                    </td>
+                                                    <td data-label="Document Title" className="py-3 px-4">
+                                                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[220px]" title={doc.title}>
+                                                            {doc.title}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
+                                                    </td>
+                                                    <td data-label="Category" className="py-3 px-4">
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold 
+                                                       bg-pink-50 dark:bg-pink-950/30 text-pink-600 dark:text-pink-400 
+                                                       border border-pink-100/80 dark:border-pink-800/30">
+                                                            {doc.document_type}
+                                                        </span>
+                                                    </td>
+                                                    <td data-label="Size" className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">{formatFileSize(doc.file_size)}</td>
+                                                    <td data-label="Supplier" className="py-3 px-4 text-slate-600 dark:text-slate-300">{doc.supplier || <span className="text-slate-300 dark:text-slate-500">—</span>}</td>
+                                                    <td data-label="Date Uploaded" className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                        {new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                    </td>
+                                                    <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap">
+                                                        <div className="inline-flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => handleViewDocument(doc)}
+                                                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 rounded-lg transition-colors"
+                                                                title="View File"
+                                                            >
+                                                                <i className="fas fa-eye"></i>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleEditDocument(doc)}
+                                                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition-colors"
+                                                                title="Edit Metadata"
+                                                            >
+                                                                <i className="fas fa-pen-to-square"></i>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => downloadFile(doc)}
+                                                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/30 rounded-lg transition-colors"
+                                                                title="Download File"
+                                                            >
+                                                                <i className="fas fa-download"></i>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(doc)}
+                                                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
+                                                                title="Delete File"
+                                                            >
+                                                                <i className="fas fa-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
+                    {/* Pagination - Stays fixed */}
                     {totalPages > 0 && (
-                        <div className="pagination-container-class dark:bg-ink/80 dark:border-ink/20">
+                        <div className="flex-shrink-0 pagination-container-class dark:bg-ink/80 dark:border-ink/20">
                             <span className="text-slate-500 dark:text-slate-400">
-                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{documents.length}</span> of{' '}
+                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                    {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
+                                </span> to{' '}
+                                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                    {Math.min(currentPage * itemsPerPage, totalItems)}
+                                </span> of{' '}
                                 <span className="font-semibold text-slate-700 dark:text-slate-200">{totalItems}</span> files
                             </span>
                             <Pagination
@@ -1523,19 +1616,14 @@ export default function Documents() {
                     )}
                 </div>
 
-                <div className="bg-white dark:bg-ink rounded-2xl border border-slate-200/80 dark:border-ink/20 shadow-xs overflow-hidden p-1">
-                    <div className="p-4 border-b border-slate-100 dark:border-ink/20 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col gap-4">
+                {/* Activity History Table */}
+                <div className="bg-white dark:bg-ink rounded-2xl border border-slate-200/80 dark:border-ink/20 shadow-xs overflow-hidden flex flex-col">
+                    {/* Header - Stays fixed */}
+                    <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-ink/20 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col gap-4">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl 
-                                              bg-pink-50 dark:bg-pink-950/30 
-                                              border border-pink-100 dark:border-pink-800/30 
-                                              flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm shadow-2xs">
-                                    <i className="fas fa-history"></i>
-                                </div>
                                 <div>
                                     <h3 className="font-semibold text-slate-900 dark:text-white leading-tight text-sm">Activity History</h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">Track user uploads, updates, and system log entries</p>
                                 </div>
                             </div>
 
@@ -1549,8 +1637,8 @@ export default function Documents() {
                                     setSelectedActivityIds(new Set());
                                 }}
                                 className="px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 
-                                         hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 
-                                         rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-center"
+                         hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 
+                         rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-center"
                                 title="Reset active filters"
                             >
                                 <i className="fas fa-rotate-left text-[11px]"></i>
@@ -1567,11 +1655,11 @@ export default function Documents() {
                                     onChange={(e) => setActivitySearch(e.target.value)}
                                     placeholder="Search user or document..."
                                     className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl 
-                                             border border-slate-200/80 dark:border-ink/30 
-                                             bg-white dark:bg-ink/60 text-slate-700 dark:text-slate-200 
-                                             placeholder-slate-400 dark:placeholder-slate-500 
-                                             focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 
-                                             transition-all shadow-2xs"
+                             border border-slate-200/80 dark:border-ink/30 
+                             bg-white dark:bg-ink/60 text-slate-700 dark:text-slate-200 
+                             placeholder-slate-400 dark:placeholder-slate-500 
+                             focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 
+                             transition-all shadow-2xs"
                                 />
                             </div>
 
@@ -1579,10 +1667,10 @@ export default function Documents() {
                                 value={activityFilter}
                                 onChange={(e) => setActivityFilter(e.target.value)}
                                 className="py-1.5 px-3 text-xs rounded-xl 
-                                         border border-slate-200/80 dark:border-ink/30 
-                                         bg-white dark:bg-ink/60 text-slate-700 dark:text-slate-200 
-                                         focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 
-                                         transition-all cursor-pointer shadow-2xs"
+                         border border-slate-200/80 dark:border-ink/30 
+                         bg-white dark:bg-ink/60 text-slate-700 dark:text-slate-200 
+                         focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 
+                         transition-all cursor-pointer shadow-2xs"
                             >
                                 <option value="">All Actions</option>
                                 <option value="upload">Uploads</option>
@@ -1591,7 +1679,7 @@ export default function Documents() {
                             </select>
 
                             <div className="flex items-center gap-1.5 bg-white dark:bg-ink/60 p-1 rounded-xl 
-                                          border border-slate-200/80 dark:border-ink/30 shadow-2xs">
+                          border border-slate-200/80 dark:border-ink/30 shadow-2xs">
                                 <input
                                     type="date"
                                     value={activityDateFrom}
@@ -1611,32 +1699,9 @@ export default function Documents() {
                         </div>
                     </div>
 
-                    <div className="md:hidden flex items-center justify-between px-4 py-2.5 
-                                  bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-200/60 dark:border-ink/20">
-                        <label className="flex items-center gap-2.5 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={activities.length > 0 && selectedActivityIds.size === activities.length}
-                                onChange={toggleSelectAllActivities}
-                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                         text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
-                            />
-                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                Select All
-                            </span>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-700/30 px-2 py-0.5 rounded-full">
-                                {activities.length}
-                            </span>
-                        </label>
-                        {selectedActivityIds.size > 0 && (
-                            <span className="text-xs font-medium text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/30 px-2.5 py-1 rounded-full">
-                                {selectedActivityIds.size} selected
-                            </span>
-                        )}
-                    </div>
-
+                    {/* Bulk Actions Bar - Stays fixed if present */}
                     {selectedActivityIds.size > 0 && (
-                        <div className="px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
+                        <div className="flex-shrink-0 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
                             <div className="flex items-center gap-2 text-xs font-semibold">
                                 <span className="w-5 h-5 rounded-full bg-white/20 inline-flex items-center justify-center text-[10px]">
                                     {selectedActivityIds.size}
@@ -1660,128 +1725,161 @@ export default function Documents() {
                         </div>
                     )}
 
-                    <div className="overflow-x-auto">
-                        <table className="table-pro">
-                            <thead>
-                                <tr className="border-b border-slate-200/60 dark:border-ink/20 bg-slate-50/70 dark:bg-slate-800/30 
-                                              text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
-                                    <th className="text-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={activities.length > 0 && selectedActivityIds.size === activities.length}
-                                            onChange={toggleSelectAllActivities}
-                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                                     text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
-                                        />
-                                    </th>
-                                    <th>User</th>
-                                    <th>Action Type</th>
-                                    <th>Target Resource</th>
-                                    <th>Document</th>
-                                    <th>Timestamp</th>
-                                    <th className="!text-right">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-ink/20 text-xs">
-                                {activities.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                                            <div className="flex flex-col items-center justify-center gap-2">
-                                                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/30 
-                                                              flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
-                                                    <i className="fas fa-inbox text-xl"></i>
-                                                </div>
-                                                <p className="font-semibold text-slate-600 dark:text-slate-300">No activity recorded yet</p>
-                                                <p className="text-xs text-slate-400 dark:text-slate-500">Activity logs will appear here as users perform operations</p>
-                                            </div>
-                                        </td>
+                    {/* Scrollable Table Container */}
+                    <div className="flex-1 overflow-y-auto max-h-[400px] relative">
+                        <div className="md:hidden flex items-center justify-between px-4 py-2.5 
+                      bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-200/60 dark:border-ink/20">
+                            <label className="flex items-center gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={activities.length > 0 && selectedActivityIds.size === activities.length}
+                                    onChange={toggleSelectAllActivities}
+                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
+                             text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                />
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                    Select All
+                                </span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-700/30 px-2 py-0.5 rounded-full">
+                                    {activities.length}
+                                </span>
+                            </label>
+                            {selectedActivityIds.size > 0 && (
+                                <span className="text-xs font-medium text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/30 px-2.5 py-1 rounded-full">
+                                    {selectedActivityIds.size} selected
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="table-pro">
+                                <thead>
+                                    <tr className="border-b border-slate-200/60 dark:border-ink/20 bg-slate-50/70 dark:bg-slate-800/30 
+                                  text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
+                                        <th className="text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={activities.length > 0 && selectedActivityIds.size === activities.length}
+                                                onChange={toggleSelectAllActivities}
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
+                                         text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                            />
+                                        </th>
+                                        <th>User</th>
+                                        <th>Action Type</th>
+                                        <th>Target Resource</th>
+                                        <th>Document</th>
+                                        <th>Timestamp</th>
+                                        <th className="!text-right">Status</th>
                                     </tr>
-                                ) : (
-                                    activities.map((activity) => {
-                                        const isSelected = selectedActivityIds.has(activity.id);
-                                        return (
-                                            <tr key={activity.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors group ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''}`}>
-                                                <td data-label="Select" className="py-3 px-4 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => {
-                                                            const newSelected = new Set(selectedActivityIds);
-                                                            if (newSelected.has(activity.id)) {
-                                                                newSelected.delete(activity.id);
-                                                            } else {
-                                                                newSelected.add(activity.id);
-                                                            }
-                                                            setSelectedActivityIds(newSelected);
-                                                        }}
-                                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                                                 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
-                                                    />
-                                                </td>
-                                                <td data-label="User" className="py-3 px-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div>
-                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{activity.user_name}</div>
-                                                            {activity.user_email && (
-                                                                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">{activity.user_email}</div>
-                                                            )}
-                                                        </div>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-ink/20 text-xs">
+                                    {activities.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/30 
+                                                  flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
+                                                        <i className="fas fa-inbox text-xl"></i>
                                                     </div>
-                                                </td>
-                                                <td data-label="Action Type" className="py-3 px-4 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${getActionColor(activity.action_type)}`}>
-                                                        <i className={`fas text-[9px] ${getActionIcon(activity.action_type)}`}></i>
-                                                        {activity.action_type.charAt(0).toUpperCase() + activity.action_type.slice(1)}
-                                                    </span>
-                                                </td>
-                                                <td data-label="Target Resource" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
-                                                    {activity.target_resource}
-                                                </td>
-                                                <td data-label="Document" className="py-3 px-4 whitespace-nowrap">
-                                                    {activity.document_title ? (
-                                                        <div>
-                                                            <div className="text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]" title={activity.document_title}>
-                                                                {activity.document_title}
+                                                    <p className="font-semibold text-slate-600 dark:text-slate-300">No activity recorded yet</p>
+                                                    <p className="text-xs text-slate-400 dark:text-slate-500">Activity logs will appear here as users perform operations</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        activities.map((activity) => {
+                                            const isSelected = selectedActivityIds.has(activity.id);
+                                            return (
+                                                <tr key={activity.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors group ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''}`}>
+                                                    <td data-label="Select" className="py-3 px-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                const newSelected = new Set(selectedActivityIds);
+                                                                if (newSelected.has(activity.id)) {
+                                                                    newSelected.delete(activity.id);
+                                                                } else {
+                                                                    newSelected.add(activity.id);
+                                                                }
+                                                                setSelectedActivityIds(newSelected);
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
+                                                     text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                        />
+                                                    </td>
+                                                    <td data-label="User" className="py-3 px-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div>
+                                                                <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{activity.user_name}</div>
+                                                                {activity.user_email && (
+                                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">{activity.user_email}</div>
+                                                                )}
                                                             </div>
-                                                            {activity.document_id && (
-                                                                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-tight mt-0.5">
-                                                                    ID: {activity.document_id.substring(0, 8)}
-                                                                </div>
-                                                            )}
                                                         </div>
-                                                    ) : (
-                                                        <span className="text-slate-300 dark:text-slate-500">—</span>
-                                                    )}
-                                                </td>
-                                                <td data-label="Timestamp" className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                                    {new Date(activity.timestamp).toLocaleString(undefined, {
-                                                        year: 'numeric',
-                                                        month: 'short',
-                                                        day: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
-                                                    })}
-                                                </td>
-                                                <td data-label="Status" className="py-3 px-4 text-right whitespace-nowrap">
-                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full 
-                                                                   bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 
-                                                                   border border-emerald-200/60 dark:border-emerald-800/30 text-[11px] font-medium">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                                        {activity.status}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                                                    </td>
+                                                    <td data-label="Action Type" className="py-3 px-4 whitespace-nowrap">
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${getActionColor(activity.action_type)}`}>
+                                                            <i className={`fas text-[9px] ${getActionIcon(activity.action_type)}`}></i>
+                                                            {activity.action_type.charAt(0).toUpperCase() + activity.action_type.slice(1)}
+                                                        </span>
+                                                    </td>
+                                                    <td data-label="Target Resource" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
+                                                        {activity.target_resource}
+                                                    </td>
+                                                    <td data-label="Document" className="py-3 px-4 whitespace-nowrap">
+                                                        {activity.document_title ? (
+                                                            <div>
+                                                                <div className="text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]" title={activity.document_title}>
+                                                                    {activity.document_title}
+                                                                </div>
+                                                                {activity.document_id && (
+                                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-tight mt-0.5">
+                                                                        ID: {activity.document_id.substring(0, 8)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-300 dark:text-slate-500">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td data-label="Timestamp" className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                        {new Date(activity.timestamp).toLocaleString(undefined, {
+                                                            year: 'numeric',
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </td>
+                                                    <td data-label="Status" className="py-3 px-4 text-right whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full 
+                                                       bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 
+                                                       border border-emerald-200/60 dark:border-emerald-800/30 text-[11px] font-medium">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                            {activity.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
+                    {/* Pagination - Stays fixed */}
                     {totalActivities > 0 && (
-                        <div className="pagination-container-class dark:bg-ink/80 dark:border-ink/20">
+                        <div className="flex-shrink-0 pagination-container-class dark:bg-ink/80 dark:border-ink/20">
                             <span className="text-slate-500 dark:text-slate-400">
-                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{activities.length}</span> of{' '}
+                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                    {totalActivities === 0 ? 0 : (activityPage - 1) * activitiesPerPage + 1}
+                                </span> to{' '}
+                                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                    {Math.min(activityPage * activitiesPerPage, totalActivities)}
+                                </span> of{' '}
                                 <span className="font-semibold text-slate-700 dark:text-slate-200">{totalActivities}</span> log entries
                             </span>
                             <Pagination
@@ -1876,8 +1974,8 @@ export default function Documents() {
                                     <input
                                         name="title"
                                         defaultValue={editingDoc.title}
-                                        className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-not-allowed"
-                                        required readOnly disabled
+                                        className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                                        required
                                     />
                                 </div>
 

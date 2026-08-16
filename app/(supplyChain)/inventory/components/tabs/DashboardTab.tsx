@@ -49,7 +49,6 @@ export function DashboardTab({
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
-                {/* Category Chart Card */}
                 <div className="bg-white dark:bg-ink rounded-2xl 
                                 border border-slate-200/80 dark:border-ink/20 
                                 shadow-xs p-4 sm:p-5 lg:col-span-2 
@@ -59,10 +58,10 @@ export function DashboardTab({
                     <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl 
-                                          bg-pink-50 dark:bg-pink-950/30 
-                                          border border-pink-100 dark:border-pink-800/30 
-                                          flex items-center justify-center text-pink-600 dark:text-pink-400 
-                                          text-xs shadow-2xs shrink-0">
+                                    bg-pink-50 dark:bg-pink-950/30 
+                                    border border-pink-100 dark:border-pink-800/30 
+                                    flex items-center justify-center text-pink-600 dark:text-pink-400 
+                                    text-xs shadow-2xs shrink-0">
                                 <i className="fas fa-chart-simple"></i>
                             </div>
                             <div>
@@ -102,7 +101,6 @@ export function DashboardTab({
                     </div>
                 </div>
 
-                {/* Status Chart Card */}
                 <div className="bg-white dark:bg-ink rounded-2xl 
                                 border border-slate-200/80 dark:border-ink/20 
                                 shadow-xs p-4 sm:p-5 flex flex-col justify-between 

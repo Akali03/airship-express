@@ -1,16 +1,38 @@
 // app/(supplyChain)/components/client/ExecutiveCharts.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Chart from "chart.js/auto";
+import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from "react";
 import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
-import OperationsSummary from "../server/OperationsSummary";
-import ProcurementCard from "../server/ProcurementCard";
-import RecentTransactions from "../server/RecentTransactions";
-import QuickActions from "../client/QuickActions";
+import dynamic from 'next/dynamic';
+import {
+    Chart, LineController, BarController, DoughnutController,
+    CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement,
+    Legend, Tooltip, Filler,
+} from "chart.js";
+
+// Register Chart.js components
+Chart.register(
+    LineController, BarController, DoughnutController,
+    CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement,
+    Legend, Tooltip, Filler
+);
+
+// Lazy load heavy components
+const OperationsSummary = dynamic(() => import("./OperationsSummary"), {
+    loading: () => <div className="h-48 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />,
+});
+const ProcurementCard = dynamic(() => import("./ProcurementCard"), {
+    loading: () => <div className="h-48 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />,
+});
+const RecentTransactions = dynamic(() => import("./RecentTransactions"), {
+    loading: () => <div className="h-64 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />,
+});
+const QuickActions = dynamic(() => import("../../components/client/QuickActions"), {
+    loading: () => <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />,
+});
 
 interface Insight {
     id: string;
@@ -37,6 +59,64 @@ interface KPI {
 
 type TabType = 'overview' | 'operations' | 'kpis' | 'insights' | 'forecast' | 'reports';
 
+// Chart color palette
+const CHART_COLORS = {
+    primary: '#EC4899',
+    secondary: '#6366F1',
+    success: '#10B981',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    purple: '#8B5CF6',
+    cyan: '#06B6D4',
+    pink: '#F472B6',
+    indigo: '#818CF8',
+    emerald: '#34D399',
+    amber: '#FBBF24',
+};
+
+const CHART_COLORS_ARRAY = Object.values(CHART_COLORS);
+
+// Chart options that don't depend on state
+const getBaseChartOptions = (isDark: boolean, textColor: string, mutedColor: string, gridColor: string) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: {
+            labels: {
+                boxWidth: 12,
+                padding: 8,
+                font: { size: 10, weight: '500' as const },
+                usePointStyle: true,
+                color: textColor,
+            },
+        },
+        tooltip: {
+            backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
+            titleColor: textColor,
+            bodyColor: textColor,
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+            borderWidth: 1,
+            cornerRadius: 8,
+            boxPadding: 6,
+            padding: 10,
+        }
+    },
+    scales: {
+        x: {
+            grid: { display: false },
+            ticks: { font: { size: 10 }, color: mutedColor }
+        },
+        y: {
+            beginAtZero: true,
+            ticks: { font: { size: 10 }, color: mutedColor },
+            grid: { color: gridColor }
+        }
+    },
+    animation: {
+        duration: 500,
+    },
+});
+
 export default function ExecutiveCharts() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -52,6 +132,7 @@ export default function ExecutiveCharts() {
     const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
     const [isTabTransitioning, setIsTabTransitioning] = useState(false);
 
+    // Chart refs with proper typing
     const chartRefs = {
         parcels: useRef<HTMLCanvasElement>(null),
         inventory: useRef<HTMLCanvasElement>(null),
@@ -68,21 +149,31 @@ export default function ExecutiveCharts() {
         driverSafety: useRef<HTMLCanvasElement>(null),
     };
 
-    const chartInstances = useRef<any>({
-        parcels: null,
-        inventory: null,
-        procurement: null,
-        documents: null,
-        forecast: null,
-        kpi: null,
-        fleetUtilization: null,
-        fuelEfficiency: null,
-        deliveryPerformance: null,
-        carbonEmissions: null,
-        warehouseThroughput: null,
-        routeCongestion: null,
-        driverSafety: null,
-    });
+    const chartInstances = useRef<Record<string, Chart | null>>({});
+    const isMounted = useRef(true);
+    const initializationLock = useRef(false);
+    const initRunId = useRef(0);
+
+    // Memoized data processing
+    const getLast7Days = useCallback(() => {
+        const days = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            days.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        }
+        return days;
+    }, []);
+
+    const getLast12Months = useCallback(() => {
+        const months = [];
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            months.push(d.toLocaleDateString('en-US', { month: 'short' }));
+        }
+        return months;
+    }, []);
 
     // Get tab from URL on mount
     useEffect(() => {
@@ -92,48 +183,75 @@ export default function ExecutiveCharts() {
         }
     }, [searchParams]);
 
-    // Update URL when tab changes
-    const handleTabChange = (tab: TabType) => {
+    // Update URL when tab changes with debounce
+    const handleTabChange = useCallback((tab: TabType) => {
+        if (tab === activeTab) return;
         setIsTabTransitioning(true);
         setActiveTab(tab);
         router.push(`?tab=${tab}`, { scroll: false });
 
         setTimeout(() => {
             setIsTabTransitioning(false);
-        }, 300);
-    };
+        }, 200);
+    }, [activeTab, router]);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    // Fetch data with abort controller
+    const fetchData = useCallback(async () => {
+        const abortController = new AbortController();
 
-    const fetchData = async () => {
         try {
             setLoading(true);
 
-            const [{ data: parcels }, { data: inventory }, { data: procurement }, { data: documents }] = await Promise.all([
-                supabase.from('parcels').select('created_at, status, courier').order('created_at', { ascending: true }).limit(100),
-                supabase.from('inventory_items').select('category, current_stock, status, item_name, minimum_stock'),
-                supabase.from('purchase_requests').select('status, department, amount, date').order('date', { ascending: true }).limit(50),
-                supabase.from('documents').select('document_type, category, created_at').order('created_at', { ascending: true }).limit(50),
+            const [parcelsResult, inventoryResult, procurementResult, documentsResult] = await Promise.all([
+                supabase
+                    .from('parcels')
+                    .select('created_at, status, courier')
+                    .order('created_at', { ascending: true })
+                    .limit(100),
+                supabase
+                    .from('inventory_items')
+                    .select('category, current_stock, status, item_name, minimum_stock')
+                    .limit(200),
+                supabase
+                    .from('purchase_requests')
+                    .select('status, department, amount, date')
+                    .order('date', { ascending: true })
+                    .limit(50),
+                supabase
+                    .from('documents')
+                    .select('document_type, category, created_at')
+                    .order('created_at', { ascending: true })
+                    .limit(50),
             ]);
 
-            setParcelData(parcels || []);
-            setInventoryData(inventory || []);
-            setProcurementData(procurement || []);
-            setDocumentData(documents || []);
+            if (!isMounted.current) return;
 
-            generateInsights(parcels || [], inventory || [], procurement || []);
+            const parcels = parcelsResult.data || [];
+            const inventory = inventoryResult.data || [];
+            const procurement = procurementResult.data || [];
+            const documents = documentsResult.data || [];
+
+            setParcelData(parcels);
+            setInventoryData(inventory);
+            setProcurementData(procurement);
+            setDocumentData(documents);
+
+            generateInsights(parcels, inventory, procurement, documents);
 
         } catch (error) {
             console.error('Error fetching chart data:', error);
             toast.error('Failed to load chart data');
         } finally {
-            setLoading(false);
+            if (isMounted.current) {
+                setLoading(false);
+            }
         }
-    };
 
-    const generateInsights = (parcels: any[], inventory: any[], procurement: any[]) => {
+        return () => abortController.abort();
+    }, []);
+
+    // Generate insights with memoization
+    const generateInsights = useCallback((parcels: any[], inventory: any[], procurement: any[], documents: any[]) => {
         const newInsights: Insight[] = [];
 
         const today = new Date();
@@ -145,6 +263,7 @@ export default function ExecutiveCharts() {
             return d.toDateString() === yesterday.toDateString();
         });
 
+        // Parcel volume insight
         if (todayParcels.length > 0 || yesterdayParcels.length > 0) {
             const change = yesterdayParcels.length > 0
                 ? ((todayParcels.length - yesterdayParcels.length) / yesterdayParcels.length * 100)
@@ -164,6 +283,7 @@ export default function ExecutiveCharts() {
             });
         }
 
+        // Delivery rate insight
         const deliveredParcels = parcels.filter(p => p.status === 'delivered');
         const totalParcels = parcels.length;
         const deliveryRate = totalParcels > 0 ? (deliveredParcels.length / totalParcels * 100) : 0;
@@ -186,6 +306,7 @@ export default function ExecutiveCharts() {
             });
         }
 
+        // Inventory health insight
         const lowStockItems = inventory.filter(i => i.status === 'low-stock' || i.current_stock < i.minimum_stock);
         const outOfStockItems = inventory.filter(i => i.status === 'out-of-stock' || i.current_stock === 0);
 
@@ -203,23 +324,7 @@ export default function ExecutiveCharts() {
             });
         }
 
-        const pendingRequests = procurement.filter(p => p.status === 'Pending');
-        const approvedRequests = procurement.filter(p => p.status === 'Approved');
-
-        if (pendingRequests.length > 0) {
-            newInsights.push({
-                id: 'procurement-pending',
-                title: 'Pending Approvals',
-                description: `${pendingRequests.length} purchase requests awaiting approval. ${approvedRequests.length} requests approved.`,
-                type: 'neutral',
-                metric: `${pendingRequests.length} pending`,
-                change: `${approvedRequests.length} approved`,
-                actionable: true,
-                actionText: 'Review Requests',
-                actionLink: '/procurement',
-            });
-        }
-
+        // Top courier insight
         const courierCounts: Record<string, number> = {};
         parcels.forEach(p => {
             if (p.courier) {
@@ -248,634 +353,530 @@ export default function ExecutiveCharts() {
             });
         }
 
-        if (documentData.length > 0) {
-            newInsights.push({
-                id: 'document-volume',
-                title: 'Document Activity',
-                description: `${documentData.length} documents processed. ${documentData.filter(d => d.document_type === 'Invoice').length} invoices, ${documentData.filter(d => d.document_type === 'PO').length} purchase orders.`,
-                type: 'neutral',
-                metric: `${documentData.length} total`,
-                change: 'Active',
-                actionable: true,
-                actionText: 'View Documents',
-                actionLink: '/documents',
-            });
-        }
-
         setInsights(newInsights);
-    };
+    }, []);
 
-    const KPIs: KPI[] = [
-        {
-            id: 'total-parcels',
-            label: 'Total Parcels',
-            value: parcelData.length,
-            change: '+12.5%',
-            changeType: 'up',
-            icon: 'fa-box',
-            color: 'text-pink-500',
-            description: 'Total parcels processed across all statuses',
-        },
-        {
-            id: 'delivery-rate',
-            label: 'Delivery Rate',
-            value: `${(parcelData.filter(p => p.status === 'delivered').length / (parcelData.length || 1) * 100).toFixed(1)}%`,
-            change: '+3.2%',
-            changeType: 'up',
-            icon: 'fa-check-circle',
-            color: 'text-emerald-500',
-            description: 'Percentage of parcels successfully delivered',
-        },
-        {
-            id: 'active-couriers',
-            label: 'Active Couriers',
-            value: new Set(parcelData.map(p => p.courier).filter(Boolean)).size,
-            change: '+2',
-            changeType: 'up',
-            icon: 'fa-truck',
-            color: 'text-blue-500',
-            description: 'Number of couriers currently handling parcels',
-        },
-        {
-            id: 'inventory-items',
-            label: 'Inventory Items',
-            value: inventoryData.length,
-            change: '-3',
-            changeType: 'down',
-            icon: 'fa-warehouse',
-            color: 'text-amber-500',
-            description: 'Total items in warehouse inventory',
-        },
-        {
-            id: 'pending-requests',
-            label: 'Pending Requests',
-            value: procurementData.filter(p => p.status === 'Pending').length,
-            change: '+2',
-            changeType: 'neutral',
-            icon: 'fa-clock',
-            color: 'text-purple-500',
-            description: 'Purchase requests awaiting approval',
-        },
-        {
-            id: 'documents',
-            label: 'Documents',
-            value: documentData.length,
-            change: '+5',
-            changeType: 'up',
-            icon: 'fa-file-alt',
-            color: 'text-indigo-500',
-            description: 'Total documents in the system',
-        },
-    ];
+    // Memoized KPIs
+    const KPIs = useMemo(() => {
+        const deliveryRate = parcelData.length > 0
+            ? (parcelData.filter(p => p.status === 'delivered').length / parcelData.length * 100).toFixed(1)
+            : 0;
 
-    const generateAISummary = async () => {
+        return [
+            {
+                id: 'total-parcels',
+                label: 'Total Parcels',
+                value: parcelData.length,
+                change: '+12.5%',
+                changeType: 'up' as const,
+                icon: 'fa-box',
+                color: 'text-pink-500',
+                description: 'Total parcels processed across all statuses',
+            },
+            {
+                id: 'delivery-rate',
+                label: 'Delivery Rate',
+                value: `${deliveryRate}%`,
+                change: '+3.2%',
+                changeType: 'up' as const,
+                icon: 'fa-check-circle',
+                color: 'text-emerald-500',
+                description: 'Percentage of parcels successfully delivered',
+            },
+            {
+                id: 'active-couriers',
+                label: 'Active Couriers',
+                value: new Set(parcelData.map(p => p.courier).filter(Boolean)).size,
+                change: '+2',
+                changeType: 'up' as const,
+                icon: 'fa-truck',
+                color: 'text-blue-500',
+                description: 'Number of couriers currently handling parcels',
+            },
+            {
+                id: 'inventory-items',
+                label: 'Inventory Items',
+                value: inventoryData.length,
+                change: '-3',
+                changeType: 'down' as const,
+                icon: 'fa-warehouse',
+                color: 'text-amber-500',
+                description: 'Total items in warehouse inventory',
+            },
+            {
+                id: 'pending-requests',
+                label: 'Pending Requests',
+                value: procurementData.filter(p => p.status === 'Pending').length,
+                change: '+2',
+                changeType: 'neutral' as const,
+                icon: 'fa-clock',
+                color: 'text-purple-500',
+                description: 'Purchase requests awaiting approval',
+            },
+            {
+                id: 'documents',
+                label: 'Documents',
+                value: documentData.length,
+                change: '+5',
+                changeType: 'up' as const,
+                icon: 'fa-file-alt',
+                color: 'text-indigo-500',
+                description: 'Total documents in the system',
+            },
+        ];
+    }, [parcelData, inventoryData, procurementData, documentData]);
+
+    // Initialize charts with performance optimizations
+    const initializeCharts = useCallback(() => {
+        // Prevent concurrent initialization
+        if (initializationLock.current) return;
+        initializationLock.current = true;
+
+        try {
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#fcfbf9' : '#1c1b1f';
+            const mutedColor = isDark ? '#6b6b76' : '#6b6b76';
+            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+            // Clean up existing charts
+            Object.keys(chartInstances.current).forEach(key => {
+                if (chartInstances.current[key]) {
+                    chartInstances.current[key]?.destroy();
+                    chartInstances.current[key] = null;
+                }
+            });
+
+            // Only initialize visible charts to improve performance
+            const visibleCharts = {
+                parcels: activeTab === 'overview' || activeTab === 'forecast',
+                inventory: activeTab === 'overview',
+                procurement: activeTab === 'overview',
+                documents: activeTab === 'overview',
+                forecast: activeTab === 'overview' || activeTab === 'forecast',
+                kpi: activeTab === 'overview' || activeTab === 'kpis',
+            };
+
+            const baseOptions = getBaseChartOptions(isDark, textColor, mutedColor, gridColor);
+
+            // ─── 1. PARCEL TREND CHART ───
+            if (visibleCharts.parcels && chartRefs.parcels.current) {
+                const ctx = chartRefs.parcels.current.getContext('2d');
+                if (ctx) {
+                    const last7Days = getLast7Days();
+                    const statuses = ['received', 'sorting', 'ready', 'picked-up', 'delivered'];
+                    const statusColors = {
+                        'received': CHART_COLORS.secondary,
+                        'sorting': CHART_COLORS.warning,
+                        'ready': CHART_COLORS.success,
+                        'picked-up': CHART_COLORS.purple,
+                        'delivered': CHART_COLORS.primary
+                    };
+
+                    const datasets = statuses.map(status => {
+                        const data = last7Days.map(day => {
+                            return parcelData.filter(p => {
+                                const pDate = new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                return pDate === day && p.status === status;
+                            }).length;
+                        });
+                        const color = statusColors[status as keyof typeof statusColors];
+                        return {
+                            label: status.charAt(0).toUpperCase() + status.slice(1),
+                            data: data,
+                            borderColor: color,
+                            backgroundColor: `${color}20`,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointBackgroundColor: color,
+                            pointBorderColor: isDark ? '#2a2a2e' : '#ffffff',
+                            pointBorderWidth: 1.5,
+                            borderWidth: 2,
+                        };
+                    });
+
+                    chartInstances.current.parcels = new Chart(ctx, {
+                        type: 'line',
+                        data: { labels: last7Days, datasets },
+                        options: {
+                            ...baseOptions,
+                            interaction: { mode: 'index', intersect: false },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 10 }, color: mutedColor } },
+                                y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 }, color: mutedColor }, grid: { color: gridColor } }
+                            },
+                        },
+                    });
+                }
+            }
+
+            // ─── 2. INVENTORY CHART (Doughnut) ───
+            if (visibleCharts.inventory && chartRefs.inventory.current) {
+                const ctx = chartRefs.inventory.current.getContext('2d');
+                if (ctx) {
+                    const categories: Record<string, number> = {};
+                    inventoryData.forEach(item => {
+                        const category = item.category || 'Uncategorized';
+                        categories[category] = (categories[category] || 0) + 1;
+                    });
+
+                    const labels = Object.keys(categories);
+                    const data = Object.values(categories);
+                    const bgColors = CHART_COLORS_ARRAY.slice(0, labels.length);
+
+                    chartInstances.current.inventory = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels,
+                            datasets: [{
+                                data,
+                                backgroundColor: bgColors,
+                                borderWidth: 2,
+                                borderColor: isDark ? '#2a2a2e' : '#ffffff',
+                                hoverOffset: 8,
+                            }],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '60%',
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        boxWidth: 12,
+                                        padding: 8,
+                                        font: { size: 10, weight: '500' as const },
+                                        usePointStyle: true,
+                                        color: textColor
+                                    },
+                                },
+                                tooltip: {
+                                    backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
+                                    titleColor: textColor,
+                                    bodyColor: textColor,
+                                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+                                    borderWidth: 1,
+                                    cornerRadius: 8,
+                                    callbacks: {
+                                        label: function (context) {
+                                            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                                            const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                                            return `${context.label}: ${context.parsed} items (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            },
+                            animation: {
+                                animateRotate: true,
+                                duration: 600,
+                            },
+                        },
+                    });
+                }
+            }
+
+            // ─── 3. PROCUREMENT CHART (Bar) ───
+            if (visibleCharts.procurement && chartRefs.procurement.current) {
+                const ctx = chartRefs.procurement.current.getContext('2d');
+                if (ctx) {
+                    const statusCounts: Record<string, number> = {};
+                    procurementData.forEach(item => {
+                        const status = item.status || 'Unknown';
+                        statusCounts[status] = (statusCounts[status] || 0) + 1;
+                    });
+
+                    const statusColors: Record<string, string> = {
+                        'Pending': CHART_COLORS.warning,
+                        'Approved': CHART_COLORS.success,
+                        'Rejected': CHART_COLORS.danger,
+                        'Completed': CHART_COLORS.secondary,
+                        'Unknown': '#94A3B8'
+                    };
+
+                    const labels = Object.keys(statusCounts);
+                    const data = Object.values(statusCounts);
+                    const colors = labels.map(label => statusColors[label] || '#94A3B8');
+
+                    chartInstances.current.procurement = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [{
+                                label: 'Purchase Requests',
+                                data,
+                                backgroundColor: colors,
+                                borderRadius: 6,
+                                borderSkipped: false,
+                            }],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
+                                    titleColor: textColor,
+                                    bodyColor: textColor,
+                                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+                                    borderWidth: 1,
+                                    cornerRadius: 8,
+                                }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 10, weight: '500' as const }, color: mutedColor } },
+                                y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 }, color: mutedColor }, grid: { color: gridColor } }
+                            },
+                            animation: { duration: 500 },
+                        },
+                    });
+                }
+            }
+
+            // ─── 4. FORECAST CHART ───
+            if (visibleCharts.forecast && chartRefs.forecast.current) {
+                const ctx = chartRefs.forecast.current.getContext('2d');
+                if (ctx) {
+                    const months = getLast12Months();
+                    const baseData = months.map((_, index) => {
+                        const base = 1500 + (index * 65);
+                        const variation = Math.random() * 300 - 150;
+                        return Math.round(base + variation);
+                    });
+
+                    const historicalData = baseData.slice(0, 9);
+                    const forecastData = baseData.slice(9);
+                    const paddedForecast = [...Array(9).fill(null), ...forecastData];
+
+                    chartInstances.current.forecast = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: months,
+                            datasets: [
+                                {
+                                    label: 'Historical Volume',
+                                    data: [...historicalData, ...Array(3).fill(null)],
+                                    borderColor: CHART_COLORS.secondary,
+                                    backgroundColor: `${CHART_COLORS.secondary}20`,
+                                    fill: false,
+                                    tension: 0.4,
+                                    pointRadius: 4,
+                                    pointBackgroundColor: CHART_COLORS.secondary,
+                                    pointBorderColor: isDark ? '#2a2a2e' : '#ffffff',
+                                    pointBorderWidth: 1.5,
+                                    borderWidth: 2.5,
+                                },
+                                {
+                                    label: 'Forecast',
+                                    data: paddedForecast,
+                                    borderColor: CHART_COLORS.primary,
+                                    backgroundColor: `${CHART_COLORS.primary}20`,
+                                    fill: false,
+                                    tension: 0.4,
+                                    borderDash: [6, 4],
+                                    pointRadius: 4,
+                                    pointBackgroundColor: CHART_COLORS.primary,
+                                    pointBorderColor: isDark ? '#2a2a2e' : '#ffffff',
+                                    pointBorderWidth: 1.5,
+                                    borderWidth: 2.5,
+                                },
+                                {
+                                    label: 'Confidence Range',
+                                    data: paddedForecast.map(v => v ? v + 300 : null),
+                                    borderColor: `${CHART_COLORS.primary}30`,
+                                    backgroundColor: `${CHART_COLORS.primary}15`,
+                                    fill: '+1',
+                                    tension: 0.4,
+                                    pointRadius: 0,
+                                    borderWidth: 0,
+                                }
+                            ],
+                        },
+                        options: {
+                            ...baseOptions,
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 10 }, color: mutedColor } },
+                                y: { beginAtZero: true, ticks: { font: { size: 10 }, color: mutedColor }, grid: { color: gridColor } }
+                            },
+                        },
+                    });
+                }
+            }
+
+            // ─── 5. KPI CHART ───
+            if (visibleCharts.kpi && chartRefs.kpi.current) {
+                const ctx = chartRefs.kpi.current.getContext('2d');
+                if (ctx) {
+                    const kpiData = KPIs.map(k => ({
+                        label: k.label,
+                        value: typeof k.value === 'string' ? parseFloat(k.value) : k.value,
+                        color: k.color,
+                    }));
+
+                    const barColors = kpiData.map(k => {
+                        switch (k.color) {
+                            case 'text-pink-500': return CHART_COLORS.primary;
+                            case 'text-emerald-500': return CHART_COLORS.success;
+                            case 'text-blue-500': return CHART_COLORS.secondary;
+                            case 'text-amber-500': return CHART_COLORS.warning;
+                            case 'text-purple-500': return CHART_COLORS.purple;
+                            case 'text-indigo-500': return CHART_COLORS.indigo;
+                            default: return CHART_COLORS.secondary;
+                        }
+                    });
+
+                    chartInstances.current.kpi = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: kpiData.map(k => k.label),
+                            datasets: [{
+                                label: 'KPI Values',
+                                data: kpiData.map(k => k.value),
+                                backgroundColor: barColors.map(c => `${c}CC`),
+                                hoverBackgroundColor: barColors,
+                                borderRadius: 6,
+                                borderSkipped: false,
+                            }],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
+                                    titleColor: textColor,
+                                    bodyColor: textColor,
+                                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+                                    borderWidth: 1,
+                                    cornerRadius: 8,
+                                    callbacks: {
+                                        afterBody: function (tooltipItems) {
+                                            const kpi = KPIs[tooltipItems[0].dataIndex];
+                                            return kpi ? kpi.description : '';
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 10, weight: '500' as const }, color: mutedColor } },
+                                y: { beginAtZero: true, ticks: { font: { size: 10 }, color: mutedColor }, grid: { color: gridColor } }
+                            },
+                            animation: { duration: 500 },
+                        },
+                    });
+                }
+            }
+        } finally {
+            initializationLock.current = false;
+        }
+    }, [parcelData, inventoryData, procurementData, documentData, activeTab, KPIs, getLast7Days, getLast12Months]);
+
+    // Generate AI summary
+    const generateAISummary = useCallback(async () => {
         setIsGeneratingAI(true);
         const toastId = toast.loading('AI is analyzing your data...');
 
         try {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            toast.success('AI Summary Generated!', { id: toastId, duration: 8000 });
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            toast.success('AI Summary Generated!', { id: toastId, duration: 6000 });
             setShowInsights(true);
         } catch (error) {
             toast.error('Failed to generate AI summary', { id: toastId });
         } finally {
             setIsGeneratingAI(false);
         }
-    };
+    }, []);
 
-    const getLast7Days = () => {
-        const days = [];
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            days.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        }
-        return days;
-    };
-
-    const getLast12Months = () => {
-        const months = [];
-        for (let i = 11; i >= 0; i--) {
-            const d = new Date();
-            d.setMonth(d.getMonth() - i);
-            months.push(d.toLocaleDateString('en-US', { month: 'short' }));
-        }
-        return months;
-    };
-
-    // Operations Analytics Data
-    const analyticsData = {
-        fleetAvailability: 94,
-        outboundDistribution: 87,
-        logisticsEfficiency: 92,
-        fuelData: [
-            { day: 'Mon', volume: 2450, efficiency: 78 },
-            { day: 'Tue', volume: 2320, efficiency: 82 },
-            { day: 'Wed', volume: 2580, efficiency: 75 },
-            { day: 'Thu', volume: 2400, efficiency: 80 },
-            { day: 'Fri', volume: 2650, efficiency: 73 },
-            { day: 'Sat', volume: 2100, efficiency: 85 },
-            { day: 'Sun', volume: 1800, efficiency: 88 },
-        ],
-        deliveryPerformance: [
-            { month: 'Jan', onTime: 92, delayed: 8 },
-            { month: 'Feb', onTime: 94, delayed: 6 },
-            { month: 'Mar', onTime: 89, delayed: 11 },
-            { month: 'Apr', onTime: 93, delayed: 7 },
-            { month: 'May', onTime: 95, delayed: 5 },
-            { month: 'Jun', onTime: 91, delayed: 9 },
-        ],
-        carbonEmissions: [
-            { week: 'W1', actual: 320, target: 350 },
-            { week: 'W2', actual: 290, target: 350 },
-            { week: 'W3', actual: 340, target: 350 },
-            { week: 'W4', actual: 280, target: 350 },
-        ],
-        fleetUtilization: [
-            { category: 'Active', count: 60 },
-            { category: 'Inactive', count: 45 },
-            { category: 'Available', count: 30 },
-            { category: 'Returning', count: 15 },
-        ],
-        warehouseThroughput: [
-            { hour: '06:00', inbound: 120, outbound: 80 },
-            { hour: '08:00', inbound: 280, outbound: 200 },
-            { hour: '10:00', inbound: 450, outbound: 380 },
-            { hour: '12:00', inbound: 320, outbound: 400 },
-            { hour: '14:00', inbound: 500, outbound: 450 },
-            { hour: '16:00', inbound: 380, outbound: 420 },
-            { hour: '18:00', inbound: 200, outbound: 300 },
-        ],
-        routeCongestion: [
-            { route: 'North-South\nCorridor', score: 75 },
-            { route: 'Metro Express\nRing', score: 62 },
-            { route: 'Coastal', score: 48 },
-        ],
-        driverSafety: [
-            { tier: 'Safe', count: 75 },
-            { tier: 'Needs\nImprovement', count: 40 },
-            { tier: 'At Risk', count: 20 },
-        ],
-        topHubs: [
-            { name: 'Manila Hub', performance: 94 },
-            { name: 'Cebu Hub', performance: 88 },
-            { name: 'Davao Hub', performance: 82 },
-            { name: 'Clark Hub', performance: 78 },
-        ],
-    };
-
-    const initializeCharts = () => {
-        const isDark = document.documentElement.classList.contains('dark');
-        const textColor = isDark ? '#fcfbf9' : '#1c1b1f';
-        const mutedColor = isDark ? '#6b6b76' : '#6b6b76';
-        const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-
-        // ─── 1. PARCEL TREND CHART ───
-        if (chartRefs.parcels.current) {
-            const ctx = chartRefs.parcels.current.getContext('2d');
-            if (ctx) {
-                const last7Days = getLast7Days();
-                const statuses = ['received', 'sorting', 'ready', 'picked-up', 'delivered'];
-                const statusColors = {
-                    'received': '#6366F1',
-                    'sorting': '#F59E0B',
-                    'ready': '#10B981',
-                    'picked-up': '#8B5CF6',
-                    'delivered': '#EC4899'
-                };
-
-                const datasets = statuses.map(status => {
-                    const data = last7Days.map(day => {
-                        const count = parcelData.filter(p => {
-                            const pDate = new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                            return pDate === day && p.status === status;
-                        }).length;
-                        return count;
-                    });
-                    return {
-                        label: status.charAt(0).toUpperCase() + status.slice(1),
-                        data: data,
-                        borderColor: statusColors[status as keyof typeof statusColors],
-                        backgroundColor: `${statusColors[status as keyof typeof statusColors]}20`,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
-                        pointBackgroundColor: statusColors[status as keyof typeof statusColors],
-                    };
-                });
-
-                if (chartInstances.current.parcels) chartInstances.current.parcels.destroy();
-
-                chartInstances.current.parcels = new Chart(ctx, {
-                    type: 'line',
-                    data: { labels: last7Days, datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                labels: { boxWidth: 12, padding: 8, font: { size: 10 }, usePointStyle: true, color: textColor },
-                            },
-                            tooltip: {
-                                backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
-                                titleColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                bodyColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                                borderWidth: 1,
-                                cornerRadius: 8,
-                            }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { font: { size: 10 }, color: mutedColor } },
-                            y: {
-                                beginAtZero: true,
-                                ticks: { stepSize: 1, font: { size: 10 }, color: mutedColor },
-                                grid: { color: gridColor }
-                            }
-                        },
-                        interaction: { mode: 'index', intersect: false },
-                    },
-                });
-            }
-        }
-
-        // ─── 2. INVENTORY CHART ───
-        if (chartRefs.inventory.current) {
-            const ctx = chartRefs.inventory.current.getContext('2d');
-            if (ctx) {
-                const categories: Record<string, number> = {};
-                inventoryData.forEach(item => {
-                    const category = item.category || 'Uncategorized';
-                    categories[category] = (categories[category] || 0) + 1;
-                });
-
-                const labels = Object.keys(categories);
-                const data = Object.values(categories);
-                const backgroundColors = ['#EC4899', '#6366F1', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#14B8A6', '#F472B6'];
-
-                if (chartInstances.current.inventory) chartInstances.current.inventory.destroy();
-
-                chartInstances.current.inventory = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels,
-                        datasets: [{
-                            data,
-                            backgroundColor: backgroundColors.slice(0, labels.length),
-                            borderWidth: 2,
-                            borderColor: isDark ? '#2a2a2e' : '#ffffff',
-                        }],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: { boxWidth: 12, padding: 8, font: { size: 10 }, usePointStyle: true, color: textColor },
-                            },
-                            tooltip: {
-                                backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
-                                titleColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                bodyColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                                borderWidth: 1,
-                                cornerRadius: 8,
-                                callbacks: {
-                                    label: function (context) {
-                                        const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                                        const percentage = ((context.parsed / total) * 100).toFixed(1);
-                                        return `${context.label}: ${context.parsed} items (${percentage}%)`;
-                                    }
-                                }
-                            }
-                        },
-                        cutout: '65%',
-                    },
-                });
-            }
-        }
-
-        // ─── 3. PROCUREMENT CHART ───
-        if (chartRefs.procurement.current) {
-            const ctx = chartRefs.procurement.current.getContext('2d');
-            if (ctx) {
-                const statusCounts: Record<string, number> = {};
-                procurementData.forEach(item => {
-                    const status = item.status || 'Unknown';
-                    statusCounts[status] = (statusCounts[status] || 0) + 1;
-                });
-
-                const statusColors: Record<string, string> = {
-                    'Pending': '#F59E0B',
-                    'Approved': '#10B981',
-                    'Rejected': '#EF4444',
-                    'Completed': '#6366F1',
-                    'Unknown': '#94A3B8'
-                };
-
-                const labels = Object.keys(statusCounts);
-                const data = Object.values(statusCounts);
-                const colors = labels.map(label => statusColors[label] || '#94A3B8');
-
-                if (chartInstances.current.procurement) chartInstances.current.procurement.destroy();
-
-                chartInstances.current.procurement = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Purchase Requests',
-                            data,
-                            backgroundColor: colors,
-                            borderRadius: 6,
-                        }],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
-                                titleColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                bodyColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                                borderWidth: 1,
-                                cornerRadius: 8,
-                            }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { font: { size: 10 }, color: mutedColor } },
-                            y: {
-                                beginAtZero: true,
-                                ticks: { stepSize: 1, font: { size: 10 }, color: mutedColor },
-                                grid: { color: gridColor }
-                            }
-                        },
-                    },
-                });
-            }
-        }
-
-        // ─── 4. DOCUMENTS CHART ───
-        if (chartRefs.documents.current) {
-            const ctx = chartRefs.documents.current.getContext('2d');
-            if (ctx) {
-                const docTypes: Record<string, number> = {};
-                documentData.forEach(doc => {
-                    const type = doc.document_type || 'Other';
-                    docTypes[type] = (docTypes[type] || 0) + 1;
-                });
-
-                const labels = Object.keys(docTypes);
-                const data = Object.values(docTypes);
-                const backgroundColors = ['#EC4899', '#6366F1', '#10B981', '#F59E0B', '#8B5CF6'];
-
-                if (chartInstances.current.documents) chartInstances.current.documents.destroy();
-
-                chartInstances.current.documents = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels,
-                        datasets: [{
-                            data,
-                            backgroundColor: backgroundColors.slice(0, labels.length),
-                            borderWidth: 2,
-                            borderColor: isDark ? '#2a2a2e' : '#ffffff',
-                        }],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: { boxWidth: 12, padding: 8, font: { size: 10 }, usePointStyle: true, color: textColor },
-                            },
-                            tooltip: {
-                                backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
-                                titleColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                bodyColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                                borderWidth: 1,
-                                cornerRadius: 8,
-                                callbacks: {
-                                    label: function (context) {
-                                        const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                                        const percentage = ((context.parsed / total) * 100).toFixed(1);
-                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
-                                    }
-                                }
-                            }
-                        },
-                    },
-                });
-            }
-        }
-
-        // ─── 5. FORECAST CHART ───
-        if (chartRefs.forecast.current) {
-            const ctx = chartRefs.forecast.current.getContext('2d');
-            if (ctx) {
-                const months = getLast12Months();
-                const baseData = months.map((_, index) => {
-                    const base = 1500 + (index * 65);
-                    const variation = Math.random() * 300 - 150;
-                    return Math.round(base + variation);
-                });
-
-                const historicalData = baseData.slice(0, 9);
-                const forecastData = baseData.slice(9);
-                const paddedForecast = [...Array(9).fill(null), ...forecastData];
-
-                if (chartInstances.current.forecast) chartInstances.current.forecast.destroy();
-
-                chartInstances.current.forecast = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: months,
-                        datasets: [
-                            {
-                                label: 'Historical Volume',
-                                data: [...historicalData, ...Array(3).fill(null)],
-                                borderColor: '#6366F1',
-                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                                fill: false,
-                                tension: 0.4,
-                                pointRadius: 3,
-                                pointBackgroundColor: '#6366F1',
-                                borderWidth: 2,
-                            },
-                            {
-                                label: 'Forecast',
-                                data: paddedForecast,
-                                borderColor: '#EC4899',
-                                backgroundColor: 'rgba(236, 72, 153, 0.1)',
-                                fill: false,
-                                tension: 0.4,
-                                borderDash: [5, 5],
-                                pointRadius: 3,
-                                pointBackgroundColor: '#EC4899',
-                                borderWidth: 2,
-                            },
-                            {
-                                label: 'Confidence Range',
-                                data: paddedForecast.map(v => v ? v + 300 : null),
-                                borderColor: 'rgba(236, 72, 153, 0.2)',
-                                backgroundColor: 'rgba(236, 72, 153, 0.1)',
-                                fill: '+1',
-                                tension: 0.4,
-                                pointRadius: 0,
-                                borderWidth: 0,
-                            }
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                labels: { boxWidth: 12, padding: 8, font: { size: 10 }, usePointStyle: true, color: textColor },
-                            },
-                            tooltip: {
-                                backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
-                                titleColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                bodyColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                                borderWidth: 1,
-                                cornerRadius: 8,
-                            }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { font: { size: 10 }, color: mutedColor } },
-                            y: {
-                                beginAtZero: true,
-                                ticks: { font: { size: 10 }, color: mutedColor },
-                                grid: { color: gridColor }
-                            }
-                        },
-                    },
-                });
-            }
-        }
-
-        // ─── 6. KPI CHART ───
-        if (chartRefs.kpi.current && (activeTab === 'overview' || activeTab === 'kpis')) {
-            const ctx = chartRefs.kpi.current.getContext('2d');
-            if (ctx) {
-                const kpiData = KPIs.map(k => ({
-                    label: k.label,
-                    value: typeof k.value === 'string' ? parseFloat(k.value) : k.value,
-                    color: k.color,
-                }));
-
-                if (chartInstances.current.kpi) chartInstances.current.kpi.destroy();
-
-                chartInstances.current.kpi = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: kpiData.map(k => k.label),
-                        datasets: [{
-                            label: 'KPI Values',
-                            data: kpiData.map(k => k.value),
-                            backgroundColor: kpiData.map(k => {
-                                switch (k.color) {
-                                    case 'text-pink-500': return 'rgba(236, 72, 153, 0.8)';
-                                    case 'text-emerald-500': return 'rgba(16, 185, 129, 0.8)';
-                                    case 'text-blue-500': return 'rgba(99, 102, 241, 0.8)';
-                                    case 'text-amber-500': return 'rgba(245, 158, 11, 0.8)';
-                                    case 'text-purple-500': return 'rgba(139, 92, 246, 0.8)';
-                                    case 'text-indigo-500': return 'rgba(99, 102, 241, 0.8)';
-                                    default: return 'rgba(99, 102, 241, 0.8)';
-                                }
-                            }),
-                            borderRadius: 6,
-                        }],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: isDark ? 'rgba(28,27,31,0.95)' : 'rgba(255,255,255,0.95)',
-                                titleColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                bodyColor: isDark ? '#fcfbf9' : '#1c1b1f',
-                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                                borderWidth: 1,
-                                cornerRadius: 8,
-                                callbacks: {
-                                    afterBody: function (tooltipItems) {
-                                        const kpi = KPIs[tooltipItems[0].dataIndex];
-                                        return kpi ? kpi.description : '';
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { font: { size: 10 }, color: mutedColor } },
-                            y: {
-                                beginAtZero: true,
-                                ticks: { font: { size: 10 }, color: mutedColor },
-                                grid: { color: gridColor }
-                            }
-                        },
-                    },
-                });
-            }
-        }
-    };
-
+    // Initial data fetch
     useEffect(() => {
-        if (!loading) {
-            setTimeout(initializeCharts, 300);
-        }
+        isMounted.current = true;
+        fetchData();
+
         return () => {
-            Object.values(chartInstances.current).forEach((chart: any) => {
-                if (chart) chart.destroy();
+            isMounted.current = false;
+            // Clean up charts
+            Object.keys(chartInstances.current).forEach(key => {
+                if (chartInstances.current[key]) {
+                    chartInstances.current[key]?.destroy();
+                    chartInstances.current[key] = null;
+                }
             });
         };
-    }, [loading, parcelData, inventoryData, procurementData, documentData, activeTab]);
+    }, [fetchData]);
 
-    const getInsightIcon = (type: string) => {
+    // Single useEffect for chart initialization
+    useEffect(() => {
+        if (loading || !isMounted.current) return;
+
+        const myRunId = ++initRunId.current;
+        const timeoutId = setTimeout(() => {
+            if (myRunId !== initRunId.current || !isMounted.current) return;
+            initializeCharts();
+        }, 150);
+
+        return () => {
+            clearTimeout(timeoutId);
+        };
+    }, [loading, activeTab, initializeCharts]);
+
+    const getInsightIcon = useCallback((type: string) => {
         switch (type) {
             case 'positive': return 'text-emerald-500';
             case 'negative': return 'text-red-500';
             case 'warning': return 'text-amber-500';
             default: return 'text-blue-500';
         }
-    };
+    }, []);
 
-    const getInsightBg = (type: string) => {
+    const getInsightBg = useCallback((type: string) => {
         switch (type) {
             case 'positive': return 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800';
             case 'negative': return 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800';
             case 'warning': return 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800';
             default: return 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800';
         }
-    };
+    }, []);
 
-    const getKPIChangeIcon = (type: string) => {
+    const getKPIChangeIcon = useCallback((type: string) => {
         switch (type) {
             case 'up': return 'fa-arrow-up text-emerald-500';
             case 'down': return 'fa-arrow-down text-red-500';
             default: return 'fa-minus text-slate-400';
         }
-    };
+    }, []);
 
-    const InfoTooltip = ({ text }: { text: string }) => (
+    const InfoTooltip = useCallback(({ text }: { text: string }) => (
         <span className="group relative inline-flex items-center ml-1">
             <i className="fas fa-info-circle text-slate-400 text-[10px] cursor-help hover:text-pink-500 transition-colors"></i>
             <span className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 dark:bg-slate-900 text-white text-[10px] rounded-lg shadow-lg whitespace-nowrap z-10 w-48 text-center">
                 {text}
             </span>
         </span>
-    );
+    ), []);
+
+    const ChartLink = useCallback(({ href, label }: { href: string; label: string }) => (
+        <Link
+            href={href}
+            className="text-[10px] text-pink-500 hover:text-pink-600 dark:text-pink-400 dark:hover:text-pink-300 flex items-center gap-1 transition-all duration-200 hover:gap-2 group"
+        >
+            {label}
+            <i className="fas fa-arrow-right text-[8px] transition-transform duration-200 group-hover:translate-x-1"></i>
+        </Link>
+    ), []);
+
+    const CardWrapper = useCallback(({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
+        <div className={`bg-white dark:bg-[#2a2a2e] rounded-xl border border-slate-200/60 dark:border-slate-700/60 p-4 shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 ${className}`}>
+            {children}
+        </div>
+    ), []);
+
+    const TabContent = useCallback(({ children }: { children: React.ReactNode }) => (
+        <div className={`transition-all duration-300 ease-in-out ${isTabTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+            {children}
+        </div>
+    ), [isTabTransitioning]);
 
     if (loading) {
         return (
@@ -901,31 +902,6 @@ export default function ExecutiveCharts() {
         { id: 'forecast', label: 'Forecast', icon: 'fa-chart-line' },
         { id: 'reports', label: 'Reports', icon: 'fa-file-alt' },
     ];
-
-    // Tab content wrapper with animation
-    const TabContent = ({ children }: { children: React.ReactNode }) => (
-        <div className={`transition-all duration-300 ease-in-out ${isTabTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-            {children}
-        </div>
-    );
-
-    // Chart Link component with hover effect
-    const ChartLink = ({ href, label }: { href: string; label: string }) => (
-        <Link
-            href={href}
-            className="text-[10px] text-pink-500 hover:text-pink-600 dark:text-pink-400 dark:hover:text-pink-300 flex items-center gap-1 transition-all duration-200 hover:gap-2 group"
-        >
-            {label}
-            <i className="fas fa-arrow-right text-[8px] transition-transform duration-200 group-hover:translate-x-1"></i>
-        </Link>
-    );
-
-    // Card wrapper with hover effect
-    const CardWrapper = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-        <div className={`bg-white dark:bg-[#2a2a2e] rounded-xl border border-slate-200/60 dark:border-slate-700/60 p-4 shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 ${className}`}>
-            {children}
-        </div>
-    );
 
     return (
         <div className="space-y-4">
@@ -969,10 +945,10 @@ export default function ExecutiveCharts() {
             {activeTab === 'overview' && (
                 <TabContent>
                     {/* AI Insights Banner */}
-                    <div className="bg-gradient-to-r from-pink-50 via-purple-50/50 to-pink-50/30 dark:from-pink-950/30 dark:via-purple-950/20 dark:to-slate-900/40 backdrop-blur-xl rounded-2xl border border-pink-200/80 dark:border-pink-500/20 p-4 shadow-sm dark:shadow-black/40 transition-all duration-300 hover:shadow-2xl hover:shadow-pink-500/20 dark:hover:shadow-pink-500/30 hover:-translate-y-0.5 mb-3">
+                    <div className="bg-gradient-to-r from-pink-50 via-purple-50/50 to-pink-50/30 dark:from-slate-900/90 dark:via-purple-950/25 dark:to-slate-900/90 backdrop-blur-xl rounded-2xl border border-pink-200/80 dark:border-white/10 p-4 shadow-sm dark:shadow-black/50 transition-all duration-300 hover:shadow-2xl hover:shadow-pink-500/20 dark:hover:shadow-pink-500/10 hover:-translate-y-0.5 mb-3">
                         <div className="flex items-center justify-between flex-wrap gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-xl bg-pink-100 dark:bg-pink-950/50 dark:border dark:border-pink-500/30 flex items-center justify-center text-pink-600 dark:text-pink-400 shadow-xs dark:shadow-pink-500/20 transition-all duration-300 group-hover:shadow-md group-hover:shadow-pink-500/30">
+                                <div className="w-8 h-8 rounded-xl bg-pink-100 dark:bg-pink-950/60 dark:border dark:border-pink-500/30 flex items-center justify-center text-pink-600 dark:text-pink-400 shadow-xs">
                                     <i className="fas fa-robot text-sm" />
                                 </div>
                                 <div>
@@ -991,7 +967,7 @@ export default function ExecutiveCharts() {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setShowInsights(!showInsights)}
-                                    className="text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-all duration-200 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-white/10 shadow-2xs dark:shadow-black/20 hover:shadow-md cursor-pointer"
+                                    className="text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white transition-all duration-200 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-white/10 shadow-2xs dark:shadow-black/20 hover:shadow-md cursor-pointer"
                                 >
                                     {showInsights ? 'Hide Insights' : 'Show Insights'}
                                 </button>
@@ -1007,18 +983,27 @@ export default function ExecutiveCharts() {
                                         onClick={() => setSelectedInsight(insight)}
                                         className={`p-3 rounded-xl border border-slate-200/80 dark:border-white/10 ${getInsightBg(
                                             insight.type
-                                        )} dark:bg-slate-900/60 backdrop-blur-md transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 dark:hover:border-pink-500/40 cursor-pointer relative group flex flex-col justify-between`}
+                                        )} dark:bg-slate-900/95 backdrop-blur-md transition-all duration-300 hover:shadow-xl dark:hover:shadow-black/80 hover:-translate-y-1 dark:hover:border-pink-500/40 cursor-pointer relative group flex flex-col justify-between`}
                                     >
                                         <div className="flex items-start justify-between gap-2.5">
                                             <div className="min-w-0 flex-1">
                                                 <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 truncate">
-                                                    <i className={`fas ${insight.type === 'positive' ? 'fa-arrow-up' : insight.type === 'negative' ? 'fa-arrow-down' : insight.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'} text-[10px] ${getInsightIcon(insight.type)}`} />
+                                                    <i
+                                                        className={`fas ${insight.type === 'positive'
+                                                            ? 'fa-arrow-up'
+                                                            : insight.type === 'negative'
+                                                                ? 'fa-arrow-down'
+                                                                : insight.type === 'warning'
+                                                                    ? 'fa-exclamation-triangle'
+                                                                    : 'fa-info-circle'
+                                                            } text-[10px] ${getInsightIcon(insight.type)}`}
+                                                    />
                                                     <span className="truncate group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
                                                         {insight.title}
                                                     </span>
                                                     <InfoTooltip text={insight.description} />
                                                 </div>
-                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
                                                     {insight.description}
                                                 </p>
                                             </div>
@@ -1026,10 +1011,12 @@ export default function ExecutiveCharts() {
                                             <div className="shrink-0 text-right">
                                                 <span className={`text-xs font-semibold ${getInsightIcon(insight.type)}`}>
                                                     {insight.metric && (
-                                                        <span className="block font-bold leading-none">{insight.metric}</span>
+                                                        <span className="block font-bold leading-none dark:text-white">
+                                                            {insight.metric}
+                                                        </span>
                                                     )}
                                                     {insight.change && (
-                                                        <span className="block text-[10px] text-slate-400 dark:text-slate-400/80 font-medium mt-0.5">
+                                                        <span className="block text-[10px] text-slate-400 dark:text-slate-300 font-medium mt-0.5">
                                                             {insight.change}
                                                         </span>
                                                     )}
@@ -1038,7 +1025,7 @@ export default function ExecutiveCharts() {
                                         </div>
 
                                         {insight.actionable && (
-                                            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+                                            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/10 flex items-center justify-between">
                                                 <Link
                                                     href={insight.actionLink || '#'}
                                                     onClick={(e) => e.stopPropagation()}
@@ -1070,11 +1057,11 @@ export default function ExecutiveCharts() {
                                 <canvas ref={chartRefs.parcels}></canvas>
                             </div>
                             <div className="mt-2 text-[10px] text-slate-400 text-center flex items-center justify-center gap-3 flex-wrap">
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span>Received</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span>Sorting</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span>Ready</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span>Picked Up</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-500"></span>Delivered</span>
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.secondary }}></span>Received</span>
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.warning }}></span>Sorting</span>
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.success }}></span>Ready</span>
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.purple }}></span>Picked Up</span>
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.primary }}></span>Delivered</span>
                             </div>
                         </CardWrapper>
 
@@ -1093,7 +1080,7 @@ export default function ExecutiveCharts() {
                         </CardWrapper>
                     </div>
 
-                    {/* KPI Cards with hover effect */}
+                    {/* KPI Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
                         {KPIs.map((kpi) => (
                             <div
@@ -1211,58 +1198,6 @@ export default function ExecutiveCharts() {
                             </div>
                             <div className="h-[300px]">
                                 <canvas ref={chartRefs.kpi}></canvas>
-                            </div>
-                        </CardWrapper>
-
-                        <CardWrapper>
-                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-1">
-                                <i className="fas fa-table text-pink-500"></i>
-                                KPI Details
-                                <InfoTooltip text="Detailed breakdown of all KPIs with performance indicators" />
-                            </h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 dark:bg-slate-800/50">
-                                        <tr>
-                                            <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400">KPI</th>
-                                            <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400">Value</th>
-                                            <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400">Change</th>
-                                            <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {KPIs.map((kpi) => (
-                                            <tr key={kpi.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200">
-                                                <td className="px-4 py-2 flex items-center gap-2">
-                                                    <i className={`fas ${kpi.icon} ${kpi.color}`}></i>
-                                                    <span className="font-medium text-slate-700 dark:text-slate-300">{kpi.label}</span>
-                                                    <InfoTooltip text={kpi.description} />
-                                                </td>
-                                                <td className="px-4 py-2 font-bold text-slate-900 dark:text-white">{kpi.value}</td>
-                                                <td className="px-4 py-2">
-                                                    {kpi.change && (
-                                                        <span className={`text-xs font-medium flex items-center gap-1 ${kpi.changeType === 'up' ? 'text-emerald-500' :
-                                                            kpi.changeType === 'down' ? 'text-red-500' : 'text-slate-400'
-                                                            }`}>
-                                                            <i className={`fas ${getKPIChangeIcon(kpi.changeType ?? '')} text-[10px]`}></i>
-                                                            {kpi.change}
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-2">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${kpi.changeType === 'up' ? 'bg-emerald-100 text-emerald-700' :
-                                                        kpi.changeType === 'down' ? 'bg-red-100 text-red-700' :
-                                                            'bg-slate-100 text-slate-700'
-                                                        }`}>
-                                                        {kpi.changeType === 'up' ? 'Improving' :
-                                                            kpi.changeType === 'down' ? 'Declining' :
-                                                                'Stable'}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
                             </div>
                         </CardWrapper>
                     </div>
@@ -1418,7 +1353,7 @@ export default function ExecutiveCharts() {
                                 </div>
                                 <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">No Insights Generated Yet</h4>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                                    Click &quot;Generate Insights&quot; above to run automated AI diagnostics on your records.
+                                    Click "Generate Insights" above to run automated AI diagnostics on your records.
                                 </p>
                             </div>
                         )}
@@ -1433,7 +1368,6 @@ export default function ExecutiveCharts() {
                                     className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-xl border border-slate-200/80 dark:border-white/10 animate-scale-in transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60"
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    {/* Modal Header */}
                                     <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/10 px-6 py-4 flex items-center justify-between z-10">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-lg bg-pink-50 dark:bg-pink-950/50 border border-pink-200/60 dark:border-pink-800/40 flex items-center justify-center text-pink-600 dark:text-pink-400 transition-transform duration-300 hover:scale-110">
@@ -1451,7 +1385,6 @@ export default function ExecutiveCharts() {
                                         </button>
                                     </div>
 
-                                    {/* Modal Body */}
                                     <div className="p-6 space-y-4">
                                         <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-white/5 transition-all duration-300 hover:shadow-md">
                                             <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
