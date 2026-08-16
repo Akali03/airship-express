@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import Logout from '../logout/page';
+import LogoutButton from './LogoutButton';
 
 export default function UserMenu() {
     const { user, loading } = useCurrentUser();
@@ -69,7 +69,7 @@ export default function UserMenu() {
                             </p>
                         )}
                         <div className="border-t border-line px-3 pt-2 dark:border-paper/10">
-                            <Logout />
+                            <LogoutButton />
                         </div>
                     </motion.div>
                 )}

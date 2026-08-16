@@ -1,8 +1,8 @@
 'use client';
 
 import { Menu, PanelLeftClose, PanelLeftOpen, Search, Bell, MessageSquare } from 'lucide-react';
-import { useSidebar } from '../sidebar-context/page';
-import UserMenu from '../user-menu/page';
+import { useSidebar } from './SidebarContext';
+import UserMenu from './UserMenu';
 import ThemeToggle from '@/app/components/ThemeToggle';
 
 export default function Navbar() {

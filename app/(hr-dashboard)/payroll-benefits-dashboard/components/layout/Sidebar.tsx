@@ -15,15 +15,41 @@ import {
     Bot,
     X,
 } from 'lucide-react';
-import { useSidebar } from '../sidebar-context/page';
+import { useSidebar } from './SidebarContext';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 const MODULES = [
-    { icon: Wallet, label: 'Payroll', full: 'Payroll Management', href: '/payroll-benefits-dashboard/payroll-management' },
-    { icon: TrendingUp, label: 'Compensation', full: 'Compensation Planning', href: '/payroll-benefits-dashboard/compensation-planning' },
-    { icon: Receipt, label: 'Claims', full: 'Claims and Reimbursement', href: '/payroll-benefits-dashboard/claims-and-reimbursement' },
-    { icon: HeartPulse, label: 'Benefits', full: 'HMO & Benefits Administration', href: '/payroll-benefits-dashboard/hmo-benefits-administration' },
-    { icon: BarChart3, label: 'Analytics', full: 'HR Analytics Dashboard', href: '/payroll-benefits-dashboard/hr-analytics-dashboard' },
+    {
+        icon: Wallet,
+        label: 'Payroll',
+        full: 'Payroll Management',
+        href: '/payroll-benefits-dashboard/payroll-management'
+    },
+    {
+        icon: TrendingUp,
+        label: 'Compensation',
+        full: 'Compensation Planning',
+        href: '/payroll-benefits-dashboard/compensation-planning'
+    },
+    {
+        icon: Receipt,
+        label: 'Claims',
+        full: 'Claims and Reimbursement',
+        href: '/payroll-benefits-dashboard/claims-and-reimbursement'
+    },
+    {
+        // UPDATED: Now points to your new Government Contributions dashboard
+        icon: HeartPulse,
+        label: 'Benefits',
+        full: 'Benefits & Gov\'t Contributions',
+        href: '/payroll-benefits-dashboard/benefits'
+    },
+    {
+        icon: BarChart3,
+        label: 'Analytics',
+        full: 'HR Analytics Dashboard',
+        href: '/payroll-benefits-dashboard/hr-analytics-dashboard'
+    },
 ];
 
 const logoVariants: Variants = {
@@ -48,7 +74,7 @@ const itemVariants: Variants = {
 export default function Sidebar() {
     const pathname = usePathname();
     const { isOpen, close, isCollapsed } = useSidebar();
-    const { user } = useCurrentUser();
+    const { user, loading } = useCurrentUser();
     const [ready, setReady] = useState(false);
 
     useEffect(() => {

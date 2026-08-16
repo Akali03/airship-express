@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, Loader2 } from 'lucide-react';
-import { supabase } from '@/app/lib/supabase/client';
+import { supabase } from '@/app/(hr-dashboard)/supabase/client';
 
-export default function Logout() {
+export default function LogoutButton() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
 
