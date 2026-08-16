@@ -6,8 +6,6 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const email = searchParams.get('email');
 
-        console.log('🔍 check-employee-session called for:', email);
-
         if (!email) {
             return NextResponse.json(
                 { found: false, message: 'Email is required' },
@@ -15,7 +13,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // Query the sessions table by email
+        // find session by email
         const { data: session, error } = await supabase
             .from('sessions')
             .select('email, remember_me, expires_at, user_agent, hr_employee_name, user_id, session_token, is_active')
@@ -23,7 +21,7 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         if (error) {
-            console.error('❌ Database error:', error);
+            console.error('Database error:', error);
             return NextResponse.json(
                 { found: false, message: 'Database error' },
                 { status: 500 }
@@ -31,27 +29,23 @@ export async function GET(request: Request) {
         }
 
         if (!session) {
-            console.log('❌ No session found for:', email);
             return NextResponse.json(
                 { found: false },
                 { status: 404 }
             );
         }
 
-        console.log('✅ Session found:', session);
-
-        // Get user role
+        // get user role
         const { data: userData } = await supabase
             .from('users')
             .select('role')
             .eq('id', session.user_id)
             .maybeSingle();
 
-        // Check if session is expired
+        // check expiration
         const isExpired = new Date(session.expires_at) < new Date();
 
-        // 🔥 Check if session is active on another device
-        // If is_active is true and there's a session_token, the user is logged in
+        // check if actively logged in on another device
         const isCurrentlyActive = session.is_active === true && !isExpired;
 
         return NextResponse.json({
@@ -62,7 +56,7 @@ export async function GET(request: Request) {
             hr_employee_name: session.hr_employee_name,
             is_expired: isExpired,
             is_active: session.is_active,
-            is_currently_active: isCurrentlyActive, // 🔥 New flag
+            is_currently_active: isCurrentlyActive,
             role: userData?.role || 'Employee',
             user_id: session.user_id,
             session_token: session.session_token
