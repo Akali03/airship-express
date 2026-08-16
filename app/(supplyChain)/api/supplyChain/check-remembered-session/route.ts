@@ -6,7 +6,6 @@ export async function GET(request: Request) {
         const sessionToken = request.headers.get('x-session-token');
         const currentUserAgent = request.headers.get('user-agent') || '';
 
-
         if (!sessionToken) {
             return NextResponse.json(
                 { remembered: false, message: 'No session token' },
@@ -14,7 +13,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // First, try to find the session by session_token WITHOUT the join
+        // find session by token
         const { data: session, error } = await supabase
             .from('sessions')
             .select('*')
@@ -35,7 +34,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // Check if expired
+        // check expiration
         if (new Date(session.expires_at) < new Date()) {
             await supabase
                 .from('sessions')
@@ -48,7 +47,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // Check if remembered
+        // check if remembered
         if (!session.remember_me) {
             return NextResponse.json(
                 { remembered: false, message: 'Not remembered' },
@@ -56,7 +55,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // Get user info separately (without join to avoid errors)
+        // get user info
         const { data: userData, error: userError } = await supabase
             .from('users')
             .select('id, display_name, email, role')
@@ -64,7 +63,7 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         if (userError) {
-            // Use session data as fallback
+            // fallback to session data
             return NextResponse.json({
                 remembered: true,
                 differentDevice: false,
@@ -82,7 +81,7 @@ export async function GET(request: Request) {
             });
         }
 
-        // Check device
+        // check if same device
         const storedUserAgent = session.user_agent || '';
         const isSameDevice = storedUserAgent === currentUserAgent;
 
@@ -104,7 +103,7 @@ export async function GET(request: Request) {
             });
         }
 
-        // Reactivate if inactive
+        // reactivate if inactive
         if (!session.is_active) {
             await supabase
                 .from('sessions')
@@ -114,7 +113,6 @@ export async function GET(request: Request) {
                 })
                 .eq('id', session.id);
         }
-
 
         return NextResponse.json({
             remembered: true,

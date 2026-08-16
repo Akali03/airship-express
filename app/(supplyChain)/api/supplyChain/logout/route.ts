@@ -7,13 +7,13 @@ export async function POST(request: Request) {
         const userAgent = request.headers.get('user-agent') || 'Unknown';
         const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'Unknown';
 
-        // Try to get session token from request body if not in header
+        // try body if header missing
         if (!sessionToken) {
             try {
                 const body = await request.json();
                 sessionToken = body.session_token;
             } catch (e) {
-                // No body or invalid JSON
+                // no body or invalid json
             }
         }
 
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
             );
         }
 
-        // Get session
+        // find session
         const { data: session, error: sessionError } = await supabase
             .from('sessions')
             .select('*')
@@ -38,12 +38,11 @@ export async function POST(request: Request) {
             );
         }
 
-        // Deactivate session (keep it in DB for future reuse)
+        // deactivate session but keep for reuse
         const { error: updateError } = await supabase
             .from('sessions')
             .update({
                 is_active: false,
-                // Update the user_agent with the current one for logging purposes
                 user_agent: userAgent,
             })
             .eq('id', session.id);
@@ -56,7 +55,7 @@ export async function POST(request: Request) {
             );
         }
 
-        // Log logout activity
+        // log activity
         try {
             await supabase
                 .from('user_activity')
@@ -69,8 +68,7 @@ export async function POST(request: Request) {
                     user_agent: userAgent,
                 });
         } catch (activityError) {
-            // Log the error but don't fail the logout
-            console.error('Activity log error (non-critical):', activityError);
+            // non-critical
         }
 
         return NextResponse.json({
@@ -87,7 +85,7 @@ export async function POST(request: Request) {
     }
 }
 
-// Also support OPTIONS for preflight
+// preflight support
 export async function OPTIONS() {
     return NextResponse.json({}, { status: 200 });
 }

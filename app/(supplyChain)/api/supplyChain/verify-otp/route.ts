@@ -1,9 +1,84 @@
+// app/(supplyChain)/api/supplyChain/verify-otp/route.ts
+
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
 import { NextResponse } from 'next/server';
 import { createHash, randomBytes } from 'crypto';
 
-function generateSessionToken(): string {
-    return randomBytes(32).toString('hex');
+const HR_DUMMY_DATA = {
+    'Admin': [
+        {
+            id: '11111111-1111-1111-1111-111111111111',
+            employee_id: 'EMP-001',
+            display_name: 'John Smith',
+            email: 'john.smith@company.com',
+            role: 'Admin',
+            department: 'Management',
+            position: 'CEO',
+            password_hash: 'HR_Password_123'
+        },
+        {
+            id: '22222222-2222-2222-2222-222222222222',
+            employee_id: 'EMP-002',
+            display_name: 'Sarah Johnson',
+            email: 'janzeldols@gmail.com',
+            role: 'Admin',
+            department: 'Management',
+            position: 'COO',
+            password_hash: 'HR_Password_456'
+        }
+    ],
+    'Manager': [
+        {
+            id: '33333333-3333-3333-3333-333333333333',
+            employee_id: 'EMP-003',
+            display_name: 'Mike Brown',
+            email: 'mike.brown@company.com',
+            role: 'Manager',
+            department: 'Operations',
+            position: 'Warehouse Manager',
+            password_hash: 'HR_Password_789'
+        }
+    ],
+    'Employee': [
+        {
+            id: '55555555-5555-5555-5555-555555555555',
+            employee_id: 'EMP-005',
+            display_name: 'Tom Wilson',
+            email: 'tom.wilson@company.com',
+            role: 'Employee',
+            department: 'Warehouse',
+            position: 'Warehouse Staff',
+            password_hash: 'HR_Password_202'
+        }
+    ],
+    'Operator': [
+        {
+            id: '77777777-7777-7777-7777-777777777777',
+            employee_id: 'OPT-001',
+            display_name: 'SupplyChain Operator',
+            email: 'operator@company.com',
+            role: 'Operator',
+            department: 'Warehouse',
+            position: 'Business',
+            password_hash: 'HR_Password_404'
+        }
+    ],
+    'Executive': [
+        {
+            id: '88888888-8888-8888-8888-888888888888',
+            employee_id: 'EXC-001',
+            display_name: 'Executive User',
+            email: 'executive@company.com',
+            role: 'Executive',
+            department: 'Executive',
+            position: 'CEO',
+            password_hash: 'HR_Password_505'
+        }
+    ]
+};
+
+function generateTemporaryToken(): string {
+    return randomBytes(16).toString('hex');
 }
 
 function hashOTP(otp: string): string {
@@ -12,18 +87,16 @@ function hashOTP(otp: string): string {
 
 export async function POST(request: Request) {
     try {
-        const { userId, otp, targetUserId, rememberMe, email, employeeName } = await request.json();
+        const {
+            userId,
+            otp,
+            targetUserId,
+            rememberMe,
+            email,
+            employeeName,
+            employeeRole
+        } = await request.json();
 
-        console.log('🔐 Verifying OTP:', { userId, targetUserId, rememberMe, email, employeeName });
-
-        if (!userId || !otp || !targetUserId || !email) {
-            return NextResponse.json(
-                { message: 'User ID, OTP, target user, and email are required' },
-                { status: 400 }
-            );
-        }
-
-        // 🔥 VALIDATE OTP FORMAT (6 digits)
         if (!/^\d{6}$/.test(otp)) {
             return NextResponse.json(
                 { message: 'OTP must be 6 digits' },
@@ -33,7 +106,7 @@ export async function POST(request: Request) {
 
         const hashedInputOTP = hashOTP(otp);
 
-        // Get latest OTP for the user
+        // get latest otp for this user
         const { data: otpRecords, error: otpError } = await supabase
             .from('otp_codes')
             .select('*')
@@ -45,188 +118,183 @@ export async function POST(request: Request) {
 
         if (otpError || !otpRecords || otpRecords.length === 0) {
             return NextResponse.json(
-                { message: 'No valid OTP found. Please request a new one.' },
+                { message: 'No valid OTP found' },
                 { status: 400 }
             );
         }
 
         const otpRecord = otpRecords[0];
 
-        // Check attempts
         if (otpRecord.attempts >= 5) {
             return NextResponse.json(
-                { message: 'Too many failed attempts. Please request a new OTP.' },
+                { message: 'Too many failed attempts' },
                 { status: 400 }
             );
         }
 
-        // Verify OTP
         const isValid = otpRecord.code_hash === hashedInputOTP;
 
         if (!isValid) {
-            // Increment attempts
             await supabase
                 .from('otp_codes')
                 .update({ attempts: (otpRecord.attempts || 0) + 1 })
                 .eq('id', otpRecord.id);
 
-            const remainingAttempts = 5 - (otpRecord.attempts + 1);
             return NextResponse.json(
-                {
-                    message: `Invalid OTP code. ${remainingAttempts} attempts remaining.`
-                },
+                { message: 'Invalid OTP code' },
                 { status: 400 }
             );
         }
 
-        // Mark OTP as used
+        // mark otp as used
         await supabase
             .from('otp_codes')
             .update({ used_at: new Date().toISOString() })
             .eq('id', otpRecord.id);
 
-        // Get the logged-in user
-        const { data: loggedInUser, error: loggedInError } = await supabase
+        // check if user exists
+        const { data: existingUser } = await supabase
             .from('users')
-            .select('*')
-            .eq('id', userId)
-            .single();
-
-        if (loggedInError || !loggedInUser) {
-            return NextResponse.json(
-                { message: 'User not found' },
-                { status: 404 }
-            );
-        }
-
-        // Get device info
-        const userAgent = request.headers.get('user-agent') || 'Unknown';
-        const ipAddress = request.headers.get('x-forwarded-for') ||
-            request.headers.get('x-real-ip') ||
-            request.headers.get('cf-connecting-ip') ||
-            'Unknown';
-
-        console.log('📱 User Agent:', userAgent);
-        console.log('🌐 IP Address:', ipAddress);
-
-        const sessionExpiresAt = rememberMe
-            ? new Date(Date.now() + 15 * 24 * 3600000)
-            : new Date(Date.now() + 8 * 3600000);
-
-        const sessionToken = generateSessionToken();
-
-        // Check if session exists for this email
-        const { data: existingSession } = await supabase
-            .from('sessions')
-            .select('*')
+            .select('id, email, role, display_name')
             .eq('email', email)
             .maybeSingle();
 
-        let session;
-
-        if (existingSession) {
-            // UPDATE existing session with new device info
-            console.log(`🔄 Updating existing session for ${email}`);
-
-            const { data: updated, error: updateError } = await supabase
-                .from('sessions')
-                .update({
-                    session_token: sessionToken,
-                    expires_at: sessionExpiresAt.toISOString(),
-                    ip_address: ipAddress,
-                    user_agent: userAgent,
-                    is_active: true,
-                    remember_me: rememberMe || false,
-                    hr_employee_name: employeeName || 'HR Employee',
-                })
-                .eq('id', existingSession.id)
-                .select()
-                .single();
-
-            if (updateError) {
-                console.error('Session update error:', updateError);
-                return NextResponse.json(
-                    { message: 'Failed to update session' },
-                    { status: 500 }
-                );
+        // get hr data for password check
+        let hrData = null;
+        for (const roleData of Object.values(HR_DUMMY_DATA)) {
+            const found = roleData.find(emp => emp.email === email);
+            if (found) {
+                hrData = found;
+                break;
             }
-
-            session = updated;
-        } else {
-            // CREATE new session
-            console.log(`🆕 Creating new session for ${email}`);
-
-            const { data: created, error: createError } = await supabase
-                .from('sessions')
-                .insert({
-                    user_id: userId,
-                    session_token: sessionToken,
-                    expires_at: sessionExpiresAt.toISOString(),
-                    ip_address: ipAddress,
-                    user_agent: userAgent,
-                    is_active: true,
-                    email: email,
-                    hr_employee_name: employeeName || 'HR Employee',
-                    remember_me: rememberMe || false,
-                })
-                .select()
-                .single();
-
-            if (createError) {
-                console.error('Session creation error:', createError);
-                return NextResponse.json(
-                    { message: 'Failed to create session' },
-                    { status: 500 }
-                );
-            }
-
-            session = created;
         }
 
-        // Update last_login in users table
-        await supabase
-            .from('users')
-            .update({
-                last_login: new Date().toISOString(),
-            })
-            .eq('id', userId);
+        // get client info
+        const ipAddress = request.headers.get('x-forwarded-for') ||
+            request.headers.get('x-real-ip') ||
+            'Unknown';
+        const userAgent = request.headers.get('user-agent') || 'Unknown';
 
-        // Log activity
-        await supabase
-            .from('user_activity')
-            .insert({
-                user_id: userId,
-                action: 'LOGIN',
-                module: 'Authentication',
-                description: `User logged in as ${employeeName} (${email}) ${rememberMe ? '🔒 15 days' : '⏱️ 8 hours'}`,
-                ip_address: ipAddress,
-                user_agent: userAgent,
+        // determine session expiry
+        const expiresAt = rememberMe
+            ? new Date(Date.now() + 15 * 24 * 3600000)
+            : new Date(Date.now() + 8 * 3600000);
+
+        if (existingUser) {
+            // 🔥 FIX: UPDATE EXISTING SESSION INSTEAD OF CREATING NEW ONE
+            const sessionToken = randomBytes(32).toString('hex');
+
+            // First, deactivate any existing active sessions for this user
+            await supabase
+                .from('sessions')
+                .update({
+                    is_active: false,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('user_id', existingUser.id)
+                .eq('is_active', true);
+
+            const { data: existingSession } = await supabase
+                .from('sessions')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle();
+
+            if (existingSession) {
+                const { error: updateError } = await supabase
+                    .from('sessions')
+                    .update({
+                        session_token: sessionToken,
+                        expires_at: expiresAt.toISOString(),
+                        ip_address: ipAddress,
+                        user_agent: userAgent,
+                        is_active: true,
+                        remember_me: rememberMe || false,
+                        hr_employee_name: existingUser.display_name,
+                        updated_at: new Date().toISOString(),
+                        // Keep created_at as is
+                    })
+                    .eq('id', existingSession.id);
+
+                if (updateError) {
+                    console.error('Session update error:', updateError);
+                    return NextResponse.json(
+                        { message: 'Failed to update session' },
+                        { status: 500 }
+                    );
+                }
+
+                console.log('✅ Session updated for:', email);
+            } else {
+                const { error: insertError } = await supabase
+                    .from('sessions')
+                    .insert({
+                        user_id: existingUser.id,
+                        session_token: sessionToken,
+                        expires_at: expiresAt.toISOString(),
+                        email: email,
+                        hr_employee_name: existingUser.display_name,
+                        is_active: true,
+                        remember_me: rememberMe || false,
+                        user_agent: userAgent,
+                        ip_address: ipAddress,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    });
+
+                if (insertError) {
+                    console.error('Session creation error:', insertError);
+                    return NextResponse.json(
+                        { message: 'Failed to create session' },
+                        { status: 500 }
+                    );
+                }
+
+                console.log('✅ New session created for:', email);
+            }
+
+            const roleRedirects: Record<string, string> = {
+                'Admin': '/executive',
+                'Manager': '/warehousing?tab=incoming',
+                'Employee': '/documents',
+                'Operator': '/warehousing?tab=incoming',
+                'Executive': '/executive'
+            };
+
+            return NextResponse.json({
+                verified: true,
+                userExists: true,
+                userId: existingUser.id,
+                session_token: sessionToken,
+                redirect_url: roleRedirects[existingUser.role] || '/documents',
+                role: existingUser.role,
+                employee: {
+                    email: email,
+                    display_name: existingUser.display_name,
+                    role: existingUser.role
+                }
             });
+        } else {
+            // user doesn't exist - return temp token for password setup
+            const tempToken = generateTemporaryToken();
 
-        // Get user role
-        const { data: userData } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', userId)
-            .single();
-
-        const role = userData?.role || 'Employee';
-
-        const roleRedirects: Record<string, string> = {
-            'Admin': '/executive',
-            'Manager': '/warehousing?tab=incoming',
-            'Employee': '/documents',
-            'Operator': '/warehousing?tab=incoming',
-            'Executive': '/executive'
-        };
-
-        return NextResponse.json({
-            session_token: sessionToken,
-            role: role,
-            redirect_url: roleRedirects[role] || '/documents',
-            remember_me: rememberMe || false,
-            expires_at: sessionExpiresAt.toISOString(),
-        });
+            return NextResponse.json({
+                verified: true,
+                userExists: false,
+                tempToken: tempToken,
+                hrHasPassword: !!hrData?.password_hash,
+                hrPassword: hrData?.password_hash || null,
+                employee: {
+                    id: targetUserId,
+                    email: email,
+                    display_name: employeeName || 'User',
+                    role: employeeRole || 'Employee',
+                    employee_id: hrData?.employee_id || null,
+                    department: hrData?.department || null,
+                    position: hrData?.position || null,
+                }
+            });
+        }
     } catch (error) {
         console.error('Error verifying OTP:', error);
         return NextResponse.json(
