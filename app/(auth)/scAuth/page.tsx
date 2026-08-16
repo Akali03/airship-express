@@ -878,7 +878,6 @@ export default function SupplyChainLoginPage() {
                 throw new Error(data.message || 'Invalid OTP');
             }
 
-            // 🔥 FIX: Store session token but show password modal instead of auto-login
             if (data.userExists) {
                 // Store session token temporarily
                 localStorage.setItem('session_token', data.session_token);
@@ -886,7 +885,6 @@ export default function SupplyChainLoginPage() {
                 localStorage.setItem('user_name', data.employee.display_name);
                 localStorage.setItem('user_email', data.employee.email);
 
-                // 🔥 Show remembered password modal instead of auto-login
                 setSelectedEmployee({
                     id: data.employee.id || selectedEmployee.id,
                     display_name: data.employee.display_name,

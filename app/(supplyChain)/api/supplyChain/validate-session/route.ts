@@ -26,7 +26,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // Check if session is expired
+        // check expiration
         const expiresAt = new Date(session.expires_at);
         if (expiresAt < new Date()) {
             await supabase
@@ -40,20 +40,7 @@ export async function GET(request: Request) {
             );
         }
 
-        // Check if session matches user's current session (prevents multiple devices)
-        if (session.users.session_id !== session.id) {
-            await supabase
-                .from('sessions')
-                .update({ is_active: false })
-                .eq('id', session.id);
-
-            return NextResponse.json(
-                { valid: false, message: 'Logged in elsewhere' },
-                { status: 401 }
-            );
-        }
-
-        // Check for duplicate active sessions
+        // check for duplicate active sessions
         const { data: activeSessions } = await supabase
             .from('sessions')
             .select('id')
@@ -61,7 +48,7 @@ export async function GET(request: Request) {
             .eq('is_active', true);
 
         if (activeSessions && activeSessions.length > 1) {
-            // Keep only this session
+            // keep only this session
             const otherSessions = activeSessions.filter(s => s.id !== session.id);
             for (const otherSession of otherSessions) {
                 await supabase
@@ -71,7 +58,7 @@ export async function GET(request: Request) {
             }
         }
 
-        // Calculate remaining time
+        // calculate remaining time
         const remainingMs = expiresAt.getTime() - new Date().getTime();
         const remainingHours = Math.floor(remainingMs / 3600000);
         const remainingMinutes = Math.floor((remainingMs % 3600000) / 60000);

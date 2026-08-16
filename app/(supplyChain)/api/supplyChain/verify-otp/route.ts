@@ -106,7 +106,7 @@ export async function POST(request: Request) {
 
         const hashedInputOTP = hashOTP(otp);
 
-        // get latest otp for this user
+        // get latest valid otp
         const { data: otpRecords, error: otpError } = await supabase
             .from('otp_codes')
             .select('*')
@@ -181,10 +181,9 @@ export async function POST(request: Request) {
             : new Date(Date.now() + 8 * 3600000);
 
         if (existingUser) {
-            // 🔥 FIX: UPDATE EXISTING SESSION INSTEAD OF CREATING NEW ONE
             const sessionToken = randomBytes(32).toString('hex');
 
-            // First, deactivate any existing active sessions for this user
+            // deactivate existing sessions
             await supabase
                 .from('sessions')
                 .update({
@@ -212,19 +211,16 @@ export async function POST(request: Request) {
                         remember_me: rememberMe || false,
                         hr_employee_name: existingUser.display_name,
                         updated_at: new Date().toISOString(),
-                        // Keep created_at as is
                     })
                     .eq('id', existingSession.id);
 
                 if (updateError) {
-                    console.error('Session update error:', updateError);
                     return NextResponse.json(
                         { message: 'Failed to update session' },
                         { status: 500 }
                     );
                 }
 
-                console.log('✅ Session updated for:', email);
             } else {
                 const { error: insertError } = await supabase
                     .from('sessions')
@@ -243,14 +239,12 @@ export async function POST(request: Request) {
                     });
 
                 if (insertError) {
-                    console.error('Session creation error:', insertError);
                     return NextResponse.json(
                         { message: 'Failed to create session' },
                         { status: 500 }
                     );
                 }
 
-                console.log('✅ New session created for:', email);
             }
 
             const roleRedirects: Record<string, string> = {
@@ -296,7 +290,6 @@ export async function POST(request: Request) {
             });
         }
     } catch (error) {
-        console.error('Error verifying OTP:', error);
         return NextResponse.json(
             { message: 'Failed to verify OTP' },
             { status: 500 }
