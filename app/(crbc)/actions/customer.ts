@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "../../library/supabase/server";
+import { createClient } from "../library/supabase/server";
+
 type Channel = "walk_in" | "call";
 
 type addCustomerInput = {

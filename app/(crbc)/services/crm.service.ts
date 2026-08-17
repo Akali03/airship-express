@@ -2,7 +2,7 @@ import { customers } from "../data/customers"
 import { shipments } from "../data/shipments"
 import { Customer, Customers } from "../types/customer"
 import { Shipment } from "../types/shipment"
-import { createClient } from "../../library/supabase/server";
+import { createClient } from "../library/supabase/server";
 
 export async function getAllCustomers(): Promise<Customers[]> {
  const supabase = await createClient();

@@ -1,6 +1,6 @@
 import { AuthForm } from "@/app/(crbc)/components/AuthForm"
 import { customerServiceLogin as signIn } from "@/app/(crbc)/actions/auth"
-import { createClient } from "@/app/library/supabase/server"
+import { createClient } from "@/app/(crbc)/library/supabase/server"
 import { redirect } from "next/navigation"
 
 export default async function StaffLogin() {

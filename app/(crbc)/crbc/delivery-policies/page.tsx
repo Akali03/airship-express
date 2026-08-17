@@ -1,4 +1,4 @@
-import { createClient } from "../../../library/supabase/server";
+import { createClient } from "../../library/supabase/server";
 import { mapDeliveryPolicyRow } from "../../types/delivery-policy";
 import DeliveryPolicyClient from "../../components/DeliveryPolicyClient";
 

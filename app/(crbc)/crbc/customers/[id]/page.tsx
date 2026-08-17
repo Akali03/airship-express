@@ -1,7 +1,7 @@
 import { getCustomerById, getShipmentsByCustomerId } from "@/app/(crbc)/services/crm.service"
 import { notFound } from "next/navigation"
 import { Package, ArrowLeft } from "lucide-react"
-import { formatDate } from "@/app/library/utils/formattedate"
+import { formatDate } from "@/app/(crbc)/library/utils/formattedate"
 import Link from "next/link"
 
 const statusStyle: Record<string, string> = {

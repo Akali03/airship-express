@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 import { Search, Eye } from "lucide-react";
 import Link from "next/link";
 import type { ComplianceRecord, ComplianceStatus } from "../types/compliance.requirement";
-import { formatDate } from "../../library/utils/formattedate";
-import type { Customers } from "@/app/types/customer";
-
-import IconBtn from "@/app/components/IconBtn";
+import { formatDate } from "../library/utils/formattedate";
+import type { Customers } from "../types/customer";
+import IconBtn from "./IconBtn";
 
 const complianceStatusStyle: Record<ComplianceStatus, string> = {
   Compliant: "bg-emerald-50 text-emerald-600",
