@@ -65,15 +65,15 @@ const StatusBadge = ({ status }: { status: string }) => {
     const getStatusStyles = (status: string) => {
         switch (status) {
             case "Received":
-                return "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200/60 dark:border-blue-800/30";
+                return "bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/40";
             case "Waiting":
-                return "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/30";
+                return "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40";
             case "Dispatched":
-                return "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/30";
+                return "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40";
             case "Ready for Dispatch":
-                return "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 border-purple-200/60 dark:border-purple-800/30";
+                return "bg-purple-50 text-purple-700 border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/40";
             default:
-                return "bg-slate-50 dark:bg-slate-800/30 text-slate-700 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60";
+                return "bg-slate-50 text-slate-700 border-slate-200/80 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700/60";
         }
     };
 
@@ -85,7 +85,7 @@ const StatusBadge = ({ status }: { status: string }) => {
     }[status] || "bg-slate-500 dark:bg-slate-400";
 
     return (
-        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusStyles(status)}`}>
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${getStatusStyles(status)}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></span>
             {status}
         </span>
@@ -94,45 +94,47 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 export default function RecentTransactions() {
     return (
-        <div className="card p-5 xl:col-span-2 
-                        bg-white dark:bg-[#2a2a2e] 
-                        border border-slate-200/60 dark:border-slate-700/60 
-                        rounded-xl shadow-sm 
-                        dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
-            <div className="flex items-center justify-between">
-                <div className="font-semibold text-slate-900 dark:text-white">
-                    <i className="fas fa-list mr-2 text-pink-500 dark:text-pink-400"></i> Recent transactions
+        <div className="card xl:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs dark:shadow-xl overflow-hidden">
+            {/* Card Header */}
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center gap-2.5 font-semibold text-slate-900 dark:text-white text-sm">
+                    <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                        <i className="fas fa-list text-xs"></i>
+                    </div>
+                    <span>Recent transactions</span>
                 </div>
                 <ViewLink link="/inventory" name="Open inventory" />
             </div>
-            <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-sm text-left border-collapse">
-                    <thead className="bg-slate-50 dark:bg-[#1a1a1e] text-slate-700 dark:text-slate-300 uppercase text-[11px] tracking-wider font-semibold border-b border-slate-200 dark:border-slate-700">
+
+            {/* Table Container */}
+            <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                    <thead className="bg-slate-50/70 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider font-semibold border-b border-slate-200/80 dark:border-slate-800">
                         <tr>
-                            <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">Reference</th>
-                            <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">Consignee</th>
-                            <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">Courier</th>
-                            <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">Area</th>
-                            <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">Status</th>
-                            <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">Received</th>
+                            <th className="px-6 py-3.5">Reference</th>
+                            <th className="px-6 py-3.5">Consignee</th>
+                            <th className="px-6 py-3.5">Courier</th>
+                            <th className="px-6 py-3.5">Area</th>
+                            <th className="px-6 py-3.5">Status</th>
+                            <th className="px-6 py-3.5">Received</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-[#2a2a2e] divide-y divide-slate-200/60 dark:divide-slate-700/60">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
                         {transactions.map((tx, index) => (
                             <tr
                                 key={tx.id}
-                                className={`${index % 2 === 1 ? 'bg-slate-50/50 dark:bg-[#222226]' : ''} 
-                                           hover:bg-slate-100/70 dark:hover:bg-slate-700/30 
+                                className={`${index % 2 === 1 ? 'bg-slate-50/30 dark:bg-slate-800/20' : 'bg-white dark:bg-slate-900'} 
+                                           hover:bg-slate-50 dark:hover:bg-slate-800/50 
                                            transition-colors duration-150`}
                             >
-                                <td className="px-6 py-4 font-mono text-xs font-medium text-slate-800 dark:text-slate-300">{tx.id}</td>
-                                <td className="px-6 py-4 text-slate-900 dark:text-white">{tx.consignee}</td>
-                                <td className="px-6 py-4 text-slate-700 dark:text-slate-300">{tx.courier}</td>
-                                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{tx.area}</td>
-                                <td className="px-6 py-4">
+                                <td className="px-6 py-3.5 font-mono font-semibold text-slate-800 dark:text-slate-200">{tx.id}</td>
+                                <td className="px-6 py-3.5 text-slate-900 dark:text-white">{tx.consignee}</td>
+                                <td className="px-6 py-3.5 text-slate-600 dark:text-slate-300">{tx.courier}</td>
+                                <td className="px-6 py-3.5 text-slate-500 dark:text-slate-400">{tx.area}</td>
+                                <td className="px-6 py-3.5">
                                     <StatusBadge status={tx.status} />
                                 </td>
-                                <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{tx.received}</td>
+                                <td className="px-6 py-3.5 text-slate-400 dark:text-slate-500 font-mono text-[11px]">{tx.received}</td>
                             </tr>
                         ))}
                     </tbody>

@@ -1078,19 +1078,19 @@ export default function UserActivityPage() {
         <SessionGuard requiredRole={['Admin']}>
             <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in duration-300 bgCard">
 
-                <div className="flex flex-col sm:flex-row items-start justify-between gap-4 border-b border-slate-200/80 pb-5">
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-5">
                     <div className="flex items-start gap-4 min-w-0">
                         {/* Main Icon Box */}
-                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-pink-500/10 border border-pink-500/20 text-pink-500 flex items-center justify-center text-lg sm:text-xl shadow-sm shrink-0 mt-0.5 ring-4 ring-pink-500/5">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-pink-500/10 dark:bg-pink-950/40 border border-pink-500/20 dark:border-pink-900/40 text-pink-500 dark:text-pink-400 flex items-center justify-center text-lg sm:text-xl shadow-xs shrink-0 mt-0.5">
                             <i className="fas fa-shield-halved"></i>
                         </div>
 
                         {/* Text Content & Stat Badges */}
                         <div className="min-w-0">
-                            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                                 Device Management
                             </h1>
-                            <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                                 Monitor all sessions, manage blocked devices, view appeals, and user activity
                             </p>
 
@@ -1098,10 +1098,10 @@ export default function UserActivityPage() {
                             <div className="flex flex-wrap items-center gap-2 mt-3">
                                 {/* Blocked Devices Badge */}
                                 {blockedDevices.filter(d => d.status === 'blocked').length > 0 && (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200/80 text-[11px] sm:text-xs text-red-700 font-medium shadow-2xs">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/40 text-[11px] sm:text-xs text-red-700 dark:text-red-300 font-medium shadow-2xs">
                                         <span className="relative flex h-2 w-2">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 dark:bg-red-500 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 dark:bg-red-400"></span>
                                         </span>
                                         <span>
                                             <strong className="font-semibold">{blockedDevices.filter(d => d.status === 'blocked').length}</strong> blocked device(s)
@@ -1111,10 +1111,10 @@ export default function UserActivityPage() {
 
                                 {/* Pending Appeals Badge */}
                                 {appeals.filter(a => a.status === 'pending').length > 0 && (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-[11px] sm:text-xs text-amber-700 font-medium shadow-2xs">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/40 text-[11px] sm:text-xs text-amber-700 dark:text-amber-300 font-medium shadow-2xs">
                                         <span className="relative flex h-2 w-2">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 dark:bg-amber-500 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400"></span>
                                         </span>
                                         <span>
                                             <strong className="font-semibold">{appeals.filter(a => a.status === 'pending').length}</strong> pending appeal(s)
@@ -1123,8 +1123,8 @@ export default function UserActivityPage() {
                                 )}
 
                                 {/* Total Activities Badge */}
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-50 border border-pink-200/80 text-[11px] sm:text-xs text-pink-700 font-medium shadow-2xs">
-                                    <i className="fas fa-chart-line text-[10px] text-pink-500"></i>
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-50 dark:bg-pink-950/40 border border-pink-200/80 dark:border-pink-900/40 text-[11px] sm:text-xs text-pink-700 dark:text-pink-300 font-medium shadow-2xs">
+                                    <i className="fas fa-chart-line text-[10px] text-pink-500 dark:text-pink-400"></i>
                                     <span>
                                         <strong className="font-semibold">{activities.length}</strong> total activities
                                     </span>
@@ -1134,7 +1134,7 @@ export default function UserActivityPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-inner max-w-full overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-900/90 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-inner max-w-full overflow-x-auto no-scrollbar">
                     {[
                         { id: 'sessions', label: 'Sessions', icon: 'fa-laptop', count: sessions.length },
                         { id: 'blocked', label: 'Blocked', icon: 'fa-ban', count: blockedDevices.length },
@@ -1146,17 +1146,17 @@ export default function UserActivityPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => handleTabChange(tab.id as 'sessions' | 'blocked' | 'activity' | 'appeals')}
-                                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap shrink-0 ${isActive
-                                    ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-900/5'
-                                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/60'
+                                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer ${isActive
+                                    ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-900/5 dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700/80'
+                                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/40'
                                     }`}
                             >
-                                <i className={`fas ${tab.icon} text-xs transition-colors ${isActive ? 'text-pink-500' : 'text-slate-400'
+                                <i className={`fas ${tab.icon} text-xs transition-colors ${isActive ? 'text-pink-500 dark:text-pink-400' : 'text-slate-400 dark:text-slate-500'
                                     }`}></i>
                                 <span>{tab.label}</span>
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${isActive
                                     ? 'bg-pink-500 text-white shadow-2xs'
-                                    : 'bg-slate-200/80 text-slate-600'
+                                    : 'bg-slate-200/80 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                                     }`}>
                                     {tab.count}
                                 </span>
@@ -1164,39 +1164,40 @@ export default function UserActivityPage() {
                         );
                     })}
                 </div>
+
                 {activeTab === 'sessions' && (
-                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs dark:shadow-2xl dark:shadow-black/60 overflow-hidden">
                         {/* Search Header */}
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60">
                             <div className="relative max-w-md">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 h-4 w-4" />
                                 <input
                                     type="text"
                                     placeholder="Search sessions by user, IP, or user agent..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none bg-white"
+                                    className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/70 rounded-xl text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                 />
                             </div>
                         </div>
 
                         {/* Bulk Actions Banner */}
                         {selectedSessions.size > 0 && (
-                            <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                                <span className="text-xs text-slate-600">
+                            <div className="p-3 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
                                     {selectedSessions.size} session(s) selected
                                 </span>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <button
                                         onClick={handleBulkBlock}
-                                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200/80 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
+                                        className="px-3 py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 border border-red-200/80 dark:border-red-900/40 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                                     >
                                         <Ban className="w-3 h-3" />
                                         Block Selected
                                     </button>
                                     <button
                                         onClick={handleBulkDeleteSessions}
-                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
+                                        className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/40 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                                     >
                                         <Trash2 className="w-3 h-3" />
                                         Delete Selected
@@ -1209,7 +1210,7 @@ export default function UserActivityPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-slate-200/60 bg-slate-50/70 text-[11px] font-bold tracking-wider text-slate-400 uppercase select-none">
+                                    <tr className="border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
                                         <th className="py-3 px-4 w-10 text-center">
                                             <input
                                                 type="checkbox"
@@ -1220,7 +1221,7 @@ export default function UserActivityPage() {
                                                     }
                                                 }}
                                                 onChange={handleSelectAllSessions}
-                                                className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
                                             />
                                         </th>
                                         <th className="py-3 px-4">User</th>
@@ -1233,18 +1234,18 @@ export default function UserActivityPage() {
                                         <th className="py-3 px-4 text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 text-xs">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={9} className="py-8 text-center text-slate-500">
-                                                <Loader2 className="animate-spin h-5 w-5 inline mr-2" />
-                                                Loading...
+                                            <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                                                <Loader2 className="animate-spin h-5 w-5 inline mr-2 text-pink-500" />
+                                                Loading sessions...
                                             </td>
                                         </tr>
                                     ) : paginatedSessions.length === 0 ? (
                                         <tr>
-                                            <td colSpan={9} className="py-8 text-center text-slate-500">
-                                                <i className="fas fa-check-circle text-emerald-500 text-lg mr-2" />
+                                            <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                                                <i className="fas fa-check-circle text-emerald-500 dark:text-emerald-400 text-base mr-2" />
                                                 No sessions found
                                             </td>
                                         </tr>
@@ -1270,8 +1271,13 @@ export default function UserActivityPage() {
                                             return (
                                                 <tr
                                                     key={session.id}
-                                                    className={`hover:bg-slate-50/80 transition-colors ${isSelected ? 'bg-pink-50/30' : ''
-                                                        } ${isBlocked ? 'opacity-60 bg-red-50/20' : ''}`}
+                                                    className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected
+                                                        ? 'bg-pink-50/30 dark:bg-pink-950/20'
+                                                        : ''
+                                                        } ${isBlocked
+                                                            ? 'opacity-60 bg-red-50/20 dark:bg-red-950/10'
+                                                            : ''
+                                                        }`}
                                                 >
                                                     <td className="py-3 px-4 text-center">
                                                         <input
@@ -1279,72 +1285,74 @@ export default function UserActivityPage() {
                                                             checked={isSelected}
                                                             disabled={isDisabled}
                                                             onChange={toggleSelection}
-                                                            className={`w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 accent-pink-500 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                                            className={`w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 accent-pink-500 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                                                                 }`}
                                                         />
                                                     </td>
 
                                                     <td className="py-3 px-4">
-                                                        <span className="font-semibold text-slate-800">{userName}</span>
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-200">{userName}</span>
                                                         {isAdmin && (
-                                                            <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                                                            <span className="ml-2 text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400 border border-purple-200/60 dark:border-purple-900/40 px-1.5 py-0.5 rounded-full">
                                                                 Admin
                                                             </span>
                                                         )}
                                                         {isBlocked && (
-                                                            <span className="ml-2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">
+                                                            <span className="ml-2 text-[10px] font-semibold bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400 border border-red-200/60 dark:border-red-900/40 px-1.5 py-0.5 rounded-full">
                                                                 Blocked
                                                             </span>
                                                         )}
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-slate-600">
+                                                    <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                                                         {session.email || session.users?.email || 'N/A'}
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate" title={session.user_agent}>
+                                                    <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[200px] truncate" title={session.user_agent}>
                                                         {session.user_agent || 'Unknown'}
                                                     </td>
 
                                                     <td className="py-3 px-4">
-                                                        <code className="font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60 text-slate-700">
+                                                        <code className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-300">
                                                             {session.ip_address || 'Unknown'}
                                                         </code>
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                                                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                                         {formatDate(session.created_at)}
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                                                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                                         {formatDate(session.expires_at)}
                                                     </td>
 
                                                     <td className="py-3 px-4">
                                                         <span
-                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${session.is_active && !isBlocked
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${session.is_active && !isBlocked
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40'
                                                                 : isBlocked
-                                                                    ? 'bg-red-50 text-red-700 border-red-200/60'
-                                                                    : 'bg-gray-50 text-gray-500 border-gray-200/60'
+                                                                    ? 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/40'
+                                                                    : 'bg-slate-100 text-slate-600 border-slate-200/80 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/60'
                                                                 }`}
                                                         >
                                                             <span
                                                                 className={`w-1.5 h-1.5 rounded-full ${session.is_active && !isBlocked
-                                                                    ? 'bg-emerald-500'
+                                                                    ? 'bg-emerald-500 dark:bg-emerald-400'
                                                                     : isBlocked
-                                                                        ? 'bg-red-500'
-                                                                        : 'bg-gray-400'
+                                                                        ? 'bg-red-500 dark:bg-red-400'
+                                                                        : 'bg-slate-400 dark:bg-slate-500'
                                                                     }`}
                                                             />
-                                                            {isBlocked ? 'Blocked' : session.is_active ? 'Active' : 'Inactive'}
+                                                            <span>
+                                                                {isBlocked ? 'Blocked' : session.is_active ? 'Active' : 'Inactive'}
+                                                            </span>
                                                         </span>
                                                     </td>
 
                                                     <td className="py-3 px-4 text-right">
                                                         <div className="flex items-center justify-end gap-1.5">
                                                             {isBlocked ? (
-                                                                <span className="text-xs text-slate-400 italic" title={`Blocked for ${session.email || session.users?.email}`}>
+                                                                <span className="text-xs text-slate-400 dark:text-slate-500 italic" title={`Blocked for ${session.email || session.users?.email}`}>
                                                                     Blocked
                                                                 </span>
                                                             ) : (
@@ -1359,12 +1367,12 @@ export default function UserActivityPage() {
                                                                         )
                                                                     }
                                                                     disabled={isAdmin}
-                                                                    className={`px-2.5 py-1 text-xs font-semibold bg-red-50 text-red-700 border border-red-200/80 rounded-lg hover:bg-red-100 transition-all flex items-center gap-1.5 ${isAdmin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                                                    className={`px-2.5 py-1 text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-200/80 dark:border-red-900/40 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/50 transition-all flex items-center gap-1.5 ${isAdmin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                                                                         }`}
                                                                     title={isAdmin ? 'Cannot block admin users' : 'Block this device'}
                                                                 >
                                                                     <Ban className="w-3 h-3" />
-                                                                    Block
+                                                                    <span>Block</span>
                                                                 </button>
                                                             )}
                                                         </div>
@@ -1378,8 +1386,8 @@ export default function UserActivityPage() {
                         </div>
 
                         {/* Pagination Footer */}
-                        <div className="p-4 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between">
-                            <span className="text-xs text-slate-500">
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/60 flex items-center justify-between flex-wrap gap-3">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                 Showing {paginatedSessions.length} of {filteredSessions.length} sessions
                             </span>
                             <Pagination
@@ -1393,23 +1401,24 @@ export default function UserActivityPage() {
 
                 {/* Blocked Devices tab */}
                 {activeTab === 'blocked' && (
-                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs dark:shadow-2xl dark:shadow-black/60 overflow-hidden">
+                        {/* Bulk Actions Banner */}
                         {selectedBlockedDevices.size > 0 && (
-                            <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                                <span className="text-xs text-slate-600">
+                            <div className="p-3 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
                                     {selectedBlockedDevices.size} device(s) selected
                                 </span>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <button
                                         onClick={handleBulkUnblock}
-                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-lg text-xs font-semibold transition-all flex items-center gap-2"
+                                        className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                                     >
                                         <Undo className="w-3 h-3" />
                                         Unblock Selected
                                     </button>
                                     <button
                                         onClick={handleBulkDeleteBlocked}
-                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg text-xs font-semibold transition-all flex items-center gap-2"
+                                        className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/40 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                                     >
                                         <Trash2 className="w-3 h-3" />
                                         Delete Selected
@@ -1418,10 +1427,11 @@ export default function UserActivityPage() {
                             </div>
                         )}
 
+                        {/* Table Content */}
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-slate-200/60 bg-slate-50/70 text-[11px] font-bold tracking-wider text-slate-400 uppercase select-none">
+                                    <tr className="border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
                                         <th className="py-3 px-4 w-10 text-center">
                                             <input
                                                 type="checkbox"
@@ -1432,7 +1442,7 @@ export default function UserActivityPage() {
                                                     }
                                                 }}
                                                 onChange={handleSelectAllBlocked}
-                                                className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
                                             />
                                         </th>
                                         <th className="py-3 px-4">Device Name</th>
@@ -1445,18 +1455,18 @@ export default function UserActivityPage() {
                                         <th className="py-3 px-4 text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 text-xs">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={9} className="py-8 text-center text-slate-500">
-                                                <Loader2 className="animate-spin h-5 w-5 inline mr-2" />
-                                                Loading...
+                                            <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                                                <Loader2 className="animate-spin h-5 w-5 inline mr-2 text-pink-500" />
+                                                Loading blocked devices...
                                             </td>
                                         </tr>
                                     ) : paginatedBlockedDevices.length === 0 ? (
                                         <tr>
-                                            <td colSpan={9} className="py-8 text-center text-slate-500">
-                                                <i className="fas fa-check-circle text-emerald-500 text-lg mr-2"></i>
+                                            <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                                                <i className="fas fa-check-circle text-emerald-500 dark:text-emerald-400 text-base mr-2"></i>
                                                 No blocked devices found
                                             </td>
                                         </tr>
@@ -1464,7 +1474,11 @@ export default function UserActivityPage() {
                                         paginatedBlockedDevices.map((device) => {
                                             const isSelected = selectedBlockedDevices.has(device.id);
                                             return (
-                                                <tr key={device.id} className={`hover:bg-slate-50/80 transition-colors ${isSelected ? 'bg-pink-50/30' : ''}`}>
+                                                <tr
+                                                    key={device.id}
+                                                    className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''
+                                                        }`}
+                                                >
                                                     <td className="py-3 px-4 text-center">
                                                         <input
                                                             type="checkbox"
@@ -1478,36 +1492,37 @@ export default function UserActivityPage() {
                                                                 }
                                                                 setSelectedBlockedDevices(newSelected);
                                                             }}
-                                                            className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
                                                         />
                                                     </td>
-                                                    <td className="py-3 px-4 font-medium text-slate-800">
+                                                    <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
                                                         {device.device_name || 'Unknown Device'}
                                                     </td>
-                                                    <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate" title={device.user_agent}>
+                                                    <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[200px] truncate" title={device.user_agent}>
                                                         {device.user_agent}
                                                     </td>
                                                     <td className="py-3 px-4">
-                                                        <code className="font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60 text-slate-700">
+                                                        <code className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-300">
                                                             {device.ip_address || 'Unknown'}
                                                         </code>
                                                     </td>
                                                     <td className="py-3 px-4 text-center">
-                                                        <span className="font-bold text-slate-700">{device.blocked_count || 0}</span>
+                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{device.blocked_count || 0}</span>
                                                     </td>
-                                                    <td className="py-3 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                                                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                                         {formatDate(device.blocked_at)}
                                                     </td>
-                                                    <td className="py-3 px-4 text-slate-600 max-w-[150px] truncate">
+                                                    <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[150px] truncate">
                                                         {device.reason || 'No reason provided'}
                                                     </td>
                                                     <td className="py-3 px-4">
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${device.status === 'blocked'
-                                                            ? 'bg-red-50 text-red-700 border-red-200/60'
-                                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${device.status === 'blocked'
+                                                            ? 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/40'
+                                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40'
                                                             }`}>
-                                                            <span className={`w-1.5 h-1.5 rounded-full ${device.status === 'blocked' ? 'bg-red-500' : 'bg-emerald-500'}`} />
-                                                            {device.status === 'blocked' ? 'Blocked' : 'Unblocked'}
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${device.status === 'blocked' ? 'bg-red-500 dark:bg-red-400' : 'bg-emerald-500 dark:bg-emerald-400'
+                                                                }`} />
+                                                            <span>{device.status === 'blocked' ? 'Blocked' : 'Unblocked'}</span>
                                                         </span>
                                                     </td>
                                                     <td className="py-3 px-4 text-right">
@@ -1515,18 +1530,18 @@ export default function UserActivityPage() {
                                                             {device.status === 'blocked' && (
                                                                 <button
                                                                     onClick={() => handleUnblockDevice(device.id, device.email)}
-                                                                    className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5"
+                                                                    className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all flex items-center gap-1.5 cursor-pointer"
                                                                 >
                                                                     <Undo className="w-3 h-3" />
-                                                                    Unblock
+                                                                    <span>Unblock</span>
                                                                 </button>
                                                             )}
                                                             <button
                                                                 onClick={() => handleDeleteDevice(device.id)}
-                                                                className="px-2.5 py-1 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 rounded-lg hover:bg-rose-100 transition-all flex items-center gap-1.5"
+                                                                className="px-2.5 py-1 text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/40 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-all flex items-center gap-1.5 cursor-pointer"
                                                             >
                                                                 <Trash2 className="w-3 h-3" />
-                                                                Delete
+                                                                <span>Delete</span>
                                                             </button>
                                                         </div>
                                                     </td>
@@ -1537,8 +1552,10 @@ export default function UserActivityPage() {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="p-4 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between">
-                            <span className="text-xs text-slate-500">
+
+                        {/* Pagination Footer */}
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/60 flex items-center justify-between flex-wrap gap-3">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                 Showing {paginatedBlockedDevices.length} of {blockedDevices.length} blocked devices
                             </span>
                             <Pagination
@@ -1552,11 +1569,11 @@ export default function UserActivityPage() {
 
                 {/* Appeals Tab with Modern SaaS UI */}
                 {activeTab === 'appeals' && (
-                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/80 shadow-xl shadow-slate-200/40 overflow-hidden transition-all duration-300">
+                    <div className="bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-200/40 dark:shadow-2xl dark:shadow-black/60 overflow-hidden transition-all duration-300">
 
                         {/* Contextual Bulk Action Bar */}
                         {selectedAppeals.size > 0 && (
-                            <div className="p-3.5 bg-slate-900/95 backdrop-blur-md text-white flex items-center justify-between flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200 border-b border-slate-800">
+                            <div className="p-3.5 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white flex items-center justify-between flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200 border-b border-slate-800">
                                 <div className="flex items-center gap-3">
                                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-pink-500/20 text-pink-400 text-xs font-bold border border-pink-500/30 shadow-2xs">
                                         {selectedAppeals.size}
@@ -1604,7 +1621,7 @@ export default function UserActivityPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-slate-200/70 bg-slate-50/70 text-[11px] font-bold tracking-wider text-slate-400 uppercase select-none">
+                                    <tr className="border-b border-slate-200/70 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
                                         <th className="py-4 px-4 w-12 text-center">
                                             <input
                                                 type="checkbox"
@@ -1615,7 +1632,7 @@ export default function UserActivityPage() {
                                                     }
                                                 }}
                                                 onChange={handleSelectAllAppeals}
-                                                className="w-4 h-4 rounded-md border-slate-300 text-pink-500 focus:ring-pink-500/20 focus:ring-offset-0 cursor-pointer accent-pink-500 transition-all"
+                                                className="w-4 h-4 rounded-md border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 focus:ring-offset-0 cursor-pointer accent-pink-500 transition-all bg-transparent"
                                             />
                                         </th>
                                         <th className="py-4 px-4">User</th>
@@ -1627,27 +1644,27 @@ export default function UserActivityPage() {
                                         <th className="py-4 px-4 text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 text-xs">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={8} className="py-16 text-center text-slate-400">
+                                            <td colSpan={8} className="py-16 text-center text-slate-400 dark:text-slate-500">
                                                 <div className="flex flex-col items-center justify-center gap-3">
-                                                    <div className="p-3 bg-pink-50 rounded-full border border-pink-100">
-                                                        <Loader2 className="animate-spin h-6 w-6 text-pink-500" />
+                                                    <div className="p-3 bg-pink-50 dark:bg-pink-950/40 rounded-full border border-pink-100 dark:border-pink-900/40">
+                                                        <Loader2 className="animate-spin h-6 w-6 text-pink-500 dark:text-pink-400" />
                                                     </div>
-                                                    <span className="text-xs font-semibold text-slate-600 tracking-wide">Loading appeals data...</span>
+                                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tracking-wide">Loading appeals data...</span>
                                                 </div>
                                             </td>
                                         </tr>
                                     ) : paginatedAppeals.length === 0 ? (
                                         <tr>
                                             <td colSpan={8} className="py-16 text-center">
-                                                <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
-                                                    <div className="w-12 h-12 rounded-2xl bg-slate-100/80 border border-slate-200/60 flex items-center justify-center text-slate-400 mb-1 shadow-2xs">
+                                                <div className="flex flex-col items-center justify-center gap-2 text-slate-400 dark:text-slate-500">
+                                                    <div className="w-12 h-12 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1 shadow-2xs">
                                                         <i className="fas fa-inbox text-xl" />
                                                     </div>
-                                                    <p className="text-sm font-bold text-slate-700">No appeals found</p>
-                                                    <p className="text-xs text-slate-400">There are no appeals matching your current view filter.</p>
+                                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">No appeals found</p>
+                                                    <p className="text-xs text-slate-400 dark:text-slate-500">There are no appeals matching your current view filter.</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1661,8 +1678,8 @@ export default function UserActivityPage() {
                                                 <tr
                                                     key={appeal.id}
                                                     className={`group transition-all duration-150 ${isSelected
-                                                        ? 'bg-pink-50/50 hover:bg-pink-50/70'
-                                                        : 'hover:bg-slate-50/80'
+                                                        ? 'bg-pink-50/50 dark:bg-pink-950/20 hover:bg-pink-50/70 dark:hover:bg-pink-950/30'
+                                                        : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
                                                         }`}
                                                 >
                                                     {/* Checkbox */}
@@ -1679,31 +1696,31 @@ export default function UserActivityPage() {
                                                                 }
                                                                 setSelectedAppeals(newSelected);
                                                             }}
-                                                            className="w-4 h-4 rounded-md border-slate-300 text-pink-500 focus:ring-pink-500/20 focus:ring-offset-0 cursor-pointer accent-pink-500 transition-all"
+                                                            className="w-4 h-4 rounded-md border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 focus:ring-offset-0 cursor-pointer accent-pink-500 transition-all bg-transparent"
                                                         />
                                                     </td>
 
                                                     {/* User Name with Initial Avatar Badge */}
                                                     <td className="py-3.5 px-4">
                                                         <div className="flex items-center gap-2.5">
-                                                            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200/60 text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0 uppercase">
+                                                            <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 uppercase">
                                                                 {appeal.user_name ? appeal.user_name.charAt(0) : 'U'}
                                                             </div>
-                                                            <div className="font-semibold text-slate-800 group-hover:text-pink-600 transition-colors">
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
                                                                 {appeal.user_name}
                                                             </div>
                                                         </div>
                                                     </td>
 
                                                     {/* User Email */}
-                                                    <td className="py-3.5 px-4 text-slate-500 font-medium">
+                                                    <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-medium">
                                                         {appeal.user_email}
                                                     </td>
 
                                                     {/* Appeal Message */}
-                                                    <td className="py-3.5 px-4 text-slate-600 max-w-[220px]">
+                                                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 max-w-[220px]">
                                                         <span
-                                                            className="truncate block text-slate-700 bg-slate-100/60 group-hover:bg-white px-2.5 py-1 rounded-lg border border-slate-200/60 transition-colors shadow-2xs"
+                                                            className="truncate block text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-800/60 group-hover:bg-white dark:group-hover:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/60 dark:border-slate-700/60 transition-colors shadow-2xs"
                                                             title={appeal.appeal_message}
                                                         >
                                                             {appeal.appeal_message}
@@ -1711,16 +1728,16 @@ export default function UserActivityPage() {
                                                     </td>
 
                                                     {/* Response Message */}
-                                                    <td className="py-3.5 px-4 text-slate-600 max-w-[180px]">
+                                                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 max-w-[180px]">
                                                         {appeal.response_message ? (
                                                             <span
-                                                                className="truncate block text-emerald-700 bg-emerald-50/70 px-2.5 py-1 rounded-lg border border-emerald-200/60 font-medium shadow-2xs"
+                                                                className="truncate block text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40 font-medium shadow-2xs"
                                                                 title={appeal.response_message}
                                                             >
                                                                 {appeal.response_message}
                                                             </span>
                                                         ) : (
-                                                            <span className="text-slate-400 italic text-[11px] px-1">
+                                                            <span className="text-slate-400 dark:text-slate-500 italic text-[11px] px-1">
                                                                 No response yet
                                                             </span>
                                                         )}
@@ -1730,10 +1747,10 @@ export default function UserActivityPage() {
                                                     <td className="py-3.5 px-4 whitespace-nowrap">
                                                         <span
                                                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${isPending
-                                                                ? 'bg-amber-50/80 text-amber-700 border-amber-200/80 shadow-2xs'
+                                                                ? 'bg-amber-50/80 text-amber-700 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/40 shadow-2xs'
                                                                 : appeal.status === 'approved'
-                                                                    ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80 shadow-2xs'
-                                                                    : 'bg-rose-50/80 text-rose-700 border-rose-200/80 shadow-2xs'
+                                                                    ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/40 shadow-2xs'
+                                                                    : 'bg-rose-50/80 text-rose-700 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/40 shadow-2xs'
                                                                 }`}
                                                         >
                                                             <span
@@ -1749,7 +1766,7 @@ export default function UserActivityPage() {
                                                     </td>
 
                                                     {/* Created At */}
-                                                    <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                                    <td className="py-3.5 px-4 text-slate-400 dark:text-slate-500 font-mono text-[11px] whitespace-nowrap">
                                                         {formatDate(appeal.created_at)}
                                                     </td>
 
@@ -1761,17 +1778,17 @@ export default function UserActivityPage() {
                                                                     <button
                                                                         onClick={() => handleApproveAppeal(appeal.id)}
                                                                         title="Approve Appeal"
-                                                                        className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
+                                                                        className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
                                                                     >
-                                                                        <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                                                        <CheckCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                                                                         Approve
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleRejectAppeal(appeal.id)}
                                                                         title="Reject Appeal"
-                                                                        className="px-2.5 py-1 text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
+                                                                        className="px-2.5 py-1 text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/40 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
                                                                     >
-                                                                        <X className="w-3 h-3 text-rose-600" />
+                                                                        <X className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                                                                         Reject
                                                                     </button>
                                                                     <button
@@ -1781,9 +1798,9 @@ export default function UserActivityPage() {
                                                                             setShowResponseModal(true);
                                                                         }}
                                                                         title="Send Custom Response"
-                                                                        className="px-2.5 py-1 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
+                                                                        className="px-2.5 py-1 text-xs font-semibold bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 border border-blue-200/80 dark:border-blue-900/40 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
                                                                     >
-                                                                        <Send className="w-3 h-3 text-blue-600" />
+                                                                        <Send className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                                                                         Respond
                                                                     </button>
                                                                 </>
@@ -1799,16 +1816,16 @@ export default function UserActivityPage() {
                                                                                 setShowResponseModal(true);
                                                                             }}
                                                                             title="View Response Details"
-                                                                            className="px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
+                                                                            className="px-2.5 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
                                                                         >
-                                                                            <Eye className="w-3 h-3 text-slate-500" />
+                                                                            <Eye className="w-3 h-3 text-slate-500 dark:text-slate-400" />
                                                                             View
                                                                         </button>
                                                                     )}
                                                                     <button
                                                                         onClick={() => handleDeleteAppeal(appeal.id)}
                                                                         title="Delete Record"
-                                                                        className="px-2.5 py-1 text-xs font-semibold bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200/80 hover:border-rose-200 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
+                                                                        className="px-2.5 py-1 text-xs font-semibold bg-slate-50 dark:bg-slate-800/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200/80 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-900/40 rounded-lg transition-all duration-150 active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
                                                                     >
                                                                         <Trash2 className="w-3 h-3" />
                                                                         Delete
@@ -1826,10 +1843,10 @@ export default function UserActivityPage() {
                         </div>
 
                         {/* Footer & Pagination */}
-                        <div className="p-4 border-t border-slate-200/60 bg-slate-50/50 flex items-center justify-between flex-wrap gap-3">
-                            <span className="text-xs text-slate-500 font-medium">
-                                Showing <span className="font-semibold text-slate-700">{paginatedAppeals.length}</span> of{' '}
-                                <span className="font-semibold text-slate-700">{appeals.length}</span> appeals
+                        <div className="p-4 border-t border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60 flex items-center justify-between flex-wrap gap-3">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{paginatedAppeals.length}</span> of{' '}
+                                <span className="font-semibold text-slate-700 dark:text-slate-200">{appeals.length}</span> appeals
                             </span>
                             <Pagination
                                 currentPage={appealPage}
@@ -1842,32 +1859,32 @@ export default function UserActivityPage() {
 
                 {/* Activity Log tab with search, filter and pagination */}
                 {activeTab === 'activity' && (
-                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs dark:shadow-2xl dark:shadow-black/60 overflow-hidden">
 
                         {/* Controls Header */}
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60">
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <div className="relative flex-1 max-w-md">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4 pointer-events-none" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 h-4 w-4 pointer-events-none" />
                                     <input
                                         type="text"
                                         placeholder="Search activity by user, action, module, or IP..."
                                         value={activitySearchTerm}
                                         onChange={(e) => setActivitySearchTerm(e.target.value)}
-                                        className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none bg-white transition-all placeholder:text-slate-400"
+                                        className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/70 rounded-xl text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                     />
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                                    <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
                                     <select
                                         value={activityFilter}
                                         onChange={(e) => setActivityFilter(e.target.value)}
-                                        className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none bg-white min-w-[150px] transition-all cursor-pointer text-slate-700"
+                                        className="px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 outline-none min-w-[150px] transition-all cursor-pointer text-slate-700 dark:text-slate-200 shadow-2xs"
                                     >
-                                        <option value="all">All Actions</option>
+                                        <option value="all" className="dark:bg-slate-900">All Actions</option>
                                         {uniqueActions.map((action) => (
-                                            <option key={action} value={action}>
+                                            <option key={action} value={action} className="dark:bg-slate-900">
                                                 {action}
                                             </option>
                                         ))}
@@ -1878,14 +1895,14 @@ export default function UserActivityPage() {
 
                         {/* Bulk Actions Banner */}
                         {selectedActivities.size > 0 && (
-                            <div className="p-3 bg-pink-50/60 border-b border-pink-100 flex items-center justify-between flex-wrap gap-2 transition-all animate-in fade-in duration-150">
-                                <span className="text-xs font-medium text-slate-700">
-                                    <strong className="text-pink-600">{selectedActivities.size}</strong> activity(ies) selected
+                            <div className="p-3 bg-pink-50/60 dark:bg-pink-950/30 border-b border-pink-100 dark:border-pink-900/40 flex items-center justify-between flex-wrap gap-2 transition-all animate-in fade-in duration-150">
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                    <strong className="text-pink-600 dark:text-pink-400">{selectedActivities.size}</strong> activity(ies) selected
                                 </span>
                                 <button
                                     type="button"
                                     onClick={handleBulkDeleteActivities}
-                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200/80 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                    className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 active:bg-rose-200 text-rose-700 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/40 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
                                     <span>Delete Selected</span>
@@ -1897,7 +1914,7 @@ export default function UserActivityPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-slate-200/60 bg-slate-50/70 text-[11px] font-bold tracking-wider text-slate-400 uppercase select-none">
+                                    <tr className="border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
                                         <th className="py-3 px-4 w-10 text-center">
                                             <input
                                                 type="checkbox"
@@ -1908,7 +1925,7 @@ export default function UserActivityPage() {
                                                     }
                                                 }}
                                                 onChange={handleSelectAllActivities}
-                                                className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
                                             />
                                         </th>
                                         <th className="py-3 px-4">User</th>
@@ -1920,10 +1937,10 @@ export default function UserActivityPage() {
                                     </tr>
                                 </thead>
 
-                                <tbody className="divide-y divide-slate-100 text-xs">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={7} className="py-12 text-center text-slate-500">
+                                            <td colSpan={7} className="py-12 text-center text-slate-500 dark:text-slate-400">
                                                 <div className="flex items-center justify-center gap-2">
                                                     <Loader2 className="animate-spin h-5 w-5 text-pink-500" />
                                                     <span className="font-medium">Loading activities...</span>
@@ -1932,9 +1949,9 @@ export default function UserActivityPage() {
                                         </tr>
                                     ) : paginatedActivities.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="py-12 text-center text-slate-400">
+                                            <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500">
                                                 <div className="flex flex-col items-center justify-center gap-2">
-                                                    <Inbox className="w-8 h-8 text-slate-300" />
+                                                    <Inbox className="w-8 h-8 text-slate-300 dark:text-slate-700" />
                                                     <span className="font-medium">No activity log found</span>
                                                 </div>
                                             </td>
@@ -1944,7 +1961,7 @@ export default function UserActivityPage() {
                                             const isSelected = selectedActivities.has(activity.id);
                                             const key = activity.id ?? `activity-${idx}`;
 
-                                            // Action color variant setup
+                                            // Action color variant setup with dedicated dark mode support
                                             const isSuccess =
                                                 activity.action?.includes('LOGIN') || activity.action?.includes('VERIFIED');
                                             const isDanger =
@@ -1953,15 +1970,15 @@ export default function UserActivityPage() {
                                                 activity.action?.includes('BLOCKED');
 
                                             const actionBadgeStyle = isSuccess
-                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40'
                                                 : isDanger
-                                                    ? 'bg-red-50 text-red-700 border-red-200/60'
-                                                    : 'bg-pink-50 text-pink-700 border-pink-200/60';
+                                                    ? 'bg-red-50 text-red-700 border-red-200/60 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/40'
+                                                    : 'bg-pink-50 text-pink-700 border-pink-200/60 dark:bg-pink-950/40 dark:text-pink-400 dark:border-pink-950/40';
 
                                             return (
                                                 <tr
                                                     key={key}
-                                                    className={`hover:bg-slate-50/80 transition-colors ${isSelected ? 'bg-pink-50/30' : ''
+                                                    className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''
                                                         }`}
                                                 >
                                                     <td className="py-3 px-4 text-center">
@@ -1979,16 +1996,16 @@ export default function UserActivityPage() {
                                                                     return next;
                                                                 });
                                                             }}
-                                                            className="w-4 h-4 rounded border-slate-300 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
                                                         />
                                                     </td>
 
                                                     <td className="py-3 px-4">
                                                         <div>
-                                                            <span className="font-semibold text-slate-800 block">
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-200 block">
                                                                 {activity.users?.display_name || 'Unknown'}
                                                             </span>
-                                                            <span className="text-[11px] text-slate-400">
+                                                            <span className="text-[11px] text-slate-400 dark:text-slate-500">
                                                                 {activity.users?.email || 'No email'}
                                                             </span>
                                                         </div>
@@ -2002,23 +2019,23 @@ export default function UserActivityPage() {
                                                         </span>
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-slate-600 font-medium">
+                                                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
                                                         {activity.module || 'General'}
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-slate-600 max-w-[250px]">
+                                                    <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[250px]">
                                                         <span className="truncate block" title={activity.description}>
                                                             {activity.description || 'No details'}
                                                         </span>
                                                     </td>
 
                                                     <td className="py-3 px-4">
-                                                        <code className="font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60 text-slate-700">
+                                                        <code className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-300">
                                                             {activity.ip_address || 'Unknown'}
                                                         </code>
                                                     </td>
 
-                                                    <td className="py-3 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                                                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                                         {formatDate(activity.created_at)}
                                                     </td>
                                                 </tr>
@@ -2030,8 +2047,8 @@ export default function UserActivityPage() {
                         </div>
 
                         {/* Table Footer / Pagination */}
-                        <div className="p-4 border-t border-slate-100 bg-slate-50/40 flex flex-col sm:flex-row items-center justify-between gap-3">
-                            <span className="text-xs text-slate-500">
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                 Showing {paginatedActivities.length} of {filteredActivities.length} activities
                             </span>
                             <Pagination
@@ -2047,26 +2064,26 @@ export default function UserActivityPage() {
             {/* Response Modal */}
             <AnimatePresence>
                 {showResponseModal && selectedAppeal && (
-                    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50 backdrop-blur-sm overflow-hidden">
+                    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/70 dark:bg-black/80 backdrop-blur-sm overflow-hidden">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ duration: 0.2 }}
-                            className="flex flex-col w-full max-w-lg max-h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
+                            className="flex flex-col w-full max-w-lg max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-black/80 overflow-hidden border border-slate-200/80 dark:border-slate-800"
                         >
                             {/* Fixed Header */}
-                            <div className="shrink-0 flex items-center justify-between border-b border-gray-200 p-6 bg-gradient-to-r from-blue-50/80 to-white">
+                            <div className="shrink-0 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 p-6 bg-slate-50/80 dark:bg-slate-900/80">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2.5 rounded-xl bg-blue-100 text-blue-600 ring-1 ring-blue-200/60 shadow-xs">
+                                    <div className="p-2.5 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 border border-pink-200/60 dark:border-pink-900/40 shadow-2xs">
                                         <Send className="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
                                             {selectedAppeal.response_message ? 'View Response' : 'Send Response'}
                                         </h3>
-                                        <p className="text-xs font-medium text-gray-500 mt-0.5">
-                                            {selectedAppeal.user_name} <span className="text-gray-400">({selectedAppeal.user_email})</span>
+                                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                                            {selectedAppeal.user_name} <span className="text-slate-400 dark:text-slate-500">({selectedAppeal.user_email})</span>
                                         </p>
                                     </div>
                                 </div>
@@ -2078,7 +2095,7 @@ export default function UserActivityPage() {
                                         setSelectedAppeal(null);
                                         setResponseMessage('');
                                     }}
-                                    className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-lg transition-colors"
+                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-xl transition-colors cursor-pointer"
                                     aria-label="Close modal"
                                 >
                                     <X className="w-5 h-5" />
@@ -2089,10 +2106,10 @@ export default function UserActivityPage() {
                             <div className="flex-1 overflow-y-auto p-6 space-y-5">
                                 {/* Original Appeal Message */}
                                 <div className="space-y-1.5">
-                                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                         Appeal Message
                                     </label>
-                                    <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-100 text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
                                         {selectedAppeal.appeal_message || 'No appeal message provided.'}
                                     </div>
                                 </div>
@@ -2100,11 +2117,11 @@ export default function UserActivityPage() {
                                 {/* Response Textarea / Content */}
                                 <div className="space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                             {selectedAppeal.response_message ? 'Recorded Response' : 'Your Response'}
                                         </label>
                                         {!selectedAppeal.response_message && (
-                                            <span className="text-xs text-gray-400 font-medium">
+                                            <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
                                                 {responseMessage.length}/500
                                             </span>
                                         )}
@@ -2115,8 +2132,8 @@ export default function UserActivityPage() {
                                         onChange={(e) => setResponseMessage(e.target.value)}
                                         placeholder="Type your response to the appeal..."
                                         className={`w-full p-3.5 border rounded-xl text-sm leading-relaxed transition-all outline-none resize-none h-32 ${selectedAppeal.response_message
-                                            ? 'bg-gray-50/80 text-gray-700 border-gray-200'
-                                            : 'bg-white text-gray-900 border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20'
+                                            ? 'bg-slate-50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-800'
+                                            : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-700 focus:border-pink-500 dark:focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20'
                                             }`}
                                         readOnly={!!selectedAppeal.response_message}
                                         maxLength={500}
@@ -2125,7 +2142,7 @@ export default function UserActivityPage() {
                             </div>
 
                             {/* Fixed Footer Actions */}
-                            <div className="shrink-0 border-t border-gray-200 p-4 bg-gray-50 flex items-center justify-end gap-3">
+                            <div className="shrink-0 border-t border-slate-200/80 dark:border-slate-800 p-4 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-end gap-3">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -2133,7 +2150,7 @@ export default function UserActivityPage() {
                                         setSelectedAppeal(null);
                                         setResponseMessage('');
                                     }}
-                                    className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-100/80 rounded-xl transition-colors"
+                                    className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
                                 >
                                     Close
                                 </button>
@@ -2143,7 +2160,7 @@ export default function UserActivityPage() {
                                         type="button"
                                         onClick={handleSendResponse}
                                         disabled={!responseMessage.trim()}
-                                        className="px-5 py-2 bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-xs"
+                                        className="px-5 py-2 bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-xs cursor-pointer"
                                     >
                                         <Send className="w-4 h-4" />
                                         <span>Send Response</span>

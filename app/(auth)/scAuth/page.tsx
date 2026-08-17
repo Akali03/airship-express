@@ -1114,13 +1114,13 @@ export default function SupplyChainLoginPage() {
             blurAmount={4}
         >
             <>
-                <div className="h-dvh w-full bg-paper text-ink font-rethink grid grid-cols-1 lg:grid-cols-[1fr_460px]">
+                <div className="h-dvh w-full bg-paper dark:bg-slate-900 text-ink dark:text-slate-100 font-rethink grid grid-cols-1 lg:grid-cols-[1fr_460px]">
                     {/* left side - branding */}
-                    <div className="relative hidden lg:flex flex-col justify-between border-r border-line px-16 py-14 overflow-hidden">
+                    <div className="relative hidden lg:flex flex-col justify-between border-r border-line dark:border-slate-700 px-16 py-14 overflow-hidden">
                         <div className="absolute bottom-14 right-14 rotate-[-6deg] select-none">
-                            <div className="flex items-center gap-2 rounded-full border border-line px-4 py-2">
-                                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                                <span className="font-rethink text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
+                            <div className="flex items-center gap-2 rounded-full border border-line dark:border-slate-700 px-4 py-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-accent dark:bg-accent" />
+                                <span className="font-rethink text-[10px] font-medium uppercase tracking-[0.16em] text-muted dark:text-slate-400">
                                     Supply Chain
                                 </span>
                             </div>
@@ -1136,7 +1136,7 @@ export default function SupplyChainLoginPage() {
                                 alt="Airship Express"
                                 width={168}
                                 height={48}
-                                className="h-10 w-auto"
+                                className="h-10 w-auto dark:brightness-90"
                                 priority
                             />
                         </motion.div>
@@ -1147,30 +1147,30 @@ export default function SupplyChainLoginPage() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.55, ease: 'easeOut', delay: 0.1 }}
                         >
-                            <p className="font-rethink text-[13px] font-medium uppercase tracking-[0.2em] text-accent">
+                            <p className="font-rethink text-[13px] font-medium uppercase tracking-[0.2em] text-accent dark:text-accent">
                                 Secure Access
                             </p>
-                            <h1 className="mt-5 font-bricolage text-[44px] font-medium leading-[1.05] tracking-tight">
+                            <h1 className="mt-5 font-bricolage text-[44px] font-medium leading-[1.05] tracking-tight text-ink dark:text-white">
                                 Supply Chain
                                 <br />
                                 Management
                                 <br />
                                 Portal
                             </h1>
-                            <p className="mt-5 text-[15px] leading-relaxed text-muted">
+                            <p className="mt-5 text-[15px] leading-relaxed text-muted dark:text-slate-400">
                                 Access the supply chain management system to track inventory,
                                 manage orders, and optimize logistics.
                             </p>
                         </motion.div>
 
-                        <div className="flex items-center gap-2 text-[12px] text-muted">
-                            <span className="h-1 w-1 rounded-full bg-accent" />
+                        <div className="flex items-center gap-2 text-[12px] text-muted dark:text-slate-400">
+                            <span className="h-1 w-1 rounded-full bg-accent dark:bg-accent" />
                             Internal use only &middot; Airship Express Supply Chain
                         </div>
                     </div>
 
                     {/* right side - login form */}
-                    <div className="h-dvh overflow-y-auto flex items-center justify-center px-5 py-8 sm:px-12 sm:py-16">
+                    <div className="h-dvh overflow-y-auto flex items-center justify-center px-5 py-8 sm:px-12 sm:py-16 bg-paper dark:bg-slate-900">
                         <motion.div
                             className="w-full max-w-sm"
                             initial={{ opacity: 0, y: 10 }}
@@ -1183,18 +1183,18 @@ export default function SupplyChainLoginPage() {
                                     alt="Airship Express"
                                     width={144}
                                     height={40}
-                                    className="h-8 w-auto sm:h-9"
+                                    className="h-8 w-auto sm:h-9 dark:brightness-90"
                                     priority
                                 />
                             </div>
 
-                            <p className="font-rethink text-[12px] sm:text-[13px] font-medium uppercase tracking-[0.2em] text-accent">
+                            <p className="font-rethink text-[12px] sm:text-[13px] font-medium uppercase tracking-[0.2em] text-accent dark:text-accent">
                                 Welcome back
                             </p>
-                            <h2 className="mt-2 sm:mt-3 font-bricolage text-[24px] sm:text-[28px] lg:text-[30px] font-medium tracking-tight">
+                            <h2 className="mt-2 sm:mt-3 font-bricolage text-[24px] sm:text-[28px] lg:text-[30px] font-medium tracking-tight text-ink dark:text-white">
                                 Sign in to Supply Chain
                             </h2>
-                            <p className="mt-2 sm:mt-2.5 text-[13.5px] sm:text-[14.5px] leading-relaxed text-muted">
+                            <p className="mt-2 sm:mt-2.5 text-[13.5px] sm:text-[14.5px] leading-relaxed text-muted dark:text-slate-400">
                                 Use your company email and password.
                             </p>
 
@@ -1206,7 +1206,7 @@ export default function SupplyChainLoginPage() {
                                 <div>
                                     <label
                                         htmlFor="email"
-                                        className="block text-[11.5px] sm:text-[12.5px] font-medium uppercase tracking-[0.1em] text-muted"
+                                        className="block text-[11.5px] sm:text-[12.5px] font-medium uppercase tracking-[0.1em] text-muted dark:text-slate-400"
                                     >
                                         Email
                                     </label>
@@ -1217,7 +1217,7 @@ export default function SupplyChainLoginPage() {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="you@company.com"
-                                        className="mt-2 block w-full border-0 border-b border-line bg-transparent px-0 py-2 text-[14px] sm:text-[15px] text-ink placeholder:text-line outline-none transition focus:border-accent"
+                                        className="mt-2 block w-full border-0 border-b border-line dark:border-slate-700 bg-transparent px-0 py-2 text-[14px] sm:text-[15px] text-ink dark:text-white placeholder:text-line dark:placeholder:text-slate-600 outline-none transition focus:border-accent dark:focus:border-accent"
                                     />
                                 </div>
 
@@ -1225,7 +1225,7 @@ export default function SupplyChainLoginPage() {
                                     <div className="flex items-baseline justify-between">
                                         <label
                                             htmlFor="password"
-                                            className="block text-[11.5px] sm:text-[12.5px] font-medium uppercase tracking-[0.1em] text-muted"
+                                            className="block text-[11.5px] sm:text-[12.5px] font-medium uppercase tracking-[0.1em] text-muted dark:text-slate-400"
                                         >
                                             Password
                                         </label>
@@ -1238,12 +1238,12 @@ export default function SupplyChainLoginPage() {
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             placeholder="••••••••"
-                                            className="mt-2 block w-full border-0 border-b border-line bg-transparent px-0 py-2 pr-12 text-[14px] sm:text-[15px] text-ink placeholder:text-line outline-none transition focus:border-accent"
+                                            className="mt-2 block w-full border-0 border-b border-line dark:border-slate-700 bg-transparent px-0 py-2 pr-12 text-[14px] sm:text-[15px] text-ink dark:text-white placeholder:text-line dark:placeholder:text-slate-600 outline-none transition focus:border-accent dark:focus:border-accent"
                                         />
                                         <button
                                             type="button"
                                             onClick={() => setShowPassword((v) => !v)}
-                                            className="absolute bottom-1.5 right-0 text-muted transition-colors hover:text-ink"
+                                            className="absolute bottom-1.5 right-0 text-muted dark:text-slate-400 transition-colors hover:text-ink dark:hover:text-white"
                                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                                         >
                                             {showPassword ? (
@@ -1256,7 +1256,7 @@ export default function SupplyChainLoginPage() {
                                 </div>
 
                                 {loginError && (
-                                    <div role="alert" className="border-l-2 border-red-500 pl-3 text-[13px] text-red-600">
+                                    <div role="alert" className="border-l-2 border-red-500 dark:border-red-400 pl-3 text-[13px] text-red-600 dark:text-red-400">
                                         {loginError}
                                     </div>
                                 )}
@@ -1264,7 +1264,7 @@ export default function SupplyChainLoginPage() {
                                 <button
                                     type="submit"
                                     disabled={isLoggingIn}
-                                    className="w-full bg-ink px-4 py-3.5 text-[14px] font-medium tracking-wide text-paper transition-colors duration-200 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+                                    className="w-full bg-ink dark:bg-slate-700 px-4 py-3.5 text-[14px] font-medium tracking-wide text-paper dark:text-white transition-colors duration-200 hover:bg-accent dark:hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
                                 >
                                     {isLoggingIn ? (
                                         <>
@@ -1277,14 +1277,14 @@ export default function SupplyChainLoginPage() {
                                 </button>
                             </form>
 
-                            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                                <p className="mt-6 sm:mt-9 lg:mt-12 text-center text-[12px] sm:text-[12.5px] text-muted">
+                            <div className="mt-6 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200/60 dark:border-slate-700/60">
+                                <p className="mt-6 sm:mt-9 lg:mt-12 text-center text-[12px] sm:text-[12.5px] text-muted dark:text-slate-400">
                                     Trouble accessing your account? Contact HR at{' '}
                                     <a
-                                        href="mailto:hr@airshipexpress.com"
-                                        className="font-medium text-accent transition-colors hover:text-accent-dark"
+                                        href="mailto:supplychainandinventory@gmail.com"
+                                        className="font-medium text-accent dark:text-accent transition-colors hover:text-accent-dark dark:hover:text-accent-dark"
                                     >
-                                        hr@airshipexpress.com
+                                        supplychainandinventory@gmail.com
                                     </a>
                                 </p>
                             </div>
@@ -1295,24 +1295,25 @@ export default function SupplyChainLoginPage() {
                 {/* employee selection modal */}
                 <AnimatePresence>
                     {showEmployeeModal && (
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
+                                className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl dark:shadow-black/60"
                             >
-                                <div className="border-b border-slate-100 p-6 flex justify-between items-center bg-white rounded-t-2xl">
+                                {/* Header */}
+                                <div className="border-b border-slate-100 dark:border-slate-800 p-6 flex justify-between items-center bg-white dark:bg-slate-900 rounded-t-2xl transition-colors">
                                     <div className="flex items-center gap-3.5">
-                                        <div className="p-2.5 rounded-xl bg-pink-50 text-pink-500 ring-1 ring-pink-500/10 shrink-0">
-                                            <Building size={22} className="text-pink-500" />
+                                        <div className="p-2.5 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 border border-pink-100/80 dark:border-pink-900/30 shrink-0">
+                                            <Building size={22} className="text-pink-500 dark:text-pink-400" />
                                         </div>
                                         <div>
-                                            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                                            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                                                 Select Employee from HR System
                                             </h3>
                                             <div className="flex items-center gap-2 mt-0.5">
-                                                <p className="text-xs font-medium text-slate-500">
+                                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                                                     HR System Data
                                                 </p>
                                             </div>
@@ -1320,134 +1321,151 @@ export default function SupplyChainLoginPage() {
                                     </div>
                                     <button
                                         onClick={handleCloseModal}
-                                        className="text-slate-400 hover:text-slate-600 hover:bg-slate-100/80 transition-all p-2 rounded-xl active:scale-95"
+                                        className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800 transition-all p-2 rounded-xl active:scale-95 cursor-pointer"
                                         title="Close"
                                     >
                                         <X size={20} />
                                     </button>
                                 </div>
 
-                                <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-slate-500 font-medium">Logged in as:</span>
-                                        <span className="font-semibold text-slate-800">
+                                {/* User Info Bar */}
+                                <div className="px-6 py-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2.5 flex-wrap">
+                                        <span className="text-slate-500 dark:text-slate-400 font-medium">Logged in as:</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
                                             {loggedInUser?.display_name || loggedInUser?.email}
                                         </span>
-                                        <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[11px] tracking-wide ${getRoleColor(loggedInUser?.role)}`}>
+                                        <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[11px] tracking-wide border border-transparent ${getRoleColor(loggedInUser?.role)}`}>
                                             {loggedInUser?.role}
                                         </span>
                                     </div>
-                                    <span className="text-slate-400 hidden sm:inline-block font-medium">
+                                    <span className="text-slate-400 dark:text-slate-500 hidden sm:inline-block font-medium">
                                         Select an employee to verify
                                     </span>
                                 </div>
 
                                 {isDeviceBlocked ? (
-                                    // device blocked view
-                                    <div className="p-6 text-center">
-                                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <AlertTriangle className="h-8 w-8 text-red-500" />
+                                    // Device blocked view
+                                    <div className="p-6 sm:p-8 text-center">
+                                        <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xs">
+                                            <AlertTriangle className="h-8 w-8 text-rose-500 dark:text-rose-400" />
                                         </div>
-                                        <h3 className="text-lg font-semibold text-gray-900">Device Blocked</h3>
-                                        <p className="text-sm text-gray-600 mt-2">
-                                            This device has been blocked by an administrator.
+
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Device Blocked</h3>
+                                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-sm mx-auto">
+                                            This device has been restricted and blocked by an administrator.
                                         </p>
 
+                                        {/* Admin Response Section */}
                                         {existingAppeal?.response_message && (
-                                            <div className="mt-4 bg-blue-50 rounded-xl p-4 border border-blue-200 text-left">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                                                        <span className="text-xs font-bold text-blue-600">A</span>
+                                            <div className="mt-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 text-left shadow-2xs">
+                                                <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 bg-pink-50 dark:bg-pink-950/50 border border-pink-100 dark:border-pink-900/30 rounded-lg flex items-center justify-center text-xs font-bold text-pink-600 dark:text-pink-400">
+                                                            A
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Admin Response</span>
                                                     </div>
-                                                    <span className="text-xs font-semibold text-blue-700">Admin Response</span>
+
+                                                    {existingAppeal.status === 'approved' && (
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/60 dark:border-emerald-800/40">
+                                                            <CheckCircle size={12} />
+                                                            Approved
+                                                        </span>
+                                                    )}
+                                                    {existingAppeal.status === 'rejected' && (
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md border border-rose-200/60 dark:border-rose-800/40">
+                                                            <AlertCircle size={12} />
+                                                            Rejected
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <p className="text-sm text-gray-700">{existingAppeal.response_message}</p>
-                                                {existingAppeal.status === 'approved' && (
-                                                    <div className="mt-2 text-xs font-semibold text-emerald-600 flex items-center gap-1">
-                                                        <CheckCircle size={14} />
-                                                        Appeal Approved
-                                                    </div>
-                                                )}
-                                                {existingAppeal.status === 'rejected' && (
-                                                    <div className="mt-2 text-xs font-semibold text-red-600 flex items-center gap-1">
-                                                        <AlertCircle size={14} />
-                                                        Appeal Rejected
-                                                    </div>
-                                                )}
+
+                                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                    {existingAppeal.response_message}
+                                                </p>
+
                                                 {existingAppeal.resolved_at && (
-                                                    <div className="mt-1 text-[10px] text-gray-400">
+                                                    <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 text-[10px] font-medium text-slate-400 dark:text-slate-500">
                                                         Resolved: {new Date(existingAppeal.resolved_at).toLocaleString()}
                                                     </div>
                                                 )}
                                             </div>
                                         )}
 
+                                        {/* Pending / Submitted Status Section */}
                                         {existingAppeal && !existingAppeal.response_message && (
-                                            <div className="mt-4 bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-                                                <p className="text-sm text-yellow-800">
-                                                    <span className="font-semibold">Status:</span>{' '}
-                                                    {existingAppeal.status === 'pending' ? 'Waiting for admin review...' :
-                                                        existingAppeal.status === 'approved' ? 'Approved! Device will be unblocked shortly.' :
-                                                            'Rejected. Please contact support for further assistance.'}
+                                            <div className="mt-5 bg-amber-50/70 dark:bg-amber-950/20 rounded-2xl p-4 border border-amber-200/80 dark:border-amber-900/40 text-left">
+                                                <div className="flex items-center gap-2 mb-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                                    <span className="text-xs font-bold text-amber-800 dark:text-amber-400">
+                                                        Status: {existingAppeal.status === 'pending' ? 'Under Admin Review' : existingAppeal.status === 'approved' ? 'Approved' : 'Rejected'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-amber-700 dark:text-amber-300/90 leading-relaxed">
+                                                    {existingAppeal.status === 'pending' ? 'Your appeal has been logged and is waiting for review.' :
+                                                        existingAppeal.status === 'approved' ? 'Appeal approved! Device access will be granted shortly.' :
+                                                            'Appeal rejected. Please reach out to support for further assistance.'}
                                                 </p>
-                                                <p className="text-xs text-yellow-600 mt-1">
+                                                <div className="mt-2.5 pt-2 border-t border-amber-200/60 dark:border-amber-900/30 text-[10px] font-medium text-amber-600/80 dark:text-amber-400/70">
                                                     Submitted: {new Date(existingAppeal.created_at).toLocaleString()}
-                                                </p>
+                                                </div>
                                             </div>
                                         )}
 
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-4">
                                             {existingAppeal ?
-                                                (existingAppeal.response_message ? 'Admin has responded to your appeal.' :
-                                                    'Your appeal is under review.') :
-                                                'If you believe this is a mistake, you can submit an appeal.'}
+                                                (existingAppeal.response_message ? 'An admin has reviewed and replied to your appeal.' :
+                                                    'Your appeal is currently processing.') :
+                                                'If you believe this restriction is a mistake, you can submit an appeal ticket.'}
                                         </p>
+
                                         <button
                                             onClick={openAppealModal}
-                                            className="mt-4 px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-dark transition-all flex items-center gap-2 mx-auto"
+                                            className="mt-5 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs shadow-pink-500/20 mx-auto cursor-pointer"
                                         >
                                             {existingAppeal ? (
                                                 <>
-                                                    <EyeIcon size={16} />
-                                                    {existingAppeal.response_message ? 'View Response' : 'Review Appeal'}
+                                                    <EyeIcon size={15} />
+                                                    <span>{existingAppeal.response_message ? 'View Response' : 'Review Appeal'}</span>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <MessageSquare size={16} />
-                                                    Submit Appeal
+                                                    <MessageSquare size={15} />
+                                                    <span>Submit Appeal</span>
                                                 </>
                                             )}
                                         </button>
                                     </div>
                                 ) : !otpSent ? (
-                                    // employee selection view
+                                    // Employee selection view
                                     <>
-                                        <div className="p-3.5 sm:p-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+                                        <div className="p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-10 transition-colors">
                                             <div className="relative">
-                                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 shrink-0 pointer-events-none" size={18} />
+                                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 shrink-0 pointer-events-none" size={18} />
                                                 <input
                                                     type="text"
                                                     placeholder="Search employee by name, ID, or email..."
                                                     value={searchTerm}
                                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                                    className="w-full pl-10 pr-4 py-2 sm:py-2.5 text-sm bg-slate-50 border border-gray-200/80 rounded-xl focus:bg-white focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all placeholder:text-gray-400"
+                                                    className="w-full pl-10 pr-4 py-2 sm:py-2.5 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 rounded-xl text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-pink-500/20 dark:focus:ring-pink-500/30 focus:border-pink-500 dark:focus:border-pink-500/80 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs"
                                                 />
                                             </div>
                                         </div>
 
-                                        <div className="p-3 sm:p-4 max-h-[60vh] sm:max-h-96 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-gray-200">
+                                        <div className="p-3 sm:p-4 max-h-[60vh] sm:max-h-96 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                                             {isLoadingEmployees ? (
                                                 <div className="text-center py-10 sm:py-14">
                                                     <Loader2 className="animate-spin text-accent mx-auto" size={32} />
-                                                    <p className="mt-2.5 text-gray-500 text-xs sm:text-sm font-medium">Fetching directory from HR system...</p>
+                                                    <p className="mt-2.5 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium">Fetching directory from HR system...</p>
                                                 </div>
                                             ) : filteredEmployees.length === 0 ? (
-                                                <div className="text-center py-10 sm:py-14 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                                                    <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
+                                                <div className="text-center py-10 sm:py-14 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                                                    <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400 dark:text-slate-500">
                                                         <User size={24} />
                                                     </div>
-                                                    <p className="text-xs sm:text-sm font-medium text-gray-600">No matching employees found</p>
-                                                    <p className="text-[11px] text-gray-400 mt-1">Try adjusting your search terms</p>
+                                                    <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">No matching employees found</p>
+                                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Try adjusting your search terms</p>
                                                 </div>
                                             ) : (
                                                 <div className="space-y-2">
@@ -1460,54 +1478,55 @@ export default function SupplyChainLoginPage() {
                                                                 key={emp.id}
                                                                 onClick={() => handleEmployeeSelect(emp)}
                                                                 disabled={isDisabled}
-                                                                className={`w-full text-left px-3.5 py-3 rounded-xl transition-all border duration-150 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-[0.99]'
-                                                                    } ${isSelected
-                                                                        ? 'border-accent bg-accent/5 ring-1 ring-accent/30 shadow-xs'
-                                                                        : 'border-slate-200/60 bg-white hover:bg-slate-50/80 hover:border-slate-300'
+                                                                className={`w-full text-left px-3.5 py-3 rounded-xl transition-all border duration-150 
+                                            ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-[0.99]'}
+                                            ${isSelected
+                                                                        ? 'border-accent bg-accent/10 dark:bg-accent/15 dark:border-accent/60 shadow-2xs'
+                                                                        : 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700'
                                                                     }`}
                                                             >
                                                                 <div className="flex justify-between items-start gap-3">
                                                                     <div className="flex-1 min-w-0">
                                                                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                                                            <span className="font-semibold text-xs sm:text-sm text-gray-900 truncate">
+                                                                            <span className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate">
                                                                                 {emp.display_name}
                                                                             </span>
-                                                                            <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/60 shrink-0">
+                                                                            <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60 shrink-0">
                                                                                 {emp.employee_id}
                                                                             </span>
 
                                                                             {emp.is_active && (
-                                                                                <span className="text-[10px] bg-red-50 text-red-700 font-medium px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-200/60 shrink-0">
-                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                                                                                <span className="text-[10px] bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-medium px-2 py-0.5 rounded-full flex items-center gap-1 border border-rose-200/60 dark:border-rose-900/40 shrink-0">
+                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
                                                                                     Active
                                                                                 </span>
                                                                             )}
                                                                             {!emp.is_active && emp.remembered && (
-                                                                                <span className="text-[10px] bg-emerald-50 text-emerald-700 font-medium px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200/60 shrink-0">
+                                                                                <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-medium px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200/60 dark:border-emerald-900/40 shrink-0">
                                                                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                                                                     Remembered
                                                                                 </span>
                                                                             )}
                                                                         </div>
 
-                                                                        <div className="text-xs text-gray-500 truncate mt-1">{emp.email}</div>
+                                                                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1">{emp.email}</div>
 
                                                                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2">
                                                                             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md shrink-0 ${getRoleColor(emp.role)}`}>
                                                                                 {emp.role}
                                                                             </span>
-                                                                            <span className="text-[10px] text-gray-500 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[120px] sm:max-w-none">
+                                                                            <span className="text-[10px] text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md truncate max-w-[120px] sm:max-w-none">
                                                                                 {emp.department}
                                                                             </span>
-                                                                            <span className="text-[10px] text-gray-300">•</span>
-                                                                            <span className="text-[10px] text-gray-400 truncate max-w-[120px] sm:max-w-none">
+                                                                            <span className="text-[10px] text-slate-300 dark:text-slate-600">•</span>
+                                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[120px] sm:max-w-none">
                                                                                 {emp.position}
                                                                             </span>
                                                                         </div>
                                                                     </div>
 
                                                                     {isSelected && (
-                                                                        <div className="mt-0.5 shrink-0 bg-accent/10 p-1 rounded-full text-accent">
+                                                                        <div className="mt-0.5 shrink-0 bg-accent/15 dark:bg-accent/20 p-1 rounded-full text-accent">
                                                                             <CheckCircle size={18} />
                                                                         </div>
                                                                     )}
@@ -1517,7 +1536,7 @@ export default function SupplyChainLoginPage() {
                                                     })}
 
                                                     {remainingCount > 0 && (
-                                                        <div className="text-center py-2.5 text-xs text-gray-400 border-t border-dashed border-gray-200 mt-3 font-medium">
+                                                        <div className="text-center py-2.5 text-xs text-slate-400 dark:text-slate-500 border-t border-dashed border-slate-200 dark:border-slate-800 mt-3 font-medium">
                                                             + {remainingCount} more {remainingCount === 1 ? 'employee' : 'employees'} available
                                                         </div>
                                                     )}
@@ -1525,44 +1544,44 @@ export default function SupplyChainLoginPage() {
                                             )}
                                         </div>
 
-                                        <div className="border-t border-gray-200/80 p-3.5 sm:p-4 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-                                            <div className="text-xs text-gray-500 min-w-0">
+                                        <div className="border-t border-slate-200/80 dark:border-slate-800 p-3.5 sm:p-4 bg-slate-50/50 dark:bg-slate-900/80 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                                            <div className="text-xs text-slate-500 dark:text-slate-400 min-w-0">
                                                 {selectedEmployee ? (
                                                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                                        <CheckCircle className="text-emerald-500 shrink-0" size={16} />
-                                                        <span className="font-medium text-gray-600">Selected:</span>
-                                                        <span className="font-bold text-gray-900 truncate max-w-[130px] sm:max-w-[180px]">
+                                                        <CheckCircle className="text-emerald-500 dark:text-emerald-400 shrink-0" size={16} />
+                                                        <span className="font-medium text-slate-600 dark:text-slate-300">Selected:</span>
+                                                        <span className="font-bold text-slate-900 dark:text-white truncate max-w-[130px] sm:max-w-[180px]">
                                                             {selectedEmployee.display_name}
                                                         </span>
 
                                                         {isCheckingRemembered ? (
-                                                            <div className="flex items-center gap-1 text-gray-400 text-xs">
-                                                                <Loader2 className="animate-spin text-accent" size={13} />
+                                                            <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-xs">
+                                                                <Loader2 className="animate-spin text-pink-500" size={13} />
                                                                 <span>Checking...</span>
                                                             </div>
                                                         ) : isCurrentlyActive ? (
-                                                            <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">
+                                                            <span className="text-[10px] bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/40 px-2 py-0.5 rounded-full font-bold">
                                                                 Logged In
                                                             </span>
                                                         ) : isRemembered ? (
-                                                            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                                                            <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40 px-2 py-0.5 rounded-full font-bold">
                                                                 Remembered
                                                             </span>
                                                         ) : (
-                                                            <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                                                            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full font-medium">
                                                                 Not remembered
                                                             </span>
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <span className="text-xs text-gray-400 font-medium">Select an employee from the HR list</span>
+                                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Select an employee from the HR list</span>
                                                 )}
                                             </div>
 
                                             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                                                 <button
                                                     onClick={handleCloseModal}
-                                                    className="flex-1 sm:flex-initial px-4 py-2 text-xs sm:text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors border sm:border-0 border-gray-200 rounded-xl bg-white sm:bg-transparent text-center"
+                                                    className="flex-1 sm:flex-initial px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800 text-center cursor-pointer"
                                                 >
                                                     Cancel
                                                 </button>
@@ -1570,16 +1589,16 @@ export default function SupplyChainLoginPage() {
                                                 {selectedEmployee && isCurrentlyActive ? (
                                                     <button
                                                         disabled
-                                                        className="flex-1 sm:flex-initial px-5 py-2 bg-slate-300 text-slate-600 text-xs sm:text-sm font-semibold rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
+                                                        className="flex-1 sm:flex-initial px-5 py-2 bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-semibold rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
                                                     >
-                                                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                                        <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
                                                         <span>Logged In</span>
                                                     </button>
                                                 ) : selectedEmployee && isRemembered ? (
                                                     <button
                                                         onClick={handleLoginWithRemembered}
                                                         disabled={isCheckingRemembered || isDeviceBlocked}
-                                                        className="flex-1 sm:flex-initial px-5 py-2 bg-emerald-600 text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+                                                        className="flex-1 sm:flex-initial px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                                     >
                                                         <LogIn size={15} />
                                                         <span>Login</span>
@@ -1588,7 +1607,7 @@ export default function SupplyChainLoginPage() {
                                                     <button
                                                         onClick={requestOTP}
                                                         disabled={!selectedEmployee || isRequestingOTP || isCheckingRemembered || isDeviceBlocked}
-                                                        className="flex-1 sm:flex-initial px-5 py-2 bg-accent text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-accent-dark shadow-sm shadow-accent/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+                                                        className="flex-1 sm:flex-initial px-5 py-2 bg-pink-600 hover:bg-pink-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                                     >
                                                         {isRequestingOTP || isCheckingRemembered ? (
                                                             <>
@@ -1607,38 +1626,38 @@ export default function SupplyChainLoginPage() {
                                         </div>
                                     </>
                                 ) : (
-                                    // otp verification view
-                                    <div className="p-6 sm:p-8">
+                                    // OTP verification view
+                                    <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
                                         <div className="text-center mb-6">
-                                            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-accent/10 ring-1 ring-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-3.5 shadow-sm">
+                                            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-pink-50 dark:bg-pink-950/40 ring-1 ring-pink-500/20 dark:ring-pink-500/30 rounded-2xl flex items-center justify-center mx-auto mb-3.5 shadow-xs">
                                                 {isVerifying ? (
-                                                    <Loader2 className="animate-spin text-accent" size={24} />
+                                                    <Loader2 className="animate-spin text-pink-500 dark:text-pink-400" size={24} />
                                                 ) : (
-                                                    <Mail className="text-accent" size={24} />
+                                                    <Mail className="text-pink-500 dark:text-pink-400" size={24} />
                                                 )}
                                             </div>
-                                            <h4 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight">Verify Security Code</h4>
-                                            <p className="text-xs sm:text-sm text-gray-500 mt-1.5 px-2 leading-relaxed">
+                                            <h4 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">Verify Security Code</h4>
+                                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 px-2 leading-relaxed">
                                                 Enter the 6-digit verification code sent to <br />
-                                                <span className="font-semibold text-gray-800 break-all">{selectedEmployee?.email}</span>
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200 break-all">{selectedEmployee?.email}</span>
                                             </p>
-                                            <div className="mt-2.5 inline-block bg-slate-100/80 px-3 py-1 rounded-full border border-slate-200/60">
-                                                <p className="text-[11px] text-gray-500 font-medium truncate">
-                                                    HR Employee: <span className="font-semibold text-gray-800">{selectedEmployee?.display_name}</span> ({selectedEmployee?.employee_id})
+                                            <div className="mt-2.5 inline-block bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200/60 dark:border-slate-700/60">
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                                    HR Employee: <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedEmployee?.display_name}</span> ({selectedEmployee?.employee_id})
                                                 </p>
                                             </div>
                                         </div>
 
                                         {otpSuccess && (
-                                            <div className="mb-5 border-l-4 border-emerald-500 text-xs sm:text-[13px] text-emerald-800 font-medium flex items-center gap-2.5 bg-emerald-50/80 p-3.5 rounded-r-xl shadow-xs">
-                                                <CheckCircle size={16} className="shrink-0 text-emerald-600" />
+                                            <div className="mb-5 border-l-4 border-emerald-500 text-xs sm:text-[13px] text-emerald-800 dark:text-emerald-300 font-medium flex items-center gap-2.5 bg-emerald-50/80 dark:bg-emerald-950/40 p-3.5 rounded-r-xl shadow-xs">
+                                                <CheckCircle size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
                                                 <span>{otpSuccess}</span>
                                             </div>
                                         )}
 
                                         {otpError && (
-                                            <div className="mb-5 border-l-4 border-red-500 text-xs sm:text-[13px] text-red-800 font-medium flex items-center gap-2.5 bg-red-50/80 p-3.5 rounded-r-xl shadow-xs">
-                                                <AlertCircle size={16} className="shrink-0 text-red-600" />
+                                            <div className="mb-5 border-l-4 border-rose-500 text-xs sm:text-[13px] text-rose-800 dark:text-rose-300 font-medium flex items-center gap-2.5 bg-rose-50/80 dark:bg-rose-950/40 p-3.5 rounded-r-xl shadow-xs">
+                                                <AlertCircle size={16} className="shrink-0 text-rose-600 dark:text-rose-400" />
                                                 <span>{otpError}</span>
                                             </div>
                                         )}
@@ -1655,34 +1674,38 @@ export default function SupplyChainLoginPage() {
                                                     onChange={(e) => handleOtpChange(index, e.target.value)}
                                                     onKeyDown={(e) => handleOtpKeyDown(index, e)}
                                                     onPaste={index === 0 ? handleOtpPaste : undefined}
-                                                    className={`w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-bold bg-slate-50/80 border-2 rounded-xl focus:bg-white focus:border-accent focus:ring-4 focus:ring-accent/15 outline-none transition-all duration-200 transform focus:-translate-y-0.5 ${isVerifying ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-300'
-                                                        } ${otpError ? 'border-red-400 text-red-600 bg-red-50/30' : 'border-gray-200/80 text-gray-900'}`}
+                                                    className={`w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-bold bg-slate-50 dark:bg-slate-800/60 border-2 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 outline-none transition-all duration-200 transform focus:-translate-y-0.5 cursor-pointer 
+                                ${isVerifying ? 'opacity-50 cursor-not-allowed' : 'hover:border-slate-300 dark:hover:border-slate-700'}
+                                ${otpError
+                                                            ? 'border-rose-400 dark:border-rose-500/60 text-rose-600 dark:text-rose-400 bg-rose-50/30 dark:bg-rose-950/20'
+                                                            : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white'
+                                                        }`}
                                                     disabled={isVerifying}
                                                     autoFocus={index === 0}
                                                 />
                                             ))}
                                         </div>
 
-                                        <div className="flex items-center justify-between mb-5 bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 shadow-xs">
-                                            <label className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-gray-700 cursor-pointer select-none">
+                                        <div className="flex items-center justify-between mb-5 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-xs">
+                                            <label className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                                                 <input
                                                     type="checkbox"
                                                     checked={rememberMe}
                                                     onChange={(e) => setRememberMe(e.target.checked)}
-                                                    className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent focus:ring-offset-0 transition-all cursor-pointer accent-accent"
+                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 focus:ring-offset-0 transition-all cursor-pointer bg-white dark:bg-slate-800"
                                                     disabled={isVerifying}
                                                 />
                                                 <span>Remember me on this device</span>
                                             </label>
-                                            <span className="text-[10px] sm:text-xs font-bold text-gray-500 bg-white px-2 py-0.5 rounded-md border border-gray-200/80 shrink-0">
+                                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700 shrink-0">
                                                 {rememberMe ? '15 days' : '8 hours'}
                                             </span>
                                         </div>
 
                                         {countdown > 0 && (
-                                            <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-gray-500 mb-4">
-                                                <Clock size={14} className="text-gray-400" />
-                                                <span>Resend available in <strong className="text-gray-800 font-bold">{countdown}s</strong></span>
+                                            <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 mb-4">
+                                                <Clock size={14} className="text-slate-400 dark:text-slate-500" />
+                                                <span>Resend available in <strong className="text-slate-800 dark:text-slate-200 font-bold">{countdown}s</strong></span>
                                             </div>
                                         )}
 
@@ -1695,7 +1718,7 @@ export default function SupplyChainLoginPage() {
                                                     setOtpSuccess(null);
                                                     setIsRemembered(false);
                                                 }}
-                                                className="text-xs sm:text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors text-center py-2 sm:py-0 active:scale-95"
+                                                className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors text-center py-2 sm:py-0 active:scale-95 cursor-pointer"
                                                 disabled={isVerifying}
                                             >
                                                 ← Back
@@ -1705,11 +1728,11 @@ export default function SupplyChainLoginPage() {
                                                 <button
                                                     onClick={resendOTP}
                                                     disabled={countdown > 0 || isResending || isVerifying || isDeviceBlocked}
-                                                    className="w-full sm:w-auto px-4 py-2.5 text-xs sm:text-sm font-semibold text-gray-700 bg-white border border-gray-200/80 rounded-xl hover:bg-slate-50 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+                                                    className="w-full sm:w-auto px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                                 >
                                                     {isResending ? (
                                                         <>
-                                                            <Loader2 className="animate-spin text-gray-500" size={14} />
+                                                            <Loader2 className="animate-spin text-slate-500 dark:text-slate-400" size={14} />
                                                             <span>Resending...</span>
                                                         </>
                                                     ) : (
@@ -1720,7 +1743,7 @@ export default function SupplyChainLoginPage() {
                                                 <button
                                                     onClick={verifyOTP}
                                                     disabled={isVerifying || otpCode.join('').length !== 6 || isDeviceBlocked}
-                                                    className="w-full sm:w-auto px-6 py-2.5 bg-accent hover:bg-accent-dark text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md shadow-accent/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+                                                    className="w-full sm:w-auto px-6 py-2.5 bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                                 >
                                                     {isVerifying ? (
                                                         <>
@@ -1746,32 +1769,32 @@ export default function SupplyChainLoginPage() {
                 {/* password setup modal */}
                 <AnimatePresence>
                     {showPasswordModal && selectedEmployeeForPassword && (
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+                                className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl dark:shadow-black/60"
                             >
                                 <div className="text-center mb-6">
-                                    <div className="w-14 h-14 bg-accent/10 ring-1 ring-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
-                                        <User className="text-accent" size={28} />
+                                    <div className="w-14 h-14 bg-accent/10 dark:bg-accent/20 ring-1 ring-accent/20 dark:ring-accent/30 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
+                                        <User className="text-accent dark:text-accent" size={28} />
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-900">Set Up Your Account</h3>
-                                    <p className="text-sm text-gray-500 mt-1.5">
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Set Up Your Account</h3>
+                                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1.5">
                                         Create your account to access the supply chain system
                                     </p>
                                 </div>
 
-                                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                                    <p className="text-xs text-gray-500">Employee</p>
-                                    <p className="font-medium text-gray-900">{selectedEmployeeForPassword.display_name}</p>
-                                    <p className="text-sm text-gray-600">{selectedEmployeeForPassword.email}</p>
+                                <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700">
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">Employee</p>
+                                    <p className="font-medium text-gray-900 dark:text-white">{selectedEmployeeForPassword.display_name}</p>
+                                    <p className="text-sm text-gray-600 dark:text-slate-300">{selectedEmployeeForPassword.email}</p>
                                     {selectedEmployeeForPassword.employee_id && (
-                                        <p className="text-xs text-gray-400 mt-1">ID: {selectedEmployeeForPassword.employee_id}</p>
+                                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">ID: {selectedEmployeeForPassword.employee_id}</p>
                                     )}
                                     {selectedEmployeeForPassword.department && (
-                                        <p className="text-xs text-gray-400">{selectedEmployeeForPassword.department} • {selectedEmployeeForPassword.position}</p>
+                                        <p className="text-xs text-gray-400 dark:text-slate-500">{selectedEmployeeForPassword.department} • {selectedEmployeeForPassword.position}</p>
                                     )}
                                     <span className={`inline-block mt-2 text-[10px] font-medium px-2.5 py-0.5 rounded-md ${getRoleColor(selectedEmployeeForPassword.role)}`}>
                                         {selectedEmployeeForPassword.role}
@@ -1779,19 +1802,19 @@ export default function SupplyChainLoginPage() {
                                 </div>
 
                                 {hrHasPassword && (
-                                    <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                    <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800/40">
                                         <label className="flex items-start gap-3 cursor-pointer">
                                             <input
                                                 type="checkbox"
                                                 checked={useHrPassword}
                                                 onChange={(e) => setUseHrPassword(e.target.checked)}
-                                                className="mt-1 w-4 h-4 text-accent rounded border-gray-300 focus:ring-accent"
+                                                className="mt-1 w-4 h-4 text-accent rounded border-gray-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-accent dark:focus:ring-accent/50"
                                             />
                                             <div>
-                                                <p className="text-sm font-medium text-gray-800">
+                                                <p className="text-sm font-medium text-gray-800 dark:text-slate-200">
                                                     Use HR system password
                                                 </p>
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-xs text-gray-500 dark:text-slate-400">
                                                     Your password will be synced from the HR system
                                                 </p>
                                             </div>
@@ -1802,26 +1825,26 @@ export default function SupplyChainLoginPage() {
                                 {!useHrPassword && (
                                     <div className="space-y-3">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                                                 New Password
                                             </label>
                                             <input
                                                 type="password"
                                                 value={newPassword}
                                                 onChange={(e) => setNewPassword(e.target.value)}
-                                                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition"
+                                                className="w-full border border-gray-300 dark:border-slate-700 dark:bg-slate-800/60 rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-accent dark:focus:ring-accent/50 focus:border-transparent outline-none transition"
                                                 placeholder="Enter password (min 6 characters)"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                                                 Confirm Password
                                             </label>
                                             <input
                                                 type="password"
                                                 value={confirmPassword}
                                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition"
+                                                className="w-full border border-gray-300 dark:border-slate-700 dark:bg-slate-800/60 rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-accent dark:focus:ring-accent/50 focus:border-transparent outline-none transition"
                                                 placeholder="Confirm your password"
                                             />
                                         </div>
@@ -1835,14 +1858,14 @@ export default function SupplyChainLoginPage() {
                                             setOtpSent(true);
                                             setShowEmployeeModal(true);
                                         }}
-                                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                        className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                                     >
                                         Back
                                     </button>
                                     <button
                                         onClick={handleCreateAccount}
                                         disabled={isCreatingUser}
-                                        className="flex-1 px-4 py-2.5 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        className="flex-1 px-4 py-2.5 bg-accent dark:bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-dark dark:hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                     >
                                         {isCreatingUser ? (
                                             <>
@@ -1862,32 +1885,32 @@ export default function SupplyChainLoginPage() {
                 {/* remembered login password modal */}
                 <AnimatePresence>
                     {showRememberedPasswordModal && selectedEmployee && (
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+                                className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl dark:shadow-black/60"
                             >
                                 <div className="text-center mb-6">
-                                    <div className="w-14 h-14 bg-emerald-50 ring-1 ring-emerald-200 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
-                                        <LogIn className="text-emerald-600" size={28} />
+                                    <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/40 ring-1 ring-emerald-200 dark:ring-emerald-800/40 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
+                                        <LogIn className="text-emerald-600 dark:text-emerald-400" size={28} />
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-900">Login as {selectedEmployee.display_name}</h3>
-                                    <p className="text-sm text-gray-500 mt-1.5">
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Login as {selectedEmployee.display_name}</h3>
+                                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1.5">
                                         Enter your password to continue
                                     </p>
                                 </div>
 
-                                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                                    <p className="text-xs text-gray-500">Account</p>
-                                    <p className="font-medium text-gray-900">{selectedEmployee.display_name}</p>
-                                    <p className="text-sm text-gray-600">{selectedEmployee.email}</p>
+                                <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700">
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">Account</p>
+                                    <p className="font-medium text-gray-900 dark:text-white">{selectedEmployee.display_name}</p>
+                                    <p className="text-sm text-gray-600 dark:text-slate-300">{selectedEmployee.email}</p>
                                     {selectedEmployee.employee_id && (
-                                        <p className="text-xs text-gray-400 mt-1">ID: {selectedEmployee.employee_id}</p>
+                                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">ID: {selectedEmployee.employee_id}</p>
                                     )}
                                     {selectedEmployee.department && (
-                                        <p className="text-xs text-gray-400">{selectedEmployee.department} • {selectedEmployee.position}</p>
+                                        <p className="text-xs text-gray-400 dark:text-slate-500">{selectedEmployee.department} • {selectedEmployee.position}</p>
                                     )}
                                     <span className={`inline-block mt-2 text-[10px] font-medium px-2.5 py-0.5 rounded-md ${getRoleColor(selectedEmployee.role)}`}>
                                         {selectedEmployee.role}
@@ -1896,7 +1919,7 @@ export default function SupplyChainLoginPage() {
 
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                                             Password
                                         </label>
                                         <input
@@ -1908,7 +1931,7 @@ export default function SupplyChainLoginPage() {
                                                     handleVerifyRememberedPassword();
                                                 }
                                             }}
-                                            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition"
+                                            className="w-full border border-gray-300 dark:border-slate-700 dark:bg-slate-800/60 rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-accent dark:focus:ring-accent/50 focus:border-transparent outline-none transition"
                                             placeholder="Enter your password"
                                             autoFocus
                                         />
@@ -1921,14 +1944,14 @@ export default function SupplyChainLoginPage() {
                                             setShowRememberedPasswordModal(false);
                                             setRememberedPassword('');
                                         }}
-                                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                        className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={handleVerifyRememberedPassword}
                                         disabled={isLoggingInWithRemembered || !rememberedPassword.trim()}
-                                        className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        className="flex-1 px-4 py-2.5 bg-emerald-600 dark:bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 dark:hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                     >
                                         {isLoggingInWithRemembered ? (
                                             <>
@@ -1944,7 +1967,7 @@ export default function SupplyChainLoginPage() {
                                     </button>
                                 </div>
 
-                                <p className="mt-3 text-center text-xs text-gray-400">
+                                <p className="mt-3 text-center text-xs text-gray-400 dark:text-slate-500">
                                     This is a remembered session. Your password is required for security.
                                 </p>
                             </motion.div>
@@ -1955,23 +1978,24 @@ export default function SupplyChainLoginPage() {
                 {/* appeal modal */}
                 <AnimatePresence>
                     {showAppealModal && (
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden shadow-2xl"
+                                className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden shadow-2xl dark:shadow-black/60"
                             >
-                                <div className="border-b border-gray-200 p-6 flex justify-between items-center">
+                                {/* Header */}
+                                <div className="border-b border-gray-200 dark:border-slate-800 p-6 flex justify-between items-center bg-white dark:bg-slate-900 transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-500/10">
+                                        <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400 ring-1 ring-blue-500/10 dark:ring-blue-500/20">
                                             {existingAppeal ? <EyeIcon size={22} /> : <MessageSquare size={22} />}
                                         </div>
                                         <div>
-                                            <h3 className="text-base font-bold text-gray-900">
+                                            <h3 className="text-base font-bold text-gray-900 dark:text-white">
                                                 {existingAppeal ? 'Review Appeal' : 'Submit Appeal'}
                                             </h3>
-                                            <p className="text-xs text-gray-500">
+                                            <p className="text-xs text-gray-500 dark:text-slate-400">
                                                 {existingAppeal ? 'View and manage your appeal' : 'Request to unblock your device'}
                                             </p>
                                         </div>
@@ -1982,45 +2006,49 @@ export default function SupplyChainLoginPage() {
                                             setAppealMessage('');
                                             setIsEditingAppeal(false);
                                         }}
-                                        className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg"
+                                        className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
                                     >
                                         <X size={20} />
                                     </button>
                                 </div>
 
-                                <div className="p-6 space-y-4">
+                                {/* Content */}
+                                <div className="p-6 space-y-4 bg-white dark:bg-slate-900 transition-colors">
                                     {existingAppeal && !isEditingAppeal ? (
-                                        // view existing appeal
+                                        // View existing appeal
                                         <>
-                                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                            <div className="bg-gray-50 dark:bg-slate-800/60 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</span>
-                                                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${existingAppeal.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                        existingAppeal.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                                            'bg-red-100 text-red-800'
+                                                    <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Status</span>
+                                                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full 
+                                ${existingAppeal.status === 'pending'
+                                                            ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800/40'
+                                                            : existingAppeal.status === 'approved'
+                                                                ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800/40'
+                                                                : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-800/40'
                                                         }`}>
                                                         {existingAppeal.status.charAt(0).toUpperCase() + existingAppeal.status.slice(1)}
                                                     </span>
                                                 </div>
 
                                                 <div className="mt-2">
-                                                    <span className="text-xs font-semibold text-gray-500">Your Message:</span>
-                                                    <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">{existingAppeal.appeal_message}</p>
+                                                    <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Your Message:</span>
+                                                    <p className="text-sm text-gray-800 dark:text-slate-200 mt-1 whitespace-pre-wrap">{existingAppeal.appeal_message}</p>
                                                 </div>
 
                                                 {existingAppeal.response_message && (
-                                                    <div className="mt-4 bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                                    <div className="mt-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800/40">
                                                         <div className="flex items-center gap-2 mb-2">
-                                                            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                                                                <span className="text-xs font-bold text-blue-600">A</span>
+                                                            <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                                                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">A</span>
                                                             </div>
-                                                            <span className="text-xs font-semibold text-blue-700">Admin Response</span>
+                                                            <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Admin Response</span>
                                                         </div>
-                                                        <p className="text-sm text-gray-700">{existingAppeal.response_message}</p>
+                                                        <p className="text-sm text-gray-700 dark:text-slate-300">{existingAppeal.response_message}</p>
                                                     </div>
                                                 )}
 
-                                                <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
+                                                <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400 dark:text-slate-500">
                                                     <span>Submitted: {new Date(existingAppeal.created_at).toLocaleString()}</span>
                                                     {existingAppeal.resolved_at && (
                                                         <span>• Resolved: {new Date(existingAppeal.resolved_at).toLocaleString()}</span>
@@ -2038,14 +2066,14 @@ export default function SupplyChainLoginPage() {
                                                             setIsEditingAppeal(true);
                                                             setAppealMessage(existingAppeal.appeal_message);
                                                         }}
-                                                        className="px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all flex items-center gap-2"
+                                                        className="px-4 py-2 text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-all flex items-center gap-2 border border-blue-200/60 dark:border-blue-800/40"
                                                     >
                                                         <Pencil size={15} />
                                                         Edit Appeal
                                                     </button>
                                                     <button
                                                         onClick={handleDeleteAppeal}
-                                                        className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-all flex items-center gap-2"
+                                                        className="px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 transition-all flex items-center gap-2 border border-red-200/60 dark:border-red-800/40"
                                                     >
                                                         <Trash2 size={15} />
                                                         Delete Appeal
@@ -2054,16 +2082,16 @@ export default function SupplyChainLoginPage() {
                                             )}
 
                                             {existingAppeal.status !== 'pending' && (
-                                                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 text-center">
-                                                    <p className="text-sm text-gray-600">
+                                                <div className="bg-gray-50 dark:bg-slate-800/60 rounded-xl p-3 border border-gray-200 dark:border-slate-700 text-center">
+                                                    <p className="text-sm text-gray-600 dark:text-slate-300">
                                                         {existingAppeal.status === 'approved' ? (
-                                                            <span className="text-emerald-600">Your appeal has been approved!</span>
+                                                            <span className="text-emerald-600 dark:text-emerald-400">Your appeal has been approved!</span>
                                                         ) : (
-                                                            <span className="text-red-600">Your appeal was rejected.</span>
+                                                            <span className="text-red-600 dark:text-red-400">Your appeal was rejected.</span>
                                                         )}
                                                     </p>
                                                     {existingAppeal.response_message && (
-                                                        <p className="text-xs text-gray-500 mt-1">
+                                                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                                                             See the admin response above for more details.
                                                         </p>
                                                     )}
@@ -2071,26 +2099,26 @@ export default function SupplyChainLoginPage() {
                                             )}
                                         </>
                                     ) : (
-                                        // submit/edit appeal form
+                                        // Submit/edit appeal form
                                         <>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                                                     Appeal Message
                                                 </label>
                                                 <textarea
                                                     value={appealMessage}
                                                     onChange={(e) => setAppealMessage(e.target.value)}
                                                     placeholder="Explain why you believe this device should be unblocked..."
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition resize-none h-32 text-sm"
+                                                    className="w-full px-4 py-3 border border-gray-300 dark:border-slate-700 dark:bg-slate-800/60 rounded-xl focus:ring-2 focus:ring-accent dark:focus:ring-accent/50 focus:border-transparent outline-none transition resize-none h-32 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500"
                                                     maxLength={500}
                                                 />
-                                                <p className="text-xs text-gray-400 mt-1">
+                                                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                                                     {appealMessage.length}/500 characters
                                                 </p>
                                             </div>
 
-                                            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                                                <p className="text-xs text-blue-700">
+                                            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3 border border-blue-100 dark:border-blue-800/40">
+                                                <p className="text-xs text-blue-700 dark:text-blue-400">
                                                     <strong>Note:</strong> Your appeal will be reviewed by an administrator. You will be notified once a decision is made.
                                                 </p>
                                             </div>
@@ -2098,14 +2126,15 @@ export default function SupplyChainLoginPage() {
                                     )}
                                 </div>
 
-                                <div className="border-t border-gray-200 p-4 flex justify-end gap-3">
+                                {/* Footer */}
+                                <div className="border-t border-gray-200 dark:border-slate-800 p-4 flex justify-end gap-3 bg-white dark:bg-slate-900 transition-colors">
                                     <button
                                         onClick={() => {
                                             setShowAppealModal(false);
                                             setAppealMessage('');
                                             setIsEditingAppeal(false);
                                         }}
-                                        className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 transition-colors"
+                                        className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors"
                                     >
                                         {existingAppeal && !isEditingAppeal ? 'Close' : 'Cancel'}
                                     </button>
@@ -2113,7 +2142,7 @@ export default function SupplyChainLoginPage() {
                                         <button
                                             onClick={existingAppeal ? handleUpdateAppeal : handleSubmitAppeal}
                                             disabled={isSubmittingAppeal || !appealMessage.trim()}
-                                            className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                            className="px-6 py-2 bg-accent dark:bg-accent text-white rounded-lg hover:bg-accent-dark dark:hover:bg-accent-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                         >
                                             {isSubmittingAppeal ? (
                                                 <>

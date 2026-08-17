@@ -6,20 +6,17 @@
 
 .dark,
 .dark * {
-  --background: #1c1b1f !important;
-  --foreground: #f4f3f6 !important;
   --color-ink: #2a2a2e !important;
-  --color-muted: #8a8a8e !important;
-  --color-accent: #ec4899 !important;
-  --color-accent-dark: #be185d !important;
-  --color-paper: #1c1b1f !important;
   --color-line: rgba(255, 255, 255, 0.08) !important;
+  --slate-900: #1a1a1e;
+  --slate-900-rgb: 26, 26, 30;
+  --slate-900-hover: #2a2a2e;
 }
 
 .dark body,
 .dark .min-h-screen,
 .dark main {
-  background-color: #1c1b1f !important;
+  background-color: #131217 !important;
 }
 
 html,
@@ -30,6 +27,7 @@ body {
   overflow-y: auto !important;
   overscroll-behavior: auto !important;
 }
+
 
 *::-webkit-scrollbar {
   width: 0 !important;
@@ -74,6 +72,7 @@ div {
   display: none !important;
 }
 
+
 :root {
   --pink-primary: #ec4899;
   --pink-primary-hover: #be185d;
@@ -100,6 +99,71 @@ div {
 .dark .ring-accent-pink {
   --tw-ring-color: var(--color-accent, #ec4899) !important;
 }
+
+
+/* Background */
+.bg-slate-900 {
+  background-color: var(--slate-900) !important;
+}
+
+.dark .bg-slate-900 {
+  background-color: var(--slate-900) !important;
+}
+
+/* Text */
+.text-slate-900 {
+  color: var(--slate-900) !important;
+}
+
+.dark .text-slate-900 {
+  color: var(--slate-900) !important;
+}
+
+/* Border */
+.border-slate-900 {
+  border-color: var(--slate-900) !important;
+}
+
+.dark .border-slate-900 {
+  border-color: var(--slate-900) !important;
+}
+
+/* Ring */
+.ring-slate-900 {
+  --tw-ring-color: var(--slate-900) !important;
+}
+
+.dark .ring-slate-900 {
+  --tw-ring-color: var(--slate-900) !important;
+}
+
+/* Divide */
+.divide-slate-900 > * + * {
+  border-color: var(--slate-900) !important;
+}
+
+.dark .divide-slate-900 > * + * {
+  border-color: var(--slate-900) !important;
+}
+
+/* Outline */
+.outline-slate-900 {
+  outline-color: var(--slate-900) !important;
+}
+
+.dark .outline-slate-900 {
+  outline-color: var(--slate-900) !important;
+}
+
+/* Shadow */
+.shadow-slate-900 {
+  --tw-shadow-color: var(--slate-900) !important;
+}
+
+.dark .shadow-slate-900 {
+  --tw-shadow-color: var(--slate-900) !important;
+}
+
 
 @layer utilities {
   .perspective {
@@ -131,6 +195,8 @@ div {
   .pagination-container-class {
     @apply p-3.5 border-t border-slate-100 flex items-center justify-between bg-slate-50/40 text-xs max-sm:flex-col max-sm:gap-2;
   }
+
+
 
   .table-pro {
     @apply w-full border-separate border-spacing-0 text-xs;
@@ -170,7 +236,7 @@ div {
 
   /* Dark mode table row styles */
   .dark .table-pro tbody tr {
-    background: #2d2d32 !important;
+    background: var(--slate-900) !important;
     border-color: rgba(255, 255, 255, 0.12) !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2) !important;
     transition: all 0.2s ease !important;
@@ -178,7 +244,7 @@ div {
 
   /* Dark mode hover */
   .dark .table-pro tbody tr:hover {
-    background: #3a3a40 !important;
+    background: var(--slate-900-hover) !important;
     border-color: rgba(236, 72, 153, 0.2) !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
     transform: translateY(-1px);
@@ -194,6 +260,8 @@ div {
     background: rgba(236, 72, 153, 0.22) !important;
     border-color: rgba(236, 72, 153, 0.4) !important;
   }
+
+
 
   @media (max-width: 768px) {
     .table-pro,
@@ -237,21 +305,21 @@ div {
 
     /* Dark mode mobile card styles */
     .dark .table-pro tbody tr {
-      background: #2d2d32 !important;
+      background: var(--slate-900) !important;
       border-color: rgba(255, 255, 255, 0.12) !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2) !important;
     }
 
     /* Dark mode mobile hover */
     .dark .table-pro tbody tr:hover {
-      background: #3a3a40 !important;
+      background: var(--slate-900-hover) !important;
       border-color: rgba(236, 72, 153, 0.2) !important;
       transform: translateY(-2px) !important;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
     }
 
     .dark .table-pro tbody tr:active {
-      background: #3a3a40 !important;
+      background: var(--slate-900-hover) !important;
     }
 
     .table-pro tbody tr.bg-pink-50\/30 {
@@ -421,6 +489,8 @@ div {
     }
   }
 
+
+
   .btn-primary {
     @apply bg-pink-500 text-white py-2 px-4 rounded-xl text-[13px] font-semibold inline-flex items-center gap-2 transition-all duration-150;
   }
@@ -561,6 +631,7 @@ div {
   }
 }
 
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -644,6 +715,7 @@ div {
   border: 1px solid #D1D5DB;
 }
 
+
 [data-panel] {
   display: none;
 }
@@ -677,6 +749,7 @@ div {
   width: 60%;
 }
 
+
 .card {
   background: #fff;
   border: 1px solid #E5E7EB;
@@ -687,6 +760,7 @@ div {
 .brand-gradient {
   background: linear-gradient(135deg, var(--color-accent, #EC4899) 0%, #F472B6 100%);
 }
+
 
 @keyframes fadeIn {
   from {
@@ -748,9 +822,6 @@ details > summary::-webkit-details-marker {
   display: none;
 }
 
-/* ============================================
-   DARK MODE OVERRIDES
-   ============================================ */
 
 .dark .bgCard {
   background: var(--color-ink, #2a2a2e) !important;
@@ -1139,7 +1210,7 @@ details > summary::-webkit-details-marker {
 }
 
 .dark [class*="bg-slate-900"] {
-  background: #1a1a1e !important;
+  background: var(--slate-900) !important;
 }
 
 .dark .badge-pulse {
@@ -1198,12 +1269,12 @@ details > summary::-webkit-details-marker {
 
 @media (max-width: 768px) {
   .dark .table-pro tbody tr {
-    background: #2d2d32 !important;
+    background: var(--slate-900) !important;
     border-color: rgba(255, 255, 255, 0.12) !important;
   }
 
   .dark .table-pro tbody tr:hover {
-    background: #3a3a40 !important;
+    background: var(--slate-900-hover) !important;
     border-color: rgba(236, 72, 153, 0.2) !important;
   }
 

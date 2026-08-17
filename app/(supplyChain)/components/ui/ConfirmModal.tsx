@@ -4,7 +4,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from "react
 
 interface ConfirmOptions {
     title?: string;
-    message?: string;
+    message?: string | React.ReactElement;
     confirmText?: string;
     cancelText?: string;
     confirmVariant?: 'danger' | 'warning' | 'success' | 'info';
@@ -110,10 +110,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                             {modalTitle}
                         </h3>
 
-                        {/* Message */}
-                        <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
+                        {/* Message - Changed from <p> to <div> to allow block elements */}
+                        <div className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
                             {modalMessage}
-                        </p>
+                        </div>
 
                         {/* Buttons */}
                         <div className="flex gap-3">

@@ -10,7 +10,7 @@ const HR_DUMMY_DATA = {
             id: '11111111-1111-1111-1111-111111111111',
             employee_id: 'EMP-001',
             display_name: 'John Smith',
-            email: 'john.smith@company.com',
+            email: 'supplychainandinventory@gmail.com',
             role: 'Admin',
             department: 'Management',
             position: 'CEO',

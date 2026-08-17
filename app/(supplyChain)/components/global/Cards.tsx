@@ -27,7 +27,7 @@ export default function Cards({
     data = "0",
     arrow = "fas fa-arrow-up mr-1",
     description = "No change",
-    backBg = "bg-ink dark:bg-ink/90",
+    backBg = "bg-ink dark:bg-slate-900",
     backHeader = "Details",
     backDescription = "No additional information available.",
     headerTextColor = "text-muted dark:text-white/80",

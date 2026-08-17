@@ -30,7 +30,7 @@ const ProcurementCard = dynamic(() => import("./ProcurementCard"), {
 const RecentTransactions = dynamic(() => import("./RecentTransactions"), {
     loading: () => <div className="h-64 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />,
 });
-const QuickActions = dynamic(() => import("../../components/client/QuickActions"), {
+const QuickActions = dynamic(() => import("./QuickActions"), {
     loading: () => <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />,
 });
 
@@ -760,7 +760,7 @@ export default function ExecutiveCharts() {
                                 }
                             },
                             scales: {
-                                x: { grid: { display: false }, ticks: { font: { size: 10, weight: '500' as const }, color: mutedColor } },
+                                x: { grid: { display: false }, ticks: { font: { size: 10, weight: 500 as const }, color: mutedColor } },
                                 y: { beginAtZero: true, ticks: { font: { size: 10 }, color: mutedColor }, grid: { color: gridColor } }
                             },
                             animation: { duration: 500 },
@@ -866,12 +866,6 @@ export default function ExecutiveCharts() {
         </Link>
     ), []);
 
-    const CardWrapper = useCallback(({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-        <div className={`bg-white dark:bg-[#2a2a2e] rounded-xl border border-slate-200/60 dark:border-slate-700/60 p-4 shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 ${className}`}>
-            {children}
-        </div>
-    ), []);
-
     const TabContent = useCallback(({ children }: { children: React.ReactNode }) => (
         <div className={`transition-all duration-300 ease-in-out ${isTabTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
             {children}
@@ -906,34 +900,38 @@ export default function ExecutiveCharts() {
     return (
         <div className="space-y-4">
             {/* Tabs */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => handleTabChange(tab.id as TabType)}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2 ${activeTab === tab.id
-                            ? 'bg-pink-50 dark:bg-pink-950/20 text-pink-600 dark:text-pink-400 border border-pink-200 dark:border-pink-800 shadow-sm'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:shadow-md'
-                            }`}
-                    >
-                        <i className={`fas ${tab.icon} text-xs`}></i>
-                        {tab.label}
-                    </button>
-                ))}
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                {tabs.map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => handleTabChange(tab.id as TabType)}
+                            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 flex items-center gap-2 cursor-pointer ${isActive
+                                ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                        >
+                            <i className={`fas ${tab.icon} text-xs ${isActive ? 'text-pink-400 dark:text-pink-400' : 'text-slate-400 dark:text-slate-500'}`}></i>
+                            <span>{tab.label}</span>
+                        </button>
+                    );
+                })}
+
                 <div className="ml-auto flex items-center gap-2">
                     <button
                         onClick={generateAISummary}
                         disabled={isGeneratingAI}
-                        className="text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:scale-100 disabled:opacity-50 disabled:cursor-not-allowed bg-pink-600 hover:bg-pink-700 text-white shadow-pink-600/20 dark:bg-pink-500 dark:hover:bg-pink-600 dark:text-white dark:shadow-pink-500/20 border border-transparent dark:border-white/10 hover:shadow-lg hover:shadow-pink-600/30 dark:hover:shadow-pink-500/30"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-pink-600 hover:bg-pink-700 active:bg-pink-800 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                         {isGeneratingAI ? (
                             <>
-                                <i className="fas fa-circle-notch fa-spin text-xs" />
+                                <i className="fas fa-spinner fa-spin text-xs" />
                                 <span>Analyzing...</span>
                             </>
                         ) : (
                             <>
-                                <i className="fas fa-robot text-xs" />
+                                <i className="fas fa-robot text-xs text-pink-200" />
                                 <span>AI Summary</span>
                             </>
                         )}
@@ -945,16 +943,16 @@ export default function ExecutiveCharts() {
             {activeTab === 'overview' && (
                 <TabContent>
                     {/* AI Insights Banner */}
-                    <div className="bg-gradient-to-r from-pink-50 via-purple-50/50 to-pink-50/30 dark:from-slate-900/90 dark:via-purple-950/25 dark:to-slate-900/90 backdrop-blur-xl rounded-2xl border border-pink-200/80 dark:border-white/10 p-4 shadow-sm dark:shadow-black/50 transition-all duration-300 hover:shadow-2xl hover:shadow-pink-500/20 dark:hover:shadow-pink-500/10 hover:-translate-y-0.5 mb-3">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs dark:shadow-none transition-all duration-300 mb-3">
                         <div className="flex items-center justify-between flex-wrap gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-xl bg-pink-100 dark:bg-pink-950/60 dark:border dark:border-pink-500/30 flex items-center justify-center text-pink-600 dark:text-pink-400 shadow-xs">
+                                <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
                                     <i className="fas fa-robot text-sm" />
                                 </div>
                                 <div>
                                     <h3 className="text-sm font-semibold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                                         <span>AI Business Intelligence</span>
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-pink-500/10 text-pink-600 dark:bg-pink-500/20 dark:text-pink-300 border border-pink-500/20 dark:border-pink-500/30 uppercase tracking-wider">
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 border border-pink-200/60 dark:border-pink-900/50 uppercase tracking-wider">
                                             Live
                                         </span>
                                     </h3>
@@ -967,7 +965,7 @@ export default function ExecutiveCharts() {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setShowInsights(!showInsights)}
-                                    className="text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white transition-all duration-200 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-white/10 shadow-2xs dark:shadow-black/20 hover:shadow-md cursor-pointer"
+                                    className="text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 cursor-pointer"
                                 >
                                     {showInsights ? 'Hide Insights' : 'Show Insights'}
                                 </button>
@@ -981,13 +979,13 @@ export default function ExecutiveCharts() {
                                     <div
                                         key={insight.id}
                                         onClick={() => setSelectedInsight(insight)}
-                                        className={`p-3 rounded-xl border border-slate-200/80 dark:border-white/10 ${getInsightBg(
+                                        className={`p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 ${getInsightBg(
                                             insight.type
-                                        )} dark:bg-slate-900/95 backdrop-blur-md transition-all duration-300 hover:shadow-xl dark:hover:shadow-black/80 hover:-translate-y-1 dark:hover:border-pink-500/40 cursor-pointer relative group flex flex-col justify-between`}
+                                        )} dark:bg-slate-900/50 backdrop-blur-none transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer relative group flex flex-col justify-between`}
                                     >
                                         <div className="flex items-start justify-between gap-2.5">
                                             <div className="min-w-0 flex-1">
-                                                <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                                                <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 truncate">
                                                     <i
                                                         className={`fas ${insight.type === 'positive'
                                                             ? 'fa-arrow-up'
@@ -1003,7 +1001,7 @@ export default function ExecutiveCharts() {
                                                     </span>
                                                     <InfoTooltip text={insight.description} />
                                                 </div>
-                                                <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                                                     {insight.description}
                                                 </p>
                                             </div>
@@ -1016,7 +1014,7 @@ export default function ExecutiveCharts() {
                                                         </span>
                                                     )}
                                                     {insight.change && (
-                                                        <span className="block text-[10px] text-slate-400 dark:text-slate-300 font-medium mt-0.5">
+                                                        <span className="block text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
                                                             {insight.change}
                                                         </span>
                                                     )}
@@ -1025,14 +1023,14 @@ export default function ExecutiveCharts() {
                                         </div>
 
                                         {insight.actionable && (
-                                            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/10 flex items-center justify-between">
+                                            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                                                 <Link
                                                     href={insight.actionLink || '#'}
                                                     onClick={(e) => e.stopPropagation()}
-                                                    className="text-[10px] font-semibold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 inline-flex items-center gap-1 transition-all duration-200 group/link hover:gap-2"
+                                                    className="text-[10px] font-semibold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 inline-flex items-center gap-1 transition-all duration-200 group/link hover:gap-1.5"
                                                 >
                                                     <span>{insight.actionText || 'View Details'}</span>
-                                                    <i className="fas fa-arrow-right text-[8px] transition-transform duration-200 group-hover/link:translate-x-1" />
+                                                    <i className="fas fa-arrow-right text-[8px] transition-transform duration-200 group-hover/link:translate-x-0.5" />
                                                 </Link>
                                             </div>
                                         )}
@@ -1044,40 +1042,64 @@ export default function ExecutiveCharts() {
 
                     {/* Charts Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-3">
-                        <CardWrapper>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1">
-                                    <i className="fas fa-box text-pink-500"></i>
-                                    Parcel Volume Trend
+                        {/* Parcel Volume Trend Card */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs transition-all">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                        <i className="fas fa-box text-xs"></i>
+                                    </div>
+                                    <span>Parcel Volume Trend</span>
                                     <InfoTooltip text="Tracks parcel status changes over the last 7 days" />
                                 </h3>
                                 <ChartLink href="/warehousing" label="View Details" />
                             </div>
-                            <div className="h-[200px]">
+
+                            <div className="h-[200px] w-full">
                                 <canvas ref={chartRefs.parcels}></canvas>
                             </div>
-                            <div className="mt-2 text-[10px] text-slate-400 text-center flex items-center justify-center gap-3 flex-wrap">
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.secondary }}></span>Received</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.warning }}></span>Sorting</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.success }}></span>Ready</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.purple }}></span>Picked Up</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.primary }}></span>Delivered</span>
-                            </div>
-                        </CardWrapper>
 
-                        <CardWrapper>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1">
-                                    <i className="fas fa-warehouse text-amber-500"></i>
-                                    Inventory by Category
+                            <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center flex items-center justify-center gap-4 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.secondary }}></span>
+                                    <span>Received</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.warning }}></span>
+                                    <span>Sorting</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.success }}></span>
+                                    <span>Ready</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.purple }}></span>
+                                    <span>Picked Up</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS.primary }}></span>
+                                    <span>Delivered</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Inventory by Category Card */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs transition-all">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-900/30">
+                                        <i className="fas fa-warehouse text-xs"></i>
+                                    </div>
+                                    <span>Inventory by Category</span>
                                     <InfoTooltip text="Distribution of inventory items across categories" />
                                 </h3>
                                 <ChartLink href="/inventory" label="View All" />
                             </div>
-                            <div className="h-[200px]">
+
+                            <div className="h-[200px] w-full flex items-center justify-center">
                                 <canvas ref={chartRefs.inventory}></canvas>
                             </div>
-                        </CardWrapper>
+                        </div>
                     </div>
 
                     {/* KPI Cards */}
@@ -1085,66 +1107,86 @@ export default function ExecutiveCharts() {
                         {KPIs.map((kpi) => (
                             <div
                                 key={kpi.id}
-                                className="bg-white dark:bg-[#2a2a2e] rounded-xl border border-slate-200/60 dark:border-slate-700/60 p-3 text-center shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 group relative"
+                                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 text-center shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm group relative"
                             >
-                                <div className="flex items-center justify-center mb-1 transition-transform duration-300 group-hover:scale-110">
-                                    <i className={`fas ${kpi.icon} ${kpi.color} text-lg`}></i>
+                                <div className="flex items-center justify-center mb-2">
+                                    <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
+                                        <i className={`fas ${kpi.icon} ${kpi.color} text-sm`}></i>
+                                    </div>
                                 </div>
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center justify-center gap-1">
-                                    {kpi.label}
+
+                                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-0.5">
+                                    <span>{kpi.label}</span>
                                     <InfoTooltip text={kpi.description} />
                                 </p>
-                                <p className="text-lg font-bold text-slate-900 dark:text-white transition-colors duration-300 group-hover:text-pink-600 dark:group-hover:text-pink-400">
+
+                                <p className="text-lg font-bold text-slate-900 dark:text-white tracking-tight transition-colors duration-200 group-hover:text-pink-600 dark:group-hover:text-pink-400">
                                     {kpi.value}
                                 </p>
+
                                 {kpi.change && (
-                                    <p className={`text-[10px] font-medium flex items-center justify-center gap-1 ${kpi.changeType === 'up' ? 'text-emerald-500' :
-                                        kpi.changeType === 'down' ? 'text-red-500' : 'text-slate-400'
-                                        }`}>
-                                        <i className={`fas ${getKPIChangeIcon(kpi.changeType ?? '')} text-[8px]`}></i>
-                                        {kpi.change}
-                                    </p>
+                                    <div className="mt-1 flex items-center justify-center">
+                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${kpi.changeType === 'up'
+                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' :
+                                            kpi.changeType === 'down'
+                                                ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                            }`}>
+                                            <i className={`fas ${getKPIChangeIcon(kpi.changeType ?? '')} text-[8px]`}></i>
+                                            <span>{kpi.change}</span>
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                         ))}
                     </div>
 
                     {/* Forecast Preview */}
-                    <CardWrapper>
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1">
-                                    <i className="fas fa-chart-line text-pink-500"></i>
-                                    Volume Forecast
-                                    <InfoTooltip text="AI-powered 12-month volume projection with confidence intervals" />
-                                    <span className="text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 px-2 py-0.5 rounded-full">AI Powered</span>
-                                </h3>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs transition-all">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2.5">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 border border-pink-100 dark:border-pink-900/30">
+                                    <i className="fas fa-chart-line text-xs"></i>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
+                                        <span>Volume Forecast</span>
+                                        <InfoTooltip text="AI-powered 12-month volume projection with confidence intervals" />
+                                    </h3>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 border border-pink-200/60 dark:border-pink-900/40">
+                                        AI Powered
+                                    </span>
+                                </div>
                             </div>
                             <ChartLink href="/forecast" label="View full forecast" />
                         </div>
-                        <div className="h-[220px]">
+
+                        <div className="h-[220px] w-full pt-1">
                             <canvas ref={chartRefs.forecast}></canvas>
                         </div>
-                    </CardWrapper>
+                    </div>
+
                 </TabContent>
             )}
 
             {/* ─── OPERATIONS TAB ─── */}
             {activeTab === 'operations' && (
                 <TabContent>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            <div className="transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1">
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-black/40">
                                 <OperationsSummary />
                             </div>
-                            <div className="transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1">
+                            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-black/40">
                                 <ProcurementCard />
                             </div>
                         </div>
-                        <div className="transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1">
+
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-black/40">
                             <RecentTransactions />
                         </div>
-                        <div className="transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1">
+
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-black/40">
                             <QuickActions />
                         </div>
                     </div>
@@ -1159,47 +1201,53 @@ export default function ExecutiveCharts() {
                             {KPIs.map((kpi) => (
                                 <div
                                     key={kpi.id}
-                                    className="bg-white dark:bg-[#2a2a2e] rounded-xl border border-slate-200/60 dark:border-slate-700/60 p-4 shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 group"
+                                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm group cursor-pointer"
                                 >
                                     <div className="flex items-start justify-between">
                                         <div>
-                                            <p className="text-xs text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
                                                 {kpi.label}
                                                 <InfoTooltip text={kpi.description} />
                                             </p>
-                                            <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 transition-colors duration-300 group-hover:text-pink-600 dark:group-hover:text-pink-400">
+                                            <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 transition-colors duration-200 group-hover:text-pink-600 dark:group-hover:text-pink-400">
                                                 {kpi.value}
                                             </p>
                                             {kpi.change && (
-                                                <p className={`text-xs font-medium flex items-center gap-1 mt-1 ${kpi.changeType === 'up' ? 'text-emerald-500' :
-                                                    kpi.changeType === 'down' ? 'text-red-500' : 'text-slate-400'
+                                                <p className={`text-xs font-medium flex items-center gap-1 mt-1.5 ${kpi.changeType === 'up'
+                                                    ? 'text-emerald-600 dark:text-emerald-400' :
+                                                    kpi.changeType === 'down'
+                                                        ? 'text-rose-600 dark:text-rose-400'
+                                                        : 'text-slate-500 dark:text-slate-400'
                                                     }`}>
                                                     <i className={`fas ${getKPIChangeIcon(kpi.changeType ?? '')} text-[10px]`}></i>
-                                                    {kpi.change}
+                                                    <span>{kpi.change}</span>
                                                 </p>
                                             )}
                                         </div>
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${kpi.color} bg-opacity-10 transition-transform duration-300 group-hover:scale-110`}>
-                                            <i className={`fas ${kpi.icon} ${kpi.color}`}></i>
+                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 group-hover:bg-pink-50 dark:group-hover:bg-pink-950/40 group-hover:text-pink-600 dark:group-hover:text-pink-400 border border-slate-200/60 dark:border-slate-700/60 transition-colors">
+                                            <i className={`fas ${kpi.icon} text-sm`}></i>
                                         </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        <CardWrapper>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1">
-                                    <i className="fas fa-chart-bar text-pink-500"></i>
-                                    KPI Performance Chart
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs transition-all">
+
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                        <i className="fas fa-chart-bar text-xs"></i>
+                                    </div>
+                                    <span>KPI Performance Chart</span>
                                     <InfoTooltip text="Visual representation of all KPI values for quick comparison" />
                                 </h3>
                                 <ChartLink href="/kpi-dashboard" label="View All KPIs" />
                             </div>
-                            <div className="h-[300px]">
+                            <div className="h-[300px] w-full">
                                 <canvas ref={chartRefs.kpi}></canvas>
                             </div>
-                        </CardWrapper>
+                        </div>
                     </div>
                 </TabContent>
             )}
@@ -1209,20 +1257,18 @@ export default function ExecutiveCharts() {
                 <TabContent>
                     <div className="space-y-6">
                         {/* AI Insights Header */}
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-white/10 p-6 shadow-xs backdrop-blur-xl transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-xs transition-all duration-200">
                             <div className="flex flex-col md:flex-row items-center gap-6">
                                 <div className="flex-shrink-0">
-                                    <div className="w-16 h-16 rounded-2xl bg-pink-500 dark:bg-pink-600 flex items-center justify-center shadow-xs border border-white/20 dark:border-white/10 transition-transform duration-300 hover:scale-110">
-                                        <i className="fas fa-robot text-2xl text-white" />
+                                    <div className="w-14 h-14 rounded-2xl bg-pink-500/10 dark:bg-pink-500/15 border border-pink-500/20 flex items-center justify-center text-pink-600 dark:text-pink-400">
+                                        <i className="fas fa-robot text-2xl" />
                                     </div>
                                 </div>
 
                                 <div className="flex-1 text-center md:text-left">
-                                    <div className="flex items-center justify-center md:justify-start gap-2.5">
-                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                                            AI-Powered Intelligence
-                                        </h3>
-                                    </div>
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                        AI-Powered Intelligence
+                                    </h3>
                                     <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
                                         Get real-time AI-powered insights and actionable recommendations based on your operational data.
                                     </p>
@@ -1231,17 +1277,17 @@ export default function ExecutiveCharts() {
                                 <button
                                     onClick={generateAISummary}
                                     disabled={isGeneratingAI}
-                                    className="flex-shrink-0 px-5 py-2.5 bg-pink-600 hover:bg-pink-700 dark:bg-pink-500 dark:hover:bg-pink-600 text-white rounded-xl transition-all duration-200 shadow-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold cursor-pointer border border-pink-700 dark:border-pink-400/30 hover:shadow-lg hover:shadow-pink-600/30 dark:hover:shadow-pink-500/30"
+                                    className="flex-shrink-0 px-4 py-2.5 bg-pink-600 hover:bg-pink-700 active:bg-pink-800 text-white rounded-xl transition-all duration-150 shadow-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold cursor-pointer"
                                 >
                                     {isGeneratingAI ? (
                                         <>
                                             <i className="fas fa-spinner fa-spin text-xs" />
-                                            Analyzing Data...
+                                            <span>Analyzing Data...</span>
                                         </>
                                     ) : (
                                         <>
                                             <i className="fas fa-wand-magic-sparkles text-xs" />
-                                            Generate Insights
+                                            <span>Generate Insights</span>
                                         </>
                                     )}
                                 </button>
@@ -1260,24 +1306,24 @@ export default function ExecutiveCharts() {
 
                                 const colorClasses = {
                                     positive: {
-                                        card: 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-white/10 hover:border-emerald-300 dark:hover:border-emerald-500/40',
-                                        iconBg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40',
-                                        badge: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40',
+                                        card: 'hover:border-emerald-300 dark:hover:border-emerald-800/80',
+                                        iconBg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40',
+                                        badge: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40',
                                     },
                                     negative: {
-                                        card: 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-white/10 hover:border-red-300 dark:hover:border-red-500/40',
-                                        iconBg: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-800/40',
-                                        badge: 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200/60 dark:border-red-800/40',
+                                        card: 'hover:border-rose-300 dark:hover:border-rose-800/80',
+                                        iconBg: 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/40',
+                                        badge: 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/40',
                                     },
                                     warning: {
-                                        card: 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-white/10 hover:border-amber-300 dark:hover:border-amber-500/40',
-                                        iconBg: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40',
-                                        badge: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40',
+                                        card: 'hover:border-amber-300 dark:hover:border-amber-800/80',
+                                        iconBg: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40',
+                                        badge: 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40',
                                     },
                                     neutral: {
-                                        card: 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-500/40',
-                                        iconBg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/40',
-                                        badge: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40',
+                                        card: 'hover:border-blue-300 dark:hover:border-blue-800/80',
+                                        iconBg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/40',
+                                        badge: 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/40',
                                     },
                                 };
 
@@ -1286,57 +1332,60 @@ export default function ExecutiveCharts() {
                                 return (
                                     <div
                                         key={insight.id}
-                                        className={`group relative p-4 sm:p-5 rounded-2xl border transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 cursor-pointer ${currentStyle.card}`}
+                                        className={`group relative p-4.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md cursor-pointer flex flex-col justify-between ${currentStyle.card}`}
                                         onClick={() => setSelectedInsight(insight)}
                                     >
-                                        <div className="flex items-start gap-3.5 sm:gap-4">
-                                            <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${currentStyle.iconBg} transition-transform duration-300 group-hover:scale-110`}>
-                                                <i className={`fas ${iconMap[insight.type]} text-base`} />
-                                            </div>
-
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h4 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors duration-300">
-                                                        {insight.title}
-                                                    </h4>
-                                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${currentStyle.badge}`}>
-                                                        {insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}
-                                                    </span>
+                                        <div>
+                                            <div className="flex items-start gap-3.5">
+                                                <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${currentStyle.iconBg}`}>
+                                                    <i className={`fas ${iconMap[insight.type]} text-sm`} />
                                                 </div>
 
-                                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">
-                                                    {insight.description}
-                                                </p>
-
-                                                {insight.metric && (
-                                                    <div className="mt-3 flex items-center gap-4 text-xs">
-                                                        <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                                                            <i className="fas fa-chart-simple text-[10px] text-slate-400 dark:text-slate-500" />
-                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{insight.metric}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <h4 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
+                                                            {insight.title}
+                                                        </h4>
+                                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${currentStyle.badge}`}>
+                                                            {insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}
                                                         </span>
-                                                        {insight.change && (
-                                                            <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                                                                <i className="fas fa-arrow-right text-[10px] text-slate-400 dark:text-slate-500" />
-                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{insight.change}</span>
-                                                            </span>
-                                                        )}
                                                     </div>
-                                                )}
+
+                                                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed line-clamp-2">
+                                                        {insight.description}
+                                                    </p>
+
+                                                    {insight.metric && (
+                                                        <div className="mt-3 flex items-center gap-4 text-xs">
+                                                            <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                                                                <i className="fas fa-chart-simple text-[10px] text-slate-400 dark:text-slate-500" />
+                                                                <span className="font-semibold text-slate-800 dark:text-slate-200">{insight.metric}</span>
+                                                            </span>
+                                                            {insight.change && (
+                                                                <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                                                                    <i className="fas fa-arrow-right text-[10px] text-slate-400 dark:text-slate-500" />
+                                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{insight.change}</span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 
                                         {insight.actionable && (
-                                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/10 flex items-center justify-between">
-                                                <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200/50 dark:border-amber-800/30">
+                                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                                <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200/50 dark:border-amber-900/30">
                                                     <i className="fas fa-lightbulb text-[9px]" />
                                                     Actionable
                                                 </span>
                                                 <Link
                                                     href={insight.actionLink || '#'}
-                                                    className="text-xs font-semibold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 flex items-center gap-1 transition-all duration-200 group-hover:gap-1.5"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="text-xs font-semibold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 flex items-center gap-1 transition-all"
                                                 >
-                                                    {insight.actionText || 'Take Action'}
-                                                    <i className="fas fa-arrow-right text-[10px] transition-transform duration-200 group-hover:translate-x-1" />
+                                                    <span>{insight.actionText || 'Take Action'}</span>
+                                                    <i className="fas fa-arrow-right text-[10px]" />
                                                 </Link>
                                             </div>
                                         )}
@@ -1347,8 +1396,8 @@ export default function ExecutiveCharts() {
 
                         {/* Empty State */}
                         {insights.length === 0 && (
-                            <div className="text-center py-14 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-white/10 rounded-2xl transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/10 dark:hover:shadow-black/40">
-                                <div className="w-12 h-12 mx-auto rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-white/5 flex items-center justify-center mb-3 text-slate-400 dark:text-slate-500 transition-transform duration-300 hover:scale-110">
+                            <div className="text-center py-14 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                <div className="w-12 h-12 mx-auto rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center mb-3 text-slate-400 dark:text-slate-500">
                                     <i className="fas fa-robot text-xl" />
                                 </div>
                                 <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">No Insights Generated Yet</h4>
@@ -1361,16 +1410,16 @@ export default function ExecutiveCharts() {
                         {/* AI Summary Modal */}
                         {selectedInsight && (
                             <div
-                                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+                                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm"
                                 onClick={() => setSelectedInsight(null)}
                             >
                                 <div
-                                    className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-xl border border-slate-200/80 dark:border-white/10 animate-scale-in transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60"
+                                    className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-xl border border-slate-200/80 dark:border-slate-800"
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-white/10 px-6 py-4 flex items-center justify-between z-10">
+                                    <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-6 py-4 flex items-center justify-between z-10">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-pink-50 dark:bg-pink-950/50 border border-pink-200/60 dark:border-pink-800/40 flex items-center justify-center text-pink-600 dark:text-pink-400 transition-transform duration-300 hover:scale-110">
+                                            <div className="w-8 h-8 rounded-lg bg-pink-50 dark:bg-pink-950/40 border border-pink-200/60 dark:border-pink-900/40 flex items-center justify-center text-pink-600 dark:text-pink-400">
                                                 <i className="fas fa-lightbulb text-xs" />
                                             </div>
                                             <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
@@ -1379,14 +1428,15 @@ export default function ExecutiveCharts() {
                                         </div>
                                         <button
                                             onClick={() => setSelectedInsight(null)}
-                                            className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center transition-colors duration-200 cursor-pointer hover:shadow-md"
+                                            className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+                                            aria-label="Close modal"
                                         >
                                             <i className="fas fa-xmark text-xs" />
                                         </button>
                                     </div>
 
                                     <div className="p-6 space-y-4">
-                                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-white/5 transition-all duration-300 hover:shadow-md">
+                                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800">
                                             <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                                                 {selectedInsight.description}
                                             </p>
@@ -1394,27 +1444,27 @@ export default function ExecutiveCharts() {
 
                                         {selectedInsight.metric && (
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-white/5 rounded-xl p-3.5 text-center transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                                                <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 rounded-xl p-3.5 text-center">
                                                     <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Metric</p>
-                                                    <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{selectedInsight.metric}</p>
+                                                    <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{selectedInsight.metric}</p>
                                                 </div>
                                                 {selectedInsight.change && (
-                                                    <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-white/5 rounded-xl p-3.5 text-center transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                                                    <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 rounded-xl p-3.5 text-center">
                                                         <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Change</p>
-                                                        <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{selectedInsight.change}</p>
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{selectedInsight.change}</p>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
 
                                         {selectedInsight.actionable && (
-                                            <div className="pt-3 border-t border-slate-100 dark:border-white/10 flex justify-end">
+                                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                                                 <Link
                                                     href={selectedInsight.actionLink || '#'}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-pink-600 hover:bg-pink-700 dark:bg-pink-500 dark:hover:bg-pink-600 text-white rounded-xl transition-all duration-200 text-xs font-semibold shadow-xs hover:shadow-lg hover:shadow-pink-600/30 dark:hover:shadow-pink-500/30 hover:gap-2.5"
+                                                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-pink-600 hover:bg-pink-700 dark:bg-pink-500 dark:hover:bg-pink-600 text-white rounded-xl transition-all text-xs font-semibold shadow-xs"
                                                 >
-                                                    {selectedInsight.actionText || 'Take Action'}
-                                                    <i className="fas fa-arrow-right text-[10px] transition-transform duration-200 group-hover:translate-x-1" />
+                                                    <span>{selectedInsight.actionText || 'Take Action'}</span>
+                                                    <i className="fas fa-arrow-right text-[10px]" />
                                                 </Link>
                                             </div>
                                         )}
@@ -1430,40 +1480,48 @@ export default function ExecutiveCharts() {
             {activeTab === 'forecast' && (
                 <TabContent>
                     <div className="space-y-4">
-                        <CardWrapper>
-                            <div className="flex items-center justify-between mt-3">
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1">
-                                        <i className="fas fa-chart-line text-pink-500"></i>
-                                        Volume Forecast
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs transition-all">
+                            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400">
+                                        <i className="fas fa-chart-line text-xs"></i>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                                            Volume Forecast
+                                        </h3>
                                         <InfoTooltip text="AI-powered 12-month volume projection with confidence intervals" />
-                                        <span className="text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 px-2 py-0.5 rounded-full">AI Powered</span>
-                                    </h3>
+                                        <span className="text-[10px] font-semibold bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-900/40 px-2 py-0.5 rounded-md">
+                                            AI Powered
+                                        </span>
+                                    </div>
                                 </div>
                                 <ChartLink href="/forecast" label="View full forecast" />
                             </div>
-                            <div className="h-[300px]">
+
+                            <div className="h-[300px] w-full pt-4">
                                 <canvas ref={chartRefs.forecast}></canvas>
                             </div>
-                            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
-                                    <p className="text-[10px] text-slate-400 uppercase">Next Month</p>
-                                    <p className="text-lg font-bold text-slate-900 dark:text-white">2,450</p>
+
+                            <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3 text-center transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Next Month</p>
+                                    <p className="text-base font-bold text-slate-900 dark:text-white mt-1">2,450</p>
                                 </div>
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
-                                    <p className="text-[10px] text-slate-400 uppercase">Growth</p>
-                                    <p className="text-lg font-bold text-emerald-500">+8.2%</p>
+                                <div className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3 text-center transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Growth</p>
+                                    <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">+8.2%</p>
                                 </div>
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
-                                    <p className="text-[10px] text-slate-400 uppercase">Confidence</p>
-                                    <p className="text-lg font-bold text-blue-500">High</p>
+                                <div className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3 text-center transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Confidence</p>
+                                    <p className="text-base font-bold text-blue-600 dark:text-blue-400 mt-1">High</p>
                                 </div>
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
-                                    <p className="text-[10px] text-slate-400 uppercase">Quarterly</p>
-                                    <p className="text-lg font-bold text-purple-500">+12.4%</p>
+                                <div className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3 text-center transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Quarterly</p>
+                                    <p className="text-base font-bold text-purple-600 dark:text-purple-400 mt-1">+12.4%</p>
                                 </div>
                             </div>
-                        </CardWrapper>
+                        </div>
                     </div>
                 </TabContent>
             )}
@@ -1474,37 +1532,85 @@ export default function ExecutiveCharts() {
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {[
-                                { title: 'Executive Summary', icon: 'fa-file-alt', color: 'text-pink-500', desc: 'Complete overview of all operations', link: '/reports/executive' },
-                                { title: 'Parcel Performance', icon: 'fa-box', color: 'text-blue-500', desc: 'Detailed parcel metrics and trends', link: '/reports/parcels' },
-                                { title: 'Inventory Report', icon: 'fa-warehouse', color: 'text-amber-500', desc: 'Stock levels and inventory health', link: '/reports/inventory' },
-                                { title: 'Procurement Status', icon: 'fa-shopping-cart', color: 'text-purple-500', desc: 'Purchase requests and approvals', link: '/reports/procurement' },
-                                { title: 'Courier Performance', icon: 'fa-truck', color: 'text-emerald-500', desc: 'Courier efficiency and metrics', link: '/reports/couriers' },
-                                { title: 'Financial Summary', icon: 'fa-chart-bar', color: 'text-indigo-500', desc: 'Cost breakdown and savings', link: '/reports/financial' },
+                                {
+                                    title: 'Executive Summary',
+                                    icon: 'fa-file-alt',
+                                    color: 'text-pink-500 dark:text-pink-400',
+                                    bg: 'bg-pink-50 dark:bg-pink-950/40 border-pink-100 dark:border-pink-900/30',
+                                    desc: 'Complete overview of all operations',
+                                    link: '/reports/executive'
+                                },
+                                {
+                                    title: 'Parcel Performance',
+                                    icon: 'fa-box',
+                                    color: 'text-blue-500 dark:text-blue-400',
+                                    bg: 'bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/30',
+                                    desc: 'Detailed parcel metrics and trends',
+                                    link: '/reports/parcels'
+                                },
+                                {
+                                    title: 'Inventory Report',
+                                    icon: 'fa-warehouse',
+                                    color: 'text-amber-500 dark:text-amber-400',
+                                    bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/30',
+                                    desc: 'Stock levels and inventory health',
+                                    link: '/reports/inventory'
+                                },
+                                {
+                                    title: 'Procurement Status',
+                                    icon: 'fa-shopping-cart',
+                                    color: 'text-purple-500 dark:text-purple-400',
+                                    bg: 'bg-purple-50 dark:bg-purple-950/40 border-purple-100 dark:border-purple-900/30',
+                                    desc: 'Purchase requests and approvals',
+                                    link: '/reports/procurement'
+                                },
+                                {
+                                    title: 'Courier Performance',
+                                    icon: 'fa-truck',
+                                    color: 'text-emerald-500 dark:text-emerald-400',
+                                    bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/30',
+                                    desc: 'Courier efficiency and metrics',
+                                    link: '/reports/couriers'
+                                },
+                                {
+                                    title: 'Financial Summary',
+                                    icon: 'fa-chart-bar',
+                                    color: 'text-indigo-500 dark:text-indigo-400',
+                                    bg: 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-100 dark:border-indigo-900/30',
+                                    desc: 'Cost breakdown and savings',
+                                    link: '/reports/financial'
+                                },
                             ].map((report) => (
                                 <div
                                     key={report.title}
-                                    className="bg-white dark:bg-[#2a2a2e] rounded-xl border border-slate-200/60 dark:border-slate-700/60 p-4 shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 hover:-translate-y-1 group"
+                                    className="group relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md flex flex-col justify-between"
                                 >
-                                    <div className="flex items-start gap-3">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${report.color} bg-opacity-10 transition-transform duration-300 group-hover:scale-110`}>
-                                            <i className={`fas ${report.icon} ${report.color}`}></i>
-                                        </div>
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1">
-                                                {report.title}
-                                                <InfoTooltip text={report.desc} />
-                                            </h4>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">{report.desc}</p>
+                                    <div>
+                                        <div className="flex items-start gap-3.5">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${report.bg} transition-transform duration-200 group-hover:scale-105`}>
+                                                <i className={`fas ${report.icon} text-sm ${report.color}`}></i>
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+                                                    <span className="truncate">{report.title}</span>
+                                                    <InfoTooltip text={report.desc} />
+                                                </h4>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                                                    {report.desc}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                                        <span className="text-[10px] text-slate-400">Last updated: Today</span>
+
+                                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Last updated: Today</span>
                                         <Link
                                             href={report.link}
-                                            className="text-xs text-pink-500 hover:text-pink-600 dark:text-pink-400 dark:hover:text-pink-300 flex items-center gap-1 transition-all duration-200 hover:gap-2 group/link"
+                                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-all group/link cursor-pointer"
                                         >
-                                            <i className="fas fa-file-pdf text-[10px]"></i> View Report
-                                            <i className="fas fa-arrow-right text-[8px] transition-transform duration-200 group-hover/link:translate-x-1"></i>
+                                            <i className="fas fa-file-pdf text-[10px] opacity-90"></i>
+                                            <span>View Report</span>
+                                            <i className="fas fa-arrow-right text-[8px] transition-transform duration-200 group-hover/link:translate-x-0.5"></i>
                                         </Link>
                                     </div>
                                 </div>

@@ -111,8 +111,8 @@ export default function Documents() {
     const dropZoneRef = useRef<HTMLDivElement>(null);
     const debouncedSearch = useDebounce(searchTerm, 300);
     const debouncedActivitySearch = useDebounce(activitySearch, 300);
-    const itemsPerPage = 10;
-    const activitiesPerPage = 5;
+    const itemsPerPage = 50;
+    const activitiesPerPage = 50;
 
     const [totalFiles, setTotalFiles] = useState(0);
     const [totalPhotos, setTotalPhotos] = useState(0);
@@ -441,38 +441,38 @@ export default function Documents() {
                 { deleted_by: deletedBy }
             );
 
-            const archiveData = {
-                id: doc.id,
-                title: doc.title,
-                file_name: doc.file_name,
-                file_size: doc.file_size,
-                file_type: doc.file_type,
-                storage_path: doc.storage_path,
-                category: doc.category,
-                document_type: doc.document_type,
-                supplier: doc.supplier,
-                po_number: doc.po_number,
-                parcel_batch: doc.parcel_batch,
-                uploaded_by: doc.uploaded_by,
-                notes: doc.notes,
-                version: doc.version,
-                created_at: doc.created_at,
-                updated_at: doc.updated_at,
-                deleted_by: deletedBy,
-                original_id: doc.id,
-                session_id: doc.session_id || null,
-                role: doc.role || null,
-            };
+            // const archiveData = {
+            //     id: doc.id,
+            //     title: doc.title,
+            //     file_name: doc.file_name,
+            //     file_size: doc.file_size,
+            //     file_type: doc.file_type,
+            //     storage_path: doc.storage_path,
+            //     category: doc.category,
+            //     document_type: doc.document_type,
+            //     supplier: doc.supplier,
+            //     po_number: doc.po_number,
+            //     parcel_batch: doc.parcel_batch,
+            //     uploaded_by: doc.uploaded_by,
+            //     notes: doc.notes,
+            //     version: doc.version,
+            //     created_at: doc.created_at,
+            //     updated_at: doc.updated_at,
+            //     deleted_by: deletedBy,
+            //     original_id: doc.id,
+            //     session_id: doc.session_id || null,
+            //     role: doc.role || null,
+            // };
 
-            const { error: archiveError } = await supabase
-                .from('documents_archive')
-                .insert(archiveData);
+            // const { error: archiveError } = await supabase
+            //     .from('documents_archive')
+            //     .insert(archiveData);
 
-            if (archiveError) {
-                console.error('Archive error:', archiveError);
-                toast.error(`Failed to archive document: ${archiveError.message}`, { id: toastId });
-                return;
-            }
+            // if (archiveError) {
+            //     console.error('Archive error:', archiveError);
+            //     toast.error(`Failed to archive document: ${archiveError.message}`, { id: toastId });
+            //     return;
+            // }
 
             const { error } = await supabase
                 .from('documents')
@@ -601,38 +601,38 @@ export default function Documents() {
                         { deleted_by: deletedBy, bulk_delete: true }
                     );
 
-                    const archiveData = {
-                        id: doc.id,
-                        title: doc.title,
-                        file_name: doc.file_name,
-                        file_size: doc.file_size,
-                        file_type: doc.file_type,
-                        storage_path: doc.storage_path,
-                        category: doc.category,
-                        document_type: doc.document_type,
-                        supplier: doc.supplier,
-                        po_number: doc.po_number,
-                        parcel_batch: doc.parcel_batch,
-                        uploaded_by: doc.uploaded_by,
-                        notes: doc.notes,
-                        version: doc.version,
-                        created_at: doc.created_at,
-                        updated_at: doc.updated_at,
-                        deleted_by: deletedBy,
-                        original_id: doc.id,
-                        session_id: doc.session_id || null,
-                        role: doc.role || null,
-                    };
+                    // const archiveData = {
+                    //     id: doc.id,
+                    //     title: doc.title,
+                    //     file_name: doc.file_name,
+                    //     file_size: doc.file_size,
+                    //     file_type: doc.file_type,
+                    //     storage_path: doc.storage_path,
+                    //     category: doc.category,
+                    //     document_type: doc.document_type,
+                    //     supplier: doc.supplier,
+                    //     po_number: doc.po_number,
+                    //     parcel_batch: doc.parcel_batch,
+                    //     uploaded_by: doc.uploaded_by,
+                    //     notes: doc.notes,
+                    //     version: doc.version,
+                    //     created_at: doc.created_at,
+                    //     updated_at: doc.updated_at,
+                    //     deleted_by: deletedBy,
+                    //     original_id: doc.id,
+                    //     session_id: doc.session_id || null,
+                    //     role: doc.role || null,
+                    // };
 
-                    const { error: archiveError } = await supabase
-                        .from('documents_archive')
-                        .insert(archiveData);
+                    // const { error: archiveError } = await supabase
+                    //     .from('documents_archive')
+                    //     .insert(archiveData);
 
-                    if (archiveError) {
-                        console.error('Archive error for', doc.title, archiveError);
-                        failCount++;
-                        continue;
-                    }
+                    // if (archiveError) {
+                    //     console.error('Archive error for', doc.title, archiveError);
+                    //     failCount++;
+                    //     continue;
+                    // }
 
                     await supabase.storage.from('documents').remove([doc.storage_path]);
 
@@ -1293,14 +1293,14 @@ export default function Documents() {
                 </div>
 
                 {/* Documents Table */}
-                <div className="bg-white dark:bg-ink rounded-2xl border border-slate-200/80 dark:border-ink/20 shadow-xs overflow-hidden flex flex-col">
+                <div className="bg-paper rounded-2xl border border-line shadow-xs overflow-hidden flex flex-col">
                     {/* Filter Bar - Stays fixed */}
-                    <div className="flex-shrink-0 border-b border-slate-100 dark:border-ink/20 bg-slate-50/50 dark:bg-slate-800/20 p-3 sm:p-4">
+                    <div className="flex-shrink-0 border-b border-line bg-slate-50/60 dark:bg-slate-900/40 p-3.5 sm:p-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex flex-1 flex-wrap items-center gap-2.5">
                                 <div className="relative w-full sm:w-64">
                                     <i
-                                        className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500 pointer-events-none"
+                                        className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted pointer-events-none"
                                         aria-hidden="true"
                                     ></i>
                                     <input
@@ -1309,11 +1309,7 @@ export default function Documents() {
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         aria-label="Search files"
                                         placeholder="Search files..."
-                                        className="w-full rounded-xl border border-slate-200/80 dark:border-ink/30 
-                                 bg-white dark:bg-ink/60 py-2 pl-8 pr-3 text-xs 
-                                 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 
-                                 transition-all shadow-xs 
-                                 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                                        className="w-full rounded-xl border border-line bg-paper py-2 pl-8 pr-3 text-xs text-ink placeholder:text-muted transition-all shadow-2xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
                                     />
                                 </div>
 
@@ -1324,10 +1320,7 @@ export default function Documents() {
                                         setCurrentPage(1);
                                     }}
                                     aria-label="Filter by document type"
-                                    className="w-full sm:w-auto rounded-xl border border-slate-200/80 dark:border-ink/30 
-                             bg-white dark:bg-ink/60 px-3 py-2 text-xs 
-                             text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-xs 
-                             focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                                    className="w-full sm:w-auto rounded-xl border border-line bg-paper px-3 py-2 text-xs text-ink transition-all cursor-pointer shadow-2xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
                                 >
                                     <option value="">All Types</option>
                                     <option value="Official Receipt">Official Receipt</option>
@@ -1345,10 +1338,7 @@ export default function Documents() {
                                         setCurrentPage(1);
                                     }}
                                     aria-label="Filter by supplier"
-                                    className="w-full sm:w-auto rounded-xl border border-slate-200/80 dark:border-ink/30 
-                             bg-white dark:bg-ink/60 px-3 py-2 text-xs 
-                             text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-xs 
-                             focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                                    className="w-full sm:w-auto rounded-xl border border-line bg-paper px-3 py-2 text-xs text-ink transition-all cursor-pointer shadow-2xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
                                 >
                                     <option value="">All Suppliers</option>
                                     {suppliers.map((s) => (
@@ -1358,8 +1348,7 @@ export default function Documents() {
                                     ))}
                                 </select>
 
-                                <div className="flex w-full sm:w-auto items-center justify-between gap-1.5 rounded-xl 
-                              border border-slate-200/80 dark:border-ink/30 bg-white dark:bg-ink/60 p-1 shadow-xs">
+                                <div className="flex w-full sm:w-auto items-center justify-between gap-1.5 rounded-xl border border-line bg-paper p-1 shadow-2xs">
                                     <input
                                         type="date"
                                         value={dateFrom}
@@ -1369,10 +1358,9 @@ export default function Documents() {
                                         }}
                                         aria-label="Date From"
                                         title="Date From"
-                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs 
-                                 text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none"
+                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-ink cursor-pointer focus:outline-none"
                                     />
-                                    <span aria-hidden="true" className="text-[10px] font-medium text-slate-300 dark:text-slate-500 uppercase select-none">
+                                    <span aria-hidden="true" className="text-[10px] font-medium text-muted uppercase select-none">
                                         to
                                     </span>
                                     <input
@@ -1384,22 +1372,18 @@ export default function Documents() {
                                         }}
                                         aria-label="Date To"
                                         title="Date To"
-                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs 
-                                 text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none"
+                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-ink cursor-pointer focus:outline-none"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-end gap-2 border-t border-slate-200/60 dark:border-ink/20 pt-2 lg:border-t-0 lg:pt-0">
+                            <div className="flex items-center justify-end gap-2 border-t border-line pt-2 lg:border-t-0 lg:pt-0">
                                 <button
                                     type="button"
                                     onClick={clearAllFilters}
                                     title="Reset filters"
                                     aria-label="Reset filters"
-                                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold 
-                             text-slate-500 dark:text-slate-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 
-                             hover:text-pink-600 dark:hover:text-pink-400 transition-all 
-                             focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-muted hover:bg-accent/10 hover:text-accent transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/20"
                                 >
                                     <i className="fas fa-filter-circle-xmark" aria-hidden="true"></i>
                                     <span>Reset</span>
@@ -1410,10 +1394,7 @@ export default function Documents() {
                                     onClick={() => fetchDocuments(false)}
                                     title="Refresh list"
                                     aria-label="Refresh list"
-                                    className="inline-flex items-center justify-center rounded-xl p-2 text-xs 
-                             text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/30 
-                             hover:text-slate-800 dark:hover:text-slate-200 transition-all 
-                             focus:outline-none focus:ring-2 focus:ring-slate-400/20"
+                                    className="inline-flex items-center justify-center rounded-xl p-2 text-xs text-muted hover:bg-slate-200/60 dark:hover:bg-slate-800 hover:text-ink transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400/20"
                                 >
                                     <i className="fas fa-rotate" aria-hidden="true"></i>
                                 </button>
@@ -1452,60 +1433,56 @@ export default function Documents() {
 
                     {/* Scrollable Table Container */}
                     <div className="flex-1 overflow-y-auto max-h-[500px] relative">
-                        <div className="md:hidden flex items-center justify-between p-3 
-                      bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-200/60 dark:border-ink/20 rounded-t-xl">
+                        <div className="md:hidden flex items-center justify-between p-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-line rounded-t-xl">
                             <div className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
                                     checked={documents.length > 0 && selectedDocIds.size === documents.length}
                                     onChange={toggleSelectAllDocuments}
-                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                             text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                    className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
                                 />
-                                <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                                <span className="text-xs text-ink font-medium">
                                     Select All ({documents.length})
                                 </span>
                             </div>
-                            <span className="text-xs text-slate-400 dark:text-slate-500">
+                            <span className="text-xs text-muted">
                                 {selectedDocIds.size} selected
                             </span>
                         </div>
                         <div className="overflow-x-auto">
                             {refreshing && <TableContentLoader />}
 
-                            <table className="table-pro p-1">
+                            <table className="table-pro p-1 w-full text-left border-collapse">
                                 <thead>
-                                    <tr>
-                                        <th className="w-10 text-center!">
+                                    <tr className="border-b border-line bg-slate-50/50 dark:bg-slate-900/60 text-[11px] font-semibold text-muted uppercase tracking-wider">
+                                        <th className="w-10 text-center! py-3 px-3">
                                             <input
                                                 type="checkbox"
                                                 checked={documents.length > 0 && selectedDocIds.size === documents.length}
                                                 onChange={toggleSelectAllDocuments}
-                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                         text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
                                             />
                                         </th>
-                                        <th className="w-12 text-center!">Format</th>
-                                        <th>Document Title</th>
-                                        <th>Category</th>
-                                        <th>Size</th>
-                                        <th>Supplier</th>
-                                        <th>Date Uploaded</th>
-                                        <th className="text-right!">Actions</th>
+                                        <th className="w-12 text-center! py-3 px-3">Format</th>
+                                        <th className="py-3 px-4">Document Title</th>
+                                        <th className="py-3 px-4">Category</th>
+                                        <th className="py-3 px-4">Size</th>
+                                        <th className="py-3 px-4">Supplier</th>
+                                        <th className="py-3 px-4">Date Uploaded</th>
+                                        <th className="text-right! py-3 px-4">Actions</th>
                                     </tr>
                                 </thead>
 
-                                <tbody className="divide-y divide-slate-100 dark:divide-ink/20 text-xs">
+                                <tbody className="divide-y divide-line text-xs">
                                     {documents.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                                            <td colSpan={8} className="py-12 text-center text-muted">
                                                 <div className="flex flex-col items-center justify-center gap-2">
-                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/30 
-                                                  flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
+                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-muted mb-1">
                                                         <i className="fas fa-folder-open text-xl"></i>
                                                     </div>
-                                                    <p className="font-semibold text-slate-600 dark:text-slate-300">No documents found</p>
-                                                    <p className="text-xs text-slate-400 dark:text-slate-500">Try adjusting your filters or search terms</p>
+                                                    <p className="font-semibold text-ink">No documents found</p>
+                                                    <p className="text-xs text-muted">Try adjusting your filters or search terms</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1513,8 +1490,8 @@ export default function Documents() {
                                         documents.map((doc) => {
                                             const isSelected = selectedDocIds.has(doc.id);
                                             return (
-                                                <tr key={doc.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors group ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''}`}>
-                                                    <td data-label="Select" className="py-3 px-4 text-center">
+                                                <tr key={doc.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group ${isSelected ? 'bg-accent/10 dark:bg-accent/20' : ''}`}>
+                                                    <td data-label="Select" className="py-3 px-3 text-center">
                                                         <input
                                                             type="checkbox"
                                                             checked={isSelected}
@@ -1527,8 +1504,7 @@ export default function Documents() {
                                                                 }
                                                                 setSelectedDocIds(newSelected);
                                                             }}
-                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                                     text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                            className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
                                                         />
                                                     </td>
                                                     <td data-label="Format" className="py-3 px-3">
@@ -1537,49 +1513,47 @@ export default function Documents() {
                                                         </div>
                                                     </td>
                                                     <td data-label="Document Title" className="py-3 px-4">
-                                                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[220px]" title={doc.title}>
+                                                        <div className="font-semibold text-ink truncate max-w-[220px]" title={doc.title}>
                                                             {doc.title}
                                                         </div>
-                                                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
+                                                        <div className="text-[10px] text-muted font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
                                                     </td>
                                                     <td data-label="Category" className="py-3 px-4">
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold 
-                                                       bg-pink-50 dark:bg-pink-950/30 text-pink-600 dark:text-pink-400 
-                                                       border border-pink-100/80 dark:border-pink-800/30">
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-accent/15 text-accent border border-accent/30">
                                                             {doc.document_type}
                                                         </span>
                                                     </td>
-                                                    <td data-label="Size" className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">{formatFileSize(doc.file_size)}</td>
-                                                    <td data-label="Supplier" className="py-3 px-4 text-slate-600 dark:text-slate-300">{doc.supplier || <span className="text-slate-300 dark:text-slate-500">—</span>}</td>
-                                                    <td data-label="Date Uploaded" className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                    <td data-label="Size" className="py-3 px-4 text-ink font-medium">{formatFileSize(doc.file_size)}</td>
+                                                    <td data-label="Supplier" className="py-3 px-4 text-ink">{doc.supplier || <span className="text-muted">—</span>}</td>
+                                                    <td data-label="Date Uploaded" className="py-3 px-4 text-muted whitespace-nowrap">
                                                         {new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                                     </td>
                                                     <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap">
                                                         <div className="inline-flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
                                                             <button
                                                                 onClick={() => handleViewDocument(doc)}
-                                                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 rounded-lg transition-colors"
+                                                                className="p-1.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-colors cursor-pointer"
                                                                 title="View File"
                                                             >
                                                                 <i className="fas fa-eye"></i>
                                                             </button>
                                                             <button
                                                                 onClick={() => handleEditDocument(doc)}
-                                                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition-colors"
+                                                                className="p-1.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-colors cursor-pointer"
                                                                 title="Edit Metadata"
                                                             >
                                                                 <i className="fas fa-pen-to-square"></i>
                                                             </button>
                                                             <button
                                                                 onClick={() => downloadFile(doc)}
-                                                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/30 rounded-lg transition-colors"
+                                                                className="p-1.5 text-muted hover:text-ink hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                                                                 title="Download File"
                                                             >
                                                                 <i className="fas fa-download"></i>
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDelete(doc)}
-                                                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
+                                                                className="p-1.5 text-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
                                                                 title="Delete File"
                                                             >
                                                                 <i className="fas fa-trash"></i>
@@ -1597,15 +1571,15 @@ export default function Documents() {
 
                     {/* Pagination - Stays fixed */}
                     {totalPages > 0 && (
-                        <div className="flex-shrink-0 pagination-container-class dark:bg-ink/80 dark:border-ink/20">
-                            <span className="text-slate-500 dark:text-slate-400">
-                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        <div className="flex-shrink-0 pagination-container-class bg-slate-50/60 dark:bg-slate-900/80 border-t border-line p-3.5 flex items-center justify-between text-xs">
+                            <span className="text-muted">
+                                Showing <span className="font-semibold text-ink">
                                     {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
                                 </span> to{' '}
-                                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                <span className="font-semibold text-ink">
                                     {Math.min(currentPage * itemsPerPage, totalItems)}
                                 </span> of{' '}
-                                <span className="font-semibold text-slate-700 dark:text-slate-200">{totalItems}</span> files
+                                <span className="font-semibold text-ink">{totalItems}</span> files
                             </span>
                             <Pagination
                                 currentPage={currentPage}
@@ -1617,13 +1591,13 @@ export default function Documents() {
                 </div>
 
                 {/* Activity History Table */}
-                <div className="bg-white dark:bg-ink rounded-2xl border border-slate-200/80 dark:border-ink/20 shadow-xs overflow-hidden flex flex-col">
+                <div className="bg-paper rounded-2xl border border-line shadow-xs overflow-hidden flex flex-col">
                     {/* Header - Stays fixed */}
-                    <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-ink/20 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col gap-4">
+                    <div className="flex-shrink-0 p-4 border-b border-line bg-slate-50/50 dark:bg-slate-900/40 flex flex-col gap-4">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-3">
                                 <div>
-                                    <h3 className="font-semibold text-slate-900 dark:text-white leading-tight text-sm">Activity History</h3>
+                                    <h3 className="font-semibold text-ink leading-tight text-sm">Activity History</h3>
                                 </div>
                             </div>
 
@@ -1636,9 +1610,7 @@ export default function Documents() {
                                     setActivityPage(1);
                                     setSelectedActivityIds(new Set());
                                 }}
-                                className="px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 
-                         hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/30 
-                         rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-center"
+                                className="px-3 py-1.5 text-xs font-semibold text-muted hover:text-accent hover:bg-accent/10 rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-center cursor-pointer"
                                 title="Reset active filters"
                             >
                                 <i className="fas fa-rotate-left text-[11px]"></i>
@@ -1648,29 +1620,20 @@ export default function Documents() {
 
                         <div className="flex flex-wrap items-center gap-2.5">
                             <div className="relative flex-1 min-w-[200px]">
-                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
+                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-muted text-xs pointer-events-none"></i>
                                 <input
                                     type="search"
                                     value={activitySearch}
                                     onChange={(e) => setActivitySearch(e.target.value)}
                                     placeholder="Search user or document..."
-                                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl 
-                             border border-slate-200/80 dark:border-ink/30 
-                             bg-white dark:bg-ink/60 text-slate-700 dark:text-slate-200 
-                             placeholder-slate-400 dark:placeholder-slate-500 
-                             focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 
-                             transition-all shadow-2xs"
+                                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-line bg-paper text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all shadow-2xs"
                                 />
                             </div>
 
                             <select
                                 value={activityFilter}
                                 onChange={(e) => setActivityFilter(e.target.value)}
-                                className="py-1.5 px-3 text-xs rounded-xl 
-                         border border-slate-200/80 dark:border-ink/30 
-                         bg-white dark:bg-ink/60 text-slate-700 dark:text-slate-200 
-                         focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 
-                         transition-all cursor-pointer shadow-2xs"
+                                className="py-1.5 px-3 text-xs rounded-xl border border-line bg-paper text-ink focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all cursor-pointer shadow-2xs"
                             >
                                 <option value="">All Actions</option>
                                 <option value="upload">Uploads</option>
@@ -1678,21 +1641,20 @@ export default function Documents() {
                                 <option value="delete">Deletions</option>
                             </select>
 
-                            <div className="flex items-center gap-1.5 bg-white dark:bg-ink/60 p-1 rounded-xl 
-                          border border-slate-200/80 dark:border-ink/30 shadow-2xs">
+                            <div className="flex items-center gap-1.5 bg-paper p-1 rounded-xl border border-line shadow-2xs">
                                 <input
                                     type="date"
                                     value={activityDateFrom}
                                     onChange={(e) => setActivityDateFrom(e.target.value)}
-                                    className="py-0.5 px-2 text-xs border-0 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                                    className="py-0.5 px-2 text-xs border-0 bg-transparent text-ink focus:outline-none cursor-pointer"
                                     title="Activity Date From"
                                 />
-                                <span className="text-slate-300 dark:text-slate-500 text-[10px] font-medium uppercase">to</span>
+                                <span className="text-muted text-[10px] font-medium uppercase">to</span>
                                 <input
                                     type="date"
                                     value={activityDateTo}
                                     onChange={(e) => setActivityDateTo(e.target.value)}
-                                    className="py-0.5 px-2 text-xs border-0 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                                    className="py-0.5 px-2 text-xs border-0 bg-transparent text-ink focus:outline-none cursor-pointer"
                                     title="Activity Date To"
                                 />
                             </div>
@@ -1701,9 +1663,9 @@ export default function Documents() {
 
                     {/* Bulk Actions Bar - Stays fixed if present */}
                     {selectedActivityIds.size > 0 && (
-                        <div className="flex-shrink-0 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
+                        <div className="flex-shrink-0 px-4 py-2.5 bg-ink text-paper border-b border-line flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
                             <div className="flex items-center gap-2 text-xs font-semibold">
-                                <span className="w-5 h-5 rounded-full bg-white/20 inline-flex items-center justify-center text-[10px]">
+                                <span className="w-5 h-5 rounded-full bg-accent text-paper inline-flex items-center justify-center text-[10px] font-bold">
                                     {selectedActivityIds.size}
                                 </span>
                                 <span>record(s) selected</span>
@@ -1711,13 +1673,13 @@ export default function Documents() {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={deleteSelectedActivities}
-                                    className="px-3 py-1.5 text-xs font-semibold bg-rose-900/40 hover:bg-rose-900/60 border border-rose-300/30 text-white rounded-lg transition-all flex items-center gap-1.5 backdrop-blur-xs"
+                                    className="px-3 py-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
                                 >
                                     <i className="fas fa-trash-can text-[11px]"></i> Delete Selected
                                 </button>
                                 <button
                                     onClick={() => setSelectedActivityIds(new Set())}
-                                    className="px-2.5 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                                    className="px-2.5 py-1.5 text-xs font-medium text-muted hover:text-ink hover:bg-ink/10 rounded-lg transition-all cursor-pointer"
                                 >
                                     Clear Selection
                                 </button>
@@ -1727,63 +1689,58 @@ export default function Documents() {
 
                     {/* Scrollable Table Container */}
                     <div className="flex-1 overflow-y-auto max-h-[400px] relative">
-                        <div className="md:hidden flex items-center justify-between px-4 py-2.5 
-                      bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-200/60 dark:border-ink/20">
+                        <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-line">
                             <label className="flex items-center gap-2.5 cursor-pointer">
                                 <input
                                     type="checkbox"
                                     checked={activities.length > 0 && selectedActivityIds.size === activities.length}
                                     onChange={toggleSelectAllActivities}
-                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                             text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                    className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
                                 />
-                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                <span className="text-xs font-medium text-ink">
                                     Select All
                                 </span>
-                                <span className="text-[10px] text-slate-400 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-700/30 px-2 py-0.5 rounded-full">
+                                <span className="text-[10px] text-muted bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded-full">
                                     {activities.length}
                                 </span>
                             </label>
                             {selectedActivityIds.size > 0 && (
-                                <span className="text-xs font-medium text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/30 px-2.5 py-1 rounded-full">
+                                <span className="text-xs font-medium text-accent bg-accent/15 px-2.5 py-1 rounded-full">
                                     {selectedActivityIds.size} selected
                                 </span>
                             )}
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="table-pro">
+                            <table className="table-pro w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-slate-200/60 dark:border-ink/20 bg-slate-50/70 dark:bg-slate-800/30 
-                                  text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
-                                        <th className="text-center">
+                                    <tr className="border-b border-line bg-slate-50/70 dark:bg-slate-800/40 text-[10px] font-bold tracking-wider text-muted uppercase select-none">
+                                        <th className="py-3 px-4 text-center w-10">
                                             <input
                                                 type="checkbox"
                                                 checked={activities.length > 0 && selectedActivityIds.size === activities.length}
                                                 onChange={toggleSelectAllActivities}
-                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                         text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
                                             />
                                         </th>
-                                        <th>User</th>
-                                        <th>Action Type</th>
-                                        <th>Target Resource</th>
-                                        <th>Document</th>
-                                        <th>Timestamp</th>
-                                        <th className="!text-right">Status</th>
+                                        <th className="py-3 px-4">User</th>
+                                        <th className="py-3 px-4">Action Type</th>
+                                        <th className="py-3 px-4">Target Resource</th>
+                                        <th className="py-3 px-4">Document</th>
+                                        <th className="py-3 px-4">Timestamp</th>
+                                        <th className="py-3 px-4 !text-right">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-ink/20 text-xs">
+                                <tbody className="divide-y divide-line text-xs">
                                     {activities.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                                            <td colSpan={7} className="py-12 text-center text-muted">
                                                 <div className="flex flex-col items-center justify-center gap-2">
-                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/30 
-                                                  flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
+                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center text-muted mb-1">
                                                         <i className="fas fa-inbox text-xl"></i>
                                                     </div>
-                                                    <p className="font-semibold text-slate-600 dark:text-slate-300">No activity recorded yet</p>
-                                                    <p className="text-xs text-slate-400 dark:text-slate-500">Activity logs will appear here as users perform operations</p>
+                                                    <p className="font-semibold text-ink">No activity recorded yet</p>
+                                                    <p className="text-xs text-muted">Activity logs will appear here as users perform operations</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1791,7 +1748,7 @@ export default function Documents() {
                                         activities.map((activity) => {
                                             const isSelected = selectedActivityIds.has(activity.id);
                                             return (
-                                                <tr key={activity.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors group ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''}`}>
+                                                <tr key={activity.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors group ${isSelected ? 'bg-accent/10 dark:bg-accent/20' : ''}`}>
                                                     <td data-label="Select" className="py-3 px-4 text-center">
                                                         <input
                                                             type="checkbox"
@@ -1805,16 +1762,15 @@ export default function Documents() {
                                                                 }
                                                                 setSelectedActivityIds(newSelected);
                                                             }}
-                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 
-                                                     text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                                            className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
                                                         />
                                                     </td>
                                                     <td data-label="User" className="py-3 px-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-2.5">
                                                             <div>
-                                                                <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{activity.user_name}</div>
+                                                                <div className="font-semibold text-ink leading-snug">{activity.user_name}</div>
                                                                 {activity.user_email && (
-                                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">{activity.user_email}</div>
+                                                                    <div className="text-[10px] text-muted font-normal">{activity.user_email}</div>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -1825,26 +1781,26 @@ export default function Documents() {
                                                             {activity.action_type.charAt(0).toUpperCase() + activity.action_type.slice(1)}
                                                         </span>
                                                     </td>
-                                                    <td data-label="Target Resource" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
+                                                    <td data-label="Target Resource" className="py-3 px-4 text-ink font-medium whitespace-nowrap">
                                                         {activity.target_resource}
                                                     </td>
                                                     <td data-label="Document" className="py-3 px-4 whitespace-nowrap">
                                                         {activity.document_title ? (
                                                             <div>
-                                                                <div className="text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]" title={activity.document_title}>
+                                                                <div className="text-ink font-medium truncate max-w-[200px]" title={activity.document_title}>
                                                                     {activity.document_title}
                                                                 </div>
                                                                 {activity.document_id && (
-                                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-tight mt-0.5">
+                                                                    <div className="text-[10px] text-muted font-mono tracking-tight mt-0.5">
                                                                         ID: {activity.document_id.substring(0, 8)}
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <span className="text-slate-300 dark:text-slate-500">—</span>
+                                                            <span className="text-muted">—</span>
                                                         )}
                                                     </td>
-                                                    <td data-label="Timestamp" className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                    <td data-label="Timestamp" className="py-3 px-4 text-muted whitespace-nowrap">
                                                         {new Date(activity.timestamp).toLocaleString(undefined, {
                                                             year: 'numeric',
                                                             month: 'short',
@@ -1854,10 +1810,8 @@ export default function Documents() {
                                                         })}
                                                     </td>
                                                     <td data-label="Status" className="py-3 px-4 text-right whitespace-nowrap">
-                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full 
-                                                       bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 
-                                                       border border-emerald-200/60 dark:border-emerald-800/30 text-[11px] font-medium">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] font-medium">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
                                                             {activity.status}
                                                         </span>
                                                     </td>
@@ -1872,15 +1826,15 @@ export default function Documents() {
 
                     {/* Pagination - Stays fixed */}
                     {totalActivities > 0 && (
-                        <div className="flex-shrink-0 pagination-container-class dark:bg-ink/80 dark:border-ink/20">
-                            <span className="text-slate-500 dark:text-slate-400">
-                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        <div className="flex-shrink-0 pagination-container-class px-4 py-3 bg-paper border-t border-line flex items-center justify-between text-xs">
+                            <span className="text-muted">
+                                Showing <span className="font-semibold text-ink">
                                     {totalActivities === 0 ? 0 : (activityPage - 1) * activitiesPerPage + 1}
                                 </span> to{' '}
-                                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                <span className="font-semibold text-ink">
                                     {Math.min(activityPage * activitiesPerPage, totalActivities)}
                                 </span> of{' '}
-                                <span className="font-semibold text-slate-700 dark:text-slate-200">{totalActivities}</span> log entries
+                                <span className="font-semibold text-ink">{totalActivities}</span> log entries
                             </span>
                             <Pagination
                                 currentPage={activityPage}
@@ -1892,36 +1846,49 @@ export default function Documents() {
                 </div>
 
                 {isEditModalOpen && editingDoc && (
-                    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-ink rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 dark:border-ink/20">
-                            <div className="flex items-start justify-between mb-4">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                                        <span className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-500 dark:text-blue-400 flex items-center justify-center">
-                                            <i className="fas fa-edit"></i>
-                                        </span>
-                                        Edit Document
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Update document metadata (image is read-only)</p>
+                    <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/30">
+                                        <i className="fas fa-edit text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                                            Edit Document
+                                        </h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Update document metadata (image is read-only)
+                                        </p>
+                                    </div>
                                 </div>
+
                                 <button
+                                    type="button"
                                     onClick={() => { setIsEditModalOpen(false); setEditingDoc(null); setEditPreviewUrl(null); }}
-                                    className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-all flex items-center justify-center"
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                 >
-                                    <i className="fas fa-times"></i>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
                                 </button>
                             </div>
 
-                            <form onSubmit={handleUpdate} className="space-y-4">
+                            {/* Modal Body / Form */}
+                            <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto p-6 space-y-4.5">
                                 {editingDoc.file_type.toLowerCase().includes('jpg') ||
                                     editingDoc.file_type.toLowerCase().includes('jpeg') ||
                                     editingDoc.file_type.toLowerCase().includes('png') ||
                                     editingDoc.file_type.toLowerCase().includes('heic') ? (
-                                    <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 border border-slate-200 dark:border-ink/20">
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 block">Current Image (Read Only)</label>
-                                        <div className="flex items-center justify-center min-h-[200px] bg-white dark:bg-ink rounded-lg border border-slate-100 dark:border-ink/20">
+                                    <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200/90 dark:border-slate-800">
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">
+                                            Current Image (Read Only)
+                                        </label>
+                                        <div className="flex items-center justify-center min-h-[200px] bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800 p-2">
                                             {editPreviewLoading ? (
-                                                <div className="text-center">
+                                                <div className="text-center py-6">
                                                     <i className="fas fa-spinner fa-spin text-2xl text-pink-500 dark:text-pink-400 mb-2"></i>
                                                     <p className="text-xs text-slate-500 dark:text-slate-400">Loading image...</p>
                                                 </div>
@@ -1929,165 +1896,236 @@ export default function Documents() {
                                                 <img
                                                     src={editPreviewUrl}
                                                     alt={editingDoc.title}
-                                                    className="max-w-full max-h-[300px] object-contain rounded-lg"
+                                                    className="max-w-full max-h-[280px] object-contain rounded-lg shadow-2xs"
                                                 />
                                             ) : (
                                                 <div className="text-center text-slate-400 dark:text-slate-500 p-4">
-                                                    <i className="fas fa-image text-4xl mb-2"></i>
-                                                    <p className="text-sm">Image preview not available</p>
+                                                    <i className="fas fa-image text-3xl mb-2"></i>
+                                                    <p className="text-xs font-medium">Image preview not available</p>
                                                 </div>
                                             )}
                                         </div>
-                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                                            <i className="fas fa-info-circle mr-1"></i>
-                                            Image cannot be edited. To change the image, delete and re-upload.
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 flex items-center">
+                                            <i className="fas fa-info-circle mr-1.5 text-slate-400"></i>
+                                            Image cannot be edited directly. To change it, delete and re-upload.
                                         </p>
                                     </div>
                                 ) : (
-                                    <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 border border-slate-200 dark:border-ink/20">
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 block">Current File (Read Only)</label>
-                                        <div className="flex items-center gap-3 p-3 bg-white dark:bg-ink rounded-lg border border-slate-100 dark:border-ink/20">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl border ${getFileColor(editingDoc.file_type)}`}>
+                                    <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200/90 dark:border-slate-800">
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">
+                                            Current File (Read Only)
+                                        </label>
+                                        <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-base border shrink-0 ${getFileColor(editingDoc.file_type)}`}>
                                                 <i className={`fas ${getFileIcon(editingDoc.file_type)}`}></i>
                                             </div>
-                                            <div className="flex-1">
-                                                <div className="font-medium text-slate-800 dark:text-slate-200 text-sm">{editingDoc.file_name}</div>
-                                                <div className="text-xs text-slate-400 dark:text-slate-500">{formatFileSize(editingDoc.file_size)}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate">{editingDoc.file_name}</div>
+                                                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{formatFileSize(editingDoc.file_size)}</div>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={() => downloadFile(editingDoc)}
-                                                className="px-3 py-1.5 text-xs font-medium text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 hover:bg-pink-50 dark:hover:bg-pink-950/30 rounded-lg transition-colors"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 hover:bg-pink-50 dark:hover:bg-pink-950/40 rounded-lg transition-colors cursor-pointer shrink-0"
                                             >
-                                                <i className="fas fa-download mr-1"></i> Download
+                                                <i className="fas fa-download text-[10px]"></i> Download
                                             </button>
                                         </div>
-                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                                            <i className="fas fa-info-circle mr-1"></i>
-                                            File cannot be edited. To change the file, delete and re-upload.
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 flex items-center">
+                                            <i className="fas fa-info-circle mr-1.5 text-slate-400"></i>
+                                            File cannot be edited directly. To change it, delete and re-upload.
                                         </p>
                                     </div>
                                 )}
 
                                 <div>
-                                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Title</label>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Title <span className="text-rose-500">*</span>
+                                    </label>
                                     <input
                                         name="title"
                                         defaultValue={editingDoc.title}
-                                        className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                         required
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Category</label>
-                                        <select name="category" defaultValue={editingDoc.category} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all">
-                                            <option value="documents">Documents</option>
-                                            <option value="photos">Photos</option>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Category
+                                        </label>
+                                        <select
+                                            name="category"
+                                            defaultValue={editingDoc.category}
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer shadow-2xs"
+                                        >
+                                            <option value="documents" className="dark:bg-slate-900">Documents</option>
+                                            <option value="photos" className="dark:bg-slate-900">Photos</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Document Type</label>
-                                        <select name="documentType" defaultValue={editingDoc.document_type} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all">
-                                            <option value="Official Receipt">Official Receipt</option>
-                                            <option value="Invoice">Invoice</option>
-                                            <option value="Delivery Receipt">Delivery Receipt</option>
-                                            <option value="Parcel Condition">Parcel Condition</option>
-                                            <option value="Courier Handover">Courier Handover</option>
-                                            <option value="Vehicle Maintenance">Vehicle Maintenance</option>
-                                            <option value="Other">Other</option>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Document Type
+                                        </label>
+                                        <select
+                                            name="documentType"
+                                            defaultValue={editingDoc.document_type}
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer shadow-2xs"
+                                        >
+                                            <option value="Official Receipt" className="dark:bg-slate-900">Official Receipt</option>
+                                            <option value="Invoice" className="dark:bg-slate-900">Invoice</option>
+                                            <option value="Delivery Receipt" className="dark:bg-slate-900">Delivery Receipt</option>
+                                            <option value="Parcel Condition" className="dark:bg-slate-900">Parcel Condition</option>
+                                            <option value="Courier Handover" className="dark:bg-slate-900">Courier Handover</option>
+                                            <option value="Vehicle Maintenance" className="dark:bg-slate-900">Vehicle Maintenance</option>
+                                            <option value="Other" className="dark:bg-slate-900">Other</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Supplier</label>
-                                        <select name="supplier" defaultValue={editingDoc.supplier || ''} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all">
-                                            <option value="">Select supplier</option>
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Supplier
+                                        </label>
+                                        <select
+                                            name="supplier"
+                                            defaultValue={editingDoc.supplier || ''}
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer shadow-2xs"
+                                        >
+                                            <option value="" className="dark:bg-slate-900">Select supplier</option>
                                             {suppliers.map((s) => (
-                                                <option key={s.id} value={s.name}>{s.name}</option>
+                                                <option key={s.id} value={s.name} className="dark:bg-slate-900">{s.name}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">PO Number</label>
-                                        <input name="poNumber" defaultValue={editingDoc.po_number || ''} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all" placeholder="e.g. PO-2026-0031" />
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            PO Number
+                                        </label>
+                                        <input
+                                            name="poNumber"
+                                            defaultValue={editingDoc.po_number || ''}
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            placeholder="e.g. PO-2026-0031"
+                                        />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Parcel Batch</label>
-                                        <input name="parcelBatch" defaultValue={editingDoc.parcel_batch || ''} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all" placeholder="e.g. PB-2026-045" />
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Parcel Batch
+                                        </label>
+                                        <input
+                                            name="parcelBatch"
+                                            defaultValue={editingDoc.parcel_batch || ''}
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            placeholder="e.g. PB-2026-045"
+                                        />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Uploaded By</label>
-                                        <input name="uploadedBy" defaultValue={editingDoc.uploaded_by || ''} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all" placeholder="Your name" />
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Uploaded By
+                                        </label>
+                                        <input
+                                            name="uploadedBy"
+                                            defaultValue={editingDoc.uploaded_by || ''}
+                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
+                                            placeholder="Your name"
+                                        />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Version</label>
-                                        <input value={`v${(editingDoc.version || 0) + 1}`} className="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed" disabled />
+                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Version
+                                        </label>
+                                        <input
+                                            value={`v${(editingDoc.version || 0) + 1}`}
+                                            className="w-full px-3.5 py-2 bg-slate-100/70 dark:bg-slate-800/20 border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 cursor-not-allowed select-none"
+                                            disabled
+                                        />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Notes</label>
-                                    <textarea name="notes" defaultValue={editingDoc.notes || ''} rows={2} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all" placeholder="Additional details" />
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Notes
+                                    </label>
+                                    <textarea
+                                        name="notes"
+                                        defaultValue={editingDoc.notes || ''}
+                                        rows={2}
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
+                                        placeholder="Additional details or remarks"
+                                    />
                                 </div>
 
-                                <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-ink/20">
+                                {/* Modal Actions */}
+                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
                                     <button
                                         type="button"
                                         onClick={() => { setIsEditModalOpen(false); setEditingDoc(null); setEditPreviewUrl(null); }}
-                                        className="px-4 py-2 text-sm font-medium bg-transparent border border-slate-200 dark:border-ink/30 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-all text-slate-600 dark:text-slate-300"
+                                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="px-4 py-2 text-sm font-medium bg-pink-500 dark:bg-pink-600 text-white rounded-lg hover:bg-pink-600 dark:hover:bg-pink-700 transition-all flex items-center gap-2"
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 transition-all shadow-xs shadow-pink-500/20 cursor-pointer"
                                     >
-                                        <i className="fas fa-save"></i> Update Document
+                                        <i className="fas fa-save text-xs"></i>
+                                        <span>Update Document</span>
                                     </button>
                                 </div>
                             </form>
+
                         </div>
                     </div>
                 )}
 
                 {isPreviewModalOpen && selectedDoc && (
-                    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-ink rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-ink/20">
-                            <div className="p-6">
-                                <div className="flex items-start justify-between mb-4">
-                                    <div>
-                                        <h3 className="text-xl font-semibold text-slate-900 dark:text-white">{selectedDoc.title}</h3>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">{selectedDoc.id} · {selectedDoc.document_type}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => { setIsPreviewModalOpen(false); setSelectedDoc(null); setPreviewUrl(null); }}
-                                        className="p-1 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/30 transition-colors"
-                                    >
-                                        <i className="fas fa-times text-xl"></i>
-                                    </button>
-                                </div>
+                    <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-6xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
 
+                            {/* Modal Header */}
+                            <div className="flex items-start justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                                <div>
+                                    <h3 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white truncate max-w-2xl">
+                                        {selectedDoc.title}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        <span className="font-mono">{selectedDoc.id}</span> · {selectedDoc.document_type}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsPreviewModalOpen(false); setSelectedDoc(null); setPreviewUrl(null); }}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    aria-label="Close modal"
+                                >
+                                    <i className="fas fa-times text-base"></i>
+                                </button>
+                            </div>
+
+                            {/* Modal Body */}
+                            <div className="flex-1 overflow-y-auto p-6">
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    <div className="lg:col-span-2">
-                                        <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 flex items-center justify-center min-h-[400px] border border-slate-100 dark:border-ink/20 relative">
+
+                                    {/* Left: Preview Area */}
+                                    <div className="lg:col-span-2 flex flex-col">
+                                        <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-2xl p-4 flex items-center justify-center min-h-[420px] flex-1 border border-slate-200/80 dark:border-slate-800 relative overflow-hidden shadow-2xs">
                                             {previewLoading ? (
-                                                <div className="text-center">
-                                                    <i className="fas fa-spinner fa-spin text-3xl text-pink-500 dark:text-pink-400 mb-4"></i>
-                                                    <p className="text-slate-500 dark:text-slate-400">Loading preview...</p>
+                                                <div className="text-center py-12">
+                                                    <i className="fas fa-spinner fa-spin text-3xl text-pink-500 dark:text-pink-400 mb-3"></i>
+                                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Loading preview...</p>
                                                 </div>
                                             ) : previewUrl ? (
                                                 <div className="w-full h-full flex items-center justify-center">
                                                     {selectedDoc.file_type.toLowerCase().includes('pdf') ? (
                                                         <iframe
                                                             src={`${previewUrl}#toolbar=1`}
-                                                            className="w-full h-[500px] rounded-lg"
+                                                            className="w-full h-[500px] rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white"
                                                             title="PDF Preview"
                                                         />
                                                     ) : selectedDoc.file_type.toLowerCase().includes('jpg') ||
@@ -2097,129 +2135,160 @@ export default function Documents() {
                                                         <img
                                                             src={previewUrl}
                                                             alt={selectedDoc.title}
-                                                            className="max-w-full max-h-[500px] object-contain rounded-lg"
+                                                            className="max-w-full max-h-[500px] object-contain rounded-xl shadow-xs"
                                                         />
                                                     ) : (
-                                                        <div className="text-center">
-                                                            <i className={`fas ${getFileIcon(selectedDoc.file_type)} text-7xl mb-4 text-slate-400 dark:text-slate-500`}></i>
-                                                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{selectedDoc.file_name}</p>
-                                                            <p className="text-xs text-slate-400 dark:text-slate-500">{formatFileSize(selectedDoc.file_size)}</p>
+                                                        <div className="text-center py-12">
+                                                            <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3">
+                                                                <i className={`fas ${getFileIcon(selectedDoc.file_type)} text-3xl`}></i>
+                                                            </div>
+                                                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate mx-auto">
+                                                                {selectedDoc.file_name}
+                                                            </p>
+                                                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                                                {formatFileSize(selectedDoc.file_size)}
+                                                            </p>
                                                             <button
+                                                                type="button"
                                                                 onClick={() => downloadFile(selectedDoc)}
-                                                                className="mt-2 px-4 py-2 bg-pink-500 dark:bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-600 dark:hover:bg-pink-700 transition-colors"
+                                                                className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer"
                                                             >
-                                                                <i className="fas fa-download mr-2"></i>
-                                                                Download File
+                                                                <i className="fas fa-download"></i>
+                                                                <span>Download File</span>
                                                             </button>
                                                         </div>
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div className="text-center text-slate-400 dark:text-slate-500">
-                                                    <i className="fas fa-file text-7xl mb-4"></i>
-                                                    <p className="text-sm">Preview not available</p>
+                                                <div className="text-center py-12 text-slate-400 dark:text-slate-500">
+                                                    <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3">
+                                                        <i className="fas fa-file-alt text-3xl"></i>
+                                                    </div>
+                                                    <p className="text-xs font-medium">Preview not available</p>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
 
-                                    <div className="space-y-5">
-                                        <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                <i className="fas fa-info-circle text-slate-400 dark:text-slate-500"></i> File Information
-                                            </h4>
-                                            <dl className="mt-2.5 space-y-1.5 text-sm">
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">ID:</dt>
-                                                    <dd className="font-mono text-slate-800 dark:text-slate-200 font-medium">{selectedDoc.id.substring(0, 8)}</dd>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">Type:</dt>
-                                                    <dd className="text-slate-800 dark:text-slate-200 font-medium">{selectedDoc.document_type}</dd>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">Size:</dt>
-                                                    <dd className="text-slate-800 dark:text-slate-200">{formatFileSize(selectedDoc.file_size)}</dd>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">Version:</dt>
-                                                    <dd className="text-slate-800 dark:text-slate-200">v{selectedDoc.version || 1}</dd>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">Uploaded:</dt>
-                                                    <dd className="text-slate-800 dark:text-slate-200">{new Date(selectedDoc.created_at).toLocaleDateString()}</dd>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">By:</dt>
-                                                    <dd className="text-slate-800 dark:text-slate-200">{selectedDoc.uploaded_by || 'Unknown'}</dd>
-                                                </div>
-                                            </dl>
-                                        </div>
-
-                                        <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                <i className="fas fa-link text-slate-400 dark:text-slate-500"></i> Related Records
-                                            </h4>
-                                            <dl className="mt-2.5 space-y-1.5 text-sm">
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">PO:</dt>
-                                                    <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.po_number || '-'}</dd>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">Supplier:</dt>
-                                                    <dd className="text-slate-800 dark:text-slate-200 truncate max-w-[140px]">{selectedDoc.supplier || '-'}</dd>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <dt className="text-slate-500 dark:text-slate-400">Parcel:</dt>
-                                                    <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.parcel_batch || '-'}</dd>
-                                                </div>
-                                            </dl>
-                                        </div>
-
-                                        {selectedDoc.notes && (
+                                    {/* Right: Metadata & Info Panel */}
+                                    <div className="space-y-5 flex flex-col justify-between">
+                                        <div className="space-y-4">
+                                            {/* File Information */}
                                             <div>
-                                                <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <i className="fas fa-sticky-note text-slate-400 dark:text-slate-500"></i> Notes
+                                                <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                    <i className="fas fa-info-circle text-slate-400 dark:text-slate-500"></i>
+                                                    <span>File Information</span>
                                                 </h4>
-                                                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/30 p-2 rounded-lg border border-slate-100 dark:border-ink/20">
-                                                    {selectedDoc.notes}
-                                                </p>
+                                                <dl className="mt-2.5 space-y-2 text-xs">
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">ID:</dt>
+                                                        <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.id.substring(0, 8)}</dd>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Type:</dt>
+                                                        <dd className="text-slate-800 dark:text-slate-200 font-medium">{selectedDoc.document_type}</dd>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Size:</dt>
+                                                        <dd className="text-slate-800 dark:text-slate-200">{formatFileSize(selectedDoc.file_size)}</dd>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Version:</dt>
+                                                        <dd className="text-slate-800 dark:text-slate-200">v{selectedDoc.version || 1}</dd>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Uploaded:</dt>
+                                                        <dd className="text-slate-800 dark:text-slate-200">{new Date(selectedDoc.created_at).toLocaleDateString()}</dd>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">By:</dt>
+                                                        <dd className="text-slate-800 dark:text-slate-200">{selectedDoc.uploaded_by || 'Unknown'}</dd>
+                                                    </div>
+                                                </dl>
                                             </div>
-                                        )}
 
-                                        <div className="flex gap-2 pt-4 border-t border-slate-100 dark:border-ink/20">
+                                            {/* Related Records */}
+                                            <div>
+                                                <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                    <i className="fas fa-link text-slate-400 dark:text-slate-500"></i>
+                                                    <span>Related Records</span>
+                                                </h4>
+                                                <dl className="mt-2.5 space-y-2 text-xs">
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">PO:</dt>
+                                                        <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.po_number || '-'}</dd>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Supplier:</dt>
+                                                        <dd className="text-slate-800 dark:text-slate-200 truncate max-w-[150px]" title={selectedDoc.supplier || '-'}>{selectedDoc.supplier || '-'}</dd>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Parcel:</dt>
+                                                        <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.parcel_batch || '-'}</dd>
+                                                    </div>
+                                                </dl>
+                                            </div>
+
+                                            {/* Notes */}
+                                            {selectedDoc.notes && (
+                                                <div>
+                                                    <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                        <i className="fas fa-sticky-note text-slate-400 dark:text-slate-500"></i>
+                                                        <span>Notes</span>
+                                                    </h4>
+                                                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 leading-relaxed">
+                                                        {selectedDoc.notes}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Action Buttons Footer */}
+                                        <div className="flex gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800">
                                             <button
-                                                className="flex-1 py-2 px-3 text-xs font-medium text-white bg-pink-600 dark:bg-pink-600 hover:bg-pink-700 dark:hover:bg-pink-700 rounded-lg transition-colors"
+                                                type="button"
+                                                className="flex-1 py-2 px-3 text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 rounded-xl transition-all shadow-xs shadow-pink-500/20 cursor-pointer inline-flex items-center justify-center gap-1.5"
                                                 onClick={() => downloadFile(selectedDoc)}
                                             >
-                                                <i className="fas fa-download mr-1.5"></i> Download
+                                                <i className="fas fa-download"></i>
+                                                <span>Download</span>
                                             </button>
                                             <button
-                                                className="flex-1 py-2 px-3 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700/30 rounded-lg transition-colors"
+                                                type="button"
+                                                className="flex-1 py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200/70 dark:border-slate-700/60 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5"
                                                 onClick={() => window.print()}
                                             >
-                                                <i className="fas fa-print mr-1.5"></i> Print
+                                                <i className="fas fa-print"></i>
+                                                <span>Print</span>
                                             </button>
                                         </div>
                                     </div>
+
                                 </div>
                             </div>
+
                         </div>
                     </div>
                 )}
 
                 {isUploadModalOpen && (
-                    <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-ink rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100 dark:border-ink/20">
-                            <div className="flex items-start justify-between mb-5">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                                        <span className="w-8 h-8 rounded-full bg-pink-50 dark:bg-pink-950/30 text-pink-500 dark:text-pink-400 flex items-center justify-center text-sm">
-                                            <i className="fas fa-upload"></i>
-                                        </span>
-                                        Upload Files
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Upload documents, receipts, or photos</p>
+                    <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                        <i className="fas fa-upload text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                                            Upload Files
+                                        </h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Upload documents, receipts, or photos for tracking
+                                        </p>
+                                    </div>
                                 </div>
                                 <button
                                     type="button"
@@ -2228,27 +2297,30 @@ export default function Documents() {
                                         setSelectedFiles([]);
                                         setUploadProgress(0);
                                     }}
-                                    className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-all flex items-center justify-center text-sm"
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                 >
-                                    <i className="fas fa-times"></i>
+                                    <i className="fas fa-times text-sm"></i>
                                 </button>
                             </div>
 
-                            <form onSubmit={handleUpload}>
+                            {/* Form Body */}
+                            <form onSubmit={handleUpload} className="flex-1 overflow-y-auto p-6 space-y-4">
+
+                                {/* Dropzone Area */}
                                 <div
                                     ref={dropZoneRef}
-                                    className="border-2 border-dashed border-slate-200 dark:border-ink/30 rounded-xl p-6 text-center hover:border-pink-300 dark:hover:border-pink-500/50 transition cursor-pointer bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                                    className="border-2 border-dashed border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 text-center hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer bg-slate-50/70 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                                     onClick={() => document.getElementById('fileInput')?.click()}
                                     onDragOver={(e) => {
                                         e.preventDefault();
-                                        e.currentTarget.classList.add('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/20');
+                                        e.currentTarget.classList.add('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/30');
                                     }}
                                     onDragLeave={(e) => {
-                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/20');
+                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/30');
                                     }}
                                     onDrop={(e) => {
                                         e.preventDefault();
-                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/20');
+                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/30');
                                         handleFileSelect(e.dataTransfer.files);
                                     }}
                                 >
@@ -2261,27 +2333,29 @@ export default function Documents() {
                                         onChange={(e) => handleFileSelect(e.target.files)}
                                     />
                                     <div className="flex flex-col items-center gap-2">
-                                        <i className="fas fa-cloud-upload-alt text-4xl text-pink-400 dark:text-pink-500"></i>
-                                        <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                                            Drop files here or <span className="text-pink-500 dark:text-pink-400 hover:underline">click to upload</span>
+                                        <div className="w-12 h-12 rounded-full bg-pink-50 dark:bg-pink-950/50 text-pink-500 dark:text-pink-400 flex items-center justify-center mb-1">
+                                            <i className="fas fa-cloud-upload-alt text-xl"></i>
                                         </div>
-                                        <div className="text-xs text-slate-400 dark:text-slate-500">
+                                        <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                            Drop files here or <span className="text-pink-600 dark:text-pink-400 underline">browse</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-400 dark:text-slate-500">
                                             Supports PDF, JPG, PNG, HEIC, DOC, XLS (Max 10MB each)
                                         </div>
 
                                         {selectedFiles.length > 0 && (
-                                            <div className="w-full max-w-md mt-3 space-y-2 text-left">
+                                            <div className="w-full max-w-md mt-3 space-y-2 text-left" onClick={(e) => e.stopPropagation()}>
                                                 {selectedFiles.map((file, index) => (
-                                                    <div key={index} className="flex items-center justify-between p-2.5 bg-white dark:bg-ink/60 border border-slate-100 dark:border-ink/20 rounded-lg text-sm shadow-sm">
+                                                    <div key={index} className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl text-xs shadow-xs">
                                                         <span className="flex items-center gap-2 truncate pr-2">
-                                                            <i className="fas fa-file text-slate-400 dark:text-slate-500"></i>
-                                                            <span className="truncate max-w-[200px] text-slate-700 dark:text-slate-200 font-medium">{file.name}</span>
-                                                            <span className="text-xs text-slate-400 dark:text-slate-500">({formatFileSize(file.size)})</span>
+                                                            <i className="fas fa-file-alt text-slate-400 dark:text-slate-500"></i>
+                                                            <span className="truncate max-w-[220px] text-slate-700 dark:text-slate-200 font-medium">{file.name}</span>
+                                                            <span className="text-[10px] text-slate-400">({formatFileSize(file.size)})</span>
                                                         </span>
                                                         <button
                                                             type="button"
                                                             onClick={(e) => { e.stopPropagation(); removeFile(index); }}
-                                                            className="text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 p-1 transition-colors"
+                                                            className="text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 p-1 transition-colors cursor-pointer"
                                                         >
                                                             <i className="fas fa-times"></i>
                                                         </button>
@@ -2292,13 +2366,13 @@ export default function Documents() {
 
                                         {uploadProgress > 0 && (
                                             <div className="w-full max-w-md mt-3">
-                                                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                                                     <div
                                                         className="bg-pink-500 dark:bg-pink-400 h-1.5 rounded-full transition-all duration-300"
                                                         style={{ width: `${uploadProgress}%` }}
                                                     ></div>
                                                 </div>
-                                                <div className="flex justify-between items-center text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                                <div className="flex justify-between items-center text-[11px] text-slate-400 dark:text-slate-500 mt-1">
                                                     <span>Uploading...</span>
                                                     <span>{uploadProgress}%</span>
                                                 </div>
@@ -2307,62 +2381,64 @@ export default function Documents() {
                                     </div>
                                 </div>
 
-                                <div className="mt-4 space-y-3">
-                                    <div className="grid grid-cols-2 gap-3">
+                                {/* Fields Grid */}
+                                <div className="space-y-3.5 pt-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                         <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Category</label>
-                                            <select name="category" className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all">
-                                                <option value="documents">Documents</option>
-                                                <option value="photos">Photos</option>
+                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Category</label>
+                                            <select name="category" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer">
+                                                <option value="documents" className="dark:bg-slate-900">Documents</option>
+                                                <option value="photos" className="dark:bg-slate-900">Photos</option>
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Document Type</label>
-                                            <select name="documentType" className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all">
-                                                <option value="Official Receipt">Official Receipt</option>
-                                                <option value="Invoice">Invoice</option>
-                                                <option value="Delivery Receipt">Delivery Receipt</option>
-                                                <option value="Parcel Condition">Parcel Condition</option>
-                                                <option value="Courier Handover">Courier Handover</option>
-                                                <option value="Vehicle Maintenance">Vehicle Maintenance</option>
-                                                <option value="Other">Other</option>
+                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Document Type</label>
+                                            <select name="documentType" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer">
+                                                <option value="Official Receipt" className="dark:bg-slate-900">Official Receipt</option>
+                                                <option value="Invoice" className="dark:bg-slate-900">Invoice</option>
+                                                <option value="Delivery Receipt" className="dark:bg-slate-900">Delivery Receipt</option>
+                                                <option value="Parcel Condition" className="dark:bg-slate-900">Parcel Condition</option>
+                                                <option value="Courier Handover" className="dark:bg-slate-900">Courier Handover</option>
+                                                <option value="Vehicle Maintenance" className="dark:bg-slate-900">Vehicle Maintenance</option>
+                                                <option value="Other" className="dark:bg-slate-900">Other</option>
                                             </select>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                                         <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Supplier</label>
-                                            <select name="supplier" className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all">
-                                                <option value="">Select supplier</option>
+                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Supplier</label>
+                                            <select name="supplier" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer">
+                                                <option value="" className="dark:bg-slate-900 text-slate-400">Select supplier</option>
                                                 {suppliers.map((s) => (
-                                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                                    <option key={s.id} value={s.name} className="dark:bg-slate-900">{s.name}</option>
                                                 ))}
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">PO Number</label>
-                                            <input name="poNumber" className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="e.g. PO-2026-0031" />
+                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">PO Number</label>
+                                            <input name="poNumber" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="e.g. PO-2026-0031" />
                                         </div>
                                         <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Parcel Batch</label>
-                                            <input name="parcelBatch" className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="e.g. PB-2026-045" />
+                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Parcel Batch</label>
+                                            <input name="parcelBatch" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="e.g. PB-2026-045" />
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                         <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Uploaded By</label>
-                                            <input name="uploadedBy" defaultValue={userName || DEFAULT_USER.name} className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="Your name" />
+                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Uploaded By</label>
+                                            <input name="uploadedBy" defaultValue={userName || DEFAULT_USER.name} className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="Your name" />
                                         </div>
                                         <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">Notes</label>
-                                            <input name="notes" className="w-full bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-ink/20 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="Additional details" />
+                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
+                                            <input name="notes" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="Additional details" />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-ink/20 mt-5">
+                                {/* Modal Actions */}
+                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80 mt-2">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -2370,19 +2446,25 @@ export default function Documents() {
                                             setSelectedFiles([]);
                                             setUploadProgress(0);
                                         }}
-                                        className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-transparent border border-slate-200 dark:border-ink/30 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-all"
+                                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isUploading || selectedFiles.length === 0}
-                                        className="px-4 py-2 text-sm font-medium bg-pink-500 dark:bg-pink-600 text-white rounded-lg hover:bg-pink-600 dark:hover:bg-pink-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center gap-2 shadow-sm shadow-pink-500/20"
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 transition-all shadow-xs shadow-pink-500/20 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                                     >
                                         {isUploading ? (
-                                            <><i className="fas fa-spinner fa-spin"></i> Uploading...</>
+                                            <>
+                                                <i className="fas fa-spinner fa-spin text-xs"></i>
+                                                <span>Uploading...</span>
+                                            </>
                                         ) : (
-                                            <><i className="fas fa-upload"></i> Upload {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}</>
+                                            <>
+                                                <i className="fas fa-upload text-xs"></i>
+                                                <span>Upload {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}</span>
+                                            </>
                                         )}
                                     </button>
                                 </div>

@@ -333,10 +333,10 @@ export function IncomingTable({
                     )}
                 </div>
 
-                <table className="table-pro w-full border-collapse text-left">
+                <table className="table-pro w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
-                            <th className="text-center py-3.5 px-4 w-10">
+                            <th className="w-10 text-center py-3 px-3">
                                 <input
                                     type="checkbox"
                                     checked={allSelected}
@@ -349,43 +349,98 @@ export function IncomingTable({
                                     className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-pink-500 focus:ring-pink-500 focus:ring-2 cursor-pointer accent-pink-500"
                                 />
                             </th>
-                            <th className="py-3.5 px-3">#</th>
-                            <th className="py-3.5 px-4">Barcode</th>
-                            <th className="py-3.5 px-4">Tracking</th>
-                            <th className="py-3.5 px-4">Sender</th>
-                            <th className="py-3.5 px-4">Customer</th>
-                            <th className="py-3.5 px-4">Customer Number</th>
-                            <th className="py-3.5 px-4">Destination</th>
-                            <th className="py-3.5 px-4">Region</th>
-                            <th className="py-3.5 px-4">Courier</th>
-                            <th className="py-3.5 px-4">Status</th>
-                            <th className="py-3.5 px-4 text-right">Action</th>
+                            <th className="w-12 text-center py-3 px-3">#</th>
+                            <th className="py-3 px-4">Barcode</th>
+                            <th className="py-3 px-4">Tracking</th>
+                            <th className="py-3 px-4">Sender</th>
+                            <th className="py-3 px-4">Customer</th>
+                            <th className="py-3 px-4">Customer Number</th>
+                            <th className="py-3 px-4">Destination</th>
+                            <th className="py-3 px-4">Region</th>
+                            <th className="py-3 px-4">Courier</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="text-right py-3 px-4">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs text-slate-700 dark:text-slate-300">
                         {initialParcels.length === 0 ? (
                             <tr>
-                                <td colSpan={12} className="p-16 text-center text-slate-400 dark:text-slate-500">
-                                    <div className="flex flex-col items-center justify-center space-y-2.5">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/50">
-                                            <i className="fas fa-box-open text-base"></i>
+                                <td colSpan={12} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                                    <div className="flex flex-col items-center justify-center gap-2">
+                                        <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
+                                            <i className="fas fa-box-open text-xl"></i>
                                         </div>
-                                        <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">No pending parcels in queue</p>
-                                        <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs">All incoming parcels have been processed or the queue is currently clear.</p>
+                                        <p className="font-semibold text-slate-700 dark:text-slate-300">No parcels found</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500">Try adjusting your filters or search terms</p>
                                     </div>
                                 </td>
                             </tr>
                         ) : (
-                            initialParcels.map((parcel, index) => (
-                                <ParcelRow
-                                    key={parcel.id}
-                                    parcel={parcel}
-                                    index={(page - 1) * 10 + index + 1}
-                                    onDelete={() => handleDeleteParcel(parcel.id)}
-                                    isSelected={selectedIds.has(parcel.id)}
-                                    onSelect={handleSelect}
-                                />
-                            ))
+                            initialParcels.map((parcel, index) => {
+                                const isSelected = selectedIds.has(parcel.id);
+                                return (
+                                    <tr
+                                        key={parcel.id}
+                                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group ${isSelected ? 'bg-pink-50/40 dark:bg-pink-950/20' : ''
+                                            }`}
+                                    >
+                                        <td data-label="Select" className="py-3 px-3 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => handleSelect(parcel.id)}
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500"
+                                            />
+                                        </td>
+                                        <td data-label="#" className="py-3 px-3 text-center text-slate-400 dark:text-slate-500 font-mono text-[11px]">
+                                            {(page - 1) * 10 + index + 1}
+                                        </td>
+                                        <td data-label="Barcode" className="py-3 px-4 font-mono text-[11px] font-medium text-slate-800 dark:text-slate-200">
+                                            {parcel.barcode || '—'}
+                                        </td>
+                                        <td data-label="Tracking" className="py-3 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                            {parcel.tracking_number || '—'}
+                                        </td>
+                                        <td data-label="Sender" className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                                            {parcel.sender_name || '—'}
+                                        </td>
+                                        <td data-label="Customer" className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                                            {parcel.customer_name || '—'}
+                                        </td>
+                                        <td data-label="Customer Number" className="py-3 px-4 text-slate-600 dark:text-slate-400 font-mono text-[11px]">
+                                            {parcel.customer_number || '—'}
+                                        </td>
+                                        <td data-label="Destination" className="py-3 px-4 text-slate-600 dark:text-slate-400">
+                                            {parcel.destination || '—'}
+                                        </td>
+                                        <td data-label="Region" className="py-3 px-4">
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                {parcel.region || '—'}
+                                            </span>
+                                        </td>
+                                        <td data-label="Courier" className="py-3 px-4 text-slate-600 dark:text-slate-400">
+                                            {parcel.courier || '—'}
+                                        </td>
+                                        <td data-label="Status" className="py-3 px-4">
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                Pending
+                                            </span>
+                                        </td>
+                                        <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap">
+                                            <div className="inline-flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => handleDeleteParcel(parcel.id)}
+                                                    className="p-1.5 text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
+                                                    title="Delete"
+                                                >
+                                                    <i className="fas fa-trash text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>

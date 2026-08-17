@@ -61,7 +61,17 @@ export default function Suppliers() {
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
     const [selectedPurchaseOrders, setSelectedPurchaseOrders] = useState<Set<string>>(new Set());
     const [isDeletingPO, setIsDeletingPO] = useState(false);
+    const [showActivityDetailModal, setShowActivityDetailModal] = useState(false);
+    const [showCategoryDetailModal, setShowCategoryDetailModal] = useState(false);
+    const [selectedChartData, setSelectedChartData] = useState<{
+        supplierName?: string;
+        orderCount?: number;
+        totalSpent?: number;
+        category?: string;
+        suppliers?: Supplier[];
+    }>({});
     const [currentPOPage, setCurrentPOPage] = useState(1);
+    const [chartReady, setChartReady] = useState(false);
     const PO_ITEMS_PER_PAGE = 15;
     const paginatedPurchaseOrders = purchaseOrders.slice(
         (currentPOPage - 1) * PO_ITEMS_PER_PAGE,
@@ -87,6 +97,7 @@ export default function Suppliers() {
     const categoryChartRef = useRef<HTMLCanvasElement>(null);
     const categoryChartInstance = useRef<Chart | null>(null);
 
+    // register chart.js components once
     useEffect(() => {
         if (!isRegistered) {
             Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend, ArcElement, DoughnutController);
@@ -94,11 +105,13 @@ export default function Suppliers() {
         }
     }, []);
 
+    // fetch initial data
     useEffect(() => {
         fetchSuppliers();
         fetchPurchaseOrders();
     }, []);
 
+    // reset page when filters change
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, categoryFilter]);
@@ -303,7 +316,6 @@ export default function Suppliers() {
 
             toast.success(`PO "${poNumber}" deleted successfully!`);
             fetchPurchaseOrders();
-            // Also refresh suppliers to update order counts
             fetchSuppliers();
         } catch (error: any) {
             console.error("Error deleting purchase order:", error);
@@ -418,13 +430,17 @@ export default function Suppliers() {
     const activeSuppliers = suppliers.filter(s => s.is_active).length;
     const totalOrders = purchaseOrders.length;
 
-    const supplierOrderCounts = suppliers.map(s => ({
-        ...s,
-        orderCount: purchaseOrders.filter(po => po.supplier_id === s.id).length,
-        totalSpent: purchaseOrders
-            .filter(po => po.supplier_id === s.id)
-            .reduce((sum, po) => sum + (po.total_amount || 0), 0)
-    }));
+    const supplierOrderCounts = suppliers.map(s => {
+        const supplierOrders = purchaseOrders.filter(po => po.supplier_id === s.id);
+        const deliveredOrders = purchaseOrders.filter(po => po.supplier_id === s.id && po.status === 'Delivered');
+
+        return {
+            ...s,
+            orderCount: supplierOrders.length,
+            totalSpent: deliveredOrders
+                .reduce((sum, po) => sum + (po.total_amount || 0), 0)
+        };
+    });
 
     const topSupplier = supplierOrderCounts.length > 0
         ? supplierOrderCounts.reduce((a, b) => a.orderCount > b.orderCount ? a : b)
@@ -465,20 +481,37 @@ export default function Suppliers() {
         statusCounts,
     };
 
+    // create the activity bar chart
     const createActivityChart = () => {
         if (activityChartInstance.current) {
             activityChartInstance.current.destroy();
             activityChartInstance.current = null;
         }
 
-        if (!activityChartRef.current) return;
+        const canvas = activityChartRef.current;
+        if (!canvas) {
+            return;
+        }
 
-        const ctx = activityChartRef.current.getContext('2d');
-        if (!ctx) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return;
+        }
 
         if (suppliers.length === 0 || purchaseOrders.length === 0) {
             return;
         }
+
+        // get top 5 suppliers by order count
+        const supplierOrderCounts = suppliers.map(s => {
+            const supplierOrders = purchaseOrders.filter(po => po.supplier_id === s.id);
+            const deliveredOrders = purchaseOrders.filter(po => po.supplier_id === s.id && po.status === 'Delivered');
+            return {
+                ...s,
+                orderCount: supplierOrders.length,
+                totalSpent: deliveredOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0)
+            };
+        });
 
         const topSuppliers = [...supplierOrderCounts]
             .sort((a, b) => b.orderCount - a.orderCount)
@@ -509,7 +542,7 @@ export default function Suppliers() {
                         order: 1,
                     },
                     {
-                        label: "Spent (₱K)",
+                        label: "Spent (K)",
                         data: spendingData,
                         backgroundColor: "#F472B6",
                         borderRadius: 8,
@@ -543,10 +576,10 @@ export default function Suppliers() {
                         cornerRadius: 8,
                         callbacks: {
                             label: function (context) {
-                                let label = context.dataset.label || '';
+                                let label = context.dataset.label || "";
                                 let value = context.parsed.y || 0;
-                                if (context.dataset.label === "Spent (₱K)") {
-                                    return `${label}: ₱${(value * 1000).toLocaleString()}`;
+                                if (context.dataset.label === "Spent (K)") {
+                                    return `${label}: ${(value * 1000).toLocaleString()}`;
                                 }
                                 return `${label}: ${value}`;
                             }
@@ -564,7 +597,7 @@ export default function Suppliers() {
                         }
                     },
                     y: {
-                        grid: { color: "#f1f5f9", },
+                        grid: { color: "#f1f5f9" },
                         beginAtZero: true,
                         ticks: {
                             font: { size: 10 },
@@ -573,22 +606,49 @@ export default function Suppliers() {
                         },
                     },
                 },
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const element = elements[0];
+                        const index = element.index;
+
+                        const supplier = displaySuppliers[index];
+                        if (supplier) {
+                            const allOrders = purchaseOrders.filter(po => po.supplier_id === supplier.id);
+                            const deliveredOrders = purchaseOrders.filter(po => po.supplier_id === supplier.id && po.status === 'Delivered');
+
+                            setSelectedChartData({
+                                supplierName: supplier.name,
+                                orderCount: allOrders.length,
+                                totalSpent: deliveredOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0),
+                            });
+                            setShowActivityDetailModal(true);
+                        }
+                    }
+                },
             },
         });
     };
 
+    // create the category doughnut chart
     const createCategoryChart = () => {
         if (categoryChartInstance.current) {
             categoryChartInstance.current.destroy();
             categoryChartInstance.current = null;
         }
 
-        if (!categoryChartRef.current) return;
+        const canvas = categoryChartRef.current;
+        if (!canvas) {
+            return;
+        }
 
-        const ctx = categoryChartRef.current.getContext('2d');
-        if (!ctx) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return;
+        }
 
-        if (suppliers.length === 0) return;
+        if (suppliers.length === 0) {
+            return;
+        }
 
         const categoryData = suppliers.reduce((acc: Record<string, number>, s) => {
             acc[s.category] = (acc[s.category] || 0) + 1;
@@ -649,29 +709,46 @@ export default function Suppliers() {
                         }
                     }
                 },
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const element = elements[0];
+                        const index = element.index;
+                        const category = labels[index];
+
+                        if (category) {
+                            const suppliersInCategory = suppliers.filter(s => s.category === category);
+
+                            setSelectedChartData({
+                                category: category,
+                                suppliers: suppliersInCategory,
+                            });
+                            setShowCategoryDetailModal(true);
+                        }
+                    }
+                },
             },
         });
     };
 
+    // initialize charts after data is loaded and dom is ready
     useEffect(() => {
+        if (isLoading) return;
+
+        // wait for dom to be fully rendered
         const timer = setTimeout(() => {
-            createActivityChart();
-            createCategoryChart();
-        }, 300);
+            // check if canvas elements exist before creating charts
+            if (activityChartRef.current && categoryChartRef.current) {
+                createActivityChart();
+                createCategoryChart();
+            }
+        }, 500);
 
         return () => {
             clearTimeout(timer);
-            if (activityChartInstance.current) {
-                activityChartInstance.current.destroy();
-                activityChartInstance.current = null;
-            }
-            if (categoryChartInstance.current) {
-                categoryChartInstance.current.destroy();
-                categoryChartInstance.current = null;
-            }
         };
-    }, [suppliers, purchaseOrders]);
+    }, [suppliers, purchaseOrders, isLoading]);
 
+    // handle window resize
     useEffect(() => {
         const handleResize = () => {
             if (activityChartInstance.current) {
@@ -686,10 +763,25 @@ export default function Suppliers() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // cleanup charts on unmount
+    useEffect(() => {
+        return () => {
+            if (activityChartInstance.current) {
+                activityChartInstance.current.destroy();
+                activityChartInstance.current = null;
+            }
+            if (categoryChartInstance.current) {
+                categoryChartInstance.current.destroy();
+                categoryChartInstance.current = null;
+            }
+        };
+    }, []);
+
     return (
         <SessionGuard requiredRole={['Admin', 'Employee']}>
             <main className="main-shell bgCard">
                 <div className="p-6 space-y-6 fade-in">
+                    {/* header */}
                     <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-3.5">
                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl 
                     bg-pink-50 dark:bg-pink-950/30 
@@ -701,7 +793,7 @@ export default function Suppliers() {
 
                         <div className="w-full min-w-0">
                             <h1 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
-                                Supplier &amp; Vendor Management
+                                Supplier & Vendor Management
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                                 Track supplier purchases, order frequency, and spending patterns.
@@ -744,6 +836,7 @@ export default function Suppliers() {
                         </div>
                     </div>
 
+                    {/* stats cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                         <Cards
                             frontIcon="fas fa-building mr-1"
@@ -751,7 +844,6 @@ export default function Suppliers() {
                             data={activeSuppliers.toString()}
                             arrow="fas fa-arrow-up mr-1"
                             description="Total active suppliers"
-                            backBg="bg-slate-900"
                             backHeader="Supplier Stats"
                             headerTextColor="text-slate-400"
                             backDescription={`Total suppliers: ${suppliers.length}, Active: ${activeSuppliers}`}
@@ -765,10 +857,9 @@ export default function Suppliers() {
                             data={supplierStats.totalOrders.toString()}
                             arrow="fas fa-arrow-up mr-1"
                             description="Orders placed"
-                            backBg="bg-slate-900"
                             backHeader="Order Stats"
                             headerTextColor="text-slate-400"
-                            backDescription={`Total purchase orders placed across all suppliers`}
+                            backDescription="Total purchase orders placed across all suppliers"
                             tooltip="View all purchase orders"
                             tooltipLink="/purchase-order"
                             badge={`${supplierStats.totalOrders} Total`}
@@ -779,13 +870,12 @@ export default function Suppliers() {
                             data={supplierStats.topSupplierName}
                             arrow="fas fa-arrow-up mr-1"
                             description={`${supplierStats.topSupplierOrders} orders`}
-                            backBg="bg-slate-900"
                             backHeader="Top Supplier Details"
                             headerTextColor="text-slate-200"
                             backDescription={topSupplier ? `${topSupplier.category} - ${topSupplier.location}` : "No suppliers yet"}
                             tooltip="View supplier details"
                             tooltipLink={topSupplier ? `/supplier/${topSupplier.id}` : "#"}
-                            badge={topSupplier ? "⭐ Top" : "No Data"}
+                            badge={topSupplier ? "Top" : "No Data"}
                         />
                         <Cards
                             frontIcon="fas fa-tags mr-1"
@@ -793,7 +883,6 @@ export default function Suppliers() {
                             data={topCategory}
                             arrow="fas fa-arrow-up mr-1"
                             description="Most common supplier type"
-                            backBg="bg-slate-900"
                             backHeader="Category Breakdown"
                             headerTextColor="text-slate-200"
                             backDescription={`${topCategory} is the most common supplier category`}
@@ -803,61 +892,87 @@ export default function Suppliers() {
                         />
                     </div>
 
+                    {/* charts */}
                     <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-                        <div className="card p-5 xl:col-span-3">
+                        {/* purchase activity card */}
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs xl:col-span-3 flex flex-col justify-between transition-all">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <div className="font-semibold text-slate-900 dark:text-white">Purchase Activity by Supplier</div>
-                                    <div className="text-xs text-slate-500 dark:text-slate-400">Total orders and spending per supplier</div>
+                                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Purchase Activity by Supplier</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Total orders and spending per supplier</p>
+                                </div>
+                                <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                    <i className="fas fa-chart-bar text-xs"></i>
                                 </div>
                             </div>
-                            <div className="h-56 relative">
+                            <div className="h-60 relative w-full flex items-center justify-center">
                                 {isLoading ? (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                                    <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-slate-900/60 backdrop-blur-xs z-10 rounded-xl">
+                                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                            <div className="w-4 h-4 rounded-full border-2 border-pink-500 border-t-transparent animate-spin"></div>
+                                            <span>Loading activity...</span>
+                                        </div>
                                     </div>
                                 ) : suppliers.length === 0 ? (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
-                                        <i className="fas fa-building text-4xl mb-3 opacity-30"></i>
-                                        <span className="text-sm font-medium">No suppliers registered yet</span>
-                                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Add a supplier to start tracking purchases</span>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3 border border-slate-200/60 dark:border-slate-700/50">
+                                            <i className="fas fa-building text-base"></i>
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">No suppliers registered yet</span>
+                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Add a supplier to start tracking purchases</span>
                                     </div>
                                 ) : purchaseOrders.length === 0 ? (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
-                                        <i className="fas fa-shopping-cart text-4xl mb-3 opacity-30"></i>
-                                        <span className="text-sm font-medium">No purchase orders yet</span>
-                                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Create a purchase order to see activity data</span>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3 border border-slate-200/60 dark:border-slate-700/50">
+                                            <i className="fas fa-shopping-cart text-base"></i>
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">No purchase orders yet</span>
+                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Create a purchase order to see activity data</span>
                                     </div>
                                 ) : (
-                                    <canvas ref={activityChartRef} className="w-full h-full"></canvas>
+                                    <canvas ref={activityChartRef} className="w-full h-full max-h-60"></canvas>
                                 )}
                             </div>
                         </div>
 
-                        <div className="card p-5 xl:col-span-2">
-                            <div className="font-semibold text-slate-900 dark:text-white mb-1">Supplier Categories</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">Distribution by category</div>
-                            <div className="h-56 relative">
+                        {/* supplier categories card */}
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs xl:col-span-2 flex flex-col justify-between transition-all">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Supplier Categories</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution by category</p>
+                                </div>
+                                <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                    <i className="fas fa-chart-pie text-xs"></i>
+                                </div>
+                            </div>
+                            <div className="h-60 relative w-full flex items-center justify-center">
                                 {isLoading ? (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                                    <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-slate-900/60 backdrop-blur-xs z-10 rounded-xl">
+                                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                            <div className="w-4 h-4 rounded-full border-2 border-pink-500 border-t-transparent animate-spin"></div>
+                                            <span>Loading categories...</span>
+                                        </div>
                                     </div>
                                 ) : suppliers.length === 0 ? (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
-                                        <i className="fas fa-chart-pie text-4xl mb-3 opacity-30"></i>
-                                        <span className="text-sm font-medium">No data available</span>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3 border border-slate-200/60 dark:border-slate-700/50">
+                                            <i className="fas fa-chart-pie text-base"></i>
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">No data available</span>
+                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Category metrics will display once added</span>
                                     </div>
                                 ) : (
-                                    <canvas ref={categoryChartRef} className="w-full h-full"></canvas>
+                                    <canvas ref={categoryChartRef} className="w-full h-full max-h-60"></canvas>
                                 )}
                             </div>
                         </div>
                     </div>
 
+                    {/* supplier directory table */}
                     <div className="card flex flex-col">
-                        {/* Filter Bar - Stays fixed */}
-                        <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center gap-3 ">
-                            {/* Title & Badge */}
+                        {/* filter bar */}
+                        <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-pink-500" />
                                 <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
@@ -865,20 +980,18 @@ export default function Suppliers() {
                                 </h2>
                             </div>
 
-                            {/* Search Input */}
                             <div className="flex gap-2 items-center ml-auto">
                                 <div className="relative flex-1 sm:flex-initial sm:max-w-xs ml-auto">
                                     <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
                                     <input
                                         type="text"
-                                        placeholder="Search suppliers…"
+                                        placeholder="Search suppliers..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         className="w-full py-1.5 pl-8 pr-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all"
                                     />
                                 </div>
 
-                                {/* Category Filter Select */}
                                 <div className="relative max-w-[180px] w-full sm:w-auto">
                                     <select
                                         value={categoryFilter}
@@ -897,8 +1010,6 @@ export default function Suppliers() {
                                 </div>
                             </div>
 
-
-                            {/* Bulk Delete Action */}
                             {selectedSuppliers.size > 0 && (
                                 <button
                                     onClick={handleBulkDelete}
@@ -910,7 +1021,7 @@ export default function Suppliers() {
                             )}
                         </div>
 
-                        {/* Scrollable Table Container - Only this scrolls */}
+                        {/* scrollable table */}
                         <div className="flex-1 overflow-y-auto max-h-[500px] relative">
                             {isLoading ? (
                                 <div className="text-center py-12">
@@ -950,7 +1061,6 @@ export default function Suppliers() {
                                                     key={supplier.id}
                                                     className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
                                                 >
-                                                    {/* Checkbox */}
                                                     <td className="py-3 px-4">
                                                         <input
                                                             type="checkbox"
@@ -960,35 +1070,23 @@ export default function Suppliers() {
                                                             className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"
                                                         />
                                                     </td>
-
-                                                    {/* Supplier ID */}
                                                     <td data-label="Supplier ID" className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
                                                         SUP-{String(supplier.id).padStart(3, '0')}
                                                     </td>
-
-                                                    {/* Supplier Name & Email */}
                                                     <td data-label="Supplier Name" className="py-3 px-4">
                                                         <div className="font-semibold text-slate-900 dark:text-slate-100">{supplier.name}</div>
                                                         <div className="text-[11px] text-slate-500 dark:text-slate-400">{supplier.email}</div>
                                                     </td>
-
-                                                    {/* Category */}
                                                     <td data-label="Category" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium">
                                                         {supplier.category}
                                                     </td>
-
-                                                    {/* Contact Person & Phone */}
                                                     <td data-label="Contact" className="py-3 px-4">
                                                         <div className="text-slate-800 dark:text-slate-200 font-medium">{supplier.contact_person}</div>
                                                         <div className="text-[11px] text-slate-500 dark:text-slate-400">{supplier.phone}</div>
                                                     </td>
-
-                                                    {/* Location */}
                                                     <td data-label="Location" className="py-3 px-4 text-slate-700 dark:text-slate-300">
                                                         {supplier.location}
                                                     </td>
-
-                                                    {/* Status Badge */}
                                                     <td data-label="Status" className="py-3 px-4">
                                                         <button
                                                             onClick={() => handleToggleActive(supplier.id, supplier.is_active)}
@@ -1000,8 +1098,6 @@ export default function Suppliers() {
                                                             <span>{supplier.is_active ? 'Active' : 'Inactive'}</span>
                                                         </button>
                                                     </td>
-
-                                                    {/* Actions */}
                                                     <td data-label="Action" className="py-3 px-4 text-right">
                                                         <div className="flex items-center justify-end gap-1">
                                                             <button
@@ -1038,7 +1134,7 @@ export default function Suppliers() {
                             )}
                         </div>
 
-                        {/* Pagination Bar - Stays fixed */}
+                        {/* pagination */}
                         <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1">
                             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
                                 <span className="text-slate-500 dark:text-slate-400 font-medium">
@@ -1091,9 +1187,8 @@ export default function Suppliers() {
                         </div>
                     </div>
 
-                    {/* Recent Purchase History - Separate card */}
+                    {/* purchase history table */}
                     <div className="card flex flex-col">
-                        {/* Header - Stays fixed */}
                         <div className="flex-shrink-0 px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
                             <div>
                                 <div className="flex items-center gap-2.5 mb-1">
@@ -1122,7 +1217,6 @@ export default function Suppliers() {
                             </div>
                         </div>
 
-                        {/* Scrollable Table Container */}
                         <div className="flex-1 overflow-y-auto max-h-[300px]">
                             <div className="overflow-x-auto">
                                 <table className="table-pro w-full text-left text-xs border-collapse p-1" id="purchaseOrderTableId">
@@ -1183,7 +1277,7 @@ export default function Suppliers() {
                                                             {order.supplier_name}
                                                         </td>
                                                         <td data-label="Total" className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
-                                                            ₱{order.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                                            {order.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                                         </td>
                                                         <td data-label="Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                                             {new Date(order.created_at).toLocaleDateString(undefined, {
@@ -1230,7 +1324,6 @@ export default function Suppliers() {
                             </div>
                         </div>
 
-                        {/* Pagination Bar - Always show when there are orders */}
                         <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1 border-t border-slate-100 dark:border-slate-800">
                             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
                                 <span className="text-slate-500 dark:text-slate-400 font-medium">
@@ -1262,7 +1355,6 @@ export default function Suppliers() {
                                 )}
                             </div>
 
-                            {/* Always show pagination if there are orders, regardless of count */}
                             {purchaseOrders.length > 0 && (
                                 <Pagination
                                     currentPage={currentPOPage}
@@ -1274,11 +1366,10 @@ export default function Suppliers() {
                     </div>
                 </div>
 
+                {/* view supplier modal */}
                 {showModal && selectedSupplier && (
                     <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-
-                            {/* Header */}
                             <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-start justify-between bg-slate-50/50 dark:bg-slate-900/50">
                                 <div>
                                     <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
@@ -1309,12 +1400,8 @@ export default function Suppliers() {
                                 </button>
                             </div>
 
-                            {/* Scrollable Body */}
                             <div className="p-6 overflow-y-auto space-y-5">
-
-                                {/* Contact Grid */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {/* Contact Person */}
                                     <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
                                             <i className="fas fa-user text-xs" />
@@ -1329,7 +1416,6 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    {/* Phone Number */}
                                     <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
                                             <i className="fas fa-phone text-xs" />
@@ -1344,7 +1430,6 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    {/* Email Address */}
                                     <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
                                             <i className="fas fa-envelope text-xs" />
@@ -1359,7 +1444,6 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    {/* Location */}
                                     <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
                                             <i className="fas fa-map-marker-alt text-xs" />
@@ -1375,7 +1459,6 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
-                                {/* Products & Services */}
                                 {selectedSupplier.products && (
                                     <div>
                                         <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
@@ -1394,7 +1477,6 @@ export default function Suppliers() {
                                     </div>
                                 )}
 
-                                {/* Internal Notes */}
                                 {selectedSupplier.notes && (
                                     <div>
                                         <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
@@ -1406,7 +1488,6 @@ export default function Suppliers() {
                                     </div>
                                 )}
 
-                                {/* Recent Purchase Orders */}
                                 {purchaseOrders.filter((po) => po.supplier_id === selectedSupplier.id).length > 0 && (
                                     <div>
                                         <div className="flex items-center justify-between mb-2">
@@ -1435,7 +1516,7 @@ export default function Suppliers() {
 
                                                         <div className="flex items-center gap-3.5">
                                                             <span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-mono">
-                                                                ₱{po.total_amount?.toLocaleString() || '0'}
+                                                                {po.total_amount?.toLocaleString() || '0'}
                                                             </span>
                                                             <div>{getStatusBadge(po.status)}</div>
                                                         </div>
@@ -1446,7 +1527,6 @@ export default function Suppliers() {
                                 )}
                             </div>
 
-                            {/* Sticky Actions Footer */}
                             <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
                                 <button
                                     type="button"
@@ -1477,16 +1557,14 @@ export default function Suppliers() {
                                     </button>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 )}
 
+                {/* add supplier modal */}
                 {showNewSupplierModal && (
                     <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-
-                            {/* Modal Header */}
                             <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
                                 <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
@@ -1516,9 +1594,7 @@ export default function Suppliers() {
                                 </button>
                             </div>
 
-                            {/* Form Body */}
                             <form onSubmit={handleAddSupplier} className="flex-1 overflow-y-auto p-6 space-y-4.5">
-                                {/* Row 1: Name & Category */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -1569,7 +1645,6 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
-                                {/* Row 2: Contact Person & Phone */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -1600,7 +1675,6 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
-                                {/* Row 3: Email & Location */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -1631,7 +1705,6 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
-                                {/* Row 4: Products / Services */}
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Products / Services Offered
@@ -1645,7 +1718,6 @@ export default function Suppliers() {
                                     />
                                 </div>
 
-                                {/* Row 5: Notes */}
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Internal Notes
@@ -1659,7 +1731,6 @@ export default function Suppliers() {
                                     />
                                 </div>
 
-                                {/* Action Footer */}
                                 <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
                                     <button
                                         type="button"
@@ -1683,16 +1754,14 @@ export default function Suppliers() {
                                     </button>
                                 </div>
                             </form>
-
                         </div>
                     </div>
                 )}
 
+                {/* edit supplier modal */}
                 {showEditSupplierModal && editingSupplier && (
                     <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-
-                            {/* Modal Header */}
                             <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
                                 <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
@@ -1725,9 +1794,7 @@ export default function Suppliers() {
                                 </button>
                             </div>
 
-                            {/* Form Body */}
                             <form onSubmit={handleUpdateSupplier} className="flex-1 overflow-y-auto p-6 space-y-4.5">
-                                {/* Row 1: Name & Category */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -1774,7 +1841,6 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
-                                {/* Row 2: Contact Person & Phone */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -1803,7 +1869,6 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
-                                {/* Row 3: Email & Location */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -1832,7 +1897,6 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
-                                {/* Row 4: Products / Services */}
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Products / Services Offered
@@ -1846,7 +1910,6 @@ export default function Suppliers() {
                                     />
                                 </div>
 
-                                {/* Row 5: Notes */}
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Internal Notes
@@ -1860,7 +1923,6 @@ export default function Suppliers() {
                                     />
                                 </div>
 
-                                {/* Row 6: Active Status Card */}
                                 <div className="p-3 bg-slate-50/80 dark:bg-slate-800/30 rounded-xl border border-slate-200/70 dark:border-slate-800">
                                     <label className="flex items-center gap-3 cursor-pointer select-none">
                                         <input
@@ -1882,7 +1944,6 @@ export default function Suppliers() {
                                     </label>
                                 </div>
 
-                                {/* Action Footer */}
                                 <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
                                     <button
                                         type="button"
@@ -1909,7 +1970,197 @@ export default function Suppliers() {
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                )}
 
+                {/* activity chart detail modal */}
+                {showActivityDetailModal && selectedChartData.supplierName && (
+                    <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-md max-h-[80vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                        Supplier Details
+                                    </h2>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {selectedChartData.supplierName}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowActivityDetailModal(false)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    aria-label="Close modal"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4 overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                            Total Orders
+                                        </p>
+                                        <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                                            {selectedChartData.orderCount || 0}
+                                        </p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                            Total Spent
+                                        </p>
+                                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                                            {(selectedChartData.totalSpent || 0).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                                        Recent Orders
+                                    </p>
+                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                        {purchaseOrders
+                                            .filter(po => po.supplier_name === selectedChartData.supplierName)
+                                            .slice(0, 5)
+                                            .map((po) => (
+                                                <div key={po.id} className="flex items-center justify-between text-xs">
+                                                    <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                                                        {po.po_number}
+                                                    </span>
+                                                    <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                                        {po.total_amount?.toLocaleString() || '0'}
+                                                    </span>
+                                                    <span>{getStatusBadge(po.status)}</span>
+                                                </div>
+                                            ))}
+                                        {purchaseOrders.filter(po => po.supplier_name === selectedChartData.supplierName).length === 0 && (
+                                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2">
+                                                No orders found for this supplier
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowActivityDetailModal(false)}
+                                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* category detail modal */}
+                {showCategoryDetailModal && selectedChartData.category && (
+                    <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-lg max-h-[80vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                        Category Details
+                                    </h2>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {selectedChartData.category} • {selectedChartData.suppliers?.length || 0} suppliers
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCategoryDetailModal(false)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    aria-label="Close modal"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="p-6 overflow-y-auto">
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-3 gap-3 mb-4">
+                                        <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                Suppliers
+                                            </p>
+                                            <p className="text-xl font-bold text-slate-900 dark:text-white">
+                                                {selectedChartData.suppliers?.length || 0}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                Active
+                                            </p>
+                                            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                                                {selectedChartData.suppliers?.filter(s => s.is_active).length || 0}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                Inactive
+                                            </p>
+                                            <p className="text-xl font-bold text-rose-600 dark:text-rose-400">
+                                                {selectedChartData.suppliers?.filter(s => !s.is_active).length || 0}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                                        Suppliers in this category
+                                    </p>
+
+                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                        {selectedChartData.suppliers?.map((supplier) => {
+                                            const orderCount = purchaseOrders.filter(po => po.supplier_id === supplier.id).length;
+                                            return (
+                                                <div
+                                                    key={supplier.id}
+                                                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                            {supplier.name}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                                            {supplier.contact_person} • {supplier.location}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 ml-3 shrink-0">
+                                                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                            {orderCount} orders
+                                                        </span>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${supplier.is_active
+                                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                            : 'bg-slate-50 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400'
+                                                            }`}>
+                                                            {supplier.is_active ? 'Active' : 'Inactive'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCategoryDetailModal(false)}
+                                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
