@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import CrbcSidebar from "./CrbcSidebar"
-import { ThemeProvider } from "./ThemeProvider"
+import { ThemeProvider } from "@/app/components/ThemeProvider"
 
 export default function CrbcLayout({ children }: { children: React.ReactNode }) {
     const [collapsed, setCollapsed] = useState(false)

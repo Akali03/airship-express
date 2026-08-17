@@ -8,7 +8,7 @@ import type { Customers } from "../types/customer";
 import IconBtn from "./IconBtn";
 
 const podStatusStyle: Record<PODStatus, string> = {
-  Generated: "bg-zinc-100 text-zinc-500",
+  Generated: "bg-zinc-100 text-foreground",
   "Pending Review": "bg-amber-50 text-amber-600",
   Approved: "bg-blue-50 text-blue-600",
   Released: "bg-emerald-50 text-emerald-600",
@@ -69,21 +69,21 @@ export default function EDocumentationManagement({
 
 
   return (
-    <div className="w-full py-4 space-y-4">
+    <div className="w-full py-4 space-y-4 text-foreground">
 
       {/* Header */}
       <div>
-        <h1 className="text-zinc-900 text-xl font-semibold">
+        <h1 className="text-ink text-xl font-semibold">
           E-Documentation
         </h1>
 
-        <p className="text-zinc-400 text-sm mt-0.5">
+        <p className="text-muted text-sm mt-0.5">
           View, download, and print shipment POD documents
         </p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-zinc-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+      <div className="bg-background border border-line rounded-xl p-3 flex flex-wrap items-center gap-3">
 
         {/* Search */}
         <div className="relative flex-1 min-w-52">
@@ -96,7 +96,7 @@ export default function EDocumentationManagement({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by Document ID or Shipment ID..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-700 placeholder:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300"
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-line text-sm text-foreground placeholder:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300"
           />
         </div>
 
@@ -104,7 +104,7 @@ export default function EDocumentationManagement({
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-zinc-200 text-xs text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="px-3 py-2 rounded-lg border border-line text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-100"
         >
           {[
             "All",
@@ -123,7 +123,7 @@ export default function EDocumentationManagement({
         <select
           value={customerFilter}
           onChange={(e) => setCustomerFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-zinc-200 text-xs text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="px-3 py-2 rounded-lg border border-line text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-100"
         >
           <option value="All">
             All Customers
@@ -141,12 +141,12 @@ export default function EDocumentationManagement({
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+      <div className="bg-background border border-line rounded-xl overflow-hidden">
 
         <table className="w-full text-sm">
 
           <thead>
-            <tr className="border-b border-zinc-100 text-left">
+            <tr className="border-b border-line text-left">
 
               {[
                 "Document ID",
@@ -175,7 +175,7 @@ export default function EDocumentationManagement({
               <tr>
                 <td
                   colSpan={7}
-                  className="px-4 py-10 text-center text-zinc-400 text-sm"
+                  className="px-4 py-10 text-center  text-sm"
                 >
                   No documents found.
                 </td>
@@ -186,7 +186,7 @@ export default function EDocumentationManagement({
             {filtered.map((document) => (
               <tr
                 key={document.documentId}
-                className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors"
+                className="border-b border-line last:border-0 hover:bg-zinc-50/60 transition-colors"
               >
 
                 {/* Document ID */}
@@ -195,18 +195,18 @@ export default function EDocumentationManagement({
                 </td>
 
                 {/* Shipment ID */}
-                <td className="px-4 py-3 text-zinc-700 text-xs">
+                <td className="px-4 py-3 text-foreground text-xs">
                   {document.shipmentId}
                 </td>
 
                 {/* Customer */}
-                <td className="px-4 py-3 text-zinc-600 text-xs">
+                <td className="px-4 py-3 text-foreground text-xs">
                   {customerMap[document.customerId] ??
                     document.customerId}
                 </td>
 
                 {/* Document Type */}
-                <td className="px-4 py-3 text-zinc-500 text-xs">
+                <td className="px-4 py-3 text-foreground text-xs">
                   {document.documentType}
                 </td>
 
@@ -222,7 +222,7 @@ export default function EDocumentationManagement({
                 </td>
 
                 {/* Generated Date */}
-                <td className="px-4 py-3 text-zinc-400 text-xs">
+                <td className="px-4 py-3  text-xs">
                   {formatDate(document.generatedDate)}
                 </td>
 

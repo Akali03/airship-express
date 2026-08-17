@@ -14,7 +14,7 @@
   --color-line: #eaeaea;
 }
 
-/* .dark {
+.dark {
   --background: #131217;
   --foreground: #f4f3f6;
 
@@ -24,7 +24,7 @@
   --color-accent-dark: #e5167e;
   --color-paper: #1c1b22;
   --color-line: #2b2a33;
-} */
+}
 
 @theme {
   --color-background: var(--background);
