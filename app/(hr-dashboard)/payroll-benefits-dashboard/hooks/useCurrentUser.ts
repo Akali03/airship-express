@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/app/lib/supabase/client";
+import { supabase } from "@/app/(hr-dashboard)/supabase/client";
 
 export type CurrentUser = {
   id: string;
@@ -19,25 +19,26 @@ export function useCurrentUser() {
     let mounted = true;
 
     async function buildUser(authUser: { id: string; email?: string | null }) {
-      const { data: employee, error } = await supabase
-        .from("employees")
+      const { data: hrAdmin, error } = await supabase
+        .from("hr_admin")
         .select("full_name, role, email")
         .eq("id", authUser.id)
         .maybeSingle();
 
       if (error) {
-        console.error("Failed to load employee profile:", error);
+        console.error("Failed to load hr_admin profile:", error.message);
       }
 
       const fullName =
-        employee?.full_name || authUser.email?.split("@")[0] || "User";
-      const role = employee?.role || "staff";
+        hrAdmin?.full_name || authUser.email?.split("@")[0] || "User";
+      const role = hrAdmin?.role || "staff";
+      const email = hrAdmin?.email ?? authUser.email ?? null;
 
       if (!mounted) return;
 
       setUser({
         id: authUser.id,
-        email: employee?.email ?? authUser.email ?? null,
+        email,
         fullName,
         role,
         initials: fullName

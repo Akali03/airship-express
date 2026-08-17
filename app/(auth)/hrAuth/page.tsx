@@ -5,8 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
-import { supabase } from '@/app/lib/supabase/client';
-
+import { supabase } from '@/app/(hr-dashboard)/supabase/client';
 
 export default function HRLoginPage() {
     const router = useRouter();
@@ -27,7 +26,7 @@ export default function HRLoginPage() {
 
         setIsSubmitting(true);
         try {
-            const res = await fetch('/routes/payroll-login', {
+            const res = await fetch('/payroll-benefits-dashboard/api/auth/hrAuth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ employeeId, password }),
@@ -42,7 +41,6 @@ export default function HRLoginPage() {
             }
             const data = await res.json();
 
-            // Hydrate the browser Supabase client with the server-issued session
             if (data.session) {
                 const { error: setSessionError } = await supabase.auth.setSession({
                     access_token: data.session.access_token,

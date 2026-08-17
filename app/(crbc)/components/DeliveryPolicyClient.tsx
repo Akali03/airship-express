@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Plus, RefreshCw, Trash2, Pencil, Check, X } from "lucide-react";
-import { createDeliveryPolicy } from "@/app/services/delivery-policy";
-import { DeliveryPolicy } from "@/app/types/delivery-policy";
+import { createDeliveryPolicy } from "../services/delivery-policy";
+import { DeliveryPolicy } from "../types/delivery-policy";
 
 function formatDelivery(minDays: number, maxDays: number) {
   return minDays === maxDays ? `${minDays} days` : `${minDays}–${maxDays} days`;

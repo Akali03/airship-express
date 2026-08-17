@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { LayoutDashboard, Package, FileText, Bell, User, LogOut, Menu } from "lucide-react"
-import { logout } from "@/app/actions/auth"
+import { logout } from "../actions/auth"
 
 const nav = [
     { href: "/customer/dashboard", label: "Dashboard", icon: LayoutDashboard },

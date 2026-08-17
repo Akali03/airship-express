@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 import { Search, Eye } from "lucide-react";
 import Link from "next/link";
 import type { ComplianceRecord, ComplianceStatus } from "../types/compliance.requirement";
-import { formatDate } from "../../library/utils/formattedate";
-import type { Customers } from "@/app/types/customer";
-
-import IconBtn from "@/app/components/IconBtn";
+import { formatDate } from "../library/utils/formattedate";
+import type { Customers } from "../types/customer";
+import IconBtn from "./IconBtn";
 
 const complianceStatusStyle: Record<ComplianceStatus, string> = {
   Compliant: "bg-emerald-50 text-emerald-600",
@@ -63,34 +62,34 @@ export default function ComplianceManagement({
   }, [records, search, statusFilter, customerFilter]);
 
   return (
-    <div className="w-full py-4 space-y-4">
+    <div className="w-full py-4 space-y-4 text-foreground">
 
       {/* Header */}
       <div>
-        <h1 className="text-zinc-900 text-xl font-semibold">
+        <h1 className="text-ink text-xl font-semibold">
           Compliance Manager
         </h1>
 
-        <p className="text-zinc-400 text-sm mt-0.5">
+        <p className="text-muted text-sm mt-0.5">
           Monitor shipment compliance and review compliance records
         </p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-zinc-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+      <div className="bg-backrground border border-line rounded-xl p-3 flex flex-wrap items-center gap-3">
 
         {/* Search */}
         <div className="relative flex-1 min-w-52">
           <Search
             size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300"
+            className="absolute left-3 top-1/2 -translate-y-1/2"
           />
 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by Compliance ID or Shipment ID..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-700 placeholder:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300"
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-line text-sm text-zinc-700 placeholder:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300"
           />
         </div>
 
@@ -98,7 +97,7 @@ export default function ComplianceManagement({
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-zinc-200 text-xs text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="px-3 py-2 rounded-lg border border-line text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100"
         >
           {[
             "All",
@@ -116,7 +115,7 @@ export default function ComplianceManagement({
         <select
           value={customerFilter}
           onChange={(e) => setCustomerFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-zinc-200 text-xs text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="px-3 py-2 rounded-lg border border-line text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100"
         >
           <option value="All">All Customers</option>
 
@@ -132,12 +131,12 @@ export default function ComplianceManagement({
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+      <div className="bg-backrground border border-line rounded-xl overflow-hidden">
 
         <table className="w-full text-sm">
 
           <thead>
-            <tr className="border-b border-zinc-100 text-left">
+            <tr className="border-b border-line text-left">
               {[
                 "Compliance ID",
                 "Shipment ID",
@@ -161,7 +160,7 @@ export default function ComplianceManagement({
               <tr>
                 <td
                   colSpan={6}
-                  className="px-4 py-10 text-center text-zinc-400 text-sm"
+                  className="px-4 py-10 text-center text-sm"
                 >
                   No compliance records found.
                 </td>
@@ -171,7 +170,7 @@ export default function ComplianceManagement({
             {filtered.map((record) => (
               <tr
                 key={record.compliance_id}
-                className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors"
+                className="border-b border-line last:border-0 hover:bg-zinc-50/60 transition-colors"
               >
                 {/* Compliance ID */}
                 <td className="px-4 py-3 font-medium text-accent text-xs">
@@ -179,12 +178,12 @@ export default function ComplianceManagement({
                 </td>
 
                 {/* Shipment ID */}
-                <td className="px-4 py-3 text-zinc-700 text-xs">
+                <td className="px-4 py-3 text-xs">
                   {record.shipment_id}
                 </td>
 
                 {/* Customer */}
-                <td className="px-4 py-3 text-zinc-600 text-xs">
+                <td className="px-4 py-3 text-xs">
                   {customerMap[record.customer_id] ??
                     record.customer_id}
                 </td>
@@ -201,7 +200,7 @@ export default function ComplianceManagement({
                 </td>
 
                 {/* Reviewed */}
-                <td className="px-4 py-3 text-zinc-400 text-xs">
+                <td className="px-4 py-3text-xs">
                   {record.reviewed_at
                     ? formatDate(record.reviewed_at)
                     : "—"}

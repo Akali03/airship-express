@@ -32,19 +32,21 @@ export default function RootLayout({
       className={`${bricolage.variable} ${rethink.variable} h-full antialiased bg-[#FCFBF9]`}
       suppressHydrationWarning
     >
-      <body className="h-[100dvh] overflow-hidden font-rethink bg-[#FCFBF9] dark:bg-ink">
+      <head>
         <Script id="theme-init" strategy="beforeInteractive">
-          {`
-    (function () {
-      try {
-        var theme = localStorage.getItem('airship-theme');
-        if (theme === 'dark') {
-          document.documentElement.classList.add('dark');
-        }
-      } catch (e) {}
-    })();
-  `}
+                {`
+          (function () {
+            try {
+              var theme = localStorage.getItem('airship-theme');
+              if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+              }
+            } catch (e) {}
+          })();
+        `}
         </Script>
+      </head>
+      <body className="h-[100dvh] overflow-hidden font-rethink bg-[#FCFBF9] dark:bg-ink">
 
         <ThemeProvider>
           <ConfirmProvider>
