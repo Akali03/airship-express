@@ -1,4 +1,4 @@
-//app/(supplyChain)/procurement/page.tsx
+// app/(supplyChain)/procurement/page.tsx
 
 "use client";
 
@@ -77,6 +77,7 @@ interface PurchaseOrder {
     delivery_date: string;
     notes: string;
     items: any[];
+    paid: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -98,6 +99,16 @@ interface PurchaseOrderModalProps {
     suppliers: Supplier[];
     onOrderCreated?: (order: any) => void;
 }
+
+interface ChartDetailModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    month: string;
+    monthIndex: number;
+    orders: PurchaseOrder[];
+    totalAmount: number;
+}
+
 
 // ============================================================
 // 3. UTILITY FUNCTIONS
@@ -488,9 +499,6 @@ export function PurchaseRequestModal({
     );
 }
 
-// ============================================================
-// 5. PURCHASE ORDER MODAL
-// ============================================================
 export function PurchaseOrderModal({
     isOpen,
     onClose,
@@ -499,6 +507,12 @@ export function PurchaseOrderModal({
 }: PurchaseOrderModalProps) {
     const [step, setStep] = useState<1 | 2>(1);
     const [submitting, setSubmitting] = useState(false);
+    const [aiMessage, setAiMessage] = useState('');
+    const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+    const [supplierEmail, setSupplierEmail] = useState('');
+    const [supplierMessenger, setSupplierMessenger] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const [poCreated, setPoCreated] = useState(false);
 
     const poNumber = useMemo(() => {
         return request ? `PO-${Date.now().toString().slice(-6)}` : "";
@@ -522,8 +536,33 @@ export function PurchaseOrderModal({
                 })),
             });
             setStep(1);
+            setAiMessage('');
+            setSupplierEmail('');
+            setSupplierMessenger('');
+            setPoCreated(false);
+
+            if (request.supplier_id) {
+                fetchSupplierDetails(request.supplier_id);
+            }
         }
     }, [request]);
+
+    const fetchSupplierDetails = async (supplierId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('suppliers')
+                .select('email, fb_link')
+                .eq('id', supplierId)
+                .single();
+
+            if (!error && data) {
+                setSupplierEmail(data.email || '');
+                setSupplierMessenger(data.fb_link || '');
+            }
+        } catch (error) {
+            console.error('Error fetching supplier details:', error);
+        }
+    };
 
     const updateItem = (index: number, valueStr: string) => {
         const unit_price = parseFloat(valueStr) || 0;
@@ -551,53 +590,239 @@ export function PurchaseOrderModal({
 
     const handleBack = () => setStep(1);
 
-    const handleCopy = () => {
-        const text = `PO #: ${poNumber}\nSupplier: ${request?.supplier_name || ""}\nAmount: ₱${totalAmount.toLocaleString()}\nDelivery: ${formData.delivery_date || "TBD"}\nNotes: ${formData.notes}`;
-        navigator.clipboard.writeText(text);
-        toast.success("Copied to clipboard!");
+    const generateAIMessage = async () => {
+        if (!request) return;
+
+        setIsGeneratingAI(true);
+        try {
+            const response = await fetch('/procurement/api/gemini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    supplier_name: request.supplier_name,
+                    items: formData.items,
+                    total_amount: totalAmount,
+                    delivery_date: formData.delivery_date,
+                    po_number: poNumber,
+                    notes: formData.notes,
+                }),
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                setAiMessage(data.message);
+                toast.success('AI message generated!');
+            } else {
+                toast.error('Failed to generate AI message');
+            }
+        } catch (error) {
+            console.error('Error generating AI message:', error);
+            toast.error('Failed to generate AI message');
+        } finally {
+            setIsGeneratingAI(false);
+        }
     };
 
-    const handlePrint = () => window.print();
+    const getFullMessage = () => {
+        if (!aiMessage) return '';
+        const APP_URL = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const CONFIRM_PATH = process.env.NEXT_PUBLIC_CONFIRM_PATH || '/procurement/confirm';
 
-    const handleEmail = () => {
-        const subject = `Purchase Order ${poNumber}`;
-        const body = `Dear ${request?.supplier_name || "Supplier"},\n\nWe would like to place the following order:\n\n${formData.items
-            .map((item) => `${item.name} x ${item.quantity} @ ₱${item.unit_price} = ₱${item.total}`)
-            .join("\n")}\n\nTotal Amount: ₱${totalAmount.toLocaleString()}\nExpected Delivery: ${formData.delivery_date || "TBD"}\n\nPlease confirm receipt of this order.\n\nBest regards,\nProcurement Team`;
-        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const confirmLink = `${APP_URL}${CONFIRM_PATH}?po=${poNumber}`;
+        return `${aiMessage}\n\n---\n\n📋 **Confirm this order:** ${confirmLink}\n\nPlease click the link above to confirm this purchase order.`;
     };
 
-    const handleMessenger = () => {
-        const message = `Dear ${request?.supplier_name || "Supplier"},\n\nWe would like to place the following order:\n${formData.items
-            .map((item) => `${item.name} x ${item.quantity}`)
-            .join("\n")}\nTotal: ₱${totalAmount.toLocaleString()}\nDelivery: ${formData.delivery_date || "TBD"}\nPO #: ${poNumber}\n\nPlease confirm. Thanks!`;
-        window.open(`https://m.me/?text=${encodeURIComponent(message)}`, "_blank");
-    };
-
-    const handleSubmit = async () => {
-        if (!request || submitting) return;
-
-        const orderData = {
-            po_number: poNumber,
-            request_id: request.id,
-            supplier_id: request.supplier_id,
-            supplier_name: request.supplier_name,
-            total_amount: totalAmount,
-            status: "Draft",
-            delivery_date: formData.delivery_date || new Date().toISOString().split("T")[0],
-            notes: formData.notes,
-            items: formData.items,
-        };
+    const createPurchaseOrder = async (): Promise<boolean> => {
+        if (!request) return false;
+        if (poCreated) return true;
 
         try {
-            setSubmitting(true);
+            const orderData = {
+                po_number: poNumber,
+                request_id: request.id,
+                supplier_id: request.supplier_id,
+                supplier_name: request.supplier_name,
+                total_amount: totalAmount,
+                status: "Sent",
+                delivery_date: formData.delivery_date || new Date().toISOString().split("T")[0],
+                notes: formData.notes,
+                items: formData.items,
+            };
+
             await onOrderCreated?.(orderData);
+            setPoCreated(true);
+            return true;
+
         } catch (error) {
-            console.error("Failed to create PO:", error);
-            toast.error("Failed to create Purchase Order");
-        } finally {
-            setSubmitting(false);
+            console.error('Error creating PO:', error);
+            toast.error('Failed to create Purchase Order');
+            return false;
         }
+    };
+
+    // open gmail compose
+    const openGmailCompose = (to: string, subject: string, body: string) => {
+        const encodedTo = encodeURIComponent(to);
+        const encodedSubject = encodeURIComponent(subject);
+        const encodedBody = encodeURIComponent(body);
+
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&su=${encodedSubject}&body=${encodedBody}`;
+        window.open(gmailUrl, '_blank');
+    };
+
+    // handle email
+    const handleEmail = async () => {
+        if (!aiMessage) {
+            toast.warning('Please generate a message first');
+            return;
+        }
+
+        if (isSending) return;
+
+        setIsSending(true);
+        try {
+            const poCreated = await createPurchaseOrder();
+            if (!poCreated) {
+                setIsSending(false);
+                return;
+            }
+
+            const body = getFullMessage();
+            const subject = `Purchase Order ${poNumber} - ${request?.supplier_name}`;
+            const emailTo = supplierEmail || '';
+
+            try {
+                await navigator.clipboard.writeText(body);
+                toast.success('PO Created! Message copied to clipboard.');
+            } catch (clipError) {
+                console.warn('Could not copy to clipboard:', clipError);
+            }
+
+            if (emailTo) {
+                openGmailCompose(emailTo, subject, body);
+                toast.success(`Opening Gmail for: ${emailTo}`);
+            } else {
+                openGmailCompose('', subject, body);
+                toast.info('No email found for supplier. Please add the recipient email.');
+            }
+
+            setTimeout(() => {
+                setIsSending(false);
+                onClose();
+            }, 1500);
+
+        } catch (error) {
+            console.error('Error sending email:', error);
+            toast.error('Failed to send email');
+            setIsSending(false);
+        }
+    };
+
+    // handle messenger
+    const handleMessenger = async () => {
+        if (!aiMessage) {
+            toast.warning('Please generate a message first');
+            return;
+        }
+
+        if (isSending) return;
+
+        setIsSending(true);
+        try {
+            const poCreated = await createPurchaseOrder();
+            if (!poCreated) {
+                setIsSending(false);
+                return;
+            }
+
+            const confirmLink = `${window.location.origin}/procurement/confirm?po=${poNumber}`;
+            const message = `${aiMessage}\n\n---\n📋 Confirm this order: ${confirmLink}`;
+
+            try {
+                await navigator.clipboard.writeText(message);
+                toast.success('PO Created! Message copied to clipboard.');
+            } catch (clipError) {
+                console.warn('Could not copy to clipboard:', clipError);
+            }
+
+            if (supplierMessenger) {
+                window.open(supplierMessenger, '_blank');
+                toast.success(`Opening Messenger for ${request?.supplier_name}`);
+            } else {
+                const messengerUrl = `https://m.me/?text=${encodeURIComponent(message)}`;
+                window.open(messengerUrl, '_blank');
+                toast.info('Opening Messenger. Please paste the message.');
+            }
+
+            setTimeout(() => {
+                setIsSending(false);
+                onClose();
+            }, 1500);
+
+        } catch (error) {
+            console.error('Error sending messenger:', error);
+            toast.error('Failed to send via Messenger');
+            setIsSending(false);
+        }
+    };
+
+    // create po only
+    const handleCreatePOOnly = async () => {
+        if (!request || isSending) return;
+
+        setIsSending(true);
+        try {
+            const orderData = {
+                po_number: poNumber,
+                request_id: request.id,
+                supplier_id: request.supplier_id,
+                supplier_name: request.supplier_name,
+                total_amount: totalAmount,
+                status: "Draft",
+                delivery_date: formData.delivery_date || new Date().toISOString().split("T")[0],
+                notes: formData.notes,
+                items: formData.items,
+            };
+
+            await onOrderCreated?.(orderData);
+            setPoCreated(true);
+            toast.success('PO Created successfully!');
+
+            setTimeout(() => {
+                setIsSending(false);
+                onClose();
+            }, 500);
+
+        } catch (error) {
+            console.error('Error creating PO:', error);
+            toast.error('Failed to create PO');
+            setIsSending(false);
+        }
+    };
+
+    // copy only
+    const handleCopyOnly = async () => {
+        if (!aiMessage) {
+            toast.warning('Please generate a message first');
+            return;
+        }
+        const fullMessage = getFullMessage();
+        try {
+            await navigator.clipboard.writeText(fullMessage);
+            toast.success('Message copied to clipboard!');
+        } catch (error) {
+            console.error('Failed to copy:', error);
+            toast.error('Failed to copy message');
+        }
+    };
+
+    // print
+    const handlePrint = () => {
+        if (!aiMessage) {
+            toast.warning('Please generate a message first');
+            return;
+        }
+        window.print();
     };
 
     if (!isOpen || !request) return null;
@@ -645,6 +870,16 @@ export function PurchaseOrderModal({
                                     <p className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
                                         {request.supplier_name}
                                     </p>
+                                    {supplierEmail && (
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+                                            📧 {supplierEmail}
+                                        </p>
+                                    )}
+                                    {supplierMessenger && (
+                                        <p className="text-[10px] text-sky-400 dark:text-sky-500 mt-0.5 truncate">
+                                            💬 Messenger available
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
@@ -799,7 +1034,7 @@ export function PurchaseOrderModal({
                 )}
 
                 {step === 2 && (
-                    <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+                    <>
                         <div className="bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-slate-50 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900 border border-indigo-100 dark:border-indigo-800/30 rounded-xl p-4 sm:p-5 shadow-xs">
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300">
@@ -811,151 +1046,83 @@ export function PurchaseOrderModal({
                                             AI Recommended Supplier Message
                                         </h3>
                                         <span className="text-[11px] text-indigo-600/80 dark:text-indigo-400/80 mt-0.5 block">
-                                            Based on historical orders and stock levels
+                                            Based on your order details
                                         </span>
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleCopy}
-                                    className="px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-900/50 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <i className="fas fa-copy text-[11px]" />
-                                    <span>Copy Message</span>
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={generateAIMessage}
+                                        disabled={isGeneratingAI || isSending}
+                                        className="px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-900/50 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    >
+                                        {isGeneratingAI ? (
+                                            <i className="fas fa-spinner fa-spin text-[11px]" />
+                                        ) : (
+                                            <i className="fas fa-wand-magic-sparkles text-[11px]" />
+                                        )}
+                                        <span>{isGeneratingAI ? 'Generating...' : 'Generate with AI'}</span>
+                                    </button>
+                                    {aiMessage && (
+                                        <button
+                                            type="button"
+                                            onClick={handleCopyOnly}
+                                            disabled={isSending}
+                                            className="px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                        >
+                                            <i className="fas fa-copy text-[11px]" />
+                                            <span>Copy</span>
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
-                            <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-sm rounded-xl p-4 border border-indigo-100/80 dark:border-indigo-800/20 text-sm text-slate-800 dark:text-slate-200 leading-relaxed shadow-2xs">
-                                <p className="font-semibold text-slate-900 dark:text-white mb-2">
-                                    Dear {request.supplier_name},
-                                </p>
-                                <p className="text-slate-600 dark:text-slate-400 mb-3">
-                                    We would like to place a purchase order for the following items:
-                                </p>
-
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200/80 dark:border-white/10 overflow-hidden my-3">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="bg-slate-100/70 dark:bg-slate-800 border-b border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                                            <tr>
-                                                <th className="py-2 px-3">Item</th>
-                                                <th className="py-2 px-3 text-center">Qty</th>
-                                                <th className="py-2 px-3 text-right">Unit Price</th>
-                                                <th className="py-2 px-3 text-right">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-200/60 dark:divide-white/5 text-slate-700 dark:text-slate-300">
-                                            {formData.items.map((item, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-100/40 dark:hover:bg-slate-800/30">
-                                                    <td className="py-2 px-3 font-medium text-slate-900 dark:text-white">
-                                                        {item.name}
-                                                    </td>
-                                                    <td className="py-2 px-3 text-center text-slate-600 dark:text-slate-400">
-                                                        {item.quantity}
-                                                    </td>
-                                                    <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">
-                                                        ₱{Number(item.unit_price || 0).toLocaleString()}
-                                                    </td>
-                                                    <td className="py-2 px-3 text-right font-semibold text-slate-900 dark:text-white">
-                                                        ₱{item.total.toLocaleString()}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 border-t border-b border-slate-100 dark:border-white/10 text-xs my-2">
-                                    <div>
-                                        <span className="text-slate-400 dark:text-slate-500 block">
-                                            Total Amount
-                                        </span>
-                                        <span className="font-bold text-slate-900 dark:text-white text-sm">
-                                            ₱{totalAmount.toLocaleString()}
-                                        </span>
+                            <div className="bg-white/90 dark:bg-slate-900/80 backdrop-blur-sm rounded-xl p-4 border border-indigo-100/80 dark:border-indigo-800/20 text-sm text-slate-800 dark:text-slate-200 leading-relaxed shadow-2xs min-h-[120px]">
+                                {isGeneratingAI ? (
+                                    <div className="flex items-center justify-center h-20">
+                                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                                            <i className="fas fa-spinner fa-spin text-lg" />
+                                            <span>Generating message...</span>
+                                        </div>
                                     </div>
+                                ) : aiMessage ? (
                                     <div>
-                                        <span className="text-slate-400 dark:text-slate-500 block">
-                                            Expected Delivery
-                                        </span>
-                                        <span className="font-medium text-slate-800 dark:text-slate-200">
-                                            {formData.delivery_date
-                                                ? new Date(formData.delivery_date).toLocaleDateString("en-US", {
-                                                    year: "numeric",
-                                                    month: "short",
-                                                    day: "numeric",
-                                                })
-                                                : "TBD"}
-                                        </span>
+                                        <p className="whitespace-pre-wrap">{aiMessage}</p>
+                                        <div className="mt-3 pt-3 border-t border-indigo-100 dark:border-indigo-800/30">
+                                            <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                                                📋 Confirmation link will be included when you use Email or Messenger
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-400 dark:text-slate-500 block">
-                                            PO Reference
-                                        </span>
-                                        <span className="font-mono font-medium text-indigo-700 dark:text-indigo-400">
-                                            {poNumber}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <p className="text-[11px] text-slate-400 dark:text-slate-500 italic mt-3">
-                                    * This recommendation can be edited before dispatching. Please double-check quantities before confirming.
-                                </p>
+                                ) : (
+                                    <p className="text-slate-400 dark:text-slate-500 italic text-center py-6">
+                                        Click "Generate with AI" to create a professional supplier message
+                                    </p>
+                                )}
                             </div>
-                        </div>
 
-                        <div className="bg-slate-50/80 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200/80 dark:border-white/10">
-                            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                                PO Summary
-                            </h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                                <div>
-                                    <span className="text-xs text-slate-400 dark:text-slate-500 block">
-                                        PO Number
-                                    </span>
-                                    <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
-                                        {poNumber}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="text-xs text-slate-400 dark:text-slate-500 block">
-                                        Supplier
-                                    </span>
-                                    <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
-                                        {request.supplier_name}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="text-xs text-slate-400 dark:text-slate-500 block">
-                                        Total Amount
-                                    </span>
-                                    <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                                        ₱{totalAmount.toLocaleString()}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="text-xs text-slate-400 dark:text-slate-500 block">
-                                        Delivery Date
-                                    </span>
-                                    <span className="font-medium text-slate-800 dark:text-slate-200">
-                                        {formData.delivery_date || "TBD"}
-                                    </span>
-                                </div>
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                {supplierEmail && (
+                                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 bg-white/60 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-white/10">
+                                        <i className="fas fa-envelope text-blue-400" />
+                                        <span>Email: <strong>{supplierEmail}</strong></span>
+                                    </div>
+                                )}
+                                {supplierMessenger && (
+                                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 bg-white/60 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-white/10">
+                                        <i className="fab fa-facebook-messenger text-sky-400" />
+                                        <span>Messenger: <strong>Available</strong></span>
+                                    </div>
+                                )}
                             </div>
-                            {formData.notes && (
-                                <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300">
-                                    <span className="font-semibold text-slate-500 dark:text-slate-400 mr-1">
-                                        Notes:
-                                    </span>
-                                    <span className="italic">{formData.notes}</span>
-                                </div>
-                            )}
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200/60 dark:border-white/10">
                             <button
                                 type="button"
                                 onClick={handleBack}
-                                disabled={submitting}
+                                disabled={submitting || isSending}
                                 className="w-full sm:w-auto px-4 py-2 text-sm font-medium border border-slate-200 dark:border-white/10 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                             >
                                 <i className="fas fa-arrow-left text-xs" />
@@ -968,7 +1135,8 @@ export function PurchaseOrderModal({
                                         type="button"
                                         onClick={handlePrint}
                                         title="Print PO"
-                                        className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                        disabled={!aiMessage || isSending}
+                                        className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                     >
                                         <i className="fas fa-print text-slate-500 dark:text-slate-400" />
                                         <span className="hidden sm:inline">Print</span>
@@ -976,30 +1144,40 @@ export function PurchaseOrderModal({
                                     <button
                                         type="button"
                                         onClick={handleEmail}
-                                        title="Send Email"
-                                        className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                        title="Send Email (Gmail)"
+                                        disabled={!aiMessage || isSending}
+                                        className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                     >
-                                        <i className="fas fa-envelope text-blue-500 dark:text-blue-400" />
-                                        <span className="hidden sm:inline">Email</span>
+                                        {isSending ? (
+                                            <i className="fas fa-spinner fa-spin text-blue-500" />
+                                        ) : (
+                                            <i className="fas fa-envelope text-blue-500 dark:text-blue-400" />
+                                        )}
+                                        <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Gmail'}</span>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={handleMessenger}
                                         title="Send via Messenger"
-                                        className="px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                        disabled={!aiMessage || isSending}
+                                        className="px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                     >
-                                        <i className="fab fa-facebook-messenger text-sky-500 dark:text-sky-400" />
-                                        <span className="hidden sm:inline">Messenger</span>
+                                        {isSending ? (
+                                            <i className="fas fa-spinner fa-spin text-sky-500" />
+                                        ) : (
+                                            <i className="fab fa-facebook-messenger text-sky-500 dark:text-sky-400" />
+                                        )}
+                                        <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Messenger'}</span>
                                     </button>
                                 </div>
 
                                 <button
                                     type="button"
-                                    onClick={handleSubmit}
-                                    disabled={submitting}
+                                    onClick={handleCreatePOOnly}
+                                    disabled={submitting || isSending}
                                     className="px-6 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all shadow-sm shadow-emerald-600/30 active:scale-[0.98] inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ml-auto sm:ml-0 cursor-pointer"
                                 >
-                                    {submitting ? (
+                                    {submitting || isSending ? (
                                         <i className="fas fa-spinner fa-spin text-xs" />
                                     ) : (
                                         <i className="fas fa-check text-xs" />
@@ -1008,13 +1186,141 @@ export function PurchaseOrderModal({
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </>
                 )}
             </div>
         </div>
     );
 }
 
+// ============================================================
+// 5. CHART DETAIL MODAL
+// ============================================================
+
+function ChartDetailModal({
+    isOpen,
+    onClose,
+    month,
+    monthIndex,
+    orders,
+    totalAmount,
+}: ChartDetailModalProps) {
+    if (!isOpen) return null;
+
+    return (
+        <div
+            className="fixed inset-0 bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+            onClick={onClose}
+        >
+            <div
+                className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                            {month} Orders
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {orders.length} order{orders.length !== 1 ? 's' : ''} • Total: ₱{totalAmount.toLocaleString()}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        aria-label="Close modal"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-4">
+                    {orders.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500">
+                            <i className="fas fa-shopping-cart text-4xl mb-3 opacity-30" />
+                            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No orders in {month}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">No purchase orders were completed this month.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Orders</p>
+                                    <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{orders.length}</p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Spent</p>
+                                    <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">₱{totalAmount.toLocaleString()}</p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Unique Suppliers</p>
+                                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                                        {new Set(orders.map(o => o.supplier_id)).size}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Order Details</p>
+                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                    {orders.map((order) => (
+                                        <div
+                                            key={order.id}
+                                            className="flex items-center justify-between p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        {order.po_number}
+                                                    </span>
+                                                    <span className={`inline-flex items-center px-1.5 py-0.3 rounded text-[10px] font-medium ${getPOStatusColor(order.status)} border border-transparent`}>
+                                                        {order.status}
+                                                    </span>
+                                                    {order.paid && (
+                                                        <span className="inline-flex items-center px-1.5 py-0.3 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/30">
+                                                            Paid
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate" title={order.supplier_name}>
+                                                    {order.supplier_name}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-3 ml-3 shrink-0">
+                                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                                                    ₱{order.total_amount.toLocaleString()}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                                    {new Date(order.delivery_date || order.created_at || '').toLocaleDateString(undefined, {
+                                                        month: 'short',
+                                                        day: 'numeric'
+                                                    })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // ============================================================
 // 6. EMPTY STATE COMPONENT
@@ -1068,6 +1374,20 @@ export default function Procurement() {
     const expenseChartInstanceRef = useRef<Chart | null>(null);
     const priorityChartInstanceRef = useRef<Chart | null>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
+
+    const [chartDetailModal, setChartDetailModal] = useState<{
+        isOpen: boolean;
+        month: string;
+        monthIndex: number;
+        orders: PurchaseOrder[];
+        totalAmount: number;
+    }>({
+        isOpen: false,
+        month: '',
+        monthIndex: -1,
+        orders: [],
+        totalAmount: 0,
+    });
 
     const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved">("all");
     const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
@@ -1126,7 +1446,6 @@ export default function Procurement() {
             }
         };
 
-        // Set initial value
         handleResize();
 
         window.addEventListener('resize', handleResize);
@@ -1205,7 +1524,7 @@ export default function Procurement() {
         fetchData();
     }, [fetchData]);
 
-    // Realtime subscriptions
+    // realtime subscriptions
     useEffect(() => {
         const requestsSubscription = supabase
             .channel('purchase_requests_changes')
@@ -1242,7 +1561,6 @@ export default function Procurement() {
     const handleRequestSubmitted = async (newRequest: any) => {
         try {
             if (isEditMode && editData) {
-                // FIX: Explicitly type the update data
                 const updatePayload: Partial<PurchaseRequest> = {
                     type: newRequest.type,
                     description: newRequest.description,
@@ -1268,7 +1586,6 @@ export default function Procurement() {
                 ));
                 toast.success("Purchase request updated successfully!");
             } else {
-                // FIX: Explicitly type the new request data
                 const createPayload: Omit<PurchaseRequest, 'id' | 'request_number' | 'created_at' | 'updated_at'> = {
                     type: newRequest.type || "New Request",
                     description: newRequest.description || "",
@@ -1572,7 +1889,7 @@ export default function Procurement() {
         return order ? order.po_number : null;
     };
 
-    // Charts
+    // charts
     useEffect(() => {
         if (loading) return;
 
@@ -1587,13 +1904,16 @@ export default function Procurement() {
             }
 
             const monthlyData = Array(12).fill(0);
+            const monthlyOrders: PurchaseOrder[][] = Array(12).fill(null).map(() => []);
             const currentYear = new Date().getFullYear();
 
             purchaseOrders.forEach((order) => {
-                if (order.delivery_date && (order.status === 'Delivered' || order.status === 'Confirmed')) {
+                if (order.delivery_date && (order.status === 'Delivered' || order.status === 'Confirmed') && order.paid === true) {
                     const orderDate = new Date(order.delivery_date);
                     if (orderDate.getFullYear() === currentYear) {
-                        monthlyData[orderDate.getMonth()] += order.total_amount || 0;
+                        const month = orderDate.getMonth();
+                        monthlyData[month] += order.total_amount || 0;
+                        monthlyOrders[month].push(order);
                     }
                 }
             });
@@ -1606,50 +1926,82 @@ export default function Procurement() {
             });
 
             if (expenseChartCanvasRef.current && Chart) {
-                expenseChartInstanceRef.current = new Chart(expenseChartCanvasRef.current, {
-                    type: "line",
-                    data: {
-                        labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-                        datasets: [{
-                            label: "Spend",
-                            data: monthlyData,
-                            borderColor: "#EC4899",
-                            backgroundColor: "rgba(236,72,153,.12)",
-                            fill: true,
-                            tension: 0.35,
-                            borderWidth: 2,
-                            pointRadius: 3,
-                            pointBackgroundColor: "#EC4899",
-                            pointHoverRadius: 6,
-                            pointHoverBackgroundColor: "#BE185D",
-                        }],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: "rgba(15,23,42,0.9)",
-                                titleColor: "#fff",
-                                bodyColor: "#e2e8f0",
+                const ctx = expenseChartCanvasRef.current.getContext('2d');
+                if (ctx) {
+                    expenseChartInstanceRef.current = new Chart(ctx, {
+                        type: "line",
+                        data: {
+                            labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+                            datasets: [{
+                                label: "Spend",
+                                data: monthlyData,
                                 borderColor: "#EC4899",
-                                borderWidth: 1,
-                                padding: 12,
-                                callbacks: {
-                                    label: (context: any) => `₱${context.parsed.y.toLocaleString()}`,
-                                }
-                            }
+                                backgroundColor: "rgba(236,72,153,.12)",
+                                fill: true,
+                                tension: 0.35,
+                                borderWidth: 2,
+                                pointRadius: 4,
+                                pointBackgroundColor: "#EC4899",
+                                pointHoverRadius: 8,
+                                pointHoverBackgroundColor: "#BE185D",
+                                pointBorderColor: "#fff",
+                                pointBorderWidth: 2,
+                            }],
                         },
-                        scales: {
-                            x: { grid: { display: false } },
-                            y: {
-                                grid: { color: "#F1F5F9" },
-                                ticks: { callback: (value: any) => `₱${value.toLocaleString()}` }
-                            }
-                        }
-                    },
-                });
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: "rgba(15,23,42,0.9)",
+                                    titleColor: "#fff",
+                                    bodyColor: "#e2e8f0",
+                                    borderColor: "#EC4899",
+                                    borderWidth: 1,
+                                    padding: 12,
+                                    callbacks: {
+                                        label: (context: any) => {
+                                            const amount = context.parsed.y;
+                                            const monthIndex = context.dataIndex;
+                                            const orderCount = monthlyOrders[monthIndex]?.length || 0;
+                                            return [
+                                                `💰 Amount: ₱${amount.toLocaleString()}`,
+                                                `📦 Orders: ${orderCount}`
+                                            ];
+                                        }
+                                    }
+                                },
+                            },
+                            scales: {
+                                x: { grid: { display: false } },
+                                y: {
+                                    grid: { color: "#F1F5F9" },
+                                    ticks: { callback: (value: any) => `₱${value.toLocaleString()}` }
+                                }
+                            },
+                            onClick: (event: any, elements: any) => {
+                                if (elements.length > 0) {
+                                    const element = elements[0];
+                                    const monthIndex = element.index;
+                                    const monthName = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][monthIndex];
+                                    const orders = monthlyOrders[monthIndex] || [];
+                                    const totalAmount = monthlyData[monthIndex] || 0;
+
+                                    if (orders.length > 0 || totalAmount > 0) {
+                                        setChartDetailModal({
+                                            isOpen: true,
+                                            month: monthName,
+                                            monthIndex: monthIndex,
+                                            orders: orders,
+                                            totalAmount: totalAmount,
+                                        });
+                                    }
+                                }
+                            },
+                        },
+                    });
+                }
             }
 
             if (priorityChartCanvasRef.current && Chart) {
@@ -1660,8 +2012,8 @@ export default function Procurement() {
                         datasets: [{
                             data: [priorityCounts.Normal, priorityCounts.Urgent, priorityCounts.Critical],
                             backgroundColor: [
-                                '#F472B6', // Light Pink - Normal (least urgent)
-                                '#EC4899', // Medium Pink - Urgent 
+                                '#F472B6',
+                                '#EC4899',
                                 '#BE185D'
                             ],
                             borderWidth: 2,
@@ -1741,7 +2093,7 @@ export default function Procurement() {
     };
 
     const totalSpend = purchaseOrders
-        .filter((o) => o.status === 'Delivered' || o.status === 'Confirmed')
+        .filter((o) => o.status !== 'Draft' && o.paid === true)
         .reduce((sum, o) => sum + (o.total_amount || 0), 0);
 
     if (loading) return <PageSkeleton />;
@@ -1749,6 +2101,7 @@ export default function Procurement() {
     return (
         <SessionGuard requiredRole={['Admin', 'Employee']}>
             <div className="p-6 space-y-6 fade-in bgCard">
+                {/* Header */}
                 <div className="flex items-start justify-between gap-4 flex-wrap border-b border-slate-200/80 dark:border-white/10 pb-5 transition-colors">
                     <div className="flex items-start gap-3.5">
                         <div className="w-12 h-12 rounded-2xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-800/40 flex items-center justify-center text-pink-600 dark:text-pink-400 text-xl shadow-2xs shrink-0 mt-0.5 transition-colors">
@@ -1789,6 +2142,7 @@ export default function Procurement() {
                     </button>
                 </div>
 
+                {/* AI Suggested Questions */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
                     <div className="flex items-center justify-between mb-3">
                         <span className="font-semibold text-slate-900 text-sm">
@@ -1809,7 +2163,6 @@ export default function Procurement() {
                                 label: 'Top expenses?',
                                 color: 'bg-amber-400',
                                 action: () => {
-                                    // Fix: Explicitly type the accumulator with Record<string, number>
                                     const categoryData: Record<string, number> = requests.reduce<Record<string, number>>((acc, req) => {
                                         const type = req.type || 'Other';
                                         acc[type] = (acc[type] || 0) + (req.amount || 0);
@@ -1851,6 +2204,7 @@ export default function Procurement() {
                     </div>
                 </div>
 
+                {/* Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Cards
                         frontIcon="fa-solid fa-file-invoice"
@@ -1920,14 +2274,26 @@ export default function Procurement() {
                     />
                 </div>
 
+                {/* Charts */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-5 xl:col-span-2 transition-all">
                         <div className="flex items-center justify-between">
                             <div className="font-semibold text-slate-900 dark:text-white text-sm flex items-center">
                                 <i className="fas fa-chart-bar mr-2 text-pink-500 dark:text-pink-400" /> Procurement Spending Trend
+                                <div className="relative ml-2 group">
+                                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-[10px] font-bold cursor-help">
+                                        ?
+                                    </span>
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-900 dark:bg-slate-800 text-slate-200 dark:text-slate-300 text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                                        <p className="font-semibold text-white mb-1">📊 Chart Info</p>
+                                        <p>Shows monthly spending from <span className="text-pink-400 font-medium">Delivered</span> and <span className="text-pink-400 font-medium">Confirmed</span> orders that are <span className="text-emerald-400 font-medium">paid</span>.</p>
+                                        <p className="mt-1 text-slate-400 text-[10px]">💡 Click on any data point to see orders for that month.</p>
+                                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-slate-900 dark:bg-slate-800"></div>
+                                    </div>
+                                </div>
                             </div>
                             <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                                <i className="fas fa-calendar-alt mr-1 text-slate-400 dark:text-slate-500" /> Completed orders
+                                <i className="fas fa-calendar-alt mr-1 text-slate-400 dark:text-slate-500" /> Completed orders (Paid)
                             </div>
                         </div>
                         <div className="w-full h-[200px] mt-3">
@@ -1944,26 +2310,22 @@ export default function Procurement() {
                     </div>
                 </div>
 
+                {/* Table */}
                 <div
                     ref={tableContainerRef}
                     id="procurement-table"
                     className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden relative flex flex-col"
                 >
-                    {isRefreshing && (
-                        <TableContentLoader />
-                    )}
+                    {isRefreshing && <TableContentLoader />}
 
-                    {/* Filter Bar - Stays fixed */}
+                    {/* Filter Bar */}
                     <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/60 backdrop-blur-xl transition-all">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="font-semibold text-slate-900 dark:text-white text-sm mr-2 flex items-center gap-2">
                                 <i className="fas fa-list text-pink-500 dark:text-pink-400" />
                                 <span>Purchase Requests</span>
                                 {isRefreshing && (
-                                    <i
-                                        className="fas fa-circle-notch fa-spin text-pink-400 text-xs"
-                                        title="Refreshing..."
-                                    />
+                                    <i className="fas fa-circle-notch fa-spin text-pink-400 text-xs" title="Refreshing..." />
                                 )}
                             </div>
 
@@ -2013,13 +2375,9 @@ export default function Procurement() {
                         </div>
                     </div>
 
-                    {/* Scrollable Table Container - Only this scrolls */}
+                    {/* Table Body */}
                     <div className="flex-1 overflow-y-auto max-h-[500px] relative">
-
-                        <div
-                            className={`transition-opacity duration-200 ${isTabTransitioning ? "opacity-30 pointer-events-none" : "opacity-100"
-                                }`}
-                        >
+                        <div className={`transition-opacity duration-200 ${isTabTransitioning ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
                             <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
                                 {isTabTransitioning && <TableContentLoader />}
                                 <table className="table-pro w-full border-collapse text-left text-xs">
@@ -2032,16 +2390,8 @@ export default function Procurement() {
                                                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600"
                                                         checked={isSelectAll && selectedIds.size > 0}
                                                         onChange={handleSelectAll}
-                                                        disabled={
-                                                            filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected")
-                                                                .length === 0
-                                                        }
-                                                        title={
-                                                            filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected")
-                                                                .length === 0
-                                                                ? "No pending or rejected requests to select"
-                                                                : "Select all pending and rejected requests"
-                                                        }
+                                                        disabled={filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected").length === 0}
+                                                        title={filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected").length === 0 ? "No pending or rejected requests to select" : "Select all pending and rejected requests"}
                                                     />
                                                     {selectedIds.size > 0 && (
                                                         <span className="text-[10px] bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold px-1.5 py-0.2 rounded-full border border-pink-200/60 dark:border-pink-900/40">
@@ -2090,9 +2440,7 @@ export default function Procurement() {
                                             </tr>
                                         ) : (
                                             filteredRequests.map((req) => {
-                                                const hasPO = purchaseOrders.some(
-                                                    (po) => po.request_id === req.id
-                                                );
+                                                const hasPO = purchaseOrders.some((po) => po.request_id === req.id);
                                                 const poStatus = getPurchaseOrderStatus(req.id);
                                                 const poNumber = getPurchaseOrderNumber(req.id);
                                                 const rowBusy = pendingRowId === req.id;
@@ -2103,9 +2451,7 @@ export default function Procurement() {
                                                     <tr
                                                         key={req.id}
                                                         className={`group transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${rowBusy ? "opacity-50 pointer-events-none" : ""
-                                                            } ${isSelected
-                                                                ? "bg-pink-50/50 dark:bg-pink-950/20"
-                                                                : "bg-transparent"
+                                                            } ${isSelected ? "bg-pink-50/50 dark:bg-pink-950/20" : "bg-transparent"
                                                             }`}
                                                     >
                                                         <td data-label="" className="py-3.5 px-4 text-center whitespace-nowrap">
@@ -2115,11 +2461,7 @@ export default function Procurement() {
                                                                 checked={isSelected}
                                                                 onChange={() => handleSelectOne(req.id)}
                                                                 disabled={(!isPending && req.status !== "Rejected") || rowBusy}
-                                                                title={
-                                                                    !isPending && req.status !== "Rejected"
-                                                                        ? "Only pending or rejected requests can be selected"
-                                                                        : ""
-                                                                }
+                                                                title={!isPending && req.status !== "Rejected" ? "Only pending or rejected requests can be selected" : ""}
                                                             />
                                                         </td>
                                                         <td data-label="PR #" className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap">
@@ -2129,10 +2471,7 @@ export default function Procurement() {
                                                             {req.type}
                                                         </td>
                                                         <td data-label="Description" className="py-3.5 px-4">
-                                                            <span
-                                                                className="text-slate-600 dark:text-slate-400 truncate max-w-[180px] block"
-                                                                title={req.description}
-                                                            >
+                                                            <span className="text-slate-600 dark:text-slate-400 truncate max-w-[180px] block" title={req.description}>
                                                                 {req.description}
                                                             </span>
                                                         </td>
@@ -2149,11 +2488,7 @@ export default function Procurement() {
                                                             ₱{req.amount.toLocaleString()}
                                                         </td>
                                                         <td data-label="Priority" className="py-3.5 px-4 whitespace-nowrap">
-                                                            <span
-                                                                className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ${getPriorityColor(
-                                                                    req.priority
-                                                                )}`}
-                                                            >
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ${getPriorityColor(req.priority)}`}>
                                                                 {req.priority}
                                                             </span>
                                                         </td>
@@ -2161,57 +2496,29 @@ export default function Procurement() {
                                                             {req.date}
                                                         </td>
                                                         <td data-label="Status" className="py-3.5 px-4 whitespace-nowrap">
-                                                            <span
-                                                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border border-transparent ${getStatusColor(
-                                                                    req.status
-                                                                )}`}
-                                                            >
+                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border border-transparent ${getStatusColor(req.status)}`}>
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-current" />
                                                                 {req.status}
                                                             </span>
                                                         </td>
                                                         <td data-label="PO Status" className="py-3.5 px-4 whitespace-nowrap">
                                                             {hasPO && poStatus ? (
-                                                                <span
-                                                                    className={`text-[10px] px-2.5 py-1 rounded-full font-medium border ${getPOStatusColor(
-                                                                        poStatus
-                                                                    )}`}
-                                                                    title={`PO Status: ${poStatus} ${poNumber ? `(#${poNumber})` : ''}`}
-                                                                >
+                                                                <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium border ${getPOStatusColor(poStatus)}`} title={`PO Status: ${poStatus} ${poNumber ? `(#${poNumber})` : ''}`}>
                                                                     {poStatus} {poNumber && `#${poNumber}`}
                                                                 </span>
                                                             ) : (
-                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">
-                                                                    No PO
-                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">No PO</span>
                                                             )}
                                                         </td>
                                                         <td data-label="Actions" className="py-3.5 px-4 text-right whitespace-nowrap">
                                                             <div className="flex items-center justify-end gap-2">
-                                                                {/* Loading Spinner */}
                                                                 {rowBusy && (
-                                                                    <svg
-                                                                        className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500"
-                                                                        fill="none"
-                                                                        viewBox="0 0 24 24"
-                                                                    >
-                                                                        <circle
-                                                                            className="opacity-25"
-                                                                            cx="12"
-                                                                            cy="12"
-                                                                            r="10"
-                                                                            stroke="currentColor"
-                                                                            strokeWidth="4"
-                                                                        />
-                                                                        <path
-                                                                            className="opacity-75"
-                                                                            fill="currentColor"
-                                                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                                                        />
+                                                                    <svg className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24">
+                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                                                     </svg>
                                                                 )}
 
-                                                                {/* State 1: Approved & No PO yet -> Action Button */}
                                                                 {req.status === "Approved" && !hasPO && (
                                                                     <button
                                                                         type="button"
@@ -2220,24 +2527,13 @@ export default function Procurement() {
                                                                         title="Create Purchase Order"
                                                                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200/80 dark:border-emerald-800/50 rounded-xl transition-all shadow-2xs disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                                                     >
-                                                                        <svg
-                                                                            className="w-3.5 h-3.5"
-                                                                            fill="none"
-                                                                            stroke="currentColor"
-                                                                            strokeWidth="2"
-                                                                            viewBox="0 0 24 24"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                                                            />
+                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                                         </svg>
                                                                         <span>Create PO</span>
                                                                     </button>
                                                                 )}
 
-                                                                {/* State 2: Pending -> Action Toolbelt */}
                                                                 {req.status === "Pending" && (
                                                                     <div className="inline-flex items-center gap-0.5 p-0.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 rounded-xl shadow-2xs">
                                                                         <button
@@ -2292,12 +2588,8 @@ export default function Procurement() {
                                                                     </div>
                                                                 )}
 
-                                                                {/* State 3: Approved & Has PO -> Completed Tag */}
                                                                 {req.status === "Approved" && hasPO && (
-                                                                    <span
-                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 select-none"
-                                                                        title="Purchase order already generated"
-                                                                    >
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 select-none" title="Purchase order already generated">
                                                                         <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                                         </svg>
@@ -2305,7 +2597,6 @@ export default function Procurement() {
                                                                     </span>
                                                                 )}
 
-                                                                {/* State 4: Rejected -> Minimal Tag */}
                                                                 {req.status === "Rejected" && (
                                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/40 rounded-lg">
                                                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
@@ -2324,7 +2615,7 @@ export default function Procurement() {
                         </div>
                     </div>
 
-                    {/* Pagination Bar - Stays fixed */}
+                    {/* Pagination */}
                     <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1">
                         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
                             <span className="text-slate-500 dark:text-slate-400 font-medium">
@@ -2402,6 +2693,15 @@ export default function Procurement() {
                     request={selectedRequest}
                     suppliers={suppliers}
                     onOrderCreated={handleOrderCreated}
+                />
+
+                <ChartDetailModal
+                    isOpen={chartDetailModal.isOpen}
+                    onClose={() => setChartDetailModal(prev => ({ ...prev, isOpen: false }))}
+                    month={chartDetailModal.month}
+                    monthIndex={chartDetailModal.monthIndex}
+                    orders={chartDetailModal.orders}
+                    totalAmount={chartDetailModal.totalAmount}
                 />
             </div>
         </SessionGuard>

@@ -8,6 +8,7 @@ import Cards from "../components/global/Cards";
 import { toast } from "sonner";
 import { useConfirm } from "../components/ui/ConfirmModal";
 import { Pagination } from "../components/global/pagination";
+import { sanitizeNumber, sanitizeText } from "../components/global/sanitize";
 
 let isRegistered = false;
 
@@ -21,6 +22,7 @@ interface Supplier {
     location: string;
     products: string;
     notes: string;
+    fb_link: string;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -34,6 +36,7 @@ interface PurchaseOrder {
     supplier_name: string;
     total_amount: number;
     status: string;
+    paid: boolean; // Added paid field
     delivery_date: string | null;
     notes: string | null;
     items: any[];
@@ -89,8 +92,13 @@ export default function Suppliers() {
         email: "",
         location: "",
         products: "",
+        fb_link: "",
         notes: "",
     });
+
+    // New state for viewing purchase order details
+    const [selectedPurchaseOrder, setSelectedPurchaseOrder] = useState<PurchaseOrder | null>(null);
+    const [showPurchaseOrderModal, setShowPurchaseOrderModal] = useState(false);
 
     const activityChartRef = useRef<HTMLCanvasElement>(null);
     const activityChartInstance = useRef<Chart | null>(null);
@@ -169,6 +177,7 @@ export default function Suppliers() {
                     location: newSupplier.location,
                     products: newSupplier.products,
                     notes: newSupplier.notes,
+                    fb_link: newSupplier.fb_link,
                     is_active: true,
                 })
                 .select()
@@ -186,6 +195,7 @@ export default function Suppliers() {
                 email: "",
                 location: "",
                 products: "",
+                fb_link: "",
                 notes: "",
             });
             fetchSuppliers();
@@ -215,6 +225,7 @@ export default function Suppliers() {
                     location: editingSupplier.location,
                     products: editingSupplier.products,
                     notes: editingSupplier.notes,
+                    fb_link: editingSupplier.fb_link,
                     is_active: editingSupplier.is_active,
                     updated_at: new Date().toISOString(),
                 })
@@ -413,6 +424,12 @@ export default function Suppliers() {
         }
     };
 
+    // New function to handle viewing purchase order details
+    const handleViewPurchaseOrder = (order: PurchaseOrder) => {
+        setSelectedPurchaseOrder(order);
+        setShowPurchaseOrderModal(true);
+    };
+
     const filteredSuppliers = suppliers.filter(supplier => {
         const matchesSearch = supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             supplier.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -430,14 +447,15 @@ export default function Suppliers() {
     const activeSuppliers = suppliers.filter(s => s.is_active).length;
     const totalOrders = purchaseOrders.length;
 
+    // Update: Use 'paid' instead of 'Delivered' for spending calculation
     const supplierOrderCounts = suppliers.map(s => {
         const supplierOrders = purchaseOrders.filter(po => po.supplier_id === s.id);
-        const deliveredOrders = purchaseOrders.filter(po => po.supplier_id === s.id && po.status === 'Delivered');
+        const paidOrders = purchaseOrders.filter(po => po.supplier_id === s.id && po.paid === true);
 
         return {
             ...s,
             orderCount: supplierOrders.length,
-            totalSpent: deliveredOrders
+            totalSpent: paidOrders
                 .reduce((sum, po) => sum + (po.total_amount || 0), 0)
         };
     });
@@ -468,11 +486,26 @@ export default function Suppliers() {
         );
     };
 
+    const getPaidBadge = (paid: boolean) => {
+        return paid ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 dark:bg-emerald-500"></span>
+                Paid
+            </span>
+        ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-amber-500"></span>
+                Unpaid
+            </span>
+        );
+    };
+
     const statusCounts = purchaseOrders.reduce((acc, po) => {
         acc[po.status] = (acc[po.status] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
+    // Update: Use paid instead of delivered
     const supplierStats = {
         totalOrders: purchaseOrders.length,
         totalSpent: purchaseOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0),
@@ -481,7 +514,7 @@ export default function Suppliers() {
         statusCounts,
     };
 
-    // create the activity bar chart
+    // create the activity bar chart - Updated to use paid
     const createActivityChart = () => {
         if (activityChartInstance.current) {
             activityChartInstance.current.destroy();
@@ -505,11 +538,11 @@ export default function Suppliers() {
         // get top 5 suppliers by order count
         const supplierOrderCounts = suppliers.map(s => {
             const supplierOrders = purchaseOrders.filter(po => po.supplier_id === s.id);
-            const deliveredOrders = purchaseOrders.filter(po => po.supplier_id === s.id && po.status === 'Delivered');
+            const paidOrders = purchaseOrders.filter(po => po.supplier_id === s.id && po.paid === true);
             return {
                 ...s,
                 orderCount: supplierOrders.length,
-                totalSpent: deliveredOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0)
+                totalSpent: paidOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0)
             };
         });
 
@@ -542,7 +575,7 @@ export default function Suppliers() {
                         order: 1,
                     },
                     {
-                        label: "Spent (K)",
+                        label: "Paid (K)",
                         data: spendingData,
                         backgroundColor: "#F472B6",
                         borderRadius: 8,
@@ -578,7 +611,7 @@ export default function Suppliers() {
                             label: function (context) {
                                 let label = context.dataset.label || "";
                                 let value = context.parsed.y || 0;
-                                if (context.dataset.label === "Spent (K)") {
+                                if (context.dataset.label === "Paid (K)") {
                                     return `${label}: ${(value * 1000).toLocaleString()}`;
                                 }
                                 return `${label}: ${value}`;
@@ -614,12 +647,12 @@ export default function Suppliers() {
                         const supplier = displaySuppliers[index];
                         if (supplier) {
                             const allOrders = purchaseOrders.filter(po => po.supplier_id === supplier.id);
-                            const deliveredOrders = purchaseOrders.filter(po => po.supplier_id === supplier.id && po.status === 'Delivered');
+                            const paidOrders = purchaseOrders.filter(po => po.supplier_id === supplier.id && po.paid === true);
 
                             setSelectedChartData({
                                 supplierName: supplier.name,
                                 orderCount: allOrders.length,
-                                totalSpent: deliveredOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0),
+                                totalSpent: paidOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0),
                             });
                             setShowActivityDetailModal(true);
                         }
@@ -899,7 +932,7 @@ export default function Suppliers() {
                             <div className="flex items-center justify-between mb-4">
                                 <div>
                                     <h3 className="font-bold text-sm text-slate-900 dark:text-white">Purchase Activity by Supplier</h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Total orders and spending per supplier</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Total orders and paid amount per supplier</p>
                                 </div>
                                 <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
                                     <i className="fas fa-chart-bar text-xs"></i>
@@ -1236,13 +1269,14 @@ export default function Suppliers() {
                                             <th className="py-3.5 px-4">Total</th>
                                             <th className="py-3.5 px-4">Date</th>
                                             <th className="py-3.5 px-4">Status</th>
+                                            <th className="py-3.5 px-4">Payment</th>
                                             <th className="py-3.5 px-4 text-right!">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                         {paginatedPurchaseOrders.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500">
+                                                <td colSpan={8} className="text-center py-12 text-slate-400 dark:text-slate-500">
                                                     <div className="flex flex-col items-center justify-center gap-1.5">
                                                         <i className="fas fa-shopping-cart text-3xl mb-2 opacity-30" />
                                                         <span className="text-sm font-medium text-slate-600 dark:text-slate-300">No purchase orders found</span>
@@ -1289,18 +1323,13 @@ export default function Suppliers() {
                                                         <td data-label="Status" className="py-3.5 px-4">
                                                             {getStatusBadge(order.status)}
                                                         </td>
+                                                        <td data-label="Payment" className="py-3.5 px-4">
+                                                            {getPaidBadge(order.paid || false)}
+                                                        </td>
                                                         <td data-label="Actions" className="py-3.5 px-4 text-right">
                                                             <div className="flex items-center justify-end gap-1.5">
                                                                 <button
-                                                                    onClick={() => {
-                                                                        const supplier = suppliers.find(s => s.id === order.supplier_id);
-                                                                        if (supplier) {
-                                                                            setSelectedSupplier(supplier);
-                                                                            setShowModal(true);
-                                                                        } else {
-                                                                            toast.info('Supplier details not found');
-                                                                        }
-                                                                    }}
+                                                                    onClick={() => handleViewPurchaseOrder(order)}
                                                                     className="px-2.5 py-1 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors font-medium cursor-pointer text-xs"
                                                                 >
                                                                     <i className="fas fa-eye mr-1.5" />
@@ -1519,6 +1548,7 @@ export default function Suppliers() {
                                                                 {po.total_amount?.toLocaleString() || '0'}
                                                             </span>
                                                             <div>{getStatusBadge(po.status)}</div>
+                                                            <div>{getPaidBadge(po.paid || false)}</div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -1655,7 +1685,7 @@ export default function Suppliers() {
                                             className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                             placeholder="Full Name"
                                             value={newSupplier.contact_person}
-                                            onChange={(e) => setNewSupplier({ ...newSupplier, contact_person: e.target.value })}
+                                            onChange={(e) => setNewSupplier({ ...newSupplier, contact_person: sanitizeText(e.target.value) })}
                                             required
                                         />
                                     </div>
@@ -1683,7 +1713,7 @@ export default function Suppliers() {
                                         <input
                                             type="email"
                                             className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
-                                            placeholder="contact@supplier.com"
+                                            placeholder="contact@gmail.com"
                                             value={newSupplier.email}
                                             onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
                                             required
@@ -1699,11 +1729,24 @@ export default function Suppliers() {
                                             className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
                                             placeholder="City, Province"
                                             value={newSupplier.location}
-                                            onChange={(e) => setNewSupplier({ ...newSupplier, location: e.target.value })}
+                                            onChange={(e) => setNewSupplier({ ...newSupplier, location: sanitizeText(e.target.value) })}
                                             required
                                         />
                                     </div>
                                 </div>
+
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Facebook Link
+                                    </label>
+                                    <input
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
+                                        placeholder="https://www.facebook.com/share/12345446/"
+                                        value={newSupplier.fb_link}
+                                        onChange={(e) => setNewSupplier({ ...newSupplier, fb_link: sanitizeText(e.target.value) })}
+                                    />
+                                </div>
+
 
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -1714,7 +1757,7 @@ export default function Suppliers() {
                                         className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
                                         placeholder="e.g. Heavy equipment tires, brake pads, routine maintenance services"
                                         value={newSupplier.products}
-                                        onChange={(e) => setNewSupplier({ ...newSupplier, products: e.target.value })}
+                                        onChange={(e) => setNewSupplier({ ...newSupplier, products: sanitizeText(e.target.value) })}
                                     />
                                 </div>
 
@@ -1727,7 +1770,7 @@ export default function Suppliers() {
                                         className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
                                         placeholder="Payment terms, delivery lead times, or special remarks"
                                         value={newSupplier.notes}
-                                        onChange={(e) => setNewSupplier({ ...newSupplier, notes: e.target.value })}
+                                        onChange={(e) => setNewSupplier({ ...newSupplier, notes: sanitizeText(e.target.value) })}
                                     />
                                 </div>
 
@@ -1899,6 +1942,18 @@ export default function Suppliers() {
 
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Facebook Link
+                                    </label>
+                                    <input
+                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
+                                        placeholder="https://www.facebook.com/share/12345446/"
+                                        value={newSupplier.fb_link}
+                                        onChange={(e) => setNewSupplier({ ...newSupplier, fb_link: sanitizeText(e.target.value) })}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Products / Services Offered
                                     </label>
                                     <textarea
@@ -2011,7 +2066,7 @@ export default function Suppliers() {
                                     </div>
                                     <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
                                         <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                            Total Spent
+                                            Total Paid
                                         </p>
                                         <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                                             {(selectedChartData.totalSpent || 0).toLocaleString()}
@@ -2036,6 +2091,7 @@ export default function Suppliers() {
                                                         {po.total_amount?.toLocaleString() || '0'}
                                                     </span>
                                                     <span>{getStatusBadge(po.status)}</span>
+                                                    <span>{getPaidBadge(po.paid || false)}</span>
                                                 </div>
                                             ))}
                                         {purchaseOrders.filter(po => po.supplier_name === selectedChartData.supplierName).length === 0 && (
@@ -2159,6 +2215,216 @@ export default function Suppliers() {
                                     className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
                                 >
                                     Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* New Purchase Order Detail Modal */}
+                {showPurchaseOrderModal && selectedPurchaseOrder && (
+                    <div className="fixed inset-0 z-[90] bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-start justify-between bg-slate-50/50 dark:bg-slate-900/50">
+                                <div>
+                                    <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+                                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                            Purchase Order
+                                        </h2>
+                                        <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200/80 dark:border-slate-700/60">
+                                            {selectedPurchaseOrder.po_number}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                        <span>Supplier:</span>
+                                        <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                                            {selectedPurchaseOrder.supplier_name}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPurchaseOrderModal(false)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    aria-label="Close modal"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="p-6 overflow-y-auto space-y-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-building text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Supplier
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                                {selectedPurchaseOrder.supplier_name}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-dollar-sign text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Total Amount
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                                                {selectedPurchaseOrder.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-calendar-alt text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Date Created
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                                {new Date(selectedPurchaseOrder.created_at).toLocaleDateString(undefined, {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric',
+                                                })}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-truck text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Delivery Date
+                                            </span>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                                {selectedPurchaseOrder.delivery_date
+                                                    ? new Date(selectedPurchaseOrder.delivery_date).toLocaleDateString(undefined, {
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric',
+                                                    })
+                                                    : 'Not set'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-tag text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Status
+                                            </span>
+                                            <div>{getStatusBadge(selectedPurchaseOrder.status)}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                            <i className="fas fa-credit-card text-xs" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Payment Status
+                                            </span>
+                                            <div>{getPaidBadge(selectedPurchaseOrder.paid || false)}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {selectedPurchaseOrder.notes && (
+                                    <div>
+                                        <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                            Order Notes
+                                        </h3>
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/80 leading-relaxed whitespace-pre-wrap">
+                                            {selectedPurchaseOrder.notes}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {selectedPurchaseOrder.items && selectedPurchaseOrder.items.length > 0 && (
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                Order Items
+                                            </h3>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                                {selectedPurchaseOrder.items.length} items
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                            {selectedPurchaseOrder.items.map((item: any, idx: number) => (
+                                                <div
+                                                    key={idx}
+                                                    className="flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40 px-3.5 py-2.5 rounded-xl border border-slate-100 dark:border-slate-800/70"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                            {item.name || `Item ${idx + 1}`}
+                                                        </span>
+                                                        {item.quantity && (
+                                                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                                × {item.quantity}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-3.5">
+                                                        {item.price && (
+                                                            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                                                                @{item.price.toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                        {item.total && (
+                                                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                                                                {item.total.toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPurchaseOrderModal(false)}
+                                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 transition-all cursor-pointer"
+                                >
+                                    Close
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowPurchaseOrderModal(false);
+                                        // Navigate to edit PO if needed - you can add a link here
+                                        toast.info('Edit functionality coming soon');
+                                    }}
+                                    className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 shadow-xs shadow-pink-500/20 transition-all cursor-pointer"
+                                >
+                                    Edit Order
                                 </button>
                             </div>
                         </div>

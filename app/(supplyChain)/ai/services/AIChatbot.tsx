@@ -466,7 +466,7 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+                className="fixed inset-0 bg-slate-900/40 dark:bg-slate-900/10 backdrop-blur-sm z-40 animate-in fade-in duration-200"
                 onClick={onClose}
             />
 

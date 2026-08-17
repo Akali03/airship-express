@@ -60,30 +60,30 @@ interface Supplier {
     is_active: boolean;
 }
 
-// ============================================================
-// RATE LIMITING (Simple in-memory)
-// ============================================================
-const rateLimiter = new Map<string, { count: number; resetTime: number }>();
+// // ============================================================
+// // RATE LIMITING (Simple in-memory)
+// // ============================================================
+// const rateLimiter = new Map<string, { count: number; resetTime: number }>();
 
-function isRateLimited(key: string): boolean {
-    const now = Date.now();
-    const userRate = rateLimiter.get(key);
+// function isRateLimited(key: string): boolean {
+//     const now = Date.now();
+//     const userRate = rateLimiter.get(key);
 
-    if (userRate) {
-        if (now < userRate.resetTime) {
-            if (userRate.count >= 10) { // 10 requests per minute
-                return true;
-            }
-            userRate.count++;
-        } else {
-            rateLimiter.set(key, { count: 1, resetTime: now + 60000 });
-        }
-    } else {
-        rateLimiter.set(key, { count: 1, resetTime: now + 60000 });
-    }
+//     if (userRate) {
+//         if (now < userRate.resetTime) {
+//             if (userRate.count >= 10) {
+//                 return true;
+//             }
+//             userRate.count++;
+//         } else {
+//             rateLimiter.set(key, { count: 1, resetTime: now + 60000 });
+//         }
+//     } else {
+//         rateLimiter.set(key, { count: 1, resetTime: now + 60000 });
+//     }
 
-    return false;
-}
+//     return false;
+// }
 
 // ============================================================
 // GENERATE REQUEST NUMBER
@@ -105,12 +105,12 @@ export async function GET(request: NextRequest) {
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
-        if (isRateLimited(`${ip}:procurement_get`)) {
-            return NextResponse.json(
-                { success: false, error: 'Too many requests. Please wait.' },
-                { status: 429 }
-            );
-        }
+        // if (isRateLimited(`${ip}:procurement_get`)) {
+        //     return NextResponse.json(
+        //         { success: false, error: 'Too many requests. Please wait.' },
+        //         { status: 429 }
+        //     );
+        // }
 
         const searchParams = request.nextUrl.searchParams;
         const page = parseInt(searchParams.get('page') || '1');
@@ -282,12 +282,12 @@ export async function POST(request: NextRequest) {
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
-        if (isRateLimited(`${ip}:procurement_post`)) {
-            return NextResponse.json(
-                { success: false, error: 'Too many requests. Please wait.' },
-                { status: 429 }
-            );
-        }
+        // if (isRateLimited(`${ip}:procurement_post`)) {
+        //     return NextResponse.json(
+        //         { success: false, error: 'Too many requests. Please wait.' },
+        //         { status: 429 }
+        //     );
+        // }
 
         const body = await request.json();
 
@@ -412,12 +412,12 @@ export async function PUT(request: NextRequest) {
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
-        if (isRateLimited(`${ip}:procurement_put`)) {
-            return NextResponse.json(
-                { success: false, error: 'Too many requests. Please wait.' },
-                { status: 429 }
-            );
-        }
+        // if (isRateLimited(`${ip}:procurement_put`)) {
+        //     return NextResponse.json(
+        //         { success: false, error: 'Too many requests. Please wait.' },
+        //         { status: 429 }
+        //     );
+        // }
 
         const body = await request.json();
         const { id, ...updateData } = body;
@@ -536,12 +536,12 @@ export async function DELETE(request: NextRequest) {
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
-        if (isRateLimited(`${ip}:procurement_delete`)) {
-            return NextResponse.json(
-                { success: false, error: 'Too many requests. Please wait.' },
-                { status: 429 }
-            );
-        }
+        // if (isRateLimited(`${ip}:procurement_delete`)) {
+        //     return NextResponse.json(
+        //         { success: false, error: 'Too many requests. Please wait.' },
+        //         { status: 429 }
+        //     );
+        // }
 
         const searchParams = request.nextUrl.searchParams;
         const id = searchParams.get('id');
@@ -675,12 +675,12 @@ export async function PATCH(request: NextRequest) {
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
-        if (isRateLimited(`${ip}:procurement_patch`)) {
-            return NextResponse.json(
-                { success: false, error: 'Too many requests. Please wait.' },
-                { status: 429 }
-            );
-        }
+        // if (isRateLimited(`${ip}:procurement_patch`)) {
+        //     return NextResponse.json(
+        //         { success: false, error: 'Too many requests. Please wait.' },
+        //         { status: 429 }
+        //     );
+        // }
 
         const body = await request.json();
         const { id, action } = body;
