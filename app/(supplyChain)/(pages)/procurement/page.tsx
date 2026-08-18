@@ -2,18 +2,27 @@
 
 "use client";
 
-// ============================================================
-// 1. IMPORTS
-// ============================================================
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Chart from "chart.js/auto";
-import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
 import { toast } from "sonner";
 import { useDebounce } from "@/app/(supplyChain)/hooks/useDebounce";
 import { useConfirm } from "@/app/(supplyChain)/components/ui/ConfirmModal";
 import { sanitizeText, sanitizeNumber } from "@/app/(supplyChain)/components/global/sanitize";
+import { buildEmailTemplate } from "./api/send-email/template";
 import { PageSkeleton } from "@/app/(supplyChain)/components/ui/SkeletonLoader";
 import { Pagination } from "@/app/(supplyChain)/components/global/pagination";
+import Cards from "@/app/(supplyChain)/components/global/Cards";
+import { TableContentLoader } from "@/app/(supplyChain)/components/global/Loader";
+import {
+    Supplier,
+    PurchaseOrder,
+    PurchaseRequest,
+    PurchaseRequestItem,
+    PurchaseRequestModalProps,
+    PurchaseOrderModalProps,
+    ChartDetailModalProps
+} from "./types/index";
+import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
 import {
     fetchProcurementData,
     createPurchaseRequest,
@@ -22,97 +31,11 @@ import {
     deleteMultiplePurchaseRequests,
     patchPurchaseRequest
 } from '@/app/(supplyChain)/(pages)/procurement/utils/procurementApi';
-import Cards from "@/app/(supplyChain)/components/global/Cards";
 import { SessionGuard } from "@/app/(supplyChain)/components/server/SessionGuard";
-import { TableContentLoader } from "@/app/(supplyChain)/components/global/Loader";
-
-// ============================================================
-// 2. TYPES & INTERFACES
-// ============================================================
-interface Supplier {
-    id: string;
-    name: string;
-    category: string;
-    contact_person: string;
-    phone: string;
-    email: string;
-    location: string;
-    products: string | null;
-    notes: string | null;
-    is_active: boolean;
-}
-
-interface PurchaseRequestItem {
-    name: string;
-    quantity: number;
-}
-
-interface PurchaseRequest {
-    id: string;
-    request_number: string;
-    type: string;
-    description: string;
-    requested_by: string;
-    department: string;
-    supplier_id: string;
-    supplier_name: string;
-    amount: number;
-    priority: string;
-    date: string;
-    status: string;
-    items: PurchaseRequestItem[];
-    reason: string;
-    created_at?: string;
-    updated_at?: string;
-}
-
-interface PurchaseOrder {
-    id: string;
-    po_number: string;
-    request_id: string;
-    supplier_id: string;
-    supplier_name: string;
-    total_amount: number;
-    status: string;
-    delivery_date: string;
-    notes: string;
-    items: any[];
-    paid: boolean;
-    created_at?: string;
-    updated_at?: string;
-}
-
-interface PurchaseRequestModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    suppliers: Supplier[];
-    role: string;
-    onRequestSubmitted?: (request: any) => void;
-    editData?: any;
-    isEdit?: boolean;
-}
-
-interface PurchaseOrderModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    request: PurchaseRequest | null;
-    suppliers: Supplier[];
-    onOrderCreated?: (order: any) => void;
-}
-
-interface ChartDetailModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    month: string;
-    monthIndex: number;
-    orders: PurchaseOrder[];
-    totalAmount: number;
-}
+import { user } from "../../lib/services/Class/user";
+import Link from "next/link";
 
 
-// ============================================================
-// 3. UTILITY FUNCTIONS
-// ============================================================
 const formatCurrency = (amount: number) => `₱${amount.toLocaleString()}`;
 
 const getPriorityColor = (priority: string) => {
@@ -143,9 +66,6 @@ const getPOStatusColor = (status: string) => {
     }
 };
 
-// ============================================================
-// 4. PURCHASE REQUEST MODAL
-// ============================================================
 export function PurchaseRequestModal({
     isOpen,
     onClose,
@@ -605,6 +525,8 @@ export function PurchaseOrderModal({
                     delivery_date: formData.delivery_date,
                     po_number: poNumber,
                     notes: formData.notes,
+                    sender_name: user.getName(),
+                    sender_position: user.getRole(),
                 }),
             });
 
@@ -647,6 +569,7 @@ export function PurchaseOrderModal({
                 delivery_date: formData.delivery_date || new Date().toISOString().split("T")[0],
                 notes: formData.notes,
                 items: formData.items,
+                created_by: user.getName
             };
 
             await onOrderCreated?.(orderData);
@@ -670,7 +593,6 @@ export function PurchaseOrderModal({
         window.open(gmailUrl, '_blank');
     };
 
-    // handle email
     const handleEmail = async () => {
         if (!aiMessage) {
             toast.warning('Please generate a message first');
@@ -679,46 +601,109 @@ export function PurchaseOrderModal({
 
         if (isSending) return;
 
+        const toastId = toast.loading('Preparing email...', {
+            duration: Infinity,
+            position: 'top-center',
+        });
+
         setIsSending(true);
+
         try {
+            toast.loading('Creating Purchase Order...', {
+                id: toastId,
+                duration: Infinity,
+            });
+
             const poCreated = await createPurchaseOrder();
             if (!poCreated) {
+                toast.error('Failed to create Purchase Order', {
+                    id: toastId,
+                    duration: 5000,
+                });
                 setIsSending(false);
                 return;
             }
 
-            const body = getFullMessage();
-            const subject = `Purchase Order ${poNumber} - ${request?.supplier_name}`;
             const emailTo = supplierEmail || '';
 
-            try {
-                await navigator.clipboard.writeText(body);
-                toast.success('PO Created! Message copied to clipboard.');
-            } catch (clipError) {
-                console.warn('Could not copy to clipboard:', clipError);
-            }
-
-            if (emailTo) {
-                openGmailCompose(emailTo, subject, body);
-                toast.success(`Opening Gmail for: ${emailTo}`);
-            } else {
-                openGmailCompose('', subject, body);
-                toast.info('No email found for supplier. Please add the recipient email.');
-            }
-
-            setTimeout(() => {
+            if (!emailTo) {
+                toast.warning('No email found for supplier. Please add an email address.', {
+                    id: toastId,
+                    duration: 5000,
+                });
                 setIsSending(false);
-                onClose();
-            }, 1500);
+                return;
+            }
 
-        } catch (error) {
+            toast.info(`Sending email to ${emailTo}...`, {
+                id: toastId,
+                duration: Infinity,
+            });
+
+            const confirmLink = `${window.location.origin}/procurement/confirm?po=${poNumber}`;
+            const fullMessage = getFullMessage();
+
+            const emailHtml = buildEmailTemplate({
+                poNumber: poNumber,
+                supplierName: request?.supplier_name || '',
+                items: formData.items,
+                totalAmount: totalAmount,
+                deliveryDate: formData.delivery_date || 'TBD',
+                notes: formData.notes || '',
+                confirmLink: confirmLink,
+                senderName: user.getName(),
+                senderPosition: user.getRole(),
+                senderEmail: process.env.EMAIL_USER || '',
+            });
+
+            const response = await fetch('/procurement/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: emailTo,
+                    subject: `Purchase Order ${poNumber} - ${request?.supplier_name}`,
+                    html: emailHtml,
+                    text: fullMessage,
+                    po_number: poNumber,
+                    supplier_name: request?.supplier_name,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success(`PO Created & Email sent to ${emailTo}!`, {
+                    id: toastId,
+                    duration: 6000,
+                });
+
+                try {
+                    await navigator.clipboard.writeText(fullMessage);
+                } catch (clipError) {
+                    console.warn('Could not copy to clipboard:', clipError);
+                }
+
+                setTimeout(() => {
+                    setIsSending(false);
+                    onClose();
+                }, 2000);
+
+            } else {
+                throw new Error(data.error || 'Failed to send email');
+            }
+
+        } catch (error: any) {
             console.error('Error sending email:', error);
-            toast.error('Failed to send email');
+
+            toast.error(`${error.message || 'Failed to send email. Please try again.'}`, {
+                id: toastId,
+                duration: 8000,
+            });
+
             setIsSending(false);
         }
     };
 
-    // handle messenger
     const handleMessenger = async () => {
         if (!aiMessage) {
             toast.warning('Please generate a message first');
@@ -727,44 +712,78 @@ export function PurchaseOrderModal({
 
         if (isSending) return;
 
+        const toastId = toast.loading('Preparing Messenger message...', {
+            duration: Infinity,
+            position: 'top-center',
+        });
+
         setIsSending(true);
+
         try {
+            toast.loading('Creating Purchase Order...', {
+                id: toastId,
+                duration: Infinity,
+            });
+
             const poCreated = await createPurchaseOrder();
             if (!poCreated) {
+                toast.error('Failed to create Purchase Order', {
+                    id: toastId,
+                    duration: 5000,
+                });
                 setIsSending(false);
                 return;
             }
 
             const confirmLink = `${window.location.origin}/procurement/confirm?po=${poNumber}`;
-            const message = `${aiMessage}\n\n---\n📋 Confirm this order: ${confirmLink}`;
+            const message = `${aiMessage}\n\n---\nConfirm this order: ${confirmLink}`;
+
+            toast.loading('Copying message...', {
+                id: toastId,
+                duration: Infinity,
+            });
 
             try {
                 await navigator.clipboard.writeText(message);
-                toast.success('PO Created! Message copied to clipboard.');
             } catch (clipError) {
                 console.warn('Could not copy to clipboard:', clipError);
             }
 
+            toast.loading('Opening Messenger...', {
+                id: toastId,
+                duration: Infinity,
+            });
+
             if (supplierMessenger) {
                 window.open(supplierMessenger, '_blank');
-                toast.success(`Opening Messenger for ${request?.supplier_name}`);
+                toast.success(`PO Created & Messenger opened for ${request?.supplier_name}`, {
+                    id: toastId,
+                    duration: 5000,
+                });
             } else {
                 const messengerUrl = `https://m.me/?text=${encodeURIComponent(message)}`;
                 window.open(messengerUrl, '_blank');
-                toast.info('Opening Messenger. Please paste the message.');
+                toast.success('PO Created! Message copied to clipboard. Opening Messenger.', {
+                    id: toastId,
+                    duration: 5000,
+                });
             }
 
             setTimeout(() => {
                 setIsSending(false);
                 onClose();
-            }, 1500);
+            }, 2000);
 
         } catch (error) {
             console.error('Error sending messenger:', error);
-            toast.error('Failed to send via Messenger');
+            toast.error('Failed to send via Messenger. Please try again.', {
+                id: toastId,
+                duration: 8000,
+            });
             setIsSending(false);
         }
     };
+
 
     // create po only
     const handleCreatePOOnly = async () => {
@@ -975,6 +994,7 @@ export function PurchaseOrderModal({
                                     type="date"
                                     className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all cursor-pointer"
                                     value={formData.delivery_date}
+                                    min={new Date().toISOString().split("T")[0]}
                                     onChange={(e) =>
                                         setFormData((prev) => ({
                                             ...prev,
@@ -1193,10 +1213,6 @@ export function PurchaseOrderModal({
     );
 }
 
-// ============================================================
-// 5. CHART DETAIL MODAL
-// ============================================================
-
 function ChartDetailModal({
     isOpen,
     onClose,
@@ -1322,9 +1338,6 @@ function ChartDetailModal({
     );
 }
 
-// ============================================================
-// 6. EMPTY STATE COMPONENT
-// ============================================================
 function EmptyState({
     title,
     description,
@@ -1364,9 +1377,6 @@ function EmptyState({
     );
 }
 
-// ============================================================
-// 7. MAIN PROCUREMENT COMPONENT
-// ============================================================
 export default function Procurement() {
     const { confirm } = useConfirm();
     const expenseChartCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -1966,8 +1976,8 @@ export default function Procurement() {
                                             const monthIndex = context.dataIndex;
                                             const orderCount = monthlyOrders[monthIndex]?.length || 0;
                                             return [
-                                                `💰 Amount: ₱${amount.toLocaleString()}`,
-                                                `📦 Orders: ${orderCount}`
+                                                ` Amount: ₱${amount.toLocaleString()}`,
+                                                ` Orders: ${orderCount}`
                                             ];
                                         }
                                     }
@@ -2157,7 +2167,7 @@ export default function Procurement() {
                             {
                                 label: 'Procurement summary',
                                 color: 'bg-pink-400',
-                                action: () => toast.info(`AI: Procurement summary...\n\nActive requests: ${totalCounts.all}\n⏳ Pending approvals: ${totalCounts.pending}\n💰 Total spend: ₱${totalSpend.toLocaleString()}`)
+                                action: () => toast.info(`AI: Procurement summary...\n\nActive requests: ${totalCounts.all}\n⏳ Pending approvals: ${totalCounts.pending}\n Total spend: ₱${totalSpend.toLocaleString()}`)
                             },
                             {
                                 label: 'Top expenses?',
@@ -2319,59 +2329,89 @@ export default function Procurement() {
                     {isRefreshing && <TableContentLoader />}
 
                     {/* Filter Bar */}
-                    <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/60 backdrop-blur-xl transition-all">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <div className="font-semibold text-slate-900 dark:text-white text-sm mr-2 flex items-center gap-2">
-                                <i className="fas fa-list text-pink-500 dark:text-pink-400" />
-                                <span>Purchase Requests</span>
-                                {isRefreshing && (
-                                    <i className="fas fa-circle-notch fa-spin text-pink-400 text-xs" title="Refreshing..." />
-                                )}
-                            </div>
+                    <div className="flex-shrink-0 p-3.5 sm:p-4 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md transition-all">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
 
-                            <div className="relative flex-1 min-w-[200px] max-w-xs">
-                                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
-                                <input
-                                    className="w-full bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 pl-8 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 dark:focus:ring-pink-500/30 transition-all shadow-2xs"
-                                    placeholder="Search by ID, requester, supplier..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
+                            {/* Left Side: Title & Search Bar */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
+                                {/* Header Title */}
+                                <div className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2.5 shrink-0">
+                                    <div className="p-1.5 rounded-lg bg-pink-50 dark:bg-pink-950/50 border border-pink-200/50 dark:border-pink-800/50 text-pink-500 dark:text-pink-400">
+                                        <i className="fas fa-list text-xs" />
+                                    </div>
+                                    <span>Purchase Requests</span>
+                                    {isRefreshing && (
+                                        <i className="fas fa-circle-notch fa-spin text-pink-500 text-xs ml-0.5" title="Refreshing..." />
+                                    )}
+                                </div>
 
-                            <div className="flex gap-1 bg-slate-200/60 dark:bg-slate-800/70 p-1 rounded-xl border border-transparent dark:border-white/5">
-                                {[
-                                    { key: "all", label: "All", count: totalCounts.all },
-                                    { key: "pending", label: "Pending", count: totalCounts.pending },
-                                    { key: "approved", label: "Approved", count: totalCounts.approved },
-                                ].map((tab) => {
-                                    const isActive = activeTab === tab.key;
-                                    return (
+                                {/* Search Input Box */}
+                                <div className="relative flex-1 max-w-sm">
+                                    <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
+                                    <input
+                                        className="w-full bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3.5 py-1.5 pl-9 pr-8 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 dark:focus:ring-pink-500/30 transition-all shadow-xs"
+                                        placeholder="Search by ID, requester, supplier..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                    {searchTerm && (
                                         <button
-                                            key={tab.key}
-                                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${isActive
-                                                ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs dark:shadow-black/20"
-                                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-700/40"
-                                                }`}
-                                            onClick={() => {
-                                                setActiveTab(tab.key as any);
-                                                setSelectedIds(new Set());
-                                                setIsSelectAll(false);
-                                            }}
+                                            onClick={() => setSearchTerm('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs p-1 rounded-md"
+                                            aria-label="Clear search"
                                         >
-                                            <span>{tab.label}</span>
-                                            <span
-                                                className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${isActive
-                                                    ? "bg-slate-100 dark:bg-slate-600 text-slate-800 dark:text-slate-100"
-                                                    : "bg-slate-200/70 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                                                    }`}
-                                            >
-                                                {tab.count}
-                                            </span>
+                                            <i className="fas fa-times" />
                                         </button>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
+
+                            {/* Right Side: Tab Filters & CTA Link */}
+                            <div className="flex items-center justify-between sm:justify-end gap-2 ">
+                                {/* Filter Tabs Container */}
+                                <div className="inline-flex gap-1 bg-slate-200/70 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/50 dark:border-white/5">
+                                    {[
+                                        { key: "all", label: "All", count: totalCounts.all },
+                                        { key: "pending", label: "Pending", count: totalCounts.pending },
+                                        { key: "approved", label: "Approved", count: totalCounts.approved },
+                                    ].map((tab) => {
+                                        const isActive = activeTab === tab.key;
+                                        return (
+                                            <button
+                                                key={tab.key}
+                                                className={`px-3 py-1 text-xs font-medium rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${isActive
+                                                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold"
+                                                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-700/30"
+                                                    }`}
+                                                onClick={() => {
+                                                    setActiveTab(tab.key as any);
+                                                    setSelectedIds(new Set());
+                                                    setIsSelectAll(false);
+                                                }}
+                                            >
+                                                <span>{tab.label}</span>
+                                                <span
+                                                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${isActive
+                                                        ? "bg-slate-100 dark:bg-slate-600 text-slate-800 dark:text-slate-100"
+                                                        : "bg-slate-300/50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400"
+                                                        }`}
+                                                >
+                                                    {tab.count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Purchase Orders Button Link */}
+                                <Link
+                                    href="/purchase-orders"
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-pink-600 hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600 dark:hover:bg-pink-500 rounded-lg transition-all shadow-xs hover:shadow-sm"
+                                >
+                                    <span className="text-xxs">Purchase Orders</span>
+                                </Link>
+                            </div>
+
                         </div>
                     </div>
 
