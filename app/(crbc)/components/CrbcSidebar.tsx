@@ -25,20 +25,28 @@ const docModules = [
     { href: "/crbc/compliance", label: "Compliance Manager" },
 ]
 
-const bottomModules = [
+const insightModules = [
     { href: "/crbc/analytics", label: "BI & Analytics", icon: BarChart2 },
+]
+
+const systemModules = [
     { href: "/crbc/settings", label: "Settings", icon: Settings },
 ]
 
-
-
-// Active: faint accent tint + accent text — readable on bg-paper in both themes.
-// Inactive: muted text, hover lifts to foreground with the same faint accent.
 const navItem = (isActive: boolean, collapsed: boolean) =>
     `flex items-center gap-2.5 rounded-md text-[13px] transition-colors ${collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2"} ${isActive ? "bg-accent/10 text-accent font-medium" : "text-muted hover:text-foreground hover:bg-accent/5"}`
 
 const groupBtn = (isActive: boolean, collapsed: boolean) =>
     `w-full flex items-center justify-between rounded-md text-[13px] transition-colors ${collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2"} ${isActive ? "bg-accent/10 text-accent font-medium" : "text-muted hover:text-foreground hover:bg-accent/5"}`
+
+function SectionLabel({ children, collapsed }: { children: React.ReactNode; collapsed: boolean }) {
+    if (collapsed) return <div className="h-2" />
+    return (
+        <div className="px-3 pt-4 pb-1 text-[10px] font-semibold text-accent tracking-widest uppercase">
+            {children}
+        </div>
+    )
+}
 
 export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: boolean, setCollapsed: (v: boolean) => void }) {
     const pathname = usePathname()
@@ -81,6 +89,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                 {/* Nav */}
                 <nav className="flex-1 px-2 overflow-y-auto space-y-0.5 pt-1">
 
+                    <SectionLabel collapsed={collapsed}>Overview</SectionLabel>
                     {topModules.map(({ href, label, icon: Icon }) => {
                         const isActive = pathname.startsWith(href)
                         return (
@@ -94,6 +103,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                     })}
 
                     {/* Contract & SLA */}
+                    <SectionLabel collapsed={collapsed}>Agreements</SectionLabel>
                     <div>
                         <button
                             onClick={() => collapsed ? (setCollapsed(false), setContractOpen(true)) : setContractOpen(!contractOpen)}
@@ -124,6 +134,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                     </div>
 
                     {/* E-Doc & Compliance */}
+                    <SectionLabel collapsed={collapsed}>Compliance</SectionLabel>
                     <div>
                         <button
                             onClick={() => collapsed ? (setCollapsed(false), setDocOpen(true)) : setDocOpen(!docOpen)}
@@ -153,18 +164,28 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                         )}
                     </div>
 
-                    {bottomModules.map(({ href, label, icon: Icon }) => {
+                    <SectionLabel collapsed={collapsed}>Insights</SectionLabel>
+                    {insightModules.map(({ href, label, icon: Icon }) => {
                         const isActive = pathname.startsWith(href)
                         return (
                             <Link key={href} href={href} title={collapsed ? label : undefined}
                                 className={navItem(isActive, collapsed)}
                             >
                                 <Icon size={15} className="shrink-0" />
-                                {!collapsed && (
-                                    <span className="flex-1 flex items-center justify-between">
-                                        {label}
-                                    </span>
-                                )}
+                                {!collapsed && <span>{label}</span>}
+                            </Link>
+                        )
+                    })}
+
+                    <SectionLabel collapsed={collapsed}>System</SectionLabel>
+                    {systemModules.map(({ href, label, icon: Icon }) => {
+                        const isActive = pathname.startsWith(href)
+                        return (
+                            <Link key={href} href={href} title={collapsed ? label : undefined}
+                                className={navItem(isActive, collapsed)}
+                            >
+                                <Icon size={15} className="shrink-0" />
+                                {!collapsed && <span>{label}</span>}
                             </Link>
                         )
                     })}

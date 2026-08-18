@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 
 import type { Customers } from "../types/customer";
+import { formatPhoneNumber } from "../library/utils/formatPhoneNumber";
 import IconBtn from "./IconBtn";
 import AddCustomerModal from "./AddCustomerModal";
 
@@ -84,7 +85,7 @@ export default function CustomerManagement({
             matchesQuery = customer.customer_id.toLowerCase().includes(q);
             break;
           case "phone":
-            matchesQuery = (customer.phone ?? "").toLowerCase().includes(q);
+            matchesQuery = (formatPhoneNumber(customer.phone || null) ?? "").toLowerCase().includes(q);
             break;
           case "name":
             matchesQuery = customer.full_name.toLowerCase().includes(q);
@@ -93,7 +94,8 @@ export default function CustomerManagement({
             matchesQuery =
               customer.full_name.toLowerCase().includes(q) ||
               customer.customer_id.toLowerCase().includes(q) ||
-              (customer.email?.toLowerCase().includes(q) ?? false);
+              (customer.email?.toLowerCase().includes(q) ?? false) ||
+              (formatPhoneNumber(customer.phone || null) ?? "").toLowerCase().includes(q);
         }
       }
 
@@ -156,7 +158,7 @@ export default function CustomerManagement({
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent hover:bg-accent-dark text-white text-sm transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/80 hover:bg-accent-dark/80 text-white text-sm transition-colors cursor-pointer"
           >
             <Plus size={15} />
             Add Customer
@@ -317,7 +319,7 @@ export default function CustomerManagement({
                 </td>
 
                 <td className="px-4 py-3 text-foreground">
-                  {customer.phone ?? "-"}
+                  {formatPhoneNumber(customer.phone || null) ?? "-"}
                 </td>
 
                 <td className="px-4 py-3 text-foreground">
@@ -374,7 +376,7 @@ export default function CustomerManagement({
                   onClick={() => setPage(number)}
                   className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${
                     number === currentPage
-                      ? "bg-accent text-white"
+                      ? "bg-accent/80 text-white"
                       : "text-muted hover:bg-accent/10"
                   }`}
                 >

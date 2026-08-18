@@ -3,6 +3,12 @@
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { X, Search, UserCheck } from "lucide-react";
 import { addCustomer, searchCustomer } from "../actions/customer";
+import {
+  isValidPhone,
+  isValidEmail,
+  normalizePhone,
+} from "../library/validation/customer.data.validate";
+import { formatPhoneNumber } from "../library/utils/formatPhoneNumber";
 
 type AddCustomerModalProps = {
   open: boolean;
@@ -43,6 +49,7 @@ export default function AddCustomerModal({
   const [senderName, setSenderName] = useState("");
   const [senderNumber, setSenderNumber] = useState("");
   const [senderAddress, setSenderAddress] = useState("");
+  const [senderEmail, setSenderEmail] = useState("");
   const [receiver, setReceiver] = useState("");
   const [receiverAddress, setReceiverAddress] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -55,6 +62,7 @@ export default function AddCustomerModal({
         setSenderName("");
         setSenderNumber("");
         setSenderAddress("");
+        setSenderEmail("");
         setReceiver("");
         setReceiverAddress("");
         setFormError(null);
@@ -104,7 +112,7 @@ export default function AddCustomerModal({
         const res =
           searchType === "customer_id"
             ? await searchCustomer(debouncedQuery, undefined)
-            : await searchCustomer(undefined, debouncedQuery);
+            : await searchCustomer(undefined, normalizePhone(debouncedQuery));
 
         if (cancelled) return;
 
@@ -137,7 +145,7 @@ export default function AddCustomerModal({
   const handleUseCustomer = (customer: CustomerResult) => {
     setFoundCustomer(customer);
     setSenderName(customer.full_name);
-    setSenderNumber(customer.phone || "");
+    setSenderNumber(customer.phone ? formatPhoneNumber(customer.phone) : "");
     setSenderAddress(customer.address || "");
     setShowSearch(false); // collapse back to the confirmed summary
   };
@@ -163,6 +171,19 @@ export default function AddCustomerModal({
       nameInput.current?.focus();
       return;
     }
+
+    const phone = senderNumber.trim();
+    if (phone && !isValidPhone(phone)) {
+      setFormError("Enter a valid Philippine mobile number (e.g., 09171234567).");
+      return;
+    }
+
+    const email = senderEmail.trim();
+    if (email && !isValidEmail(email)) {
+      setFormError("Enter a valid Gmail address (e.g., name@gmail.com).");
+      return;
+    }
+
     if (!receiverAddress.trim()) {
       setFormError("Delivery address is required.");
       return;
@@ -171,7 +192,8 @@ export default function AddCustomerModal({
     startTransition(async () => {
         const res = await addCustomer({
         senderName: name,
-        senderNumber: senderNumber.trim() || undefined,
+        senderNumber: phone ? normalizePhone(phone) : undefined,
+        senderEmail: email || undefined,
         senderAddress: senderAddress.trim() || undefined,
         receiverName: receiver.trim(),
         receiverNumber: undefined,
@@ -245,7 +267,9 @@ export default function AddCustomerModal({
                 </p>
                 <p className="text-xs text-green-700 dark:text-green-300 truncate">
                   {foundCustomer.customer_id} · {foundCustomer.full_name} ·{" "}
-                  {foundCustomer.phone || "No phone"}
+                  {foundCustomer.phone
+                    ? formatPhoneNumber(foundCustomer.phone)
+                    : "No phone"}
                 </p>
               </div>
               <button
@@ -352,7 +376,10 @@ export default function AddCustomerModal({
                       {pendingMatch.full_name}
                     </p>
                     <p className="text-xs text-muted truncate">
-                      {pendingMatch.customer_id} · {pendingMatch.phone || "No phone"}
+                      {pendingMatch.customer_id} ·{" "}
+                      {pendingMatch.phone
+                        ? formatPhoneNumber(pendingMatch.phone)
+                        : "No phone"}
                     </p>
                   </div>
                   <button
@@ -436,6 +463,25 @@ export default function AddCustomerModal({
                 />
               </div>
             </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="sender-email"
+                className="text-xs font-medium text-muted block"
+              >
+                Email
+              </label>
+              <input
+                id="sender-email"
+                type="email"
+                value={senderEmail}
+                onChange={(e) => setSenderEmail(e.target.value)}
+                placeholder="Gmail address (e.g., name@gmail.com)"
+                autoComplete="off"
+                className="w-full text-sm bg-paper border border-line text-foreground placeholder-muted/70 rounded-lg px-3 py-2.5 outline-none transition-colors focus:border-accent focus:ring-4 focus:ring-accent/15"
+              />
+            </div>
+
             {foundCustomer && (
               <p className="text-xs text-muted">
                 Name and phone are locked to the matched record. Address stays editable.

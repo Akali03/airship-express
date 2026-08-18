@@ -8,12 +8,13 @@ type Channel = "walk_in" | "call";
 type addCustomerInput = {
   senderName: string;
   senderNumber?: string;
+  senderEmail?: string;
   senderAddress?: string;
   receiverName: string;
   receiverNumber?: string;
   receiverAddress: string;
   source: Channel;
-  existingCustomerId?: string; 
+  existingCustomerId?: string;
 };
 
 type CustomerResult = {
@@ -33,6 +34,7 @@ async function findOrCreateCustomer(
   supabase: Awaited<ReturnType<typeof createClient>>,
   senderName: string,
   senderNumber: string | undefined,
+  senderEmail: string | undefined,
   senderAddress: string | undefined
 ): Promise<{ data: CustomerResult | null; error: string | null }> {
   const phone = senderNumber?.trim() || null;
@@ -68,6 +70,7 @@ async function findOrCreateCustomer(
     .insert({
       full_name: senderName.trim(),
       phone,
+      email: senderEmail?.trim() || null,
       address: senderAddress?.trim() || null,
     })
     .select("id, customer_id, full_name, phone, address")
@@ -93,6 +96,7 @@ export async function addCustomer(input: addCustomerInput) {
     const {
       senderName,
       senderNumber,
+      senderEmail,
       senderAddress,
       receiverName,
       receiverNumber,
@@ -124,6 +128,7 @@ export async function addCustomer(input: addCustomerInput) {
         supabase,
         senderName,
         senderNumber,
+        senderEmail,
         senderAddress
       );
       if (error || !data) return { error };
