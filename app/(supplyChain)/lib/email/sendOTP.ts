@@ -48,7 +48,7 @@ export async function sendOTPEmail({ to, otp, userName = '', expiresIn = 5 }: Se
         const mailOptions = {
             from: `"Supply Chain Management" <${process.env.EMAIL_USER}>`,
             to: to,
-            subject: '🔐 Your Supply Chain OTP Code',
+            subject: 'Your Supply Chain OTP Code',
             html: `
                 <!DOCTYPE html>
                 <html>
