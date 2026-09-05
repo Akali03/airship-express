@@ -17,6 +17,7 @@ import { useDebounce } from "@/app/(supplyChain)/hooks/useDebounce";
 import { fetchInventoryPageData, type Parcel } from '@/app/(supplyChain)/(pages)/inventory/server/query';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
+import UnauthorizedEmptyState, { useUserRole } from '@/app/(supplyChain)/components/global/UnauthorizedEmptyState';
 
 // SWR Cache Manager for Inventory data
 interface CacheEntry<T> {
@@ -59,7 +60,9 @@ export const inventoryCache = new InventoryCacheManager();
 
 export default function InventoryClient() {
     const searchParams = useSearchParams();
-    const initialTab = searchParams.get('tab') || 'dashboard';
+    const { role: userRole, isPrivileged, isLoaded } = useUserRole();
+    const urlTab = searchParams.get('tab');
+    const initialTab = urlTab || (isLoaded && !isPrivileged ? 'parcels' : 'dashboard');
     const [activeTab, setActiveTab] = useState<string>(initialTab);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
@@ -327,15 +330,18 @@ export default function InventoryClient() {
                 setActiveTab(urlTab);
             }
             else if (savedTab && !urlTab && ['dashboard', 'inventory', 'parcels'].includes(savedTab)) {
-                setActiveTab(savedTab);
+                const targetTab = (isLoaded && !isPrivileged && (savedTab === 'dashboard' || savedTab === 'inventory')) ? 'parcels' : savedTab;
+                setActiveTab(targetTab);
                 const url = new URL(window.location.href);
-                url.searchParams.set('tab', savedTab);
+                url.searchParams.set('tab', targetTab);
                 window.history.replaceState(null, '', url.pathname + url.search);
+            } else if (!urlTab && isLoaded && !isPrivileged && activeTab === 'dashboard') {
+                setActiveTab('parcels');
             }
         } catch (e) {
             // ignore
         }
-    }, [searchParams]);
+    }, [searchParams, isPrivileged, isLoaded, activeTab]);
 
     const handleInventoryPageChange = useCallback((page: number) => {
         if (page >= 1 && page <= inventoryTotalPages && page !== inventoryPage) {
@@ -557,26 +563,28 @@ export default function InventoryClient() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        {selectedIds.size > 0 && (
-                            <AppButton type="button" variant="danger" size="md" onClick={handleDeleteMultiple} disabled={deleting}>
-                                <i className="fas fa-trash-can text-xs"/>
-                                <span>Delete ({selectedIds.size})</span>
-                            </AppButton>
-                        )}
+                    {isPrivileged && (
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                            {selectedIds.size > 0 && (
+                                <AppButton type="button" variant="danger" size="md" onClick={handleDeleteMultiple} disabled={deleting}>
+                                    <i className="fas fa-trash-can text-xs"/>
+                                    <span>Delete ({selectedIds.size})</span>
+                                </AppButton>
+                            )}
 
-                        <AppButton type="button" variant="primary" size="md" onClick={openAddItemModal}>
-                            <i className="fas fa-plus text-xs"/>
-                            <span>Add Item</span>
-                        </AppButton>
-                    </div>
+                            <AppButton type="button" variant="primary" size="md" onClick={openAddItemModal}>
+                                <i className="fas fa-plus text-xs"/>
+                                <span>Add Item</span>
+                            </AppButton>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-1.5 bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 p-1.5 rounded-full border border-slate-200/50 dark:border-slate-800/60 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] max-w-fit overflow-x-auto no-scrollbar">
                     {[
-                        { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
-                        { id: 'inventory', label: 'Inventory', icon: 'fa-boxes-stacked' },
-                        { id: 'parcels', label: 'Parcels', icon: 'fa-box-archive' },
+                        { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie', restricted: isLoaded && !isPrivileged },
+                        { id: 'inventory', label: 'Inventory', icon: 'fa-boxes-stacked', restricted: isLoaded && !isPrivileged },
+                        { id: 'parcels', label: 'Parcels', icon: 'fa-box-archive', restricted: false },
                     ].map((tab) => {
                         const isActive = activeTab === tab.id;
                         return (
@@ -587,8 +595,11 @@ export default function InventoryClient() {
                                     ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border border-pink-400/80 dark:border-pink-500/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] font-bold'
                                     : 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-700 dark:text-slate-200 border border-white/70 dark:border-[#2a2b38] hover:bg-[#e8edf5] dark:hover:bg-[#232533] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)]'}`}
                             >
-                                <i className={`fas ${tab.icon} text-xs transition-colors ${isActive ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`}/>
+                                <i className={`fas ${tab.restricted ? 'fa-lock' : tab.icon} text-xs transition-colors ${isActive ? 'text-white' : tab.restricted ? 'text-pink-500/80 dark:text-pink-400/80' : 'text-slate-400 dark:text-slate-500'}`}/>
                                 <span>{tab.label}</span>
+                                {tab.restricted && (
+                                    <span className="text-[10px] opacity-75 font-normal ml-0.5">(Restricted)</span>
+                                )}
                             </button>
                         );
                     })}
@@ -598,41 +609,57 @@ export default function InventoryClient() {
             {/* Keep-Alive Tab Container: Instant 0ms Tab Switching without unmounting */}
             <div className="relative min-h-[400px]">
                 <div className={activeTab === 'dashboard' ? 'block animate-in fade-in duration-150' : 'hidden'} role="tabpanel" aria-hidden={activeTab !== 'dashboard'}>
-                    <DashboardTab
-                        inventoryItems={dashboardItems}
-                        stats={dashboardStats}
-                        isLoading={loading}
-                        onStockIn={openStockInModal}
-                        onCategoryClick={handleCategoryClick}
-                        onStatusClick={handleStatusClick}
-                    />
+                    {isLoaded && !isPrivileged ? (
+                        <UnauthorizedEmptyState
+                            title="Inventory Dashboard Restricted"
+                            description="You do not have permission to view the inventory analytics dashboard. This section is restricted to Admin, Manager, and Executive personnel only."
+                            currentRole={userRole}
+                        />
+                    ) : (
+                        <DashboardTab
+                            inventoryItems={dashboardItems}
+                            stats={dashboardStats}
+                            isLoading={loading}
+                            onStockIn={openStockInModal}
+                            onCategoryClick={handleCategoryClick}
+                            onStatusClick={handleStatusClick}
+                        />
+                    )}
                 </div>
                 <div className={activeTab === 'inventory' ? 'block animate-in fade-in duration-150' : 'hidden'} role="tabpanel" aria-hidden={activeTab !== 'inventory'}>
-                    <InventoryTab
-                        items={inventoryItems}
-                        totalItems={totalInventoryItems}
-                        currentPage={inventoryPage}
-                        totalPages={inventoryTotalPages}
-                        searchTerm={searchTerm}
-                        categoryFilter={categoryFilter}
-                        statusFilter={statusFilter}
-                        selectedIds={selectedIds}
-                        itemsPerPage={itemsPerPage}
-                        isLoading={loading || loadingInventory}
-                        onSearchChange={setSearchTerm}
-                        onCategoryChange={handleCategoryFilterChange}
-                        onStatusChange={handleStatusFilterChange}
-                        onPageChange={handleInventoryPageChange}
-                        onSelectAll={handleSelectAll}
-                        onSelect={handleSelectOne}
-                        onClearFilters={handleClearInventoryFilters}
-                        onEdit={openEditModal}
-                        onDelete={handleDeleteItem}
-                        onStockIn={openStockInModal}
-                        onOrderPO={openScopedPOModal}
-                        onStockOut={handleStockOutClick}
-                        onAddItem={openAddItemModal}
-                    />
+                    {isLoaded && !isPrivileged ? (
+                        <UnauthorizedEmptyState
+                            title="Inventory Catalog Restricted"
+                            description="You do not have permission to view or manage the warehouse inventory catalog. This section is restricted to Admin, Manager, and Executive personnel only."
+                            currentRole={userRole}
+                        />
+                    ) : (
+                        <InventoryTab
+                            items={inventoryItems}
+                            totalItems={totalInventoryItems}
+                            currentPage={inventoryPage}
+                            totalPages={inventoryTotalPages}
+                            searchTerm={searchTerm}
+                            categoryFilter={categoryFilter}
+                            statusFilter={statusFilter}
+                            selectedIds={selectedIds}
+                            itemsPerPage={itemsPerPage}
+                            isLoading={loading || loadingInventory}
+                            onSearchChange={setSearchTerm}
+                            onCategoryChange={handleCategoryFilterChange}
+                            onStatusChange={handleStatusFilterChange}
+                            onPageChange={handleInventoryPageChange}
+                            onSelectAll={handleSelectAll}
+                            onSelect={handleSelectOne}
+                            onClearFilters={handleClearInventoryFilters}
+                            onEdit={openEditModal}
+                            onDelete={handleDeleteItem}
+                            onStockIn={openStockInModal}
+                            onOrderPO={openScopedPOModal}
+                            onStockOut={handleStockOutClick}
+                            onAddItem={openAddItemModal}
+                        />
+                    )}
                 </div>
                 <div className={activeTab === 'parcels' ? 'block animate-in fade-in duration-150' : 'hidden'} role="tabpanel" aria-hidden={activeTab !== 'parcels'}>
                     <ParcelsTab

@@ -97,11 +97,17 @@ export interface ExecutiveDataPayload {
 const CACHE_KEY = "AIRSHIP_EXECUTIVE_DATA_CACHE_V7";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+interface FetchDataOptions {
+    isManualRefresh?: boolean;
+    isSilent?: boolean;
+}
+
 export function useExecutiveData() {
     const [data, setData] = useState<ExecutiveDataPayload | null>(null);
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isLoadedFromCache, setIsLoadedFromCache] = useState(false);
+    const [isRealtimeActive, setIsRealtimeActive] = useState(false);
     const isMounted = useRef(true);
 
     // hydrate from cache
@@ -123,10 +129,13 @@ export function useExecutiveData() {
     }, []);
 
     // fetch data
-    const fetchData = useCallback(async (isManualRefresh = false) => {
-        if (isManualRefresh) {
+    const fetchData = useCallback(async (options: boolean | FetchDataOptions = false) => {
+        const isManual = typeof options === 'boolean' ? options : !!options?.isManualRefresh;
+        const isSilent = typeof options === 'object' && !!options?.isSilent;
+
+        if (isManual) {
             setIsRefreshing(true);
-        } else if (!isLoadedFromCache) {
+        } else if (!isSilent && !isLoadedFromCache) {
             setLoading(true);
         }
 
@@ -534,6 +543,7 @@ export function useExecutiveData() {
             };
 
             setData(payload);
+            setIsLoadedFromCache(false);
 
             try {
                 sessionStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -544,12 +554,12 @@ export function useExecutiveData() {
                 console.warn("Could not save executive data to sessionStorage:", err);
             }
 
-            if (isManualRefresh) {
+            if (isManual) {
                 toast.success("Executive data revalidated from database!");
             }
         } catch (error) {
             console.error("Error fetching executive data:", error);
-            if (isManualRefresh) {
+            if (isManual) {
                 toast.error("Failed to refresh database metrics");
             }
         } finally {
@@ -560,10 +570,48 @@ export function useExecutiveData() {
         }
     }, [isLoadedFromCache]);
 
+    // Initial fetch on mount
     useEffect(() => {
+        isMounted.current = true;
         fetchData();
         return () => {
             isMounted.current = false;
+        };
+    }, [fetchData]);
+
+    // Realtime Supabase subscriptions for live executive updates
+    useEffect(() => {
+        let debounceTimer: NodeJS.Timeout | null = null;
+
+        const handleTableChange = () => {
+            if (!isMounted.current) return;
+            if (debounceTimer) clearTimeout(debounceTimer);
+            // Coalesce rapid batch changes (e.g. bulk parcel intake)
+            debounceTimer = setTimeout(() => {
+                if (isMounted.current) {
+                    fetchData({ isSilent: true });
+                }
+            }, 600);
+        };
+
+        const channel = supabase
+            .channel(`executive_realtime_${Date.now()}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'parcels' }, handleTableChange)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'receiving_queue' }, handleTableChange)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_items' }, handleTableChange)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_requests' }, handleTableChange)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders' }, handleTableChange)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, handleTableChange)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, handleTableChange)
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED' && isMounted.current) {
+                    setIsRealtimeActive(true);
+                }
+            });
+
+        return () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            supabase.removeChannel(channel);
         };
     }, [fetchData]);
 
@@ -572,6 +620,7 @@ export function useExecutiveData() {
         loading,
         isRefreshing,
         isLoadedFromCache,
+        isRealtimeActive,
         refresh: () => fetchData(true),
     };
 }

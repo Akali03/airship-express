@@ -46,19 +46,19 @@ export default function AppealModal({
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="bg-[#EEF2F6] dark:bg-[#161A23] border border-white/80 dark:border-white/5 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[88vh] sm:max-h-[85vh] flex flex-col shadow-none my-auto overflow-hidden"
+                        className="bg-[#EEF2F6] dark:bg-[#161A23] border border-white/80 dark:border-white/[0.08] rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[88vh] sm:max-h-[85vh] flex flex-col shadow-none my-auto overflow-hidden"
                     >
                         {/* modal header */}
-                        <div className="border-b border-white/60 dark:border-white/5 p-4 sm:p-6 flex justify-between items-center bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
+                        <div className="border-b border-white/60 dark:border-white/[0.06] p-4 sm:p-6 flex justify-between items-center bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
                             <div className="flex items-center gap-3">
                                 <div className="p-2.5 rounded-2xl bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] border border-blue-500/20 text-blue-500 dark:text-blue-400">
                                     {existingAppeal ? <EyeIcon size={22} /> : <MessageSquare size={22} />}
                                 </div>
                                 <div>
-                                    <h3 className="text-sm sm:text-base font-bold text-ink dark:text-paper font-bricolage">
+                                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-bricolage">
                                         {existingAppeal ? 'Review Appeal' : 'Submit Appeal'}
                                     </h3>
-                                    <p className="text-[11px] sm:text-xs text-muted dark:text-paper/70">
+                                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
                                         {existingAppeal ? 'View and manage your appeal' : 'Request to unblock your device'}
                                     </p>
                                 </div>
@@ -70,7 +70,7 @@ export default function AppealModal({
                                     setAppealMessage('');
                                     setIsEditingAppeal(false);
                                 }}
-                                className="text-muted dark:text-paper/60 hover:text-ink dark:hover:text-paper bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_4px_#c4d0df,inset_-2px_-2px_4px_#ffffff] border border-white/60 dark:border-white/5 transition-all p-2 rounded-xl cursor-pointer"
+                                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_4px_#c4d0df,inset_-2px_-2px_4px_#ffffff] dark:active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.7)] border border-white/60 dark:border-white/[0.08] transition-all p-2 rounded-xl cursor-pointer"
                             >
                                 <X size={18} />
                             </button>
@@ -81,9 +81,9 @@ export default function AppealModal({
                             {existingAppeal && !isEditingAppeal ? (
                                 // view existing appeal
                                 <>
-                                    <div className="bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl p-4 border border-white/40 dark:border-white/5">
+                                    <div className="bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl p-4 border border-white/40 dark:border-white/[0.06]">
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-semibold text-muted dark:text-paper/70 uppercase tracking-wider">Status</span>
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</span>
                                             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shadow-[2px_2px_5px_rgba(0,0,0,0.08)]
                                                 ${existingAppeal.status === 'pending'
                                                     ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800/40'
@@ -96,8 +96,8 @@ export default function AppealModal({
                                         </div>
 
                                         <div className="mt-2">
-                                            <span className="text-xs font-semibold text-muted dark:text-paper/70">Your Message:</span>
-                                            <p className="text-sm text-ink dark:text-paper mt-1 whitespace-pre-wrap">{existingAppeal.appeal_message}</p>
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Your Message:</span>
+                                            <p className="text-sm text-slate-900 dark:text-white mt-1 whitespace-pre-wrap">{existingAppeal.appeal_message}</p>
                                         </div>
 
                                         {existingAppeal.response_message && (
@@ -108,11 +108,11 @@ export default function AppealModal({
                                                     </div>
                                                     <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Admin Response</span>
                                                 </div>
-                                                <p className="text-sm text-ink dark:text-paper">{existingAppeal.response_message}</p>
+                                                <p className="text-sm text-slate-900 dark:text-white">{existingAppeal.response_message}</p>
                                             </div>
                                         )}
 
-                                        <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted dark:text-paper/50">
+                                        <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
                                             <span>Submitted: {new Date(existingAppeal.created_at).toLocaleString()}</span>
                                             {existingAppeal.resolved_at && (
                                                 <span>• Resolved: {new Date(existingAppeal.resolved_at).toLocaleString()}</span>
@@ -131,7 +131,7 @@ export default function AppealModal({
                                                     setIsEditingAppeal(true);
                                                     setAppealMessage(existingAppeal.appeal_message);
                                                 }}
-                                                className="px-4 py-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] rounded-xl transition-all flex items-center gap-2 border border-blue-500/20 cursor-pointer"
+                                                className="px-4 py-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] rounded-xl transition-all flex items-center gap-2 border border-blue-500/20 cursor-pointer"
                                             >
                                                 <Pencil size={15} />
                                                 Edit Appeal
@@ -139,7 +139,7 @@ export default function AppealModal({
                                             <button
                                                 type="button"
                                                 onClick={handleDeleteAppeal}
-                                                className="px-4 py-2 text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] rounded-xl transition-all flex items-center gap-2 border border-red-500/20 cursor-pointer"
+                                                className="px-4 py-2 text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] rounded-xl transition-all flex items-center gap-2 border border-red-500/20 cursor-pointer"
                                             >
                                                 <Trash2 size={15} />
                                                 Delete Appeal
@@ -148,8 +148,8 @@ export default function AppealModal({
                                     )}
 
                                     {existingAppeal.status !== 'pending' && (
-                                        <div className="bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl p-4 border border-white/40 dark:border-white/5 text-center">
-                                            <p className="text-xs sm:text-sm text-muted dark:text-paper/70 font-medium">
+                                        <div className="bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl p-4 border border-white/40 dark:border-white/[0.06] text-center">
+                                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium">
                                                 {existingAppeal.status === 'approved' ? (
                                                     <span className="text-emerald-600 dark:text-emerald-400">Your appeal has been approved!</span>
                                                 ) : (
@@ -157,7 +157,7 @@ export default function AppealModal({
                                                 )}
                                             </p>
                                             {existingAppeal.response_message && (
-                                                <p className="text-xs text-muted dark:text-paper/50 mt-1">
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                                     See the admin response above for more details.
                                                 </p>
                                             )}
@@ -168,17 +168,17 @@ export default function AppealModal({
                                 // submit or edit appeal form
                                 <>
                                     <div>
-                                        <label className="block text-xs sm:text-sm font-medium text-ink dark:text-paper mb-1.5">
+                                        <label className="block text-xs sm:text-sm font-medium text-slate-900 dark:text-white mb-1.5">
                                             Appeal Message
                                         </label>
                                         <textarea
                                             value={appealMessage}
                                             onChange={(e) => setAppealMessage(e.target.value)}
                                             placeholder="Explain why you believe this device should be unblocked..."
-                                            className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border border-transparent focus:border-accent/40 rounded-xl outline-none transition resize-none h-28 sm:h-32 text-xs sm:text-sm text-ink dark:text-paper placeholder:text-muted/40 dark:placeholder:text-paper/40"
+                                            className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border border-transparent focus:border-accent/40 rounded-xl outline-none transition resize-none h-28 sm:h-32 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                             maxLength={500}
                                         />
-                                        <p className="text-xs text-muted dark:text-paper/50 mt-1">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                             {appealMessage.length}/500 characters
                                         </p>
                                     </div>
@@ -193,7 +193,7 @@ export default function AppealModal({
                         </div>
 
                         {/* modal footer */}
-                        <div className="border-t border-white/60 dark:border-white/5 p-4 sm:p-5 flex justify-end gap-3 bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
+                        <div className="border-t border-white/60 dark:border-white/[0.06] p-4 sm:p-5 flex justify-end gap-3 bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
                             <button
                                 type="button"
                                 onClick={() => {
@@ -201,7 +201,7 @@ export default function AppealModal({
                                     setAppealMessage('');
                                     setIsEditingAppeal(false);
                                 }}
-                                className="px-4 py-2.5 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] rounded-xl text-xs sm:text-sm font-medium text-muted dark:text-paper/80 hover:text-ink dark:hover:text-paper transition-all cursor-pointer border border-white/60 dark:border-white/5"
+                                className="px-4 py-2.5 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] rounded-xl text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer border border-white/60 dark:border-white/[0.08]"
                             >
                                 {existingAppeal && !isEditingAppeal ? 'Close' : 'Cancel'}
                             </button>

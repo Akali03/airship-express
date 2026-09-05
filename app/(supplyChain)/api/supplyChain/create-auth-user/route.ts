@@ -51,7 +51,38 @@ export async function POST(request: Request) {
         // choose which password to use
         const finalPassword = useHrPassword && hrPassword ? hrPassword : password;
 
-        if (!finalPassword || finalPassword.length < 6) {
+        if (!useHrPassword) {
+            if (!password || password.length < 8) {
+                return NextResponse.json(
+                    { message: 'Password must be at least 8 characters long' },
+                    { status: 400 }
+                );
+            }
+            if (!/[A-Z]/.test(password)) {
+                return NextResponse.json(
+                    { message: 'Password must contain at least 1 uppercase letter' },
+                    { status: 400 }
+                );
+            }
+            if (!/[a-z]/.test(password)) {
+                return NextResponse.json(
+                    { message: 'Password must contain at least 1 lowercase letter' },
+                    { status: 400 }
+                );
+            }
+            if (!/[0-9]/.test(password)) {
+                return NextResponse.json(
+                    { message: 'Password must contain at least 1 number' },
+                    { status: 400 }
+                );
+            }
+            if (!/[^A-Za-z0-9]/.test(password)) {
+                return NextResponse.json(
+                    { message: 'Password must contain at least 1 special character' },
+                    { status: 400 }
+                );
+            }
+        } else if (!finalPassword || finalPassword.length < 6) {
             return NextResponse.json(
                 { message: 'Password must be at least 6 characters' },
                 { status: 400 }

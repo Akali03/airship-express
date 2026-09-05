@@ -121,20 +121,20 @@ export default function EmployeeSelectionModal({
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="bg-[#EEF2F6] dark:bg-[#161A23] border border-white/80 dark:border-white/5 rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[88vh] sm:max-h-[85vh] flex flex-col shadow-none my-auto overflow-hidden"
+                        className="bg-[#EEF2F6] dark:bg-[#161A23] border border-white/80 dark:border-white/[0.08] rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[88vh] sm:max-h-[85vh] flex flex-col shadow-none my-auto overflow-hidden"
                     >
                         {/* modal header */}
-                        <div className="border-b border-white/60 dark:border-white/5 p-4 sm:p-6 flex justify-between items-center bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
+                        <div className="border-b border-white/60 dark:border-white/[0.06] p-4 sm:p-6 flex justify-between items-center bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
                             <div className="flex items-center gap-3 sm:gap-3.5">
                                 <div className="p-2 sm:p-2.5 rounded-2xl bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] border border-accent/20 text-accent shrink-0">
                                     <Building size={20} className="text-accent sm:w-[22px] sm:h-[22px]" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm sm:text-base font-bold text-ink dark:text-paper font-bricolage tracking-tight">
+                                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-bricolage tracking-tight">
                                         Select Employee from HR System
                                     </h3>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <p className="text-[11px] sm:text-xs font-medium text-muted dark:text-paper/70">
+                                        <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400">
                                             HR System Directory
                                         </p>
                                     </div>
@@ -143,7 +143,7 @@ export default function EmployeeSelectionModal({
                             <button
                                 type="button"
                                 onClick={handleCloseModal}
-                                className="text-muted dark:text-paper/60 hover:text-ink dark:hover:text-paper bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_4px_#c4d0df,inset_-2px_-2px_4px_#ffffff] border border-white/60 dark:border-white/5 transition-all p-2 rounded-xl cursor-pointer"
+                                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_4px_#c4d0df,inset_-2px_-2px_4px_#ffffff] dark:active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.7)] border border-white/60 dark:border-white/[0.08] transition-all p-2 rounded-xl cursor-pointer"
                                 title="Close"
                             >
                                 <X size={18} />
@@ -151,17 +151,17 @@ export default function EmployeeSelectionModal({
                         </div>
 
                         {/* user info bar */}
-                        <div className="px-4 sm:px-6 py-2.5 sm:py-3 bg-[#EAF0F6] dark:bg-[#13161F] border-b border-white/60 dark:border-white/5 flex items-center justify-between text-xs shrink-0 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+                        <div className="px-4 sm:px-6 py-2.5 sm:py-3 bg-[#EAF0F6] dark:bg-[#13161F] border-b border-white/60 dark:border-white/[0.06] flex items-center justify-between text-xs shrink-0 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
                             <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                                <span className="text-muted dark:text-paper/70 font-medium">Logged in as:</span>
-                                <span className="font-semibold text-ink dark:text-paper truncate max-w-[140px] sm:max-w-none">
+                                <span className="text-slate-500 dark:text-slate-400 font-medium">Logged in as:</span>
+                                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[140px] sm:max-w-none">
                                     {loggedInUser?.display_name || loggedInUser?.email}
                                 </span>
                                 <span className={`px-2.5 py-0.5 rounded-lg font-semibold text-[10px] sm:text-[11px] tracking-wide shadow-[1px_1px_3px_rgba(0,0,0,0.05)] ${getRoleColor(loggedInUser?.role)}`}>
                                     {loggedInUser?.role}
                                 </span>
                             </div>
-                            <span className="text-muted dark:text-paper/60 hidden sm:inline-block font-medium">
+                            <span className="text-slate-500 dark:text-slate-400 hidden sm:inline-block font-medium">
                                 Select an employee to verify
                             </span>
                         </div>
@@ -173,20 +173,20 @@ export default function EmployeeSelectionModal({
                                     <AlertTriangle className="h-8 w-8 text-rose-500 dark:text-rose-400" />
                                 </div>
 
-                                <h3 className="text-lg font-bold text-ink dark:text-paper font-bricolage">Device Blocked</h3>
-                                <p className="text-xs sm:text-sm text-muted dark:text-paper/70 mt-1.5 max-w-sm mx-auto">
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white font-bricolage">Device Blocked</h3>
+                                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-sm mx-auto">
                                     This device has been restricted and blocked by an administrator.
                                 </p>
 
                                 {/* admin response section */}
                                 {existingAppeal?.response_message && (
-                                    <div className="mt-5 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl p-4 border border-white/40 dark:border-white/5 text-left">
+                                    <div className="mt-5 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl p-4 border border-white/40 dark:border-white/[0.06] text-left">
                                         <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-6 h-6 bg-accent/10 dark:bg-accent/20 border border-accent/20 rounded-lg flex items-center justify-center text-xs font-bold text-accent">
                                                     A
                                                 </div>
-                                                <span className="text-xs font-semibold text-ink dark:text-paper">Admin Response</span>
+                                                <span className="text-xs font-semibold text-slate-900 dark:text-white">Admin Response</span>
                                             </div>
 
                                             {existingAppeal.status === 'approved' && (
@@ -203,12 +203,12 @@ export default function EmployeeSelectionModal({
                                             )}
                                         </div>
 
-                                        <p className="text-xs sm:text-sm text-ink dark:text-paper leading-relaxed">
+                                        <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed">
                                             {existingAppeal.response_message}
                                         </p>
 
                                         {existingAppeal.resolved_at && (
-                                            <div className="mt-3 pt-2.5 border-t border-white/60 dark:border-white/5 text-[10px] font-medium text-muted dark:text-paper/50">
+                                            <div className="mt-3 pt-2.5 border-t border-white/60 dark:border-white/[0.06] text-[10px] font-medium text-slate-500 dark:text-slate-400">
                                                 Resolved: {new Date(existingAppeal.resolved_at).toLocaleString()}
                                             </div>
                                         )}
@@ -224,18 +224,18 @@ export default function EmployeeSelectionModal({
                                                 Status: {existingAppeal.status === 'pending' ? 'Under Admin Review' : existingAppeal.status === 'approved' ? 'Approved' : 'Rejected'}
                                             </span>
                                         </div>
-                                        <p className="text-xs text-ink dark:text-paper leading-relaxed">
+                                        <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed">
                                             {existingAppeal.status === 'pending' ? 'Your appeal has been logged and is waiting for review.' :
                                                 existingAppeal.status === 'approved' ? 'Appeal approved! Device access will be granted shortly.' :
                                                     'Appeal rejected. Please reach out to support for further assistance.'}
                                         </p>
-                                        <div className="mt-2.5 pt-2 border-t border-white/60 dark:border-white/5 text-[10px] font-medium text-muted dark:text-paper/60">
+                                        <div className="mt-2.5 pt-2 border-t border-white/60 dark:border-white/[0.06] text-[10px] font-medium text-slate-500 dark:text-slate-400">
                                             Submitted: {new Date(existingAppeal.created_at).toLocaleString()}
                                         </div>
                                     </div>
                                 )}
 
-                                <p className="text-xs text-muted dark:text-paper/70 mt-4">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">
                                     {existingAppeal ?
                                         (existingAppeal.response_message ? 'An admin has reviewed and replied to your appeal.' :
                                             'Your appeal is currently processing.') :
@@ -262,15 +262,15 @@ export default function EmployeeSelectionModal({
                         ) : !otpSent ? (
                             // employee selection view
                             <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#EEF2F6] dark:bg-[#161A23]">
-                                <div className="p-3.5 sm:p-4 border-b border-white/60 dark:border-white/5 bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
+                                <div className="p-3.5 sm:p-4 border-b border-white/60 dark:border-white/[0.06] bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
                                     <div className="relative">
-                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-paper/50 shrink-0 pointer-events-none" size={18} />
+                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 shrink-0 pointer-events-none" size={18} />
                                         <input
                                             type="text"
                                             placeholder="Search employee by name, ID, or email..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border border-transparent focus:border-accent/40 rounded-xl text-ink dark:text-paper outline-none transition-all placeholder:text-muted/50 dark:placeholder:text-paper/40"
+                                            className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border border-transparent focus:border-accent/40 rounded-xl text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                         />
                                     </div>
                                 </div>
@@ -279,15 +279,15 @@ export default function EmployeeSelectionModal({
                                     {isLoadingEmployees ? (
                                         <div className="text-center py-10 sm:py-14">
                                             <Loader2 className="animate-spin text-accent mx-auto" size={32} />
-                                            <p className="mt-2.5 text-muted dark:text-paper/70 text-xs sm:text-sm font-medium">Fetching directory from HR system...</p>
+                                            <p className="mt-2.5 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium">Fetching directory from HR system...</p>
                                         </div>
                                     ) : filteredEmployees.length === 0 ? (
-                                        <div className="text-center py-10 sm:py-14 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl border border-white/40 dark:border-white/5">
-                                            <div className="w-12 h-12 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] rounded-full flex items-center justify-center mx-auto mb-3 text-muted dark:text-paper/60">
+                                        <div className="text-center py-10 sm:py-14 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl border border-white/40 dark:border-white/[0.06]">
+                                            <div className="w-12 h-12 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400 dark:text-slate-500">
                                                 <User size={24} />
                                             </div>
-                                            <p className="text-xs sm:text-sm font-medium text-ink dark:text-paper">No matching employees found</p>
-                                            <p className="text-[11px] text-muted dark:text-paper/60 mt-1">Try adjusting your search terms</p>
+                                            <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">No matching employees found</p>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Try adjusting your search terms</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-3">
@@ -305,16 +305,16 @@ export default function EmployeeSelectionModal({
                                                             ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-[0.99]'}
                                                             ${isSelected
                                                                 ? 'bg-[#E2ECF6] dark:bg-[#192233] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border-accent/60'
-                                                                : 'bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] border-white/70 dark:border-white/5 hover:border-accent/30'
+                                                                : 'bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] border-white/70 dark:border-white/[0.06] hover:border-accent/30'
                                                             }`}
                                                     >
                                                         <div className="flex justify-between items-start gap-3">
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                                                    <span className="font-semibold text-xs sm:text-sm text-ink dark:text-paper truncate">
+                                                                    <span className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
                                                                         {emp.display_name}
                                                                     </span>
-                                                                    <span className="text-[10px] font-mono text-muted dark:text-paper/70 bg-[#EAF0F6] dark:bg-[#13161F] px-1.5 py-0.5 rounded-md border border-white/40 dark:border-white/5 shrink-0">
+                                                                    <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-[#EAF0F6] dark:bg-[#13161F] px-1.5 py-0.5 rounded-md border border-white/40 dark:border-white/[0.06] shrink-0">
                                                                         {emp.employee_id}
                                                                     </span>
 
@@ -332,17 +332,17 @@ export default function EmployeeSelectionModal({
                                                                     )}
                                                                 </div>
 
-                                                                <div className="text-xs text-muted dark:text-paper/70 truncate mt-1">{emp.email}</div>
+                                                                <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1">{emp.email}</div>
 
                                                                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2">
                                                                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md shadow-[1px_1px_3px_rgba(0,0,0,0.05)] shrink-0 ${getRoleColor(emp.role)}`}>
                                                                         {emp.role}
                                                                     </span>
-                                                                    <span className="text-[10px] text-muted dark:text-paper/70 bg-[#EAF0F6] dark:bg-[#13161F] px-2 py-0.5 rounded-md truncate max-w-[120px] sm:max-w-none border border-white/40 dark:border-white/5">
+                                                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 bg-[#EAF0F6] dark:bg-[#13161F] px-2 py-0.5 rounded-md truncate max-w-[120px] sm:max-w-none border border-white/40 dark:border-white/[0.06]">
                                                                         {emp.department}
                                                                     </span>
-                                                                    <span className="text-[10px] text-muted/40 dark:text-paper/30">•</span>
-                                                                    <span className="text-[10px] text-muted dark:text-paper/70 truncate max-w-[120px] sm:max-w-none">
+                                                                    <span className="text-[10px] text-slate-400 dark:text-slate-600">•</span>
+                                                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[120px] sm:max-w-none">
                                                                         {emp.position}
                                                                     </span>
                                                                 </div>
@@ -359,7 +359,7 @@ export default function EmployeeSelectionModal({
                                             })}
 
                                             {remainingCount > 0 && (
-                                                <div className="text-center py-2.5 text-xs text-muted dark:text-paper/60 border-t border-dashed border-white/60 dark:border-white/10 mt-3 font-medium">
+                                                <div className="text-center py-2.5 text-xs text-slate-500 dark:text-slate-400 border-t border-dashed border-white/60 dark:border-white/10 mt-3 font-medium">
                                                     + {remainingCount} more {remainingCount === 1 ? 'employee' : 'employees'} available
                                                 </div>
                                             )}
@@ -368,18 +368,18 @@ export default function EmployeeSelectionModal({
                                 </div>
 
                                 {/* Bottom Selection Bar */}
-                                <div className="border-t border-white/60 dark:border-white/5 p-4 sm:p-5 bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-                                    <div className="text-xs text-muted dark:text-paper/70 min-w-0">
+                                <div className="border-t border-white/60 dark:border-white/[0.06] p-4 sm:p-5 bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 min-w-0">
                                         {selectedEmployee ? (
                                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                                 <CheckCircle className="text-emerald-500 dark:text-emerald-400 shrink-0" size={16} />
-                                                <span className="font-medium text-muted dark:text-paper/60 text-xs">Selected:</span>
-                                                <span className="font-bold text-ink dark:text-paper truncate max-w-[120px] sm:max-w-[180px] text-xs">
+                                                <span className="font-medium text-slate-500 dark:text-slate-400 text-xs">Selected:</span>
+                                                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[120px] sm:max-w-[180px] text-xs">
                                                     {selectedEmployee.display_name}
                                                 </span>
 
                                                 {isCheckingRemembered ? (
-                                                    <div className="flex items-center gap-1 text-muted dark:text-paper/60 text-xs">
+                                                    <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-xs">
                                                         <Loader2 className="animate-spin text-accent" size={13} />
                                                         <span>Checking...</span>
                                                     </div>
@@ -392,13 +392,13 @@ export default function EmployeeSelectionModal({
                                                         Remembered
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[10px] bg-[#EAF0F6] dark:bg-[#13161F] text-muted dark:text-paper/70 border border-white/40 dark:border-white/5 px-2 py-0.5 rounded-full font-medium">
+                                                    <span className="text-[10px] bg-[#EAF0F6] dark:bg-[#13161F] text-slate-500 dark:text-slate-400 border border-white/40 dark:border-white/[0.06] px-2 py-0.5 rounded-full font-medium">
                                                         Not remembered
                                                     </span>
                                                 )}
                                             </div>
                                         ) : (
-                                            <span className="text-xs text-muted dark:text-paper/60 font-medium">Select an employee from the HR list</span>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Select an employee from the HR list</span>
                                         )}
                                     </div>
 
@@ -406,7 +406,7 @@ export default function EmployeeSelectionModal({
                                         <button
                                             type="button"
                                             onClick={handleCloseModal}
-                                            className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] rounded-xl text-xs sm:text-sm font-medium text-muted dark:text-paper/80 hover:text-ink dark:hover:text-paper transition-all cursor-pointer border border-white/60 dark:border-white/5"
+                                            className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] rounded-xl text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer border border-white/60 dark:border-white/[0.08]"
                                         >
                                             Cancel
                                         </button>
@@ -415,7 +415,7 @@ export default function EmployeeSelectionModal({
                                             <button
                                                 type="button"
                                                 disabled
-                                                className="flex-1 sm:flex-initial px-5 py-2.5 bg-slate-200 dark:bg-paper/10 text-muted dark:text-paper/50 text-xs sm:text-sm font-semibold rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
+                                                className="flex-1 sm:flex-initial px-5 py-2.5 bg-slate-200 dark:bg-white/10 text-slate-400 dark:text-slate-500 text-xs sm:text-sm font-semibold rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
                                             >
                                                 <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
                                                 <span>Logged In</span>
@@ -455,7 +455,7 @@ export default function EmployeeSelectionModal({
                             </div>
                         ) : (
                             // otp verification view
-                            <div className="p-5 sm:p-8 bg-[#EEF2F6] dark:bg-[#161A23] text-ink dark:text-paper transition-colors flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+                            <div className="p-5 sm:p-8 bg-[#EEF2F6] dark:bg-[#161A23] text-slate-900 dark:text-white transition-colors flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col justify-between">
                                 <div>
                                     <div className="text-center mb-6">
                                         <div className="w-13 h-13 sm:w-15 sm:h-15 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[5px_5px_10px_#d1dbe7,-5px_-5px_10px_#ffffff] dark:shadow-[5px_5px_12px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] border border-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
@@ -465,20 +465,20 @@ export default function EmployeeSelectionModal({
                                                 <Mail className="text-accent" size={26} />
                                             )}
                                         </div>
-                                        <h4 className="text-lg sm:text-xl font-bold text-ink dark:text-paper font-bricolage tracking-tight">
+                                        <h4 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white font-bricolage tracking-tight">
                                             Verify Security Code
                                         </h4>
-                                        <p className="text-xs text-muted dark:text-paper/70 mt-1 leading-relaxed">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                                             Enter the 6-digit verification code sent to
                                         </p>
                                         <p className="text-xs font-bold text-accent mt-0.5 tracking-tight break-all">
                                             {selectedEmployee?.email}
                                         </p>
-                                        <div className="flex items-center justify-center gap-1.5 mt-1.5 text-xs text-muted dark:text-paper/70">
+                                        <div className="flex items-center justify-center gap-1.5 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                                             <span>HR Employee:</span>
-                                            <span className="font-semibold text-ink dark:text-paper">{selectedEmployee?.display_name}</span>
+                                            <span className="font-semibold text-slate-900 dark:text-white">{selectedEmployee?.display_name}</span>
                                             {selectedEmployee?.employee_id && (
-                                                <span className="font-mono text-muted dark:text-paper/60">({selectedEmployee.employee_id})</span>
+                                                <span className="font-mono text-slate-400 dark:text-slate-500">({selectedEmployee.employee_id})</span>
                                             )}
                                         </div>
                                     </div>
@@ -513,8 +513,8 @@ export default function EmployeeSelectionModal({
                                                     ${otpError
                                                         ? 'bg-rose-50/50 dark:bg-rose-950/30 border-2 border-rose-400 dark:border-rose-500 text-rose-600 dark:text-rose-400'
                                                         : digit
-                                                            ? 'bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] border-2 border-accent text-ink dark:text-paper'
-                                                            : 'bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/5 text-ink dark:text-paper hover:border-accent/40'
+                                                            ? 'bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] border-2 border-accent text-slate-900 dark:text-white'
+                                                            : 'bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.06] text-slate-900 dark:text-white hover:border-accent/40'
                                                     }
                                                     focus:border-accent focus:ring-2 focus:ring-accent/30
                                                     disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -525,31 +525,31 @@ export default function EmployeeSelectionModal({
                                     </div>
 
                                     {/* Remember Me Card */}
-                                    <div className="flex items-center justify-between mb-4 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] p-3.5 rounded-2xl border border-white/40 dark:border-white/5">
-                                        <label className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-ink dark:text-paper cursor-pointer select-none">
+                                    <div className="flex items-center justify-between mb-4 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] p-3.5 rounded-2xl border border-white/40 dark:border-white/[0.06]">
+                                        <label className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-200 cursor-pointer select-none">
                                             <input
                                                 type="checkbox"
                                                 checked={rememberMe}
                                                 onChange={(e) => setRememberMe(e.target.checked)}
-                                                className="w-4 h-4 rounded border-line dark:border-paper/20 text-accent focus:ring-accent cursor-pointer"
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent cursor-pointer"
                                                 disabled={isVerifying}
                                             />
                                             <span>Remember me on this device</span>
                                         </label>
-                                        <span className="text-[10px] sm:text-xs font-bold text-muted dark:text-paper/80 bg-[#EEF2F6] dark:bg-[#1A1F2B] px-2.5 py-0.5 rounded-lg border border-white/60 dark:border-white/5 shadow-[2px_2px_4px_rgba(0,0,0,0.05)] shrink-0">
+                                        <span className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 bg-[#EEF2F6] dark:bg-[#1A1F2B] px-2.5 py-0.5 rounded-lg border border-white/60 dark:border-white/[0.08] shadow-[2px_2px_4px_rgba(0,0,0,0.05)] shrink-0">
                                             {rememberMe ? '15 days' : '8 hours'}
                                         </span>
                                     </div>
 
                                     {countdown > 0 && (
-                                        <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-muted dark:text-paper/60 mb-3">
-                                            <Clock size={14} className="text-muted dark:text-paper/60" />
-                                            <span>Resend available in <strong className="text-ink dark:text-paper font-bold">{countdown}s</strong></span>
+                                        <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 mb-3">
+                                            <Clock size={14} className="text-slate-500 dark:text-slate-400" />
+                                            <span>Resend available in <strong className="text-slate-900 dark:text-white font-bold">{countdown}s</strong></span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="mt-4 pt-4 border-t border-white/60 dark:border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                                <div className="mt-4 pt-4 border-t border-white/60 dark:border-white/[0.06] flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -559,7 +559,7 @@ export default function EmployeeSelectionModal({
                                             setOtpSuccess(null);
                                             setIsRemembered(false);
                                         }}
-                                        className="text-xs sm:text-sm font-semibold text-muted dark:text-paper/80 hover:text-ink dark:hover:text-paper transition-colors text-center py-2 sm:py-0 cursor-pointer"
+                                        className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors text-center py-2 sm:py-0 cursor-pointer"
                                         disabled={isVerifying}
                                     >
                                         ← Back
@@ -570,7 +570,7 @@ export default function EmployeeSelectionModal({
                                             type="button"
                                             onClick={resendOTP}
                                             disabled={countdown > 0 || isResending || isVerifying || isDeviceBlocked}
-                                            className="w-full sm:w-auto px-4 py-2.5 text-xs sm:text-sm font-semibold text-muted dark:text-paper/80 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] border border-white/60 dark:border-white/5 rounded-xl hover:text-ink dark:hover:text-paper transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                                            className="w-full sm:w-auto px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] border border-white/60 dark:border-white/[0.08] rounded-xl hover:text-slate-900 dark:hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                                         >
                                             {isResending ? (
                                                 <>

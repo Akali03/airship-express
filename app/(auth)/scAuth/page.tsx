@@ -741,8 +741,24 @@ export default function SupplyChainLoginPage() {
     // create account
     async function handleCreateAccount() {
         if (!useHrPassword) {
-            if (newPassword.length < 6) {
-                toast.error('Password must be at least 6 characters');
+            if (newPassword.length < 8) {
+                toast.error('Password must be at least 8 characters long');
+                return;
+            }
+            if (!/[A-Z]/.test(newPassword)) {
+                toast.error('Password must contain at least 1 uppercase letter (A-Z)');
+                return;
+            }
+            if (!/[a-z]/.test(newPassword)) {
+                toast.error('Password must contain at least 1 lowercase letter (a-z)');
+                return;
+            }
+            if (!/[0-9]/.test(newPassword)) {
+                toast.error('Password must contain at least 1 number (0-9)');
+                return;
+            }
+            if (!/[^A-Za-z0-9]/.test(newPassword)) {
+                toast.error('Password must contain at least 1 special character (e.g. !@#$%^&*)');
                 return;
             }
             if (newPassword !== confirmPassword) {
@@ -1056,12 +1072,12 @@ export default function SupplyChainLoginPage() {
                                 </button>
                             </form>
 
-                            <div className="mt-6 p-4 bg-white dark:bg-paper/5 rounded-lg border border-line dark:border-paper/10">
-                                <p className="text-center text-[12px] sm:text-[12.5px] text-muted dark:text-paper/70">
+                            <div className="mt-6 p-4 rounded-2xl bg-[#EAF0F6] dark:bg-[#13161F] border border-white/60 dark:border-white/[0.06] shadow-[inset_2px_2px_5px_#cbd6e4,inset_-2px_-2px_5px_#ffffff] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.6),inset_-1px_-1px_4px_rgba(255,255,255,0.02)] transition-all">
+                                <p className="text-center text-xs sm:text-[12.5px] text-slate-600 dark:text-slate-300 font-medium">
                                     Trouble accessing your account? Contact HR at{' '}
                                     <a
                                         href="mailto:supplychainandinventory@gmail.com"
-                                        className="font-medium text-accent hover:text-accent-dark transition-colors"
+                                        className="font-bold text-accent dark:text-pink-400 hover:text-accent-dark dark:hover:text-pink-300 transition-colors underline decoration-pink-500/30 underline-offset-2"
                                     >
                                         supplychainandinventory@gmail.com
                                     </a>

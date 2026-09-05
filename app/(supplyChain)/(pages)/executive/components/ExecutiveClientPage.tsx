@@ -10,7 +10,7 @@ import ExecutivePdfExportModal from './modals/ExecutivePdfExportModal';
 import { useState } from 'react';
 
 export default function ExecutiveClientPage() {
-    const { data, loading, isRefreshing, isLoadedFromCache, refresh } = useExecutiveData();
+    const { data, loading, isRefreshing, isLoadedFromCache, isRealtimeActive, refresh } = useExecutiveData();
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
     const pageKpis = data?.pageKpis || {
@@ -39,14 +39,22 @@ export default function ExecutiveClientPage() {
                             {/* SWR Cache / Live Status Badge */}
                             <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                 <span className={`w-2 h-2 rounded-full ${
-                                    isRefreshing ? 'bg-amber-500 animate-ping' : isLoadedFromCache ? 'bg-emerald-500' : 'bg-blue-500'
+                                    isRefreshing
+                                        ? 'bg-amber-500 animate-ping'
+                                        : isRealtimeActive
+                                            ? 'bg-emerald-500 animate-pulse'
+                                            : isLoadedFromCache
+                                                ? 'bg-blue-500'
+                                                : 'bg-emerald-500'
                                 }`} />
                                 <span>
                                     {isRefreshing
                                         ? "Syncing Live..."
-                                        : isLoadedFromCache
-                                            ? "Cached"
-                                            : loading ? "Loading" : "Live"}
+                                        : isRealtimeActive
+                                            ? "Realtime Live"
+                                            : isLoadedFromCache
+                                                ? "Cached"
+                                                : loading ? "Loading" : "Live"}
                                 </span>
                                 {data?.lastUpdated && (
                                     <span className="text-[10px] text-slate-400 font-mono">

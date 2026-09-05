@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback, ReactNode, Children, cloneElement, isValidElement } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { NavBtn } from '@/app/(supplyChain)/components/global/Buttons';
+import { useUserRole } from "@/app/(supplyChain)/components/global/UnauthorizedEmptyState";
+
 interface TabsWrapperProps {
     children: ReactNode;
 }
@@ -21,11 +23,14 @@ export default function TabsWrapper({ children }: TabsWrapperProps) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const { isPrivileged, isLoaded } = useUserRole();
     const [activeTab, setActiveTab] = useState<string>('dashboard');
+
     const getTabFromUrl = useCallback(() => {
         const tab = searchParams.get('tab');
-        return tab || 'dashboard';
-    }, [searchParams]);
+        if (tab) return tab;
+        return isPrivileged ? 'dashboard' : 'incoming';
+    }, [searchParams, isPrivileged]);
     const handleTabChange = useCallback((tabId: string) => {
         if (tabId === activeTab)
             return;
@@ -80,7 +85,14 @@ export default function TabsWrapper({ children }: TabsWrapperProps) {
     }, [getTabFromUrl]);
     return (<>
             <div id="tabs" className="sticky top-0 z-20 flex gap-2 p-2 overflow-x-auto no-scrollbar scroll-smooth bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 backdrop-blur-md shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] border-b border-slate-200/60 dark:border-slate-800/80 transition-colors">
-                <NavBtn link="dashboard" data-tab="dashboard" isActive={activeTab === "dashboard"} icon="fas fa-chart-pie" label="Dashboard" onClick={() => handleTabChange("dashboard")}/>
+                <NavBtn
+                    link="dashboard"
+                    data-tab="dashboard"
+                    isActive={activeTab === "dashboard"}
+                    icon={isLoaded && !isPrivileged ? "fas fa-lock" : "fas fa-chart-pie"}
+                    label={isLoaded && !isPrivileged ? "Dashboard (Restricted)" : "Dashboard"}
+                    onClick={() => handleTabChange("dashboard")}
+                />
                 <NavBtn link="incoming" data-tab="incoming" isActive={activeTab === "incoming"} icon="fas fa-arrow-down" label="Inbound Receiving" onClick={() => handleTabChange("incoming")}/>
                 <NavBtn link="sorting" data-tab="sorting" isActive={activeTab === "sorting"} icon="fas fa-sort" label="Courier Sorting" onClick={() => handleTabChange("sorting")}/>
                 <NavBtn link="outgoing" data-tab="outgoing" isActive={activeTab === "outgoing"} icon="fas fa-arrow-up" label="Outgoing Pickup" onClick={() => handleTabChange("outgoing")}/>

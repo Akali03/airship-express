@@ -11,6 +11,7 @@ import { CardsSkeleton, WarehouseChartSkeleton, AiQuestionsSkeleton, ModelForeca
 import AiQuestions from "@/app/(supplyChain)/components/global/AiQuestions";
 import { useAI } from "@/app/(supplyChain)/ai/services/AIContext";
 import Portal from "@/app/(supplyChain)/components/client/Portal";
+import UnauthorizedEmptyState, { useUserRole } from "@/app/(supplyChain)/components/global/UnauthorizedEmptyState";
 
 interface DashboardStats {
     scannedParcels: number;
@@ -65,6 +66,7 @@ interface ChartDataset {
 
 export default function DashboardPanel() {
     const { openChat } = useAI();
+    const { role: userRole, isPrivileged, isLoaded } = useUserRole();
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstanceRef = useRef<any>(null);
     const [stats, setStats] = useState<DashboardStats>({
@@ -143,6 +145,10 @@ export default function DashboardPanel() {
     }, [selectedForecast]);
 
     const fetchDashboardData = useCallback(async () => {
+        if (isLoaded && !isPrivileged) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
 
@@ -699,6 +705,18 @@ export default function DashboardPanel() {
             }
         };
     }, [fetchDashboardData]);
+
+    if (isLoaded && !isPrivileged) {
+        return (
+            <div data-panel="dashboard" className="p-4 sm:p-6 mx-auto">
+                <UnauthorizedEmptyState
+                    title="Warehousing Dashboard Restricted"
+                    description="You do not have permission to view the warehousing analytics dashboard. This section is restricted to Admin, Manager, and Executive personnel only."
+                    currentRole={userRole}
+                />
+            </div>
+        );
+    }
 
     return (
         <div data-panel="dashboard" className="p-4 sm:p-8 space-y-6 sm:space-y-8 mx-auto ">{/* header */}
