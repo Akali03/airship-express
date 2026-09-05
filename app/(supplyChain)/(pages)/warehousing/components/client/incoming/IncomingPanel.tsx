@@ -248,19 +248,68 @@ export default function IncomingPanel() {
                             </span>)}
                     </div>
 
-                    {loading ? (<TableSkeleton rows={8}/>) : hasNoData ? (<div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 text-center dark:bg-slate-900">
-                            <i className="fas fa-box-open text-4xl text-slate-300 mb-4"></i>
-                            <h3 className="text-lg font-semibold text-slate-700">No pending parcels</h3>
-                            <p className="text-sm text-slate-500 mt-1">
-                                There are currently no parcels in the receiving queue.
-                                <br />
-                                Scan a barcode or add manually to get started.
-                            </p>
-                            <button onClick={() => fetchParcelsData(true)} className="mt-4 px-4 py-2 text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors">
-                                <i className="fas fa-sync-alt mr-2"></i>
-                                Refresh
-                            </button>
-                        </div>) : (<IncomingTable initialParcels={parcels} onDelete={handleDelete} onBatchDelete={handleBatchDelete} page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={handlePageChange} onRefresh={() => fetchParcelsData(true)} isLoading={isRefreshing}/>)}
+                    {loading ? (<TableSkeleton rows={8}/>) : hasNoData ? (
+                        <div className="relative overflow-hidden rounded-3xl border border-white/80 dark:border-[#2c2d3c] bg-[#f0f3f8] dark:bg-[#191a24] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] p-8 sm:p-12 text-center">
+                            <div className="relative z-10 max-w-md mx-auto space-y-4">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-600 dark:text-pink-400 border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] mx-auto animate-in zoom-in duration-300">
+                                    <i className="fas fa-inbox text-2xl"></i>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                        {filter || search ? 'No Matching Parcels Found' : 'Receiving Queue is Empty'}
+                                    </h3>
+                                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                        {filter || search ? (
+                                            <>No parcels match your current filter criteria. Try clearing your filters or search term to see all queue items.</>
+                                        ) : (
+                                            <>All incoming parcels have been processed into inventory. Scan a new barcode or add an entry manually to begin receiving.</>
+                                        )}
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                                    {filter || search ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFilter("");
+                                                setSearch("");
+                                                setPage(1);
+                                            }}
+                                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-800 dark:text-slate-200 border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] text-xs font-bold transition-all cursor-pointer active:scale-95"
+                                        >
+                                            <i className="fas fa-undo-alt text-[11px]"></i>
+                                            <span>Clear Filters</span>
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (typeof window !== 'undefined' && window.openManualEntryModal) {
+                                                        window.openManualEntryModal();
+                                                    }
+                                                }}
+                                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border border-pink-400/80 text-xs font-bold shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] transition-all cursor-pointer active:scale-95"
+                                            >
+                                                <i className="fas fa-plus text-[11px]"></i>
+                                                <span>Add Manual Entry</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => fetchParcelsData(true)}
+                                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] border border-white/70 dark:border-[#2a2b38] text-slate-700 dark:text-slate-200 text-xs font-bold shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95"
+                                            >
+                                                <i className="fas fa-sync-alt text-[11px]"></i>
+                                                <span>Refresh List</span>
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (<IncomingTable initialParcels={parcels} onDelete={handleDelete} onBatchDelete={handleBatchDelete} page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={handlePageChange} onRefresh={() => fetchParcelsData(true)} isLoading={isRefreshing}/>)}
                 </section>
             </div>
         </>);

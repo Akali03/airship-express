@@ -1,6 +1,6 @@
 "use server";
 
-import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
+import { ftmSupabase } from "@/app/(supplyChain)/lib/services/client/ftmSupabase";
 
 export interface Courier {
     id: number;
@@ -18,7 +18,7 @@ export interface Courier {
 
 export async function getActiveCouriers(): Promise<Courier[]> {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await ftmSupabase
             .from('couriers')
             .select('*')
             .eq('is_active', true)

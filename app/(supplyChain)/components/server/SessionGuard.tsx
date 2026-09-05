@@ -3,6 +3,8 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import Loader from '../../components/global/Loader';
+import Custom404 from '../global/Custom404';
+import { WifiOff, RefreshCw } from 'lucide-react';
 interface SessionGuardProps {
     children: React.ReactNode;
     requiredRole?: string[];
@@ -181,56 +183,12 @@ const deactivateSessionInDB = async (sessionToken: string): Promise<boolean> => 
     }
 };
 function NotFoundPage() {
-    const router = useRouter();
-    const [countdown, setCountdown] = useState(5);
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCountdown((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    router.back();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearTimeout(timer);
-    }, [router]);
-    return (<div className="min-h-screen flex items-center justify-center px-4">
-            <div className="text-center max-w-md w-full ">
-                <div className="mb-6 inline-flex items-center justify-center p-4 bg-pink-50/80 rounded-2xl ring-8 ring-pink-50/50">
-                    <svg className="w-12 h-12 text-pink-500" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                </div>
-                <div>
-                    <span className="inline-block px-3 py-1 bg-pink-50 text-pink-600 font-mono text-xs font-bold rounded-full mb-3 ring-1 ring-pink-500/10">
-                        ERROR 404
-                    </span>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-                        Page not found
-                    </h1>
-                    <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                        The page you&apos;re looking for doesn&apos;t exist or has been moved to another location.
-                    </p>
-                </div>
-                <div className="inline-flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-50 px-3.5 py-1.5 rounded-full border border-slate-100 mb-8">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
-                    </span>
-                    <span>Redirecting back in <strong className="font-bold text-slate-800">{countdown}s</strong></span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                    <button onClick={() => router.back()} className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 active:scale-[0.98] text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-pink-500/25 cursor-pointer">
-                        Go Back
-                    </button>
-                </div>
-            </div>
-        </div>);
+    return <Custom404 isFullScreen={true} />;
 }
 function OfflinePage() {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [isRetrying, setIsRetrying] = useState(false);
+
     useEffect(() => {
         const handleOnline = () => {
             setIsOnline(true);
@@ -246,39 +204,74 @@ function OfflinePage() {
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
-    return (<div className="min-h-screen flex items-center justify-center px-4 bg-slate-50">
-            <div className="text-center max-w-md w-full">
-                <div className="mb-6 inline-flex items-center justify-center p-4 bg-amber-50/80 rounded-2xl ring-8 ring-amber-50/50">
-                    <svg className="w-12 h-12 text-amber-500" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856a7.5 7.5 0 0113.788 0M2.838 7.897a9.75 9.75 0 0118.324 0"/>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.75v.008"/>
-                    </svg>
+
+    const handleRetry = async () => {
+        setIsRetrying(true);
+        try {
+            if (navigator.onLine) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000);
+                await fetch('https://www.google.com/favicon.ico', {
+                    method: 'HEAD',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+                toast.success('Connection restored! Reloading...');
+                window.location.reload();
+            } else {
+                toast.error('Still offline. Please check your connection.');
+            }
+        } catch {
+            toast.error('Network unreachable. Please check your connection.');
+        } finally {
+            setIsRetrying(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen flex items-center justify-center px-4 bg-[#f0f3f8] dark:bg-[#14151c] transition-colors">
+            <div className="max-w-md w-full p-8 sm:p-10 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-white/[0.08] shadow-[12px_12px_32px_rgba(166,175,195,0.45),-12px_-12px_32px_rgba(255,255,255,0.95),inset_0_1px_2px_rgba(255,255,255,0.9)] dark:shadow-[14px_14px_38px_rgba(0,0,0,0.85),-6px_-6px_22px_rgba(255,255,255,0.03),inset_0_1px_1.5px_rgba(255,255,255,0.06)] text-center relative overflow-hidden">
+                {/* Neumorphic Inset Well for Icon */}
+                <div className="relative w-20 h-20 mx-auto mb-6 rounded-3xl flex items-center justify-center bg-[#ebf0f7] dark:bg-[#14151c] border border-rose-200/80 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 shadow-[inset_3px_3px_7px_rgba(166,175,195,0.4),inset_-3px_-3px_7px_rgba(255,255,255,0.95)] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7),inset_-1px_-1px_4px_rgba(255,255,255,0.04)]">
+                    <div className="absolute -inset-1 rounded-3xl blur-xs bg-rose-500/20 dark:bg-rose-500/10 animate-pulse pointer-events-none" />
+                    <WifiOff className="w-9 h-9 stroke-[2.2] relative z-10" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">You&apos;re Offline</h2>
-                <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                    Please check your internet connection. Your session will resume automatically when you&apos;re back online.
+
+                <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mb-2">
+                    You&apos;re Offline
+                </h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-7 leading-relaxed font-medium">
+                    Please check your internet connection. Your session will resume automatically once connection is restored.
                 </p>
-                <div className="bg-slate-100 rounded-2xl p-4 border border-slate-200 mb-6">
-                    <div className="flex items-center justify-between text-sm font-medium text-slate-600">
-                        <span>Status</span>
-                        <span className="inline-flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                            <span className="text-red-600 font-bold">Offline</span>
+
+                {/* Sunken Neumorphic Status Card */}
+                <div className="bg-[#ebf0f7] dark:bg-[#14151c] rounded-2xl p-4 border border-white/60 dark:border-white/[0.04] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_3px_rgba(255,255,255,0.04)] mb-7">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        <span className="uppercase tracking-wider text-[11px] font-bold">Network Status</span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#e4ebf5] dark:bg-[#101117] text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/30 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3),inset_-1px_-1px_2px_rgba(255,255,255,0.9)] dark:shadow-[inset_1px_1px_2px_rgba(0,0,0,0.5)]">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600 dark:bg-rose-400"></span>
+                            </span>
+                            Disconnected
                         </span>
                     </div>
                 </div>
-                <button onClick={() => {
-            if (navigator.onLine) {
-                window.location.reload();
-            }
-            else {
-                toast.warning('Still offline. Please check your connection.');
-            }
-        }} className="w-full py-3 px-5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-semibold transition-all shadow-md shadow-amber-200">
-                    Try Again
+
+                {/* Neumorphic Tactile Retry Button */}
+                <button
+                    onClick={handleRetry}
+                    disabled={isRetrying}
+                    className="w-full py-3.5 px-6 rounded-2xl text-sm font-bold text-rose-600 dark:text-rose-400 bg-[#ebf0f7] dark:bg-[#181926] border border-white/90 dark:border-white/[0.08] shadow-[4px_4px_10px_rgba(166,175,195,0.4),-4px_-4px_10px_rgba(255,255,255,0.95),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.65),-2px_-2px_6px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.85)] dark:hover:shadow-[2px_2px_8px_rgba(0,0,0,0.6)] active:shadow-[inset_2px_2px_5px_rgba(166,175,195,0.45),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:active:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.8)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    <RefreshCw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
+                    <span>{isRetrying ? 'Checking Network...' : 'Retry Connection'}</span>
                 </button>
             </div>
-        </div>);
+        </div>
+    );
 }
 const checkDeviceBlocked = async (userId: string, userAgent: string, sessionToken: string): Promise<{
     blocked: boolean;

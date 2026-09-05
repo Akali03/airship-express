@@ -66,16 +66,17 @@ const ACTION_CONFIG: Record<
 };
 
 const VARIANT_STYLES: Record<"pink" | "neutral", string> = {
-  pink: `bg-[#ffe6f0] hover:bg-[#ffd9e8] text-pink-700 border-pink-300 hover:border-pink-400
-    shadow-[0_2px_8px_rgba(244,63,94,0.18),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff]
-    dark:bg-[#341427] dark:hover:bg-[#421932] dark:text-pink-200 dark:border-[#67224c] dark:hover:border-[#832b61]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-pink-500/40`,
-  neutral: `bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300
-    shadow-[0_2px_8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff]
-    dark:bg-[#1c1d25] dark:hover:bg-[#252630] dark:text-slate-100 dark:border-[#353746] dark:hover:border-[#45475a]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-slate-400/40`,
+  pink: `bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white border-pink-400/80
+    shadow-[2px_2px_5px_rgba(236,72,153,0.35),-2px_-2px_5px_rgba(255,255,255,0.8),inset_0_1px_1px_rgba(255,255,255,0.4)]
+    dark:bg-pink-600 dark:hover:bg-pink-700 dark:text-white dark:border-pink-500/80
+    dark:shadow-[2px_2px_6px_rgba(0,0,0,0.55),-1px_-1px_3px_rgba(255,255,255,0.05),inset_0_1px_1px_rgba(255,255,255,0.2)]
+    focus-visible:ring-pink-500/40 active:scale-95`,
+  neutral: `bg-[#f0f3f8] hover:bg-[#e6ebf4] text-slate-700 hover:text-pink-600 border-white/80
+    shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)]
+    dark:bg-[#1d1e28] dark:hover:bg-[#252633] dark:text-slate-200 dark:hover:text-pink-400 dark:border-[#2a2b38]
+    dark:shadow-[2px_2px_6px_rgba(0,0,0,0.55),-1px_-1px_4px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)]
+    hover:border-pink-300 dark:hover:border-pink-500/50
+    focus-visible:ring-pink-500/40 active:scale-95`,
 };
 
 /**

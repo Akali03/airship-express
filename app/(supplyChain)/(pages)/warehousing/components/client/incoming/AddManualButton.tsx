@@ -334,12 +334,17 @@ function ManualEntryModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl dark:shadow-black/70 border border-slate-100 dark:border-slate-800 transform transition-all max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/70 dark:bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-4 transition-all animate-in fade-in duration-200" onClick={onClose}>
+            <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl max-w-lg w-full p-6 shadow-[16px_16px_40px_rgba(0,0,0,0.35)] border border-white/80 dark:border-[#2c2d3c] transform transition-all max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-5">
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Add Manual Entry</h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Enter details to add a new parcel manually</p>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-500 dark:text-pink-400 flex items-center justify-center border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
+                            <i className="fas fa-plus text-sm"></i>
+                        </div>
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Add Manual Entry</h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Enter details to add a new parcel manually</p>
+                        </div>
                     </div>
                     <AppButton
                         type="button"
@@ -353,12 +358,12 @@ function ManualEntryModal({
                     </AppButton>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="flex items-center gap-3 rounded-xl border border-pink-100 dark:border-pink-950/60 bg-pink-50/60 dark:bg-pink-950/20 p-3.5">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-400">
+                <form onSubmit={handleSubmit} className="space-y-4.5">
+                    <div className="flex items-center gap-3 rounded-2xl border border-pink-200 dark:border-pink-900/50 bg-pink-50/60 dark:bg-pink-950/30 p-3.5 shadow-[inset_1px_1px_2px_rgba(244,63,94,0.15)]">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-400 shadow-[inset_1px_1px_2px_rgba(244,63,94,0.2)]">
                             <i className="fas fa-info-circle text-xs"></i>
                         </div>
-                        <p className="text-xs font-medium text-pink-950 dark:text-pink-200">
+                        <p className="text-xs font-semibold text-pink-950 dark:text-pink-200 leading-relaxed">
                             Tracking number will be auto-generated upon submission.
                             <br />
                             All fields marked with <span className="text-pink-500 dark:text-pink-400 font-bold">*</span> are required.
@@ -373,9 +378,9 @@ function ManualEntryModal({
                             type="text"
                             value={formData.barcode}
                             onChange={handleBarcodeChange}
-                            className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/40 px-3.5 py-2.5 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.barcode.length > 0 && formData.barcode.trim().length === 0
+                            className={`w-full rounded-xl border bg-[#ebf0f7] dark:bg-[#14151c] px-3.5 py-2.5 font-mono text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.barcode.length > 0 && formData.barcode.trim().length === 0
                                 ? 'border-amber-500 dark:border-amber-500/80'
-                                : 'border-slate-200 dark:border-slate-700/80'
+                                : 'border-slate-200/60 dark:border-slate-800'
                                 }`}
                             placeholder="Scan or enter barcode"
                             required
@@ -393,8 +398,8 @@ function ManualEntryModal({
                         )}
                     </div>
 
-                    <div className="space-y-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 p-4">
-                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    <div className="space-y-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-[#ebf0f7]/50 dark:bg-[#14151c]/50 p-4 shadow-[inset_1px_1px_2.5px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)]">
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Sender Information
                         </span>
 
@@ -406,7 +411,7 @@ function ManualEntryModal({
                                 type="text"
                                 value={formData.sender_name}
                                 onChange={handleTextChange('sender_name')}
-                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.sender_name && formData.sender_name.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
+                                className={`w-full rounded-xl border bg-[#f0f3f8] dark:bg-[#191a24] px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.sender_name && formData.sender_name.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200/60 dark:border-slate-800'
                                     }`}
                                 placeholder="Enter sender name (optional)"
                                 disabled={isLoading}
@@ -422,7 +427,7 @@ function ManualEntryModal({
                                 type="text"
                                 value={formData.customer_name}
                                 onChange={handleTextChange('customer_name')}
-                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.customer_name && formData.customer_name.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
+                                className={`w-full rounded-xl border bg-[#f0f3f8] dark:bg-[#191a24] px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.customer_name && formData.customer_name.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200/60 dark:border-slate-800'
                                     }`}
                                 placeholder="Enter customer name (optional)"
                                 disabled={isLoading}
@@ -438,7 +443,7 @@ function ManualEntryModal({
                                 type="text"
                                 value={formData.customer_number}
                                 onChange={handleCustomerNumberChange}
-                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.customer_number && !/^\d+$/.test(formData.customer_number) ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
+                                className={`w-full rounded-xl border bg-[#f0f3f8] dark:bg-[#191a24] px-3.5 py-2.5 font-mono text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.customer_number && !/^\d+$/.test(formData.customer_number) ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200/60 dark:border-slate-800'
                                     }`}
                                 placeholder="Enter customer number (optional)"
                                 disabled={isLoading}
@@ -452,7 +457,7 @@ function ManualEntryModal({
                                 </p>
                             )}
                             {formData.customer_number && /^\d+$/.test(formData.customer_number) && (
-                                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500 font-semibold">
                                     <i className="fas fa-check-circle text-emerald-500 mr-1"></i>
                                     {formData.customer_number.length} / 11 digits
                                 </p>
@@ -460,8 +465,8 @@ function ManualEntryModal({
                         </div>
                     </div>
 
-                    <div className="space-y-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 p-4">
-                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    <div className="space-y-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-[#ebf0f7]/50 dark:bg-[#14151c]/50 p-4 shadow-[inset_1px_1px_2.5px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)]">
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Delivery Destination
                         </span>
 
@@ -473,7 +478,7 @@ function ManualEntryModal({
                                 type="text"
                                 value={formData.address}
                                 onChange={handleTextChange('address')}
-                                className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.address.length > 0 && formData.address.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
+                                className={`w-full rounded-xl border bg-[#f0f3f8] dark:bg-[#191a24] px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.address.length > 0 && formData.address.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200/60 dark:border-slate-800'
                                     }`}
                                 placeholder="Enter complete street address"
                                 required
@@ -482,7 +487,7 @@ function ManualEntryModal({
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                             <div className="relative">
                                 <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                     City <span className="text-pink-500">*</span>
@@ -491,9 +496,9 @@ function ManualEntryModal({
                                     type="text"
                                     value={formData.city}
                                     onChange={handleTextChange('city')}
-                                    className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.city.length > 0 && formData.city.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
+                                    className={`w-full rounded-xl border bg-[#f0f3f8] dark:bg-[#191a24] px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.city.length > 0 && formData.city.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200/60 dark:border-slate-800'
                                         }`}
-                                    placeholder="Enter city"
+                                    placeholder="City"
                                     required
                                     disabled={isLoading}
                                     maxLength={150}
@@ -501,16 +506,16 @@ function ManualEntryModal({
                                     onBlur={() => setTimeout(() => setShowCitySuggestions(false), 200)}
                                 />
                                 {showCitySuggestions && filteredCities.length > 0 && (
-                                    <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+                                    <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-2xl border border-white/80 dark:border-[#2c2d3c] bg-[#f0f3f8] dark:bg-[#191a24] shadow-[8px_8px_24px_rgba(0,0,0,0.25)]">
                                         {filteredCities.map((loc, index) => (
                                             <button
                                                 key={index}
                                                 type="button"
-                                                className="flex w-full flex-col px-4 py-2 text-left text-sm transition-colors hover:bg-pink-50 dark:hover:bg-slate-800 cursor-pointer"
+                                                className="flex w-full flex-col px-4 py-2.5 text-left text-xs transition-colors hover:bg-pink-50 dark:hover:bg-slate-800/80 cursor-pointer"
                                                 onClick={() => selectCity(loc)}
                                             >
-                                                <span className="font-semibold text-slate-800 dark:text-slate-200">{loc.city}</span>
-                                                <span className="text-xs text-slate-400 dark:text-slate-500">
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">{loc.city}</span>
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                                                     {loc.province} • {loc.region}
                                                 </span>
                                             </button>
@@ -527,9 +532,9 @@ function ManualEntryModal({
                                     type="text"
                                     value={formData.province}
                                     onChange={handleTextChange('province')}
-                                    className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.province.length > 0 && formData.province.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
+                                    className={`w-full rounded-xl border bg-[#f0f3f8] dark:bg-[#191a24] px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.province.length > 0 && formData.province.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200/60 dark:border-slate-800'
                                         }`}
-                                    placeholder="Enter province"
+                                    placeholder="Province"
                                     required
                                     disabled={isLoading}
                                     maxLength={150}
@@ -544,7 +549,7 @@ function ManualEntryModal({
                                     type="text"
                                     value={formData.region}
                                     onChange={handleRegionChange}
-                                    className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.region.length > 0 && formData.region.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200 dark:border-slate-700/80'
+                                    className={`w-full rounded-xl border bg-[#f0f3f8] dark:bg-[#191a24] px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all ${formData.region.length > 0 && formData.region.trim().length === 0 ? 'border-amber-500 dark:border-amber-500/80' : 'border-slate-200/60 dark:border-slate-800'
                                         }`}
                                     placeholder="e.g. NCR"
                                     required
@@ -554,11 +559,11 @@ function ManualEntryModal({
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-2xs">
+                        <div className="rounded-xl border border-slate-200/60 dark:border-slate-800 bg-[#f0f3f8] dark:bg-[#191a24] p-3 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                             <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                 Destination Preview
                             </p>
-                            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                 {formData.address && formData.city && formData.province ? (
                                     <span className="flex items-center gap-1.5">
                                         <i className="fas fa-map-pin text-pink-500"></i>
@@ -579,7 +584,7 @@ function ManualEntryModal({
                         <select
                             value={formData.courier_id}
                             onChange={(e) => setFormData({ ...formData, courier_id: e.target.value })}
-                            className="w-full cursor-pointer rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all"
+                            className="w-full cursor-pointer rounded-xl border border-slate-200/60 dark:border-slate-800 bg-[#ebf0f7] dark:bg-[#14151c] px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] focus:border-pink-500 dark:focus:border-pink-500 focus:outline-none transition-all"
                             disabled={isLoading || loadingCouriers}
                         >
                             <option value="" className="dark:bg-slate-900">Select courier</option>
@@ -597,7 +602,7 @@ function ManualEntryModal({
                         </select>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-3 pt-4 border-t border-slate-200/60 dark:border-slate-800">
                         <AppButton
                             type="button"
                             variant="neutral"

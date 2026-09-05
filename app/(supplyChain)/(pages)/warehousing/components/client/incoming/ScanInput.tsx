@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { scanBarcode } from "@/app/(supplyChain)/(pages)/warehousing/actions/incoming/scanInput"
 import BarcodeScanner from "./BarcodeScanner";
@@ -29,6 +30,8 @@ export default function ScanInput({
     const inputRef = useRef<HTMLInputElement>(null);
     const bufferRef = useRef<string>("");
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const searchParams = useSearchParams();
+    const currentTab = searchParams.get('tab');
 
     const processBarcode = useCallback(async (barcodeValue: string) => {
         const sanitized = sanitizeBarcode(barcodeValue);
@@ -141,6 +144,9 @@ export default function ScanInput({
             setBarcode("");
             bufferRef.current = "";
             toast.info('Scanner ready', { duration: 1500 });
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 50);
         }
     };
 
@@ -151,11 +157,26 @@ export default function ScanInput({
         }
     };
 
+    // Auto-focus when scanner is listening and active, and when tab changes to incoming
     useEffect(() => {
-        if (isListening && !isScanning) {
-            inputRef.current?.focus();
+        if (isListening && !isScanning && !showScanner && (currentTab === 'incoming' || !currentTab)) {
+            const timer = setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
+            return () => clearTimeout(timer);
         }
-    }, [isListening, isScanning]);
+    }, [isListening, isScanning, showScanner, currentTab]);
+
+    // Keep focus on window/tab activation
+    useEffect(() => {
+        const handleWindowFocus = () => {
+            if (isListening && !isScanning && !showScanner && (currentTab === 'incoming' || !currentTab)) {
+                inputRef.current?.focus();
+            }
+        };
+        window.addEventListener('focus', handleWindowFocus);
+        return () => window.removeEventListener('focus', handleWindowFocus);
+    }, [isListening, isScanning, showScanner, currentTab]);
 
     useEffect(() => {
         return () => {
@@ -187,13 +208,13 @@ export default function ScanInput({
                                     ? "Scan barcode or type and press Enter..."
                                     : "Click Start to enable scanning mode"
                             }
-                            className={`w-full rounded-xl border py-2.5 pl-10 pr-24 text-sm font-mono text-slate-800 dark:text-slate-200 transition-all outline-hidden ${isListening
-                                ? 'border-emerald-500 dark:border-emerald-600 focus-visible:ring-emerald-500/20'
-                                : 'border-slate-300 dark:border-slate-800 focus-visible:border-pink-500 focus-visible:ring-pink-500/20'
-                                } ${isScanning ? 'cursor-wait bg-slate-50 dark:bg-slate-800/50 opacity-75' : ''}`}
+                            className={`w-full rounded-2xl border py-3 pl-10 pr-24 text-sm font-mono text-slate-800 dark:text-slate-200 transition-all outline-hidden bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] ${isListening
+                                ? 'border-emerald-500/80 dark:border-emerald-600/80'
+                                : 'border-slate-300/60 dark:border-slate-800/60'
+                                } ${isScanning ? 'cursor-wait opacity-75' : ''}`}
                         />
 
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
                             <StatusBadge
                                 tone={isListening ? "emerald" : "neutral"}
                                 dot
@@ -215,11 +236,14 @@ export default function ScanInput({
                 </div>
 
                 <div className="flex shrink-0 gap-2.5">
-                    <AppButton
+                    <button
                         type="button"
-                        variant={isListening ? "warning" : "success"}
-                        size="md"
                         onClick={handleStart}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] active:scale-95 cursor-pointer ${
+                            isListening
+                                ? 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-amber-600 dark:text-amber-400 border border-white/70 dark:border-[#2a2b38] hover:border-amber-300'
+                                : 'bg-gradient-to-b from-emerald-500 to-emerald-600 text-white border border-emerald-400/80 shadow-[0_4px_14px_rgba(16,185,129,0.35),inset_0_1px_1.5px_rgba(255,255,255,0.5)]'
+                        }`}
                     >
                         {isListening ? (
                             <i className="fas fa-pause text-xs" />
@@ -227,17 +251,16 @@ export default function ScanInput({
                             <i className="fas fa-play text-xs" />
                         )}
                         <span>{isListening ? 'Pause' : 'Start'}</span>
-                    </AppButton>
+                    </button>
 
-                    <AppButton
+                    <button
                         type="button"
-                        variant="pink"
-                        size="md"
                         onClick={() => setShowScanner(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border border-pink-400/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] active:scale-95 transition-all cursor-pointer"
                     >
                         <i className="fas fa-camera text-xs" />
                         <span>Camera</span>
-                    </AppButton>
+                    </button>
                 </div>
             </div>
 

@@ -1,14 +1,16 @@
 // app/components/ai/AIChatbot.tsx
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAI } from "./AIContext";
-//  Import robot components
+import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
+import { calculateGrabbableCollision } from "@/app/(supplyChain)/lib/grabbablePhysics";
+// Import robot components
 import { RobotAvatar, RobotHeader } from "../components";
 import AppButton from "@/app/(supplyChain)/components/ui/AppButton";
 import { StatusBadge } from "@/app/(supplyChain)/components/ui/StatusBadge";
 import { user } from "@/app/(supplyChain)/lib/services/Class/user";
-import { ShieldAlert, Clock, AlertTriangle } from "lucide-react";
+import { ShieldAlert, Clock, AlertTriangle, GripVertical, Minus, Maximize2, Minimize2, X, Sparkles, Eye, Download, ExternalLink, ZoomIn, ZoomOut, RotateCw, FileText, Image as ImageIcon, FileCheck, Layers, Search, RefreshCw, Copy, Check } from "lucide-react";
 interface PendingRequestItem {
     name: string;
     quantity: number;
@@ -56,6 +58,7 @@ export interface AttachedFile {
     type: string;
     size: number;
     dataUrl: string;
+    mode?: 'normal' | 'search_document';
 }
 export interface MatchedDocument {
     id: string;
@@ -68,9 +71,22 @@ export interface MatchedDocument {
     parcel_batch?: string | null;
     uploaded_by: string;
     created_at: string;
-    storage_path?: string;
+    storage_path?: string | null;
+    public_url?: string | null;
+    file_url?: string | null;
+    file_type?: string;
+    file_size?: number | null;
+    notes?: string | null;
+    source_type?: string;
+    target_label?: string;
     is_gallery: boolean;
     view_link: string;
+    match_reason?: string;
+    matched_criteria?: {
+        label: string;
+        inserted_value: string;
+        matched_value: string;
+    }[];
 }
 interface Message {
     id: string;
@@ -80,6 +96,7 @@ interface Message {
     isThinking?: boolean;
     attachment?: AttachedFile;
     matchedDocument?: MatchedDocument;
+    matchedDocuments?: MatchedDocument[];
     isOutOfScope?: boolean;
     suggestions?: string[];
     pendingRequests?: PendingPRData[];
@@ -121,6 +138,101 @@ function ThinkingDots() {
             <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
         </span>);
 }
+
+// Global in-memory image cache to avoid re-fetching or re-decoding document previews
+const imageCache = new Set<string>();
+
+interface OptimizedDocumentPreviewImageProps {
+    src: string;
+    alt: string;
+    className?: string;
+    aspectRatio?: string;
+    fit?: 'cover' | 'contain';
+    onLoad?: () => void;
+}
+
+function OptimizedDocumentPreviewImage({
+    src,
+    alt,
+    className = "",
+    aspectRatio = "aspect-[16/9]",
+    fit = "cover",
+    onLoad,
+}: OptimizedDocumentPreviewImageProps) {
+    const [isVisible, setIsVisible] = useState<boolean>(() => imageCache.has(src));
+    const [isLoaded, setIsLoaded] = useState<boolean>(() => imageCache.has(src));
+    const [hasError, setHasError] = useState<boolean>(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!src) return;
+        if (imageCache.has(src)) {
+            setIsVisible(true);
+            setIsLoaded(true);
+            return;
+        }
+
+        const el = containerRef.current;
+        if (!el) return;
+
+        // IntersectionObserver: Only render and load image when in/near viewport
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsVisible(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: "150px" }
+        );
+
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [src]);
+
+    const handleImageLoad = () => {
+        if (src) imageCache.add(src);
+        setIsLoaded(true);
+        onLoad?.();
+    };
+
+    return (
+        <div
+            ref={containerRef}
+            className={`relative w-full overflow-hidden ${aspectRatio} bg-[#ebf0f7] dark:bg-[#12131b] ${className}`}
+            style={{ contentVisibility: "auto", containIntrinsicSize: "320px 180px" }}
+        >
+            {/* Loading Skeleton */}
+            {!isLoaded && !hasError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-200/60 dark:bg-slate-800/60 animate-pulse z-10 text-slate-400 dark:text-slate-500">
+                    <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
+                    <span className="text-[10px] font-medium tracking-wide">Loading image...</span>
+                </div>
+            )}
+
+            {/* Error Fallback */}
+            {hasError ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-50 dark:bg-rose-950/30 text-rose-500 p-2.5 text-center">
+                    <AlertTriangle className="w-4 h-4 mb-1" />
+                    <span className="text-[10px] font-semibold">Preview unavailable</span>
+                </div>
+            ) : isVisible ? (
+                <img
+                    src={src}
+                    alt={alt}
+                    decoding="async"
+                    loading="lazy"
+                    onLoad={handleImageLoad}
+                    onError={() => setHasError(true)}
+                    className={`w-full h-full object-${fit} transition-opacity duration-300 ${
+                        isLoaded ? "opacity-100" : "opacity-0"
+                    }`}
+                />
+            ) : null}
+        </div>
+    );
+}
+
 export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
     const { openChat, question, setQuestion, isRobotThinking, isRobotResponding, setRobotThinking, setRobotResponding, } = useAI();
     const [messages, setMessages] = useState<Message[]>(() => {
@@ -165,7 +277,63 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
     const [isCreatingPR, setIsCreatingPR] = useState(false);
     const [actionFeedback, setActionFeedback] = useState<string | null>(null);
     const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
+    const [activeMode, setActiveMode] = useState<'chat' | 'search'>('chat');
+    const [previewModalDoc, setPreviewModalDoc] = useState<MatchedDocument | null>(null);
+    const [previewZoom, setPreviewZoom] = useState<number>(1);
+    const [previewRotation, setPreviewRotation] = useState<number>(0);
+    const [previewModalLoading, setPreviewModalLoading] = useState<boolean>(false);
+    const [previewActiveTab, setPreviewActiveTab] = useState<Record<string, string>>({});
+    const [copiedPoMap, setCopiedPoMap] = useState<Record<string, boolean>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const searchFileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleCopyPo = (poNumber: string, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if (!poNumber || poNumber === '—') return;
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(poNumber);
+        }
+        setCopiedPoMap(prev => ({ ...prev, [poNumber]: true }));
+        setTimeout(() => {
+            setCopiedPoMap(prev => ({ ...prev, [poNumber]: false }));
+        }, 2000);
+    };
+
+    const handleDownloadFile = async (doc: MatchedDocument, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        const downloadUrl = doc.public_url || doc.file_url;
+        if (!downloadUrl) {
+            setActionFeedback("No download link available for this document");
+            setTimeout(() => setActionFeedback(null), 3000);
+            return;
+        }
+        try {
+            const res = await fetch(downloadUrl);
+            const blob = await res.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = doc.file_name || `${doc.title}.${doc.is_gallery ? 'jpg' : 'pdf'}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(blobUrl);
+            setActionFeedback("Download initiated!");
+            setTimeout(() => setActionFeedback(null), 3000);
+        } catch {
+            window.open(downloadUrl, '_blank');
+        }
+    };
+
+    const openDocumentPreview = (doc: MatchedDocument, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setPreviewZoom(1);
+        setPreviewRotation(0);
+        const url = doc.public_url || doc.file_url || '';
+        setPreviewModalLoading(!imageCache.has(url));
+        setPreviewModalDoc(doc);
+    };
+
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file)
@@ -178,19 +346,58 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
         const reader = new FileReader();
         reader.onload = () => {
             const dataUrl = reader.result as string;
+            setActiveMode('chat');
             setAttachedFile({
                 name: file.name,
                 type: file.type || "application/octet-stream",
                 size: file.size,
                 dataUrl,
+                mode: 'normal',
             });
         };
         reader.readAsDataURL(file);
         e.target.value = "";
     };
+
+    const handleSearchFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file)
+            return;
+        if (file.size > 10 * 1024 * 1024) {
+            setActionFeedback("File size must be under 10MB");
+            setTimeout(() => setActionFeedback(null), 4000);
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = reader.result as string;
+            setActiveMode('search');
+            setAttachedFile({
+                name: file.name,
+                type: file.type || "application/octet-stream",
+                size: file.size,
+                dataUrl,
+                mode: 'search_document',
+            });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = "";
+    };
+
     const handleRemoveAttachment = () => {
         setAttachedFile(null);
     };
+
+    const handleModeSwitch = (mode: 'chat' | 'search') => {
+        setActiveMode(mode);
+        if (attachedFile) {
+            setAttachedFile(prev => prev ? {
+                ...prev,
+                mode: mode === 'search' ? 'search_document' : 'normal'
+            } : null);
+        }
+    };
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -198,26 +405,236 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [isAtBottom, setIsAtBottom] = useState(true);
 
+    // Chat drawer resizing state
+    const [drawerWidth, setDrawerWidth] = useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('aiChatbotDrawerWidth');
+            if (saved) {
+                const parsed = parseInt(saved, 10);
+                if (!isNaN(parsed) && parsed >= 360 && parsed <= 1200) {
+                    return parsed;
+                }
+            }
+        }
+        return 440;
+    });
+    const [isResizing, setIsResizing] = useState(false);
+    const isResizingRef = useRef(false);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizingRef.current) return;
+            const newWidth = window.innerWidth - e.clientX;
+            const minWidth = 360;
+            const maxWidth = Math.min(window.innerWidth - 24, 1100);
+            const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+            setDrawerWidth(clampedWidth);
+            try {
+                localStorage.setItem('aiChatbotDrawerWidth', String(clampedWidth));
+            } catch (err) {}
+        };
+
+        const handleMouseUp = () => {
+            if (isResizingRef.current) {
+                isResizingRef.current = false;
+                setIsResizing(false);
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, []);
+
+    const handleResizeStart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        isResizingRef.current = true;
+        setIsResizing(true);
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+    };
+
+    const toggleWidthExpand = () => {
+        setDrawerWidth(prev => {
+            const next = prev > 560 ? 440 : 760;
+            try {
+                localStorage.setItem('aiChatbotDrawerWidth', String(next));
+            } catch (err) {}
+            return next;
+        });
+    };
+
     // Moderation lockout state
     const [isLockedOut, setIsLockedOut] = useState(false);
     const [lockoutSeconds, setLockoutSeconds] = useState(0);
 
-    // Check moderation status on open
+    // Floating launcher grabbable & minimization states
+    const [isFloatingMinimized, setIsFloatingMinimized] = useState<boolean>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('aiChatbotMinimized');
+            return saved === 'true';
+        }
+        return false;
+    });
+    const [isFloatingDragging, setIsFloatingDragging] = useState(false);
+    const hasDraggedRef = useRef(false);
+    const [collisionReaction, setCollisionReaction] = useState<string | null>(null);
+    const [isWobbling, setIsWobbling] = useState(false);
+    const reactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const floatX = useMotionValue(0);
+    const floatY = useMotionValue(0);
+    const [dragBounds, setDragBounds] = useState({ top: -800, bottom: 64, left: -1200, right: 8 });
+
+    // Update screen boundaries on resize
+    useEffect(() => {
+        const updateBounds = () => {
+            if (typeof window !== 'undefined') {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                setDragBounds({
+                    top: -(vh - 80 - 48 - 16),
+                    bottom: 64,
+                    left: -(vw - 24 - 48 - 16),
+                    right: 8,
+                });
+            }
+        };
+        updateBounds();
+        window.addEventListener('resize', updateBounds);
+        return () => window.removeEventListener('resize', updateBounds);
+    }, []);
+
+    // Load and clamp saved position so it is always on-screen
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('aiChatbotPosition');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (typeof parsed.x === 'number' && Number.isFinite(parsed.x) && typeof parsed.y === 'number' && Number.isFinite(parsed.y)) {
+                        const clampedX = Math.min(Math.max(parsed.x, dragBounds.left), dragBounds.right);
+                        const clampedY = Math.min(Math.max(parsed.y, dragBounds.top), dragBounds.bottom);
+                        floatX.set(clampedX);
+                        floatY.set(clampedY);
+                        localStorage.setItem('aiChatbotPosition', JSON.stringify({ x: clampedX, y: clampedY }));
+                        return;
+                    }
+                }
+            } catch (e) {}
+            // Reset to safe on-screen default if corrupted or missing
+            floatX.set(0);
+            floatY.set(0);
+        }
+    }, [floatX, floatY, dragBounds]);
+
+    const triggerCollisionReaction = useCallback((pushX?: number, pushY?: number) => {
+        const phrases = [
+            "Boing! 🤖",
+            "Ouch! Watch out! ⚡",
+            "Whoops! Personal space! 🚀",
+            "Bloop! Safe distance! 🛡️",
+            "Hey, watch the antennas! 📡",
+            "Bump! Network collision! 🌐",
+            "Beep-boop! Bounced! 💥"
+        ];
+        const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+        setCollisionReaction(randomPhrase);
+        setIsWobbling(true);
+
+        if (reactionTimeoutRef.current) clearTimeout(reactionTimeoutRef.current);
+        reactionTimeoutRef.current = setTimeout(() => {
+            setCollisionReaction(null);
+            setIsWobbling(false);
+        }, 2200);
+
+        if (typeof pushX === 'number' && typeof pushY === 'number') {
+            const currentX = floatX.get();
+            const currentY = floatY.get();
+            const targetX = Math.min(Math.max(currentX + pushX, dragBounds.left), dragBounds.right);
+            const targetY = Math.min(Math.max(currentY + pushY, dragBounds.top), dragBounds.bottom);
+
+            animate(floatX, targetX, { type: "spring", stiffness: 360, damping: 22 });
+            animate(floatY, targetY, { type: "spring", stiffness: 360, damping: 22 });
+
+            try {
+                localStorage.setItem('aiChatbotPosition', JSON.stringify({ x: targetX, y: targetY }));
+            } catch (e) {}
+        }
+    }, [floatX, floatY, dragBounds]);
+
+    const handleFloatingDragStart = useCallback(() => {
+        setIsFloatingDragging(true);
+        hasDraggedRef.current = true;
+    }, []);
+
+    const handleFloatingDragEnd = useCallback(() => {
+        setIsFloatingDragging(false);
+        setTimeout(() => {
+            hasDraggedRef.current = false;
+        }, 120);
+
+        const currentX = Math.min(Math.max(floatX.get(), dragBounds.left), dragBounds.right);
+        const currentY = Math.min(Math.max(floatY.get(), dragBounds.top), dragBounds.bottom);
+        floatX.set(currentX);
+        floatY.set(currentY);
+
+        try {
+            localStorage.setItem('aiChatbotPosition', JSON.stringify({
+                x: currentX,
+                y: currentY
+            }));
+        } catch (e) {}
+
+        // Check collision with Offline Indicator
+        const robotEl = document.getElementById('grabbable-ai-robot');
+        const offlineEl = document.getElementById('grabbable-offline-indicator');
+        const collision = calculateGrabbableCollision(robotEl, offlineEl);
+
+        if (collision?.collided) {
+            triggerCollisionReaction(collision.robotPush.x, collision.robotPush.y);
+            window.dispatchEvent(new CustomEvent('supplychain:grabbable-bounce', {
+                detail: { source: 'robot', push: collision.offlinePush }
+            }));
+        }
+    }, [floatX, floatY, dragBounds, triggerCollisionReaction]);
+
+    // Listen to bounce events dispatched when the offline indicator is dragged into the robot
+    useEffect(() => {
+        const handleExternalBounce = (e: Event) => {
+            const customEvent = e as CustomEvent<{ source: string; push: { x: number; y: number } }>;
+            if (customEvent.detail?.source === 'offline') {
+                triggerCollisionReaction(customEvent.detail.push.x, customEvent.detail.push.y);
+            }
+        };
+        window.addEventListener('supplychain:grabbable-bounce', handleExternalBounce);
+        return () => window.removeEventListener('supplychain:grabbable-bounce', handleExternalBounce);
+    }, [triggerCollisionReaction]);
+
+    // Check moderation status on open (deferred to not block animation frames)
     useEffect(() => {
         if (!isOpen) return;
         const currentUser = user.getUser();
         const identifier = currentUser.email || currentUser.userId;
         if (!identifier) return;
 
-        fetch(`/ai/api/moderation-status?identifier=${encodeURIComponent(identifier)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success && data.isLockedOut && data.lockoutRemainingSeconds > 0) {
-                    setIsLockedOut(true);
-                    setLockoutSeconds(data.lockoutRemainingSeconds);
-                }
-            })
-            .catch(() => {});
+        const timer = setTimeout(() => {
+            fetch(`/ai/api/moderation-status?identifier=${encodeURIComponent(identifier)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.isLockedOut && data.lockoutRemainingSeconds > 0) {
+                        setIsLockedOut(true);
+                        setLockoutSeconds(data.lockoutRemainingSeconds);
+                    }
+                })
+                .catch(() => {});
+        }, 120);
+
+        return () => clearTimeout(timer);
     }, [isOpen]);
 
     // Countdown interval for lockout
@@ -367,7 +784,7 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
         const currentFile = attachedFile;
         setAttachedFile(null);
         const trimmed = (customQuestion || input).trim();
-        const userPrompt = trimmed || (currentFile ? `Analyze this file: ${currentFile.name}` : "");
+        const userPrompt = trimmed || (currentFile ? (currentFile.mode === 'search_document' ? `Search document in database with photo: ${currentFile.name}` : `Analyze this file: ${currentFile.name}`) : "");
         if (!userPrompt && !currentFile)
             return;
         if (isLoading)
@@ -414,6 +831,7 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                             size: currentFile.size,
                             base64: currentFile.dataUrl,
                         },
+                        mode: currentFile.mode || (activeMode === 'search' ? 'search_document' : 'normal'),
                         userPrompt: trimmed,
                         role: currentRole,
                         userName: currentUserName,
@@ -441,18 +859,26 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                 if (!docRes.ok || !docData.success) {
                     throw new Error(docData.error || 'Failed to analyze document.');
                 }
+                const matchedDocsList: MatchedDocument[] = docData.matchedDocuments && docData.matchedDocuments.length > 0
+                    ? docData.matchedDocuments
+                    : (docData.matchedDocument ? [docData.matchedDocument] : []);
+                const primaryMatch: MatchedDocument | undefined = docData.matchedDocument || (matchedDocsList.length > 0 ? matchedDocsList[0] : undefined);
+
                 setMessages(prev => prev.map(m => {
                     if (m.id === assistantMsgId) {
                         return {
                             ...m,
                             content: docData.response || 'Document analysis completed.',
                             isThinking: false,
-                            matchedDocument: docData.matchedDocument || undefined,
+                            attachment: currentFile,
+                            matchedDocument: primaryMatch,
+                            matchedDocuments: matchedDocsList.length > 0 ? matchedDocsList : undefined,
                             isOutOfScope: docData.isOutOfScope || false,
                             suggestions: docData.isOutOfScope
                                 ? ['Show me low stock items', 'Check current inventory status', 'View recent purchase orders']
                                 : [
-                                    docData.matchedDocument ? (docData.matchedDocument.is_gallery ? 'View in Gallery' : 'View in Documents') : 'View documents repository',
+                                    primaryMatch ? `Preview ${primaryMatch.title || 'matched file'}` : 'Search another photo/receipt',
+                                    primaryMatch ? (primaryMatch.is_gallery ? 'View in Gallery' : 'View in Documents') : 'View documents repository',
                                     'Check low stock items',
                                     'Create purchase request'
                                 ]
@@ -704,9 +1130,15 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
             setRobotResponding(false);
         }
     };
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
+            if (activeMode === 'search') {
+                if (attachedFile) {
+                    handleSendMessage();
+                }
+                return;
+            }
             handleSendMessage();
         }
     };
@@ -739,8 +1171,8 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                 })
             });
             const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Failed to create Purchase Orders');
+            if (!res.ok || !data.success || !data.createdPOs || data.createdPOs.length === 0) {
+                throw new Error(data.error || 'Failed to create Purchase Orders. Please try again.');
             }
             // Update the message in state
             setMessages(prev => prev.map(m => {
@@ -1188,6 +1620,7 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                 </div>
             </div>);
     };
+
     const formatCleanContent = (text: string) => {
         if (!text)
             return '';
@@ -1200,6 +1633,254 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
             .replace(/\*\*/g, '') // Remove any raw **
             .trim();
     };
+
+    const renderMatchedDocumentsWidget = (msg: Message) => {
+        const docs = msg.matchedDocuments && msg.matchedDocuments.length > 0
+            ? msg.matchedDocuments
+            : (msg.matchedDocument ? [msg.matchedDocument] : []);
+
+        if (docs.length === 0) return null;
+
+        const activeDocId = previewActiveTab[msg.id] || docs[0].id;
+        const currentDoc = docs.find(d => d.id === activeDocId) || docs[0];
+        const isImage = Boolean(
+            currentDoc.is_gallery ||
+            currentDoc.file_type?.startsWith('image/') ||
+            currentDoc.storage_path?.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i) ||
+            currentDoc.public_url?.match(/\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i)
+        );
+
+        return (
+            <div className="mt-3.5 pt-3 border-t border-slate-200/90 dark:border-[#353746] space-y-3">
+                {/* Header with Title and Multiple Match Selector */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                            <i className="fas fa-check-circle text-emerald-500 text-xs" />
+                            <span>System Match Found {docs.length > 1 ? `(${docs.length} records)` : ''}</span>
+                        </span>
+                    </div>
+                    <StatusBadge tone="emerald" size="xs">
+                        {currentDoc.target_label || (currentDoc.is_gallery ? 'Media Gallery' : 'Documents')}
+                    </StatusBadge>
+                </div>
+
+                {/* Multiple Matches Tabs / Selector */}
+                {docs.length > 1 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                        {docs.map((doc, idx) => {
+                            const isActive = doc.id === currentDoc.id;
+                            return (
+                                <button
+                                    key={doc.id || idx}
+                                    type="button"
+                                    onClick={() => setPreviewActiveTab(prev => ({ ...prev, [msg.id]: doc.id }))}
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        isActive
+                                            ? 'bg-emerald-600 text-white shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                >
+                                    <i className={`fas ${doc.is_gallery ? 'fa-image' : 'fa-file-alt'} text-[9px]`} />
+                                    <span className="truncate max-w-[120px]">{doc.title || doc.file_name}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Main Preview Card */}
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900/90 border border-emerald-300/80 dark:border-emerald-700/60 shadow-[0_4px_16px_rgba(16,185,129,0.12),inset_0_1px_0_#ffffff] dark:shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)] space-y-3">
+                    
+                    {/* Visual Hero / Document Thumbnail Container */}
+                    <div 
+                        onClick={(e) => openDocumentPreview(currentDoc, e)}
+                        className="group relative rounded-xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-[#ebf0f7] dark:bg-[#12131b] shadow-inner cursor-pointer"
+                        title="Click to view full preview & zoom"
+                    >
+                        {(currentDoc.public_url || currentDoc.file_url) && isImage ? (
+                            <div className="relative aspect-[16/9] w-full flex items-center justify-center bg-black/10 dark:bg-black/30 overflow-hidden">
+                                <OptimizedDocumentPreviewImage
+                                    src={currentDoc.public_url || currentDoc.file_url!}
+                                    alt={currentDoc.title}
+                                    aspectRatio="aspect-[16/9]"
+                                    fit="cover"
+                                    className="group-hover:scale-105 transition-transform duration-300"
+                                />
+                                {/* Overlay badge & hover prompt */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-90 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-xs border border-white/20">
+                                            {currentDoc.document_type}
+                                        </span>
+                                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/50">
+                                            {currentDoc.category}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between text-white text-[11px] font-semibold">
+                                        <span className="flex items-center gap-1.5 drop-shadow-sm bg-emerald-600/90 hover:bg-emerald-600 px-2.5 py-1 rounded-full backdrop-blur-xs shadow-xs transition-colors">
+                                            <Eye className="w-3.5 h-3.5 text-white" />
+                                            <span>Click to preview & zoom</span>
+                                        </span>
+                                        {currentDoc.file_size && (
+                                            <span className="text-[10px] opacity-80 font-mono bg-black/40 px-1.5 py-0.5 rounded backdrop-blur-xs">
+                                                {(currentDoc.file_size / 1024).toFixed(1)} KB
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-4 flex items-center gap-3.5 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-850 dark:to-slate-900 group-hover:from-emerald-50/60 dark:group-hover:from-emerald-950/30 transition-colors">
+                                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800 shadow-xs group-hover:scale-105 transition-transform">
+                                    <FileText className="w-6 h-6" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                            {currentDoc.title}
+                                        </p>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                        {currentDoc.file_name}
+                                    </p>
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                                        <Eye className="w-3 h-3" />
+                                        <span>Click to open document previewer</span>
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Match Comparison & Verification Block */}
+                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-50/90 to-teal-50/70 dark:from-emerald-950/40 dark:to-teal-950/30 border border-emerald-200/90 dark:border-emerald-800/60 space-y-2">
+                        <div className="flex items-center justify-between gap-1.5 text-xs">
+                            <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                                <i className="fas fa-link text-[10px] text-emerald-600 dark:text-emerald-400" />
+                                <span>Why this record matched</span>
+                            </span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 max-w-[190px] truncate">
+                                {currentDoc.match_reason || "System Record Match"}
+                            </span>
+                        </div>
+
+                        {/* File vs Record Comparison */}
+                        <div className="grid grid-cols-2 gap-2 text-[10.5px] pt-1.5 border-t border-emerald-200/60 dark:border-emerald-800/50">
+                            <div className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/60 border border-emerald-100 dark:border-emerald-900/40">
+                                <span className="text-[9.5px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 block">Uploaded File</span>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block mt-0.5" title={msg.attachment?.name || 'Attached file'}>
+                                    {msg.attachment?.name || 'Uploaded File'}
+                                </span>
+                            </div>
+                            <div className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-900/60 border border-emerald-100 dark:border-emerald-900/40">
+                                <span className="text-[9.5px] uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400 block">Database Record</span>
+                                <span className="font-semibold text-emerald-900 dark:text-emerald-200 truncate block mt-0.5" title={currentDoc.file_name || currentDoc.title}>
+                                    {currentDoc.file_name || currentDoc.title}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Matched Criteria Highlights */}
+                        {currentDoc.matched_criteria && currentDoc.matched_criteria.length > 0 && (
+                            <div className="space-y-1 pt-1">
+                                {currentDoc.matched_criteria.map((crit, idx) => (
+                                    <div key={idx} className="flex items-center justify-between text-[10px] bg-white/90 dark:bg-slate-900/80 px-2 py-1 rounded-md border border-emerald-100 dark:border-emerald-900/30">
+                                        <span className="font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                                            <i className="fas fa-check-circle text-emerald-500 text-[9px]" />
+                                            <span>{crit.label}:</span>
+                                        </span>
+                                        <div className="flex items-center gap-1 font-mono">
+                                            <span className="text-slate-600 dark:text-slate-400 truncate max-w-[90px]" title={crit.inserted_value}>
+                                                {crit.inserted_value}
+                                            </span>
+                                            <span className="text-emerald-500 font-bold">⇄</span>
+                                            <span className="text-emerald-700 dark:text-emerald-300 font-bold truncate max-w-[90px]" title={crit.matched_value}>
+                                                {crit.matched_value}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Metadata Details Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                        <div>
+                            <span className="text-slate-400 block text-[10px]">Supplier / Vendor:</span>
+                            <strong className="text-slate-800 dark:text-slate-200 truncate block font-semibold">
+                                {currentDoc.supplier && currentDoc.supplier !== '—' ? currentDoc.supplier : 'Not specified'}
+                            </strong>
+                        </div>
+                        <div>
+                            <span className="text-slate-400 block text-[10px]">Reference / PO #:</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                                <strong className="text-slate-800 dark:text-slate-200 font-mono text-[10px] truncate block font-bold">
+                                    {currentDoc.po_number && currentDoc.po_number !== '—' ? currentDoc.po_number : 'Not specified'}
+                                </strong>
+                                {currentDoc.po_number && currentDoc.po_number !== '—' && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => handleCopyPo(currentDoc.po_number, e)}
+                                        className="text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors p-0.5"
+                                        title="Copy PO Number"
+                                    >
+                                        {copiedPoMap[currentDoc.po_number] ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        {currentDoc.notes && (
+                            <div className="col-span-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                                <span className="text-slate-400 block text-[10px]">Details:</span>
+                                <span className="text-slate-600 dark:text-slate-300 text-[10.5px]">
+                                    {currentDoc.notes}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Action Buttons Bar */}
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={(e) => openDocumentPreview(currentDoc, e)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/80 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 shadow-xs transition-all active:scale-95 cursor-pointer"
+                            >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Preview</span>
+                            </button>
+
+                            {(currentDoc.public_url || currentDoc.file_url) && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => handleDownloadFile(currentDoc, e)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-xs transition-all active:scale-95 cursor-pointer"
+                                    title="Download Document"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        <Link
+                            href={currentDoc.view_link}
+                            onClick={onClose}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-xs transition-all cursor-pointer"
+                        >
+                            <span>Open in {currentDoc.target_label || (currentDoc.is_gallery ? 'Gallery' : 'Documents')}</span>
+                            <ExternalLink className="w-3 h-3" />
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const renderMessageContent = (msg: Message) => {
         if (msg.isThinking) {
             return (<div className="flex items-center gap-2">
@@ -1218,13 +1899,47 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
         return (<div>
                 {/* User Attachment Preview - Rendered first in bubble */}
                 {msg.attachment && (<div className="mb-2.5">
-                        {msg.attachment.type.startsWith('image/') && msg.attachment.dataUrl ? (<div className="overflow-hidden rounded-xl border border-white/25 shadow-md bg-black/20 max-w-full">
-                                <img src={msg.attachment.dataUrl} alt={msg.attachment.name} className="max-h-48 w-full object-contain mx-auto rounded-xl bg-black/10"/>
+                        {msg.attachment.type.startsWith('image/') && msg.attachment.dataUrl ? (
+                            <div 
+                                onClick={() => openDocumentPreview({
+                                    id: `uploaded-${msg.id}`,
+                                    title: msg.attachment!.name,
+                                    file_name: msg.attachment!.name,
+                                    category: 'Upload',
+                                    document_type: 'Attached Image',
+                                    supplier: 'User Upload',
+                                    po_number: '—',
+                                    uploaded_by: 'You',
+                                    created_at: msg.timestamp.toISOString(),
+                                    public_url: msg.attachment!.dataUrl,
+                                    file_url: msg.attachment!.dataUrl,
+                                    file_type: msg.attachment!.type,
+                                    file_size: msg.attachment!.size,
+                                    is_gallery: true,
+                                    view_link: '#',
+                                })}
+                                className="group relative overflow-hidden rounded-xl border border-white/25 shadow-md bg-black/20 max-w-full cursor-pointer"
+                                title="Click to preview & zoom"
+                            >
+                                <OptimizedDocumentPreviewImage
+                                    src={msg.attachment.dataUrl}
+                                    alt={msg.attachment.name}
+                                    aspectRatio="max-h-48"
+                                    fit="contain"
+                                    className="rounded-xl group-hover:scale-102 transition-transform"
+                                />
                                 <div className="p-1.5 bg-black/40 backdrop-blur-xs flex items-center justify-between text-[10px] text-white/90">
                                     <span className="truncate max-w-[200px] font-medium">{msg.attachment.name}</span>
                                     <span className="opacity-75 font-mono">{(msg.attachment.size / 1024).toFixed(1)} KB</span>
                                 </div>
-                            </div>) : (<div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/20 dark:bg-black/40 border border-white/25 backdrop-blur-md text-xs font-semibold">
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                                    <span className="px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-semibold flex items-center gap-1.5 backdrop-blur-xs shadow-md">
+                                        <Eye className="w-3.5 h-3.5 text-pink-400" /> Click to Preview
+                                    </span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/20 dark:bg-black/40 border border-white/25 backdrop-blur-md text-xs font-semibold">
                                 <div className={`w-8 h-8 rounded-lg ${msg.attachment.type.startsWith('image/') ? 'bg-pink-500/80' : 'bg-rose-500/80'} text-white flex items-center justify-center shrink-0`}>
                                     <i className={`fas ${msg.attachment.type.startsWith('image/') ? 'fa-image' : 'fa-file-pdf'} text-sm`}/>
                                 </div>
@@ -1232,57 +1947,14 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                                     <p className="truncate text-white text-xs font-medium">{msg.attachment.name}</p>
                                     <p className="text-[10px] text-white/70">{(msg.attachment.size / 1024).toFixed(1)} KB • {msg.attachment.type.startsWith('image/') ? 'Image' : 'Document'}</p>
                                 </div>
-                            </div>)}
+                            </div>
+                        )}
                     </div>)}
 
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{formatCleanContent(msg.content)}</p>
 
-                {/* System Match Found in /documents or /gallery Card */}
-                {msg.matchedDocument && (<div className="mt-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700/60 shadow-[0_2px_12px_rgba(16,185,129,0.12)] space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs shrink-0 border border-emerald-200 dark:border-emerald-800/40">
-                                    <i className={`fas ${msg.matchedDocument.is_gallery ? 'fa-image' : 'fa-file-alt'}`}/>
-                                </span>
-                                <div className="min-w-0">
-                                    <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                        {msg.matchedDocument.title || msg.matchedDocument.file_name}
-                                    </h4>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                                        {msg.matchedDocument.file_name}
-                                    </p>
-                                </div>
-                            </div>
-                            <StatusBadge tone="emerald" size="xs">
-                                System Match
-                            </StatusBadge>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-[11px] p-2 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                            <div>
-                                <span className="text-slate-400 block text-[10px]">Supplier / Vendor:</span>
-                                <strong className="text-slate-700 dark:text-slate-200 truncate block">
-                                    {msg.matchedDocument.supplier || '—'}
-                                </strong>
-                            </div>
-                            <div>
-                                <span className="text-slate-400 block text-[10px]">PO / Reference:</span>
-                                <strong className="text-slate-700 dark:text-slate-200 font-mono text-[10px] truncate block">
-                                    {msg.matchedDocument.po_number || '—'}
-                                </strong>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1">
-                            <span className="text-[10px] text-slate-400">
-                                Uploaded by {msg.matchedDocument.uploaded_by}
-                            </span>
-                            <Link href={msg.matchedDocument.view_link} onClick={onClose} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-xs transition-all cursor-pointer">
-                                <span>Open in {msg.matchedDocument.is_gallery ? 'Gallery' : 'Documents'}</span>
-                                <i className="fas fa-arrow-right text-[10px]"/>
-                            </Link>
-                        </div>
-                    </div>)}
+                {/* System Matched Document(s) Preview Card */}
+                {renderMatchedDocumentsWidget(msg)}
 
                 {/* Out of Scope Card */}
                 {msg.isOutOfScope && (<div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
@@ -1297,260 +1969,688 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                 {renderCreatedPOsWidget(msg)}
                 {renderLowStockWidget(msg)}
                 {renderCreatedPRsWidget(msg)}
-            </div>);
-    };
-    if (!isOpen) {
-        if (messages.length > 1) {
-            return (<button type="button" onClick={() => openChat()} className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2.5 h-10 px-3.5 rounded-full bg-white dark:bg-[#2a2a2e] text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 shadow-xl backdrop-blur-md hover:border-pink-300 dark:hover:border-pink-900/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group active:scale-95 animate-in fade-in zoom-in-95" title="Expand active chat">
-                    <div className="relative flex items-center justify-center">
-                        <RobotAvatar size={24} isThinking={isLoading} isResponding={isStreaming}/>
-                        <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2 items-center justify-center">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"/>
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"/>
-                        </span>
-                    </div>
-
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Chat
-                    </span>
-
-                    <span className="px-1.5 py-0.2 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 border border-pink-200/80 dark:border-pink-900/40 text-[10px] font-bold">
-                        {messages.length - 1}
-                    </span>
-
-                    <i className="fas fa-chevron-up text-[10px] text-slate-400 group-hover:text-pink-500 transition-transform group-hover:-translate-y-0.5"/>
-                </button>);
-        }
-        return null;
-    }
-    return (<>
-            {/* Backdrop */}
-            <div className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/75 backdrop-blur-md z-40 animate-in fade-in duration-200" onClick={onClose}/>
-
-            {/* Chat Drawer */}
-            <div data-lenis-prevent className="fixed top-0 right-0 h-full w-full sm:w-[440px] 
-                        bg-white dark:bg-[#2a2a2e] text-slate-900 dark:text-white backdrop-blur-2xl
-                        z-50 animate-in slide-in-from-right duration-300 
-                        flex flex-col font-sans overscroll-contain
-                        shadow-[0_20px_60px_rgba(0,0,0,0.2),inset_0_1px_0_#ffffff] dark:shadow-2xl 
-                        border-l border-slate-200/90 dark:border-slate-800">
-
-                {/* Header with Robot */}
-                <div className="bg-gradient-to-r from-pink-600 via-pink-500 to-rose-500 dark:from-[#2a2a2e] dark:via-slate-900 dark:to-[#2a2a2e] px-5 py-4 flex items-center justify-between shrink-0 shadow-[0_4px_16px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.3)] dark:shadow-lg z-10 border-b border-pink-400/30 dark:border-slate-800 transition-colors">
-                    {/* Left: Assistant Status & Avatar */}
-                    <div className="flex items-center gap-3.5">
-                        <div className="relative flex items-center justify-center">
-                            <RobotHeader size={38} isThinking={isRobotThinking} isResponding={isRobotResponding}/>
-
-                            {/* Live Indicator Badge */}
-                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
-                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isStreaming || isLoading
-            ? "bg-amber-400 dark:bg-amber-300"
-            : "bg-emerald-400 dark:bg-emerald-300"}`}/>
-                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-pink-600 dark:border-slate-900 ${isStreaming || isLoading
-            ? "bg-amber-400 dark:bg-amber-300 ring-2 ring-amber-500/20"
-            : "bg-emerald-400 dark:bg-emerald-400 ring-2 ring-emerald-500/20"}`}/>
-                            </span>
-                        </div>
-
-                        <div>
-                            <h2 className="text-white dark:text-slate-100 font-bold text-sm tracking-tight leading-snug">
-                                AI Warehouse Assistant
-                            </h2>
-                            <p className="text-pink-100 dark:text-pink-300/80 text-[11px] font-medium tracking-wide opacity-90 flex items-center gap-1.5">
-                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-pink-200 dark:bg-pink-400 animate-pulse shadow-xs shadow-pink-300"/>
-                                {isStreaming
-            ? "Typing response..."
-            : isLoading
-                ? "Processing..."
-                : "Online & Ready"}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Right: Controls */}
-                    <div className="flex items-center gap-1.5">
-                        {messages.length > 1 && (<button onClick={onClose} className="text-white/90 dark:text-slate-300 hover:text-white dark:hover:text-pink-300 p-2 rounded-full bg-white/10 hover:bg-white/20 dark:bg-slate-800/80 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 shadow-[0_2px_6px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-150 active:scale-95 cursor-pointer" title="Minimize chat" aria-label="Minimize assistant drawer">
-                                <i className="fas fa-minus text-xs"/>
-                            </button>)}
-
-                        {messages.length > 1 && (<button onClick={() => {
-                const welcomeMsg: Message = {
-                    id: 'welcome',
-                    type: 'assistant',
-                    content: 'Hello! I\'m your AI Warehouse Assistant. How can I help you?',
-                    timestamp: new Date(),
-                    suggestions: [
-                        'Create purchase order',
-                        'How many parcels were received today?',
-                        'Show me low stock items',
-                    ]
-                };
-                setMessages([welcomeMsg]);
-                setSuggestions([]);
-                if (typeof window !== 'undefined') {
-                    localStorage.removeItem(STORAGE_KEY);
-                }
-            }} className="text-white/90 dark:text-slate-300 hover:text-white dark:hover:text-pink-300 p-2 rounded-full bg-white/10 hover:bg-white/20 dark:bg-slate-800/80 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 shadow-[0_2px_6px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-150 active:scale-95 cursor-pointer" title="Clear chat" aria-label="Clear chat history">
-                                <i className="fas fa-trash-alt text-xs"/>
-                            </button>)}
-
-                        <button onClick={onClose} className="text-white/90 dark:text-slate-300 hover:text-white dark:hover:text-pink-300 p-2 rounded-full bg-white/10 hover:bg-white/20 dark:bg-slate-800/80 dark:hover:bg-slate-700 border border-white/20 dark:border-slate-700 shadow-[0_2px_6px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-150 active:scale-95 cursor-pointer" title="Close drawer" aria-label="Close assistant drawer">
-                            <i className="fas fa-times text-base"/>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Messages Body */}
-                <div className="relative flex-1 overflow-hidden bg-slate-50/40 dark:bg-transparent">
-                    <div ref={messagesContainerRef} data-lenis-prevent className="h-full overflow-y-auto overscroll-contain p-5 space-y-5 scroll-smooth scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800" onScroll={checkIfAtBottom}>
-                        {messages.map((msg) => (<div key={msg.id} className={`flex items-start gap-3 ${msg.type === "user" ? "flex-row-reverse" : ""}`}>
-                                {/* Avatar handling */}
-                                {msg.type === "user" ? (<div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-[0_2px_8px_rgba(244,63,94,0.3),inset_0_1px_0_rgba(255,255,255,0.4)] bg-gradient-to-tr from-pink-600 to-rose-500 text-white border border-pink-400/40">
-                                        <i className="fas fa-user text-xs"/>
-                                    </div>) : (<RobotAvatar size={32} isThinking={msg.isThinking} isResponding={!msg.isThinking && msg.content?.length > 0} className="shrink-0"/>)}
-
-                                <div className={`max-w-[84%] space-y-1.5 ${msg.type === "user" ? "items-end" : "items-start"}`}>
-                                    {/* Message Bubble */}
-                                    <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed transition-colors ${msg.type === "user"
-                ? "bg-gradient-to-tr from-pink-600 to-rose-500 text-white rounded-tr-none font-normal shadow-[0_4px_14px_rgba(244,63,94,0.3),inset_0_1px_0_rgba(255,255,255,0.35)] border border-pink-400/40"
-                : "bg-white dark:bg-[#1e1e22] text-slate-800 dark:text-slate-100 border border-slate-200/90 dark:border-slate-800 rounded-tl-none font-normal shadow-xs dark:shadow-lg backdrop-blur-md"}`}>
-                                        {renderMessageContent(msg)}
-                                    </div>
-
-                                    {/* Timestamp */}
-                                    <div className={`flex items-center gap-2 px-1 ${msg.type === "user" ? "justify-end" : "justify-start"}`}>
-                                        {msg.content && !msg.isThinking && (<span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                                                {formatTime(msg.timestamp)}
-                                            </span>)}
-                                    </div>
-
-                                    {/* Suggestions */}
-                                    {msg.suggestions && msg.suggestions.length > 0 && msg.type === "assistant" && (<div className="pt-2 space-y-2">
-                                            <span className="text-[11px] font-bold text-pink-600/90 dark:text-pink-400 flex items-center gap-1">
-                                                <i className="fas fa-lightbulb text-amber-500 dark:text-amber-400 text-[10px]"/>{" "}
-                                                Follow-up ideas
-                                            </span>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {msg.suggestions.slice(0, 3).map((suggestion) => (<button key={suggestion} onClick={() => {
-                        setInput(suggestion);
-                        setTimeout(() => handleSendMessage(), 100);
-                    }} className="text-xs font-semibold bg-[#ffe6f0] hover:bg-[#ffd9e8] text-pink-700 border border-pink-300/90 shadow-[0_2px_6px_rgba(244,63,94,0.16),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff] dark:bg-[#341427] dark:hover:bg-[#421932] dark:text-pink-200 dark:border-[#67224c] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] px-3.5 py-1.5 rounded-full transition-all duration-200 active:scale-95 text-left cursor-pointer">
-                                                        {suggestion}
-                                                    </button>))}
-                                            </div>
-                                        </div>)}
-                                </div>
-                            </div>))}
-
-                        {/* Loading Indicator */}
-                        {isLoading && messages[messages.length - 1]?.content && !isStreaming && (<div className="flex items-center gap-2 text-xs font-semibold text-pink-600 dark:text-pink-400 bg-[#ffe6f0] dark:bg-[#341427] border border-pink-200 dark:border-[#67224c] px-3.5 py-1.5 rounded-full w-fit animate-pulse shadow-xs backdrop-blur-sm">
-                                <i className="fas fa-circle-notch fa-spin text-xs"/>
-                                <span>Thinking...</span>
-                            </div>)}
-                        <div ref={messagesEndRef}/>
-                    </div>
-
-                    {/* Floating Scroll-to-Bottom Button */}
-                    {showScrollButton && (<button onClick={scrollToBottom} className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#ffe6f0] hover:bg-[#ffd9e8] text-pink-700 border border-pink-300/90 shadow-[0_4px_12px_rgba(244,63,94,0.25),inset_0_1px_0_#ffffff] dark:bg-[#341427] dark:hover:bg-[#421932] dark:text-pink-200 dark:border-[#67224c] dark:shadow-[0_4px_14px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.15)] rounded-full p-2.5 transition-all duration-200 hover:scale-105 active:scale-95 z-10 cursor-pointer" aria-label="Scroll to bottom">
-                            <i className="fas fa-arrow-down text-xs"/>
-                            <span className="sr-only">Scroll to bottom</span>
-                        </button>)}
-                </div>
-
-                {/* Quick Prompts */}
-                {messages.length < 3 && (<div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-[#2a2a2e] backdrop-blur-md shrink-0 transition-colors">
-                        {/* Header */}
-                        <p className="text-[11px] font-bold text-pink-600 dark:text-pink-400 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
-                            <i className="fas fa-sparkles text-pink-500 dark:text-pink-400 text-[11px]"/>
-                            <span>Quick Prompts</span>
-                        </p>
-
-                        {/* Prompt Buttons Container */}
-                        <div className="flex flex-wrap gap-1.5">
-                            {SUGGESTED_QUESTIONS.map((q) => (<button key={q} onClick={() => handleSuggested(q)} disabled={isLoading || (isLockedOut && lockoutSeconds > 0)} className="text-xs font-semibold bg-slate-100 hover:bg-[#ffe6f0] text-slate-700 hover:text-pink-700 border border-slate-200/90 hover:border-pink-300 shadow-[0_2px_6px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff] dark:bg-slate-800 dark:hover:bg-[#341427] dark:text-slate-200 dark:hover:text-pink-200 dark:border-slate-700 dark:hover:border-[#67224c] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] px-3.5 py-1.5 rounded-full transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 cursor-pointer">
-                                    {q}
-                                </button>))}
-                        </div>
-                    </div>)}
-
-                {/* Input Area */}
-                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#2a2a2e] backdrop-blur-xl shrink-0 shadow-lg transition-all">
-                    
-                    {/* Moderation Lockout Banner */}
-                    {isLockedOut && lockoutSeconds > 0 && (
-                        <div className="mb-2.5 p-3 rounded-2xl bg-rose-50 dark:bg-[#2b1419] border border-rose-200 dark:border-rose-900/60 flex items-center justify-between gap-2.5 text-xs text-rose-700 dark:text-rose-300 animate-in fade-in duration-200 shadow-2xs">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0" />
-                                <span className="font-medium truncate">
-                                    AI Chatbot queries locked for policy violations
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0 font-bold bg-rose-100 dark:bg-rose-950/80 px-2.5 py-1 rounded-full text-rose-800 dark:text-rose-200 text-[11px] border border-rose-200/80 dark:border-rose-800">
-                                <Clock className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                                <span>
-                                    {Math.floor(lockoutSeconds / 60)}m {String(lockoutSeconds % 60).padStart(2, '0')}s
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Attachment Preview Chip */}
-                    {attachedFile && (<div className="mb-2 p-2 px-3 rounded-2xl bg-pink-50/90 dark:bg-[#341427]/90 border border-pink-200 dark:border-[#67224c] flex items-center justify-between gap-2 text-xs animate-in fade-in zoom-in-95 duration-150">
-                            <div className="flex items-center gap-2 min-w-0">
-                                {attachedFile.type.startsWith('image/') ? (<img src={attachedFile.dataUrl} alt="Preview" className="w-8 h-8 rounded-lg object-cover border border-pink-300 dark:border-pink-800 shrink-0"/>) : (<div className="w-8 h-8 rounded-lg bg-pink-100 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400 flex items-center justify-center shrink-0">
-                                        <i className="fas fa-file-pdf text-sm"/>
-                                    </div>)}
-                                <div className="min-w-0">
-                                    <p className="text-xs font-semibold text-slate-800 dark:text-white truncate">
-                                        {attachedFile.name}
-                                    </p>
-                                    <p className="text-[10px] text-pink-600 dark:text-pink-400">
-                                        {(attachedFile.size / 1024).toFixed(1)} KB • Ready to analyze
-                                    </p>
-                                </div>
-                            </div>
-                            <button type="button" onClick={handleRemoveAttachment} className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-full transition-colors cursor-pointer" title="Remove attachment">
-                                <i className="fas fa-times text-xs"/>
-                            </button>
-                        </div>)}
-
-                    <div className="relative flex items-center gap-1.5">
-                        {/* Hidden file input */}
-                        <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/csv" onChange={handleFileSelect} className="hidden"/>
-
-                        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLoading || (isLockedOut && lockoutSeconds > 0)} className="p-2.5 rounded-xl bg-slate-100 hover:bg-pink-50 text-slate-500 hover:text-pink-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-pink-400 transition-colors border border-slate-200/80 dark:border-slate-700/60 shrink-0 cursor-pointer disabled:opacity-50" title="Attach picture or document to analyze" aria-label="Attach picture or document">
-                            <i className="fas fa-paperclip text-sm"/>
-                        </button>
-
-                        <div className="relative flex-1 flex items-center">
-                            <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={isLockedOut && lockoutSeconds > 0 ? "Queries temporarily locked (cooling down...)" : attachedFile ? "Ask something about this file (or press enter)..." : "Ask about inventory, stock, or attach docs..."} className="w-full bg-slate-50/90 dark:bg-slate-900/70 border border-slate-200/90 dark:border-[#353746] rounded-2xl pl-4 pr-12 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-pink-500 dark:focus:border-pink-500/80 focus:ring-2 focus:ring-pink-500/20 transition-all duration-150 backdrop-blur-sm disabled:opacity-60 disabled:cursor-not-allowed" disabled={isLoading || (isLockedOut && lockoutSeconds > 0)}/>
-
-                            <button onClick={() => handleSendMessage()} disabled={(!input.trim() && !attachedFile) || isLoading || (isLockedOut && lockoutSeconds > 0)} aria-label="Send message" className="absolute right-2 w-8 h-8 rounded-full bg-gradient-to-tr from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 text-white disabled:opacity-40 disabled:hover:from-pink-600 disabled:hover:to-rose-500 disabled:cursor-not-allowed shadow-[0_2px_8px_rgba(244,63,94,0.35),inset_0_1px_0_rgba(255,255,255,0.4)] border border-pink-400/40 flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer">
-                                <i className={`fas ${isLoading ? 'fa-spinner fa-spin' : 'fa-arrow-up'} text-xs`}/>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="mt-2.5 flex items-center justify-between px-1">
-                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                            {isLoading ? (<>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-ping"/>
-                                    <span>Processing request...</span>
-                                </>) : isLockedOut && lockoutSeconds > 0 ? (
-                                <span className="text-rose-500 font-semibold flex items-center gap-1">
-                                    <ShieldAlert className="w-3 h-3" />
-                                    <span>Account cooling down ({lockoutSeconds}s)</span>
-                                </span>
-                            ) : (<span>Press <kbd className="px-1.5 py-0.5 rounded text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 font-mono">Enter</kbd> to send</span>)}
-                        </span>
-
-                        <span className="text-[10px] font-bold text-pink-500/90 dark:text-pink-400/90 uppercase tracking-wider flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-pink-500 dark:bg-pink-400"/>
-                            Warehouse AI
-                        </span>
-                    </div>
-                </div>
             </div>
-        </>);
+        );
+    };
+
+    const renderDocumentPreviewModal = () => {
+        if (!previewModalDoc) return null;
+        const isImage = Boolean(
+            previewModalDoc.is_gallery ||
+            previewModalDoc.file_type?.startsWith('image/') ||
+            previewModalDoc.storage_path?.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i) ||
+            previewModalDoc.public_url?.match(/\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i)
+        );
+
+        return (
+            <AnimatePresence>
+                {previewModalDoc && (
+                    <motion.div
+                        key="document-preview-modal-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md select-none"
+                        onClick={() => setPreviewModalDoc(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.92, opacity: 0, y: 15 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.92, opacity: 0, y: 15 }}
+                            transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl bg-[#ebf0f7] dark:bg-[#161722] border border-white/90 dark:border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.6)] overflow-hidden"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-5 py-3.5 bg-[#ebf0f7] dark:bg-[#1b1c2a] border-b border-white/80 dark:border-white/[0.08] shrink-0">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                                        previewModalDoc.is_gallery
+                                            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
+                                            : 'bg-pink-100 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400 border-pink-300 dark:border-pink-800'
+                                    }`}>
+                                        <i className={`fas ${previewModalDoc.is_gallery ? 'fa-image' : 'fa-file-alt'} text-sm`} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                            {previewModalDoc.title || previewModalDoc.file_name}
+                                        </h3>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                            <span>{previewModalDoc.document_type}</span>
+                                            <span>•</span>
+                                            <span className="font-mono text-[10px]">{previewModalDoc.po_number || previewModalDoc.file_name}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Toolbar Controls */}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    {isImage && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreviewZoom(prev => Math.max(0.5, prev - 0.25))}
+                                                disabled={previewZoom <= 0.5}
+                                                className="w-8 h-8 rounded-xl bg-[#ebf0f7] hover:bg-[#e2e9f3] dark:bg-[#202130] dark:hover:bg-[#282a3c] text-slate-600 dark:text-slate-300 border border-white/90 dark:border-white/10 flex items-center justify-center text-xs transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
+                                                title="Zoom Out"
+                                            >
+                                                <ZoomOut className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreviewZoom(1)}
+                                                className="px-2 h-8 rounded-xl bg-[#ebf0f7] hover:bg-[#e2e9f3] dark:bg-[#202130] dark:hover:bg-[#282a3c] text-slate-600 dark:text-slate-300 border border-white/90 dark:border-white/10 flex items-center justify-center text-[10px] font-bold transition-colors cursor-pointer shadow-xs"
+                                                title="Reset Zoom"
+                                            >
+                                                {Math.round(previewZoom * 100)}%
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreviewZoom(prev => Math.min(3, prev + 0.25))}
+                                                disabled={previewZoom >= 3}
+                                                className="w-8 h-8 rounded-xl bg-[#ebf0f7] hover:bg-[#e2e9f3] dark:bg-[#202130] dark:hover:bg-[#282a3c] text-slate-600 dark:text-slate-300 border border-white/90 dark:border-white/10 flex items-center justify-center text-xs transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
+                                                title="Zoom In"
+                                            >
+                                                <ZoomIn className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreviewRotation(prev => (prev + 90) % 360)}
+                                                className="w-8 h-8 rounded-xl bg-[#ebf0f7] hover:bg-[#e2e9f3] dark:bg-[#202130] dark:hover:bg-[#282a3c] text-slate-600 dark:text-slate-300 border border-white/90 dark:border-white/10 flex items-center justify-center text-xs transition-colors cursor-pointer shadow-xs"
+                                                title="Rotate 90°"
+                                            >
+                                                <RotateCw className="w-3.5 h-3.5" />
+                                            </button>
+                                        </>
+                                    )}
+                                    {(previewModalDoc.public_url || previewModalDoc.file_url) && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleDownloadFile(previewModalDoc, e)}
+                                            className="w-8 h-8 rounded-xl bg-[#ebf0f7] hover:bg-[#e2e9f3] dark:bg-[#202130] dark:hover:bg-[#282a3c] text-emerald-600 dark:text-emerald-400 border border-white/90 dark:border-white/10 flex items-center justify-center text-xs transition-colors cursor-pointer shadow-xs"
+                                            title="Download File"
+                                        >
+                                            <Download className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreviewModalDoc(null)}
+                                        className="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 flex items-center justify-center text-xs transition-colors cursor-pointer ml-1"
+                                        title="Close Preview"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Body Canvas */}
+                            <div className="relative flex-1 min-h-[320px] max-h-[65vh] overflow-auto p-4 flex items-center justify-center bg-slate-900/10 dark:bg-black/40">
+                                {(previewModalDoc.public_url || previewModalDoc.file_url) ? (
+                                    previewModalDoc.file_type?.includes('pdf') ? (
+                                        <iframe
+                                            src={previewModalDoc.public_url || previewModalDoc.file_url!}
+                                            className="w-full h-[60vh] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner bg-white"
+                                            title={previewModalDoc.title}
+                                        />
+                                    ) : (
+                                        <div className="overflow-auto max-w-full max-h-full flex items-center justify-center relative w-full h-full min-h-[300px]">
+                                            {/* High-res Loading Spinner */}
+                                            {previewModalLoading && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-xs z-10 text-white gap-2 rounded-2xl">
+                                                    <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                                                    <span className="text-xs font-semibold tracking-wide">Loading preview...</span>
+                                                </div>
+                                            )}
+                                            <motion.img
+                                                src={previewModalDoc.public_url || previewModalDoc.file_url!}
+                                                alt={previewModalDoc.title}
+                                                decoding="async"
+                                                onLoad={() => {
+                                                    const url = previewModalDoc.public_url || previewModalDoc.file_url;
+                                                    if (url) imageCache.add(url);
+                                                    setPreviewModalLoading(false);
+                                                }}
+                                                onError={() => setPreviewModalLoading(false)}
+                                                style={{
+                                                    transform: `scale(${previewZoom}) rotate(${previewRotation}deg)`,
+                                                    transformOrigin: 'center center',
+                                                    willChange: 'transform',
+                                                }}
+                                                className={`max-h-[58vh] max-w-full object-contain rounded-2xl shadow-xl transition-all duration-200 select-none ${
+                                                    previewModalLoading ? 'opacity-0' : 'opacity-100'
+                                                }`}
+                                            />
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-center p-8 text-slate-400 space-y-3">
+                                        <div className="w-16 h-16 rounded-2xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
+                                            <FileText className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{previewModalDoc.title}</p>
+                                            <p className="text-xs text-slate-400 mt-1">Direct file preview is not available for this record type.</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer Strip */}
+                            <div className="flex items-center justify-between px-5 py-3 bg-[#ebf0f7] dark:bg-[#1b1c2a] border-t border-white/80 dark:border-white/[0.08] shrink-0 text-xs">
+                                <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 text-[11px] truncate">
+                                    <span>Supplier: <strong className="text-slate-700 dark:text-slate-200">{previewModalDoc.supplier}</strong></span>
+                                    <span>•</span>
+                                    <span>Ref: <strong className="text-slate-700 dark:text-slate-200 font-mono">{previewModalDoc.po_number}</strong></span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {previewModalDoc.view_link && previewModalDoc.view_link !== '#' && (
+                                        <Link
+                                            href={previewModalDoc.view_link}
+                                            onClick={() => {
+                                                setPreviewModalDoc(null);
+                                                onClose();
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all active:scale-95 cursor-pointer"
+                                        >
+                                            <span>Open in {previewModalDoc.target_label || 'System'}</span>
+                                            <ExternalLink className="w-3 h-3" />
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        );
+    };
+
+    return (
+        <AnimatePresence>
+            {!isOpen && (
+                <motion.div
+                    key="chatbot-floating-robot"
+                    id="grabbable-ai-robot"
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Open AI Warehouse Assistant"
+                    drag
+                    dragConstraints={dragBounds}
+                    dragMomentum={true}
+                    dragElastic={0.12}
+                    dragTransition={{ power: 0.12, timeConstant: 220, bounceStiffness: 280, bounceDamping: 24 }}
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.94 }}
+                    whileDrag={{ scale: 1.06 }}
+                    onDragStart={handleFloatingDragStart}
+                    onDragEnd={handleFloatingDragEnd}
+                    onClick={() => {
+                        if (hasDraggedRef.current) return;
+                        openChat();
+                    }}
+                    style={{ x: floatX, y: floatY }}
+                    initial={{ opacity: 0, scale: 0.85, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.85, y: 10 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 28, mass: 0.8 }}
+                    className="fixed bottom-20 right-6 z-50 select-none touch-none cursor-grab active:cursor-grabbing group flex items-center justify-center w-12 h-12 rounded-full bg-[#ebf0f7] dark:bg-[#151620] border border-white/90 dark:border-white/[0.08] shadow-[4px_4px_10px_rgba(166,175,195,0.45),-4px_-4px_10px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[5px_5px_15px_rgba(0,0,0,0.75),-2px_-2px_6px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.05)] hover:shadow-[2px_2px_6px_rgba(166,175,195,0.35),-2px_-2px_6px_rgba(255,255,255,0.9)] dark:hover:shadow-[3px_3px_10px_rgba(0,0,0,0.6),-1px_-1px_4px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.4)] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.8)] transition-shadow duration-200"
+                >
+                    {/* Reaction Speech Bubble */}
+                    <AnimatePresence>
+                        {collisionReaction && (
+                            <motion.div
+                                key="collision-reaction-bubble"
+                                initial={{ opacity: 0, y: 8, scale: 0.8 }}
+                                animate={{ opacity: 1, y: -10, scale: 1 }}
+                                exit={{ opacity: 0, y: -4, scale: 0.8 }}
+                                transition={{ duration: 0.22, ease: "easeOut" }}
+                                className="absolute -top-9 left-1/2 -translate-x-1/2 pointer-events-none z-30"
+                            >
+                                <div className="relative px-3 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#151620] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_8px_rgba(166,175,195,0.4),-3px_-3px_8px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6)] text-[11px] font-bold text-pink-600 dark:text-pink-300 whitespace-nowrap flex items-center gap-1">
+                                    <span>{collisionReaction}</span>
+                                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#ebf0f7] dark:bg-[#151620] border-r border-b border-white/90 dark:border-white/[0.08] rotate-45" />
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Robot Head with wobble reaction */}
+                    <motion.div
+                        animate={isWobbling ? {
+                            rotate: [-14, 14, -8, 8, -3, 3, 0],
+                            scale: [1, 1.22, 0.94, 1.06, 1],
+                        } : { rotate: 0, scale: 1 }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                        className="pointer-events-none flex items-center justify-center"
+                    >
+                        <RobotAvatar size={30} isThinking={isLoading} isResponding={isStreaming} />
+                    </motion.div>
+
+                    {/* Live Status Dot (Matte, Clean) */}
+                    <span className="absolute bottom-0.5 right-0.5 flex h-2.5 w-2.5 items-center justify-center pointer-events-none">
+                        <span className={`w-2 h-2 rounded-full border border-[#ebf0f7] dark:border-[#151620] ${isLoading || isStreaming ? 'bg-amber-400' : 'bg-emerald-500'}`} />
+                    </span>
+
+                    {/* Unread message badge if there is history */}
+                    {messages.length > 1 && (
+                        <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] font-bold flex items-center justify-center shadow-xs border border-white dark:border-[#151620] pointer-events-none">
+                            {messages.length - 1}
+                        </span>
+                    )}
+                </motion.div>
+            )}
+
+            {isOpen && (
+                <div key="chatbot-drawer-container">
+                    {/* Backdrop */}
+                    <motion.div
+                        key="chatbot-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.22, ease: "easeOut" }}
+                        className="fixed inset-0 bg-slate-950/50 dark:bg-slate-950/70 backdrop-blur-[2px] z-40"
+                        onClick={onClose}
+                    />
+
+                    {/* Chat Drawer with Neumorphic Side Surface (GPU Accelerated & Resizable) */}
+                    <motion.div
+                        key="chatbot-drawer-panel"
+                        data-lenis-prevent
+                        initial={{ x: "100%", opacity: 0.8 }}
+                        animate={{ x: "0%", opacity: 1 }}
+                        exit={{ x: "100%", opacity: 0 }}
+                        transition={{
+                            duration: 0.26,
+                            ease: [0.16, 1, 0.3, 1],
+                        }}
+                        style={{
+                            width: typeof window !== 'undefined' && window.innerWidth >= 640 ? `${drawerWidth}px` : '100%',
+                            maxWidth: '100vw',
+                        }}
+                        className="fixed top-0 right-0 h-full w-full
+                                bg-[#ebf0f7] dark:bg-[#15161f] text-slate-900 dark:text-white
+                                z-50 flex flex-col font-sans overscroll-contain will-change-transform transform-gpu
+                                shadow-[-16px_0_40px_rgba(166,175,195,0.4),inset_1px_0_2px_rgba(255,255,255,0.9)] 
+                                dark:shadow-[-16px_0_40px_rgba(0,0,0,0.8),inset_1px_0_1px_rgba(255,255,255,0.05)]
+                                border-l border-white/80 dark:border-white/[0.08]"
+                    >
+                        {/* Left Edge Resize Drag Handle */}
+                        <div
+                            onMouseDown={handleResizeStart}
+                            onDoubleClick={toggleWidthExpand}
+                            className={`hidden sm:flex absolute -left-1.5 top-0 bottom-0 w-3 z-30 cursor-ew-resize items-center justify-center group touch-none select-none`}
+                            title="Drag left or right to resize (Double-click to expand/reset)"
+                        >
+                            {/* Visual line */}
+                            <div className={`h-full w-1 transition-all duration-150 rounded-full ${
+                                isResizing 
+                                    ? 'bg-pink-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]' 
+                                    : 'bg-transparent group-hover:bg-pink-400/60 dark:group-hover:bg-pink-500/50'
+                            }`} />
+                            {/* Grip Indicator Handle */}
+                            <div className={`absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-4 h-12 rounded-full flex flex-col items-center justify-center gap-1 transition-all duration-150 shadow-md border ${
+                                isResizing 
+                                    ? 'bg-pink-500 text-white border-pink-400 scale-110' 
+                                    : 'bg-[#ebf0f7] dark:bg-[#1e1f2c] border-white/90 dark:border-white/10 text-slate-400 group-hover:text-pink-600 dark:group-hover:text-pink-400 group-hover:scale-105 opacity-0 group-hover:opacity-100'
+                            }`}>
+                                <div className="w-1 h-1 rounded-full bg-current" />
+                                <div className="w-1 h-1 rounded-full bg-current" />
+                                <div className="w-1 h-1 rounded-full bg-current" />
+                            </div>
+                        </div>
+
+                        {/* Header with Robot & Neumorphic Header Surface */}
+                        <div className="bg-[#ebf0f7] dark:bg-[#181924] px-5 py-4 flex items-center justify-between shrink-0 shadow-[0_4px_12px_rgba(166,175,195,0.35),inset_0_1px_1.5px_rgba(255,255,255,0.95)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.06)] z-10 border-b border-white/80 dark:border-white/[0.06] transition-colors">
+                            {/* Left: Assistant Status & Avatar */}
+                            <div className="flex items-center gap-3.5">
+                                <div className="relative flex items-center justify-center p-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#1e1f2c] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.4),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)]">
+                                    <RobotHeader size={36} isThinking={isRobotThinking} isResponding={isRobotResponding}/>
+
+                                    {/* Live Indicator Badge (Clean Matte, No Glow) */}
+                                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center">
+                                        <span className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-[#ebf0f7] dark:border-[#1e1f2c] ${isStreaming || isLoading
+                    ? "bg-amber-400"
+                    : "bg-emerald-500"}`}/>
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <h2 className="text-slate-800 dark:text-slate-100 font-bold text-sm tracking-tight leading-snug">
+                                        AI Warehouse Assistant
+                                    </h2>
+                                    <p className="text-pink-600 dark:text-pink-400 text-[11px] font-semibold tracking-wide flex items-center gap-1.5 mt-0.5">
+                                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${isStreaming || isLoading ? 'bg-amber-400' : 'bg-emerald-500'}`}/>
+                                        {isStreaming
+                    ? "Typing response..."
+                    : isLoading
+                        ? "Processing..."
+                        : "Online & Ready"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Right: Neumorphic Controls */}
+                            <div className="flex items-center gap-2">
+                                {/* Expand / Reset Width Button */}
+                                <button
+                                    type="button"
+                                    onClick={toggleWidthExpand}
+                                    className="text-slate-600 hover:text-pink-600 dark:text-slate-300 dark:hover:text-pink-400 p-2.5 rounded-full bg-[#ebf0f7] dark:bg-[#1c1d29] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.4),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.05)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.4),-1px_-1px_3px_rgba(255,255,255,0.9)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] transition-all duration-150 active:scale-95 cursor-pointer hidden sm:flex items-center justify-center w-8 h-8"
+                                    title={drawerWidth > 560 ? "Reset width (440px)" : "Expand width"}
+                                    aria-label="Toggle drawer width"
+                                >
+                                    {drawerWidth > 560 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                                </button>
+
+                                <button onClick={onClose} className="text-slate-600 hover:text-pink-600 dark:text-slate-300 dark:hover:text-pink-400 p-2.5 rounded-full bg-[#ebf0f7] dark:bg-[#1c1d29] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.4),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.05)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.4),-1px_-1px_3px_rgba(255,255,255,0.9)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] transition-all duration-150 active:scale-95 cursor-pointer flex items-center justify-center w-8 h-8" title="Minimize chat" aria-label="Minimize assistant drawer">
+                                    <Minus className="w-3.5 h-3.5"/>
+                                </button>
+
+                                {messages.length > 1 && (<button onClick={() => {
+                        const welcomeMsg: Message = {
+                            id: 'welcome',
+                            type: 'assistant',
+                            content: 'Hello! I\'m your AI Warehouse Assistant. How can I help you?',
+                            timestamp: new Date(),
+                            suggestions: [
+                                'Create purchase order',
+                                'How many parcels were received today?',
+                                'Show me low stock items',
+                            ]
+                        };
+                        setMessages([welcomeMsg]);
+                        setSuggestions([]);
+                        if (typeof window !== 'undefined') {
+                            localStorage.removeItem(STORAGE_KEY);
+                        }
+                    }} className="text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 p-2.5 rounded-full bg-[#ebf0f7] dark:bg-[#1c1d29] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.4),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.05)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.4),-1px_-1px_3px_rgba(255,255,255,0.9)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] transition-all duration-150 active:scale-95 cursor-pointer flex items-center justify-center w-8 h-8" title="Clear chat" aria-label="Clear chat history">
+                                        <i className="fas fa-trash-alt text-[11px]"/>
+                                    </button>)}
+
+                                <button onClick={onClose} className="text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 p-2.5 rounded-full bg-[#ebf0f7] dark:bg-[#1c1d29] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.4),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.05)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.4),-1px_-1px_3px_rgba(255,255,255,0.9)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] transition-all duration-150 active:scale-95 cursor-pointer flex items-center justify-center w-8 h-8" title="Close drawer" aria-label="Close assistant drawer">
+                                    <X className="w-3.5 h-3.5"/>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Messages Body */}
+                        <div className="relative flex-1 overflow-hidden bg-[#e8eef6]/40 dark:bg-[#12131b]/40 shadow-[inset_0_2px_6px_rgba(166,175,195,0.2)] dark:shadow-[inset_0_2px_6px_rgba(0,0,0,0.4)]">
+                            <div ref={messagesContainerRef} data-lenis-prevent className="h-full overflow-y-auto overscroll-contain p-5 space-y-5 scroll-smooth scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700" onScroll={checkIfAtBottom}>
+                                {messages.map((msg) => (<div key={msg.id} className={`flex items-start gap-3 ${msg.type === "user" ? "flex-row-reverse" : ""}`}>
+                                        {/* Avatar handling */}
+                                        {msg.type === "user" ? (<div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-[3px_3px_6px_rgba(244,63,94,0.35),-2px_-2px_4px_rgba(255,255,255,0.4),inset_0_1px_1px_rgba(255,255,255,0.4)] bg-gradient-to-tr from-pink-600 to-rose-500 text-white border border-pink-400/40">
+                                                <i className="fas fa-user text-xs"/>
+                                            </div>) : (<div className="p-1 rounded-full bg-[#ebf0f7] dark:bg-[#1e1f2c] border border-white/90 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_6px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] shrink-0">
+                                                <RobotAvatar size={28} isThinking={msg.isThinking} isResponding={!msg.isThinking && msg.content?.length > 0}/>
+                                            </div>)}
+
+                                        <div className={`max-w-[84%] space-y-1.5 ${msg.type === "user" ? "items-end" : "items-start"}`}>
+                                            {/* Message Bubble */}
+                                            <div className={`rounded-2xl px-4 py-3.5 text-sm leading-relaxed transition-colors ${msg.type === "user"
+                        ? "bg-gradient-to-br from-pink-500 to-rose-600 text-white rounded-tr-xs font-normal shadow-[4px_4px_12px_rgba(244,63,94,0.35),-2px_-2px_6px_rgba(255,255,255,0.4),inset_0_1px_1.5px_rgba(255,255,255,0.4)] border border-pink-400/40"
+                        : "bg-[#ebf0f7] dark:bg-[#1a1b26] text-slate-800 dark:text-slate-100 border border-white/90 dark:border-white/[0.08] rounded-tl-xs font-normal shadow-[4px_4px_10px_rgba(166,175,195,0.35),-4px_-4px_10px_rgba(255,255,255,0.95),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.05)]"}`}>
+                                                {renderMessageContent(msg)}
+                                            </div>
+
+                                            {/* Timestamp */}
+                                            <div className={`flex items-center gap-2 px-1 ${msg.type === "user" ? "justify-end" : "justify-start"}`}>
+                                                {msg.content && !msg.isThinking && (<span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                                                        {formatTime(msg.timestamp)}
+                                                    </span>)}
+                                            </div>
+
+                                            {/* Suggestions */}
+                                            {msg.suggestions && msg.suggestions.length > 0 && msg.type === "assistant" && (<div className="pt-2 space-y-2">
+                                                    <span className="text-[11px] font-bold text-pink-600 dark:text-pink-400 flex items-center gap-1.5">
+                                                        <i className="fas fa-lightbulb text-amber-500 text-[10px]"/>
+                                                        Follow-up ideas
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {msg.suggestions.slice(0, 3).map((suggestion) => (<button key={suggestion} onClick={() => {
+                                setInput(suggestion);
+                                setTimeout(() => handleSendMessage(), 100);
+                            }} className="text-xs font-semibold bg-[#ebf0f7] hover:bg-[#e4ebf5] text-pink-700 dark:bg-[#1e1f2c] dark:hover:bg-[#252636] dark:text-pink-300 border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.4),-1px_-1px_3px_rgba(255,255,255,0.9)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] px-3.5 py-1.5 rounded-full transition-all duration-150 active:scale-95 text-left cursor-pointer">
+                                                                {suggestion}
+                                                            </button>))}
+                                                    </div>
+                                                </div>)}
+                                        </div>
+                                    </div>))}
+
+                                {/* Loading Indicator */}
+                                {isLoading && messages[messages.length - 1]?.content && !isStreaming && (<div className="flex items-center gap-2 text-xs font-semibold text-pink-600 dark:text-pink-400 bg-[#ebf0f7] dark:bg-[#1a1b26] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] px-3.5 py-1.5 rounded-full w-fit">
+                                        <i className="fas fa-circle-notch fa-spin text-xs"/>
+                                        <span>Thinking...</span>
+                                    </div>)}
+                                <div ref={messagesEndRef}/>
+                            </div>
+
+                            {/* Floating Scroll-to-Bottom Button */}
+                            {showScrollButton && (<button onClick={scrollToBottom} className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#ebf0f7] hover:bg-[#e4ebf5] text-pink-600 dark:bg-[#1e1f2c] dark:hover:bg-[#252636] dark:text-pink-300 border border-white/90 dark:border-white/[0.08] shadow-[4px_4px_10px_rgba(166,175,195,0.4),-4px_-4px_10px_rgba(255,255,255,0.95)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.04)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] rounded-full p-2.5 transition-all duration-150 hover:scale-105 active:scale-95 z-10 cursor-pointer" aria-label="Scroll to bottom">
+                                    <i className="fas fa-arrow-down text-xs"/>
+                                    <span className="sr-only">Scroll to bottom</span>
+                                </button>)}
+                        </div>
+
+                        {/* Quick Prompts */}
+                        {messages.length < 3 && (<div className="px-5 py-3.5 border-t border-white/80 dark:border-white/[0.06] bg-[#ebf0f7] dark:bg-[#181924] shadow-[0_-2px_6px_rgba(166,175,195,0.15)] shrink-0 transition-colors">
+                                {/* Header */}
+                                <p className="text-[11px] font-bold text-pink-600 dark:text-pink-400 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <Sparkles className="w-3.5 h-3.5 text-pink-500 dark:text-pink-400 inline-block"/>
+                                    <span>Quick Prompts</span>
+                                </p>
+
+                                {/* Prompt Buttons Container */}
+                                <div className="flex flex-wrap gap-2">
+                                    {SUGGESTED_QUESTIONS.map((q) => (<button key={q} onClick={() => handleSuggested(q)} disabled={isLoading || (isLockedOut && lockoutSeconds > 0)} className="text-xs font-semibold bg-[#ebf0f7] hover:bg-[#e4ebf5] text-slate-700 hover:text-pink-600 dark:bg-[#1e1f2c] dark:hover:bg-[#252636] dark:text-slate-200 dark:hover:text-pink-300 border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.4),-1px_-1px_3px_rgba(255,255,255,0.9)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] px-3.5 py-1.5 rounded-full transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 cursor-pointer">
+                                            {q}
+                                        </button>))}
+                                </div>
+                            </div>)}
+
+                        {/* Input Area */}
+                        <div className="p-4 border-t border-white/80 dark:border-white/[0.06] bg-[#ebf0f7] dark:bg-[#181924] shadow-[0_-4px_14px_rgba(166,175,195,0.25),inset_0_1px_1px_rgba(255,255,255,0.95)] dark:shadow-[0_-4px_14px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.05)] shrink-0 transition-all">
+                            
+                            {/* Moderation Lockout Banner */}
+                            {isLockedOut && lockoutSeconds > 0 && (
+                                <div className="mb-2.5 p-3 rounded-2xl bg-rose-50 dark:bg-[#2b1419] border border-rose-200 dark:border-rose-900/60 flex items-center justify-between gap-2.5 text-xs text-rose-700 dark:text-rose-300 animate-in fade-in duration-200 shadow-2xs">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0" />
+                                        <span className="font-medium truncate">
+                                            AI Chatbot queries locked for policy violations
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 font-bold bg-rose-100 dark:bg-rose-950/80 px-2.5 py-1 rounded-full text-rose-800 dark:text-rose-200 text-[11px] border border-rose-200/80 dark:border-rose-800">
+                                        <Clock className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                                        <span>
+                                            {Math.floor(lockoutSeconds / 60)}m {String(lockoutSeconds % 60).padStart(2, '0')}s
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Mode Switcher Segmented Control */}
+                            <div className="mb-3 p-1 rounded-2xl bg-[#e2e9f3] dark:bg-[#11121a] border border-white/60 dark:border-white/[0.04] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.4),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6),inset_-1px_-1px_2px_rgba(255,255,255,0.02)] flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => handleModeSwitch('chat')}
+                                    disabled={isLoading || (isLockedOut && lockoutSeconds > 0)}
+                                    className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                        activeMode === 'chat'
+                                            ? 'bg-[#ebf0f7] dark:bg-[#1e1f2c] text-pink-600 dark:text-pink-400 border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)]'
+                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                >
+                                    <i className="fas fa-comments text-xs" />
+                                    <span>AI Chat</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleModeSwitch('search')}
+                                    disabled={isLoading || (isLockedOut && lockoutSeconds > 0)}
+                                    className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                        activeMode === 'search'
+                                            ? 'bg-emerald-500/15 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 shadow-[3px_3px_6px_rgba(16,185,129,0.2),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)]'
+                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                >
+                                    <i className="fas fa-camera text-xs" />
+                                    <span>Search Document with Photo</span>
+                                </button>
+                            </div>
+
+                            {/* Attachment Preview Chip */}
+                            {attachedFile && (
+                                <div className={`mb-2 p-2 px-3.5 rounded-2xl border transition-all animate-in fade-in zoom-in-95 duration-150 flex items-center justify-between gap-2 text-xs ${
+                                    attachedFile.mode === 'search_document'
+                                        ? 'bg-emerald-50/90 dark:bg-[#122b22] border-emerald-300 dark:border-emerald-700/60 shadow-[3px_3px_8px_rgba(16,185,129,0.15)]'
+                                        : 'bg-[#ebf0f7] dark:bg-[#1c1d28] border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)]'
+                                }`}>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {attachedFile.type.startsWith('image/') ? (
+                                            <img src={attachedFile.dataUrl} alt="Preview" className={`w-8 h-8 rounded-lg object-cover border shrink-0 ${attachedFile.mode === 'search_document' ? 'border-emerald-400 dark:border-emerald-600' : 'border-pink-300 dark:border-pink-800'}`} />
+                                        ) : (
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${attachedFile.mode === 'search_document' ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400' : 'bg-pink-100 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400'}`}>
+                                                <i className={`fas ${attachedFile.mode === 'search_document' ? 'fa-search-plus' : 'fa-file-pdf'} text-sm`} />
+                                            </div>
+                                        )}
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <p className="text-xs font-semibold text-slate-800 dark:text-white truncate">
+                                                    {attachedFile.name}
+                                                </p>
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                                    attachedFile.mode === 'search_document'
+                                                        ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
+                                                        : 'bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800'
+                                                }`}>
+                                                    {attachedFile.mode === 'search_document' ? '🔍 Search Document' : '📎 Chat Attachment'}
+                                                </span>
+                                            </div>
+                                            <p className={`text-[10px] ${attachedFile.mode === 'search_document' ? 'text-emerald-600 dark:text-emerald-400' : 'text-pink-600 dark:text-pink-400'}`}>
+                                                {(attachedFile.size / 1024).toFixed(1)} KB • {attachedFile.mode === 'search_document' ? 'Will OCR & match in system database' : 'Normal chat • Describe / answer questions'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={handleRemoveAttachment} className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-full transition-colors cursor-pointer" title="Remove attachment">
+                                        <i className="fas fa-times text-xs" />
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="relative flex items-center gap-2">
+                                {/* Hidden file inputs */}
+                                <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/csv" onChange={handleFileSelect} className="hidden" />
+                                <input ref={searchFileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" onChange={handleSearchFileSelect} className="hidden" />
+
+                                {activeMode === 'search' ? (
+                                    /* Search Mode Photo Picker Button */
+                                    <button
+                                        type="button"
+                                        onClick={() => searchFileInputRef.current?.click()}
+                                        disabled={isLoading || (isLockedOut && lockoutSeconds > 0)}
+                                        className="p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-[#153326] dark:hover:bg-[#1a3d2e] dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 shadow-[3px_3px_6px_rgba(16,185,129,0.25),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] active:shadow-[inset_2px_2px_4px_rgba(16,185,129,0.4)] transition-all duration-150 shrink-0 cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                                        title="Select Photo/Document to Search"
+                                        aria-label="Select photo or document to search"
+                                    >
+                                        <i className="fas fa-camera text-sm" />
+                                    </button>
+                                ) : (
+                                    /* Normal Chat Attachment Button */
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isLoading || (isLockedOut && lockoutSeconds > 0)}
+                                        className="p-3 rounded-2xl bg-[#ebf0f7] hover:bg-[#e4ebf5] text-slate-600 hover:text-pink-600 dark:bg-[#1e1f2c] dark:hover:bg-[#252636] dark:text-slate-300 dark:hover:text-pink-400 border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] active:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.45)] transition-all duration-150 shrink-0 cursor-pointer disabled:opacity-50"
+                                        title="Attach picture or document (normal chat)"
+                                        aria-label="Attach picture or document"
+                                    >
+                                        <i className="fas fa-paperclip text-sm" />
+                                    </button>
+                                )}
+
+                                <div className="relative flex-1 flex items-center">
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        disabled={activeMode === 'search' || isLoading || (isLockedOut && lockoutSeconds > 0)}
+                                        placeholder={
+                                            isLockedOut && lockoutSeconds > 0
+                                                ? "Queries temporarily locked (cooling down...)"
+                                                : activeMode === 'search'
+                                                ? (attachedFile
+                                                    ? `Photo attached: ${attachedFile.name} (Click search button)`
+                                                    : "Input disabled in Search Mode — upload photo/receipt above")
+                                                : (attachedFile
+                                                    ? "Ask anything about this file (or press enter)..."
+                                                    : "Ask about inventory, stock, or attach docs...")
+                                        }
+                                        className={`w-full text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-white/60 dark:border-white/[0.04] shadow-[inset_3px_3px_6px_rgba(166,175,195,0.45),inset_-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.65),inset_-1px_-1px_3px_rgba(255,255,255,0.03)] focus:outline-none focus:border-pink-400 dark:focus:border-pink-500/70 rounded-2xl pl-4 pr-12 py-3.5 text-sm transition-all duration-150 ${
+                                            activeMode === 'search'
+                                                ? 'bg-[#dbe3ef]/60 dark:bg-[#0c0d14]/70 cursor-not-allowed opacity-75 font-medium italic'
+                                                : 'bg-[#e2e9f3] dark:bg-[#11121a] disabled:opacity-60 disabled:cursor-not-allowed'
+                                        }`}
+                                    />
+
+                                    <button
+                                        onClick={() => handleSendMessage()}
+                                        disabled={
+                                            activeMode === 'search'
+                                                ? (!attachedFile || isLoading || (isLockedOut && lockoutSeconds > 0))
+                                                : ((!input.trim() && !attachedFile) || isLoading || (isLockedOut && lockoutSeconds > 0))
+                                        }
+                                        aria-label={activeMode === 'search' ? "Search Database with Photo" : "Send message"}
+                                        className={`absolute right-2 w-8 h-8 rounded-full text-white disabled:opacity-40 disabled:cursor-not-allowed border flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer ${
+                                            activeMode === 'search'
+                                                ? 'bg-gradient-to-tr from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-[3px_3px_6px_rgba(16,185,129,0.4),-1px_-1px_3px_rgba(255,255,255,0.4)] border-emerald-400/40'
+                                                : 'bg-gradient-to-tr from-pink-500 to-rose-600 hover:from-pink-500 hover:to-rose-700 shadow-[3px_3px_6px_rgba(244,63,94,0.4),-1px_-1px_3px_rgba(255,255,255,0.4)] border-pink-400/40'
+                                        }`}
+                                    >
+                                        <i className={`fas ${isLoading ? 'fa-spinner fa-spin' : activeMode === 'search' ? 'fa-search' : 'fa-arrow-up'} text-xs`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="mt-2.5 flex items-center justify-between px-1">
+                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                                    {isLoading ? (<>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-pink-500"/>
+                                            <span>Processing request...</span>
+                                        </>) : isLockedOut && lockoutSeconds > 0 ? (
+                                        <span className="text-rose-500 font-semibold flex items-center gap-1">
+                                            <ShieldAlert className="w-3 h-3" />
+                                            <span>Account cooling down ({lockoutSeconds}s)</span>
+                                        </span>
+                                    ) : activeMode === 'search' ? (
+                                        <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                            <i className="fas fa-camera text-[10px]" />
+                                            <span>Upload photo or receipt to match in database</span>
+                                        </span>
+                                    ) : (
+                                        <span>Press <kbd className="px-1.5 py-0.5 rounded text-[9px] bg-[#e2e9f3] dark:bg-[#11121a] text-slate-600 dark:text-slate-400 border border-white/60 dark:border-white/[0.04] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3)] font-mono">Enter</kbd> to send</span>
+                                    )}
+                                </span>
+
+                                <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                    activeMode === 'search'
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-pink-600 dark:text-pink-400'
+                                }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${activeMode === 'search' ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-pink-500 dark:bg-pink-400'}`}/>
+                                    {activeMode === 'search' ? 'Document Matcher' : 'Warehouse AI'}
+                                </span>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+            {renderDocumentPreviewModal()}
+        </AnimatePresence>
+    );
 }

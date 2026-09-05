@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { InventoryItem } from '../../types';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
+import Portal from '@/app/(supplyChain)/components/client/Portal';
 
 interface StockOutModalProps {
     isOpen: boolean;
@@ -57,17 +58,18 @@ export function StockOutModal({
     if (!isOpen) return null;
 
     return (
-        <div
-            className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
-            onClick={onClose}
-        >
+        <Portal>
             <div
-                className="bg-white dark:bg-ink rounded-2xl max-w-lg w-full p-6 shadow-2xl dark:shadow-[0_20px_25px_-5px_rgba(0,0,0,0.8),0_8px_10px_-6px_rgba(0,0,0,0.5)] border border-slate-100 dark:border-ink/20 animate-in zoom-in-95 duration-200"
+                className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+                onClick={onClose}
+            >
+            <div
+                className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-lg w-full p-6  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] animate-in zoom-in-95 duration-200"
                 onClick={e => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100 dark:border-ink/20">
+                <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-200/60 dark:border-white/[0.06]">
                     <div className="flex items-center gap-3">
-                        <span className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                        <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
                             <i className="fas fa-arrow-up text-base"></i>
                         </span>
                         <div>
@@ -88,7 +90,7 @@ export function StockOutModal({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="bg-slate-50/80 dark:bg-slate-800/30 rounded-xl p-3 border border-slate-100 dark:border-ink/20">
+                    <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-3.5 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                         <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Target Item</span>
                         <div className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate">
                             {formData.item || 'No Item Selected'}
@@ -96,10 +98,10 @@ export function StockOutModal({
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-slate-50 dark:bg-slate-800/30 p-3 rounded-xl border border-slate-100 dark:border-ink/20 flex flex-col justify-between">
+                        <div className="bg-[#ebf0f7] dark:bg-[#14151e] p-3.5 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] flex flex-col justify-between">
                             <div className="flex items-center justify-between mb-1">
                                 <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Current Stock</span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${!currentItem ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400' :
+                                <span className={`px-2 py-0.5 rounded-xl text-[10px] font-medium ${!currentItem ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400' :
                                     currentItem.current_stock <= 0 ? 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400' :
                                         currentItem.current_stock < currentItem.minimum_stock ? 'bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400' :
                                             'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
@@ -110,14 +112,14 @@ export function StockOutModal({
                                                 'Available'}
                                 </span>
                             </div>
-                            <div className="text-base font-bold text-slate-900 dark:text-slate-200">
+                            <div className="text-base font-bold text-slate-900 dark:text-slate-200 font-mono">
                                 {currentItem ? `${currentItem.current_stock} ${currentItem.unit}` : '0'}
                             </div>
                         </div>
 
-                        <div className="bg-orange-50/50 dark:bg-orange-950/20 p-3 rounded-xl border border-orange-100/60 dark:border-orange-800/30 flex flex-col justify-between">
-                            <span className="text-[11px] font-semibold text-orange-800/70 dark:text-orange-400/80">New Total</span>
-                            <div className="text-base font-bold text-orange-600 dark:text-orange-400">
+                        <div className="bg-[#ebf0f7] dark:bg-[#14151e] p-3.5 rounded-2xl border border-orange-200/50 dark:border-orange-800/30 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] flex flex-col justify-between">
+                            <span className="text-[11px] font-semibold text-orange-800/80 dark:text-orange-400">New Total</span>
+                            <div className="text-base font-bold text-orange-600 dark:text-orange-400 font-mono">
                                 {currentItem ? `${Math.max(0, currentItem.current_stock - (formData.quantity || 0))} ${currentItem.unit}` : '0'}
                             </div>
                         </div>
@@ -132,7 +134,7 @@ export function StockOutModal({
                                 type="number"
                                 min="1"
                                 max={currentItem?.current_stock || 0}
-                                className="w-full bg-white dark:bg-ink/60 border border-slate-200 dark:border-ink/30 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all"
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 transition-all font-mono"
                                 placeholder="0"
                                 value={formData.quantity || ''}
                                 onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
@@ -149,7 +151,7 @@ export function StockOutModal({
                             </label>
                             <input
                                 type="text"
-                                className="w-full bg-white dark:bg-ink/60 border border-slate-200 dark:border-ink/30 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all"
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 transition-all"
                                 placeholder="e.g., Warehouse"
                                 value={formData.department}
                                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
@@ -163,7 +165,7 @@ export function StockOutModal({
                             </label>
                             <input
                                 type="text"
-                                className="w-full bg-white dark:bg-ink/60 border border-slate-200 dark:border-ink/30 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all"
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 transition-all"
                                 placeholder="e.g., Packing"
                                 value={formData.purpose}
                                 onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
@@ -177,7 +179,7 @@ export function StockOutModal({
                             Remarks <span className="text-slate-400 dark:text-slate-500 font-normal">(optional)</span>
                         </label>
                         <textarea
-                            className="w-full bg-white dark:bg-ink/60 border border-slate-200 dark:border-ink/30 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all resize-none"
+                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-orange-500 transition-all resize-none"
                             rows={2}
                             placeholder="Add any extra notes..."
                             value={formData.remarks}
@@ -186,7 +188,7 @@ export function StockOutModal({
                         />
                     </div>
 
-                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-ink/20">
+                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200/60 dark:border-white/[0.06]">
                         <AppButton
                             type="button"
                             variant="neutral"
@@ -209,6 +211,7 @@ export function StockOutModal({
                     </div>
                 </form>
             </div>
-        </div>
+            </div>
+        </Portal>
     );
 }

@@ -24,7 +24,7 @@ export default function OperationsSummary({ data }: OperationsSummaryProps) {
             label: 'Receiving Queue Pending',
             valStr: `${queuePending.toLocaleString()} items`,
             badgeText: `${queuePending} pending`,
-            badgeStyle: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+            badgeStyle: 'bg-[#ebf0f7] dark:bg-[#12131b] border-white/80 dark:border-white/[0.05] text-slate-700 dark:text-slate-300 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]',
             infoText: 'Parcels scanned in receiving queue awaiting sort verification.',
             modalDetail: {
                 title: 'Receiving Queue Inspection',
@@ -39,7 +39,7 @@ export default function OperationsSummary({ data }: OperationsSummaryProps) {
             label: 'Parcels Currently Sorting',
             valStr: `${sortingCount.toLocaleString()} parcels`,
             badgeText: `${sortingCount} in line`,
-            badgeStyle: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/60',
+            badgeStyle: 'bg-[#ebf0f7] dark:bg-[#12131b] border-amber-300/80 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25),0_1px_3px_rgba(245,158,11,0.1)]',
             infoText: 'Parcels undergoing optical barcode classification in sorting lanes.',
             modalDetail: {
                 title: 'Sorting Stage Breakdown',
@@ -54,7 +54,7 @@ export default function OperationsSummary({ data }: OperationsSummaryProps) {
             label: 'Parcels Successfully Delivered',
             valStr: deliveredCount.toLocaleString(),
             badgeText: `${deliveredCount} completed`,
-            badgeStyle: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/60',
+            badgeStyle: 'bg-[#ebf0f7] dark:bg-[#12131b] border-emerald-300/80 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25),0_1px_3px_rgba(16,185,129,0.1)]',
             infoText: 'Total parcels delivered to destination consignees.',
             modalDetail: {
                 title: 'Delivered Shipment Audit',
@@ -70,8 +70,8 @@ export default function OperationsSummary({ data }: OperationsSummaryProps) {
             valStr: `${anomalies} items`,
             badgeText: `${anomalies} flagged`,
             badgeStyle: anomalies > 0
-                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/40'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-700/60',
+                ? 'bg-[#ebf0f7] dark:bg-[#12131b] border-rose-300/80 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25),0_1px_3px_rgba(244,63,94,0.15)]'
+                : 'bg-[#ebf0f7] dark:bg-[#12131b] border-white/80 dark:border-white/[0.05] text-slate-700 dark:text-slate-300 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]',
             infoText: 'Inventory items at or below safety minimum stock threshold.',
             modalDetail: {
                 title: 'Stock Shortage Audit',
@@ -84,53 +84,55 @@ export default function OperationsSummary({ data }: OperationsSummaryProps) {
     ];
 
     return (
-        <div className="card p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs dark:shadow-none transition-all">
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800/80">
-                <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 text-xs uppercase tracking-wider">
-                    <div className="w-7 h-7 rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
-                        <i className="fas fa-warehouse text-xs"></i>
+        <div className="bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08] rounded-3xl p-5  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] flex flex-col justify-between transition-all">
+            <div>
+                <div className="flex items-center justify-between pb-3.5 border-b border-slate-200/60 dark:border-white/[0.06]">
+                    <div className="flex items-center gap-2.5 font-extrabold text-slate-900 dark:text-white text-sm">
+                        <div className="w-9 h-9 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-500 dark:text-pink-400 flex items-center justify-center border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
+                            <i className="fas fa-warehouse text-xs"></i>
+                        </div>
+                        <span>Operations Summary</span>
                     </div>
-                    <span>Operations Summary</span>
+                    <ViewLink link="/warehousing" name="view" />
                 </div>
-                <ViewLink link="/warehousing" name="view" />
-            </div>
 
-            <ul className="mt-1 divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {rows.map((row) => (
-                    <li key={row.key} className="py-3 flex justify-between items-center group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 px-2 rounded-xl transition-colors">
-                        <div className="flex items-center gap-2">
-                            {/* Hover detail effect (! badge with popover tooltip) */}
-                            <div className="info-badge-container">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedItem(row.modalDetail)}
-                                    className="w-4 h-4 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 text-[10px] font-bold flex items-center justify-center hover:scale-110 transition-transform cursor-pointer shadow-2xs"
-                                    title="Hover/Click for info (!)"
-                                >
-                                    !
-                                </button>
-                                <div className="tooltip-popover">
-                                    <p className="font-bold text-pink-400">{row.label}</p>
-                                    <p className="text-slate-200 dark:text-slate-300 mt-1">{row.infoText}</p>
+                <ul className="mt-3 divide-y divide-slate-200/50 dark:divide-white/[0.04] text-xs">
+                    {rows.map((row) => (
+                        <li key={row.key} className="py-3 flex justify-between items-center group hover:bg-[#ebf0f7]/60 dark:hover:bg-[#14151e]/60 px-2 rounded-2xl transition-colors">
+                            <div className="flex items-center gap-2.5">
+                                {/* Hover detail effect (! badge with popover tooltip) */}
+                                <div className="info-badge-container">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedItem(row.modalDetail)}
+                                        className="w-5 h-5 rounded-full bg-[#ebf0f7] dark:bg-[#14151e] border border-pink-300/80 dark:border-pink-500/30 text-pink-600 dark:text-pink-400 text-[10px] font-extrabold flex items-center justify-center shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3),0_1px_3px_rgba(236,72,153,0.15)] hover:scale-110 transition-transform cursor-pointer"
+                                        title="Hover/Click for info (!)"
+                                    >
+                                        !
+                                    </button>
+                                    <div className="tooltip-popover">
+                                        <p className="font-bold text-pink-400">{row.label}</p>
+                                        <p className="text-slate-200 dark:text-slate-300 mt-1">{row.infoText}</p>
+                                    </div>
                                 </div>
+
+                                <span className="font-bold text-slate-700 dark:text-slate-300">{row.label}</span>
                             </div>
 
-                            <span className="font-medium text-slate-600 dark:text-slate-400">{row.label}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <span className={`font-semibold text-[11px] px-2.5 py-0.5 rounded-xl border ${row.badgeStyle}`}>
-                                {row.badgeText}
-                            </span>
-                            <CrudActionButton
-                                action="view"
-                                ariaLabel={`View details for ${row.label}`}
-                                onClick={() => setSelectedItem(row.modalDetail)}
-                            />
-                        </div>
-                    </li>
-                ))}
-            </ul>
+                            <div className="flex items-center gap-2">
+                                <span className={`font-bold font-mono text-[11px] px-2.5 py-1 rounded-xl border ${row.badgeStyle}`}>
+                                    {row.badgeText}
+                                </span>
+                                <CrudActionButton
+                                    action="view"
+                                    ariaLabel={`View details for ${row.label}`}
+                                    onClick={() => setSelectedItem(row.modalDetail)}
+                                />
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
 
             {/* Modal detail on demand */}
             {selectedItem && (

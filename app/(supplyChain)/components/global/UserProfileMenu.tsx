@@ -233,13 +233,13 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
                 resetForm();
             }
             setIsOpen(!isOpen);
-        }} title={`Logged in as ${userName} (${userRole}) • Click to Change Password`} className={`flex items-center gap-2 px-2.5 py-1 rounded-full 
-                    bg-white dark:bg-[#1c1d25] 
-                    border ${isOpen ? 'border-pink-500 ring-2 ring-pink-500/20' : 'border-slate-200/90 dark:border-[#353746]'} 
-                    shadow-[0_2px_6px_rgba(0,0,0,0.05),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] 
-                    hover:border-pink-300 dark:hover:border-pink-500/50 hover:bg-pink-50/50 dark:hover:bg-pink-950/20 
+        }} title={`Logged in as ${userName} (${userRole}) • Click to Change Password`} className={`flex items-center gap-2 px-3 py-1 rounded-full 
+                    bg-[#f0f3f8] dark:bg-[#1d1e28] 
+                    border ${isOpen ? 'border-pink-500 ring-2 ring-pink-500/20' : 'border-white/70 dark:border-[#2a2b38]'} 
+                    shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] 
+                    hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] 
                     transition-all duration-150 active:scale-95 cursor-pointer group select-none`}>
-                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-pink-600 dark:bg-pink-500 text-white text-[11px] font-bold group-hover:scale-105 transition-transform">
+                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-gradient-to-tr from-pink-600 to-rose-500 text-white text-[11px] font-bold shadow-[0_2px_4px_rgba(236,72,153,0.3)] group-hover:scale-105 transition-transform">
                     {getInitials(userName)}
                 </div>
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 max-w-[80px] truncate group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
@@ -254,16 +254,16 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
 
                     {/* Main Popover Panel Anchored to Right Top */}
                     <div onWheel={(e) => e.stopPropagation()} className="fixed sm:absolute inset-x-0 top-0 sm:top-full sm:right-0 sm:left-auto mt-0 sm:mt-2 w-full sm:w-[390px] h-[100dvh] sm:h-auto sm:max-h-[620px] 
-                        bg-white dark:bg-[#1c1d25] 
+                        bg-[#f2f5fa] dark:bg-[#191a24] 
                         rounded-none sm:rounded-2xl 
-                        border-0 sm:border border-slate-200/90 dark:border-[#353746] 
-                        shadow-[0_16px_50px_rgba(0,0,0,0.15),inset_0_1px_0_#ffffff] dark:shadow-[0_20px_60px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] 
+                        border-0 sm:border border-white/80 dark:border-[#2c2d3c] 
+                        shadow-[8px_8px_24px_rgba(166,175,195,0.45),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] 
                         z-50 flex flex-col overflow-hidden animate-in slide-in-from-top-2 duration-200">
 
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3.5 
-                            border-b border-slate-100 dark:border-slate-800 
-                            bg-white/90 dark:bg-[#1c1d25]/90 backdrop-blur-md shrink-0">
+                            border-b border-slate-200/60 dark:border-slate-800 
+                            bg-[#f0f3f8]/95 dark:bg-[#191a24]/95 backdrop-blur-md shrink-0">
                             <div className="flex items-center gap-2.5">
                                 <div className="p-2 rounded-xl bg-pink-50 dark:bg-pink-950/30 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-800/30 shrink-0">
                                     <KeyRound className="h-4 w-4"/>
@@ -284,7 +284,7 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
                         </div>
 
                         {/* Scrollable Body */}
-                        <div className="overflow-y-auto flex-1 p-4 space-y-4 dark:bg-[#1c1b1f] overscroll-contain scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+                        <div className="overflow-y-auto flex-1 p-4 space-y-4 bg-[#f0f3f8] dark:bg-[#191a24] overscroll-contain scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                             {isSuccessState ? (
             /* Success Confirmation State */
             <div className="text-center py-4 space-y-4">
@@ -312,14 +312,14 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
                                     </div>
 
                                     <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
-                                        <button type="button" onClick={performClientLogout} className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                            <LogOut className="h-3.5 w-3.5"/>
-                                            <span>Save & Logout</span>
-                                        </button>
-                                        <button type="button" onClick={handleClose} className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs">
-                                            <CheckCircle2 className="h-3.5 w-3.5"/>
-                                            <span>Done</span>
-                                        </button>
+                                        <button type="button" onClick={performClientLogout} className="px-3.5 py-2 bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white border border-pink-400/80 dark:border-pink-500/80 rounded-xl text-xs font-semibold shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95">
+                                             <LogOut className="h-3.5 w-3.5"/>
+                                             <span>Save & Logout</span>
+                                         </button>
+                                         <button type="button" onClick={handleClose} className="px-4 py-2 bg-[#ebf0f7] dark:bg-[#14151c] hover:bg-[#e2e8f2] dark:hover:bg-[#1c1d28] text-slate-700 dark:text-slate-200 border border-white/80 dark:border-[#2a2b38] rounded-xl text-xs font-semibold shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04)] transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95">
+                                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500"/>
+                                             <span>Done</span>
+                                         </button>
                                     </div>
                                 </div>) : (
             /* Form */
@@ -353,7 +353,7 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                                                 <Lock className="h-3.5 w-3.5"/>
                                             </div>
-                                            <input type={showCurrentPassword ? 'text' : 'password'} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" disabled={isSubmitting} className="w-full pl-9 pr-9 py-2 text-xs bg-white dark:bg-[#2a2a2e] border border-slate-200/90 dark:border-slate-700/60 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500 outline-none transition" autoFocus/>
+                                            <input type={showCurrentPassword ? 'text' : 'password'} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" disabled={isSubmitting} className="w-full pl-9 pr-9 py-2 text-xs bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500/40 outline-none transition" autoFocus/>
                                             <button type="button" onClick={() => setShowCurrentPassword((prev) => !prev)} tabIndex={-1} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition cursor-pointer">
                                                 {showCurrentPassword ? <EyeOff className="h-3.5 w-3.5"/> : <Eye className="h-3.5 w-3.5"/>}
                                             </button>
@@ -369,7 +369,7 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                                                 <Lock className="h-3.5 w-3.5"/>
                                             </div>
-                                            <input type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" disabled={isSubmitting} className="w-full pl-9 pr-9 py-2 text-xs bg-white dark:bg-[#2a2a2e] border border-slate-200/90 dark:border-slate-700/60 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500 outline-none transition"/>
+                                            <input type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" disabled={isSubmitting} className="w-full pl-9 pr-9 py-2 text-xs bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500/40 outline-none transition"/>
                                             <button type="button" onClick={() => setShowNewPassword((prev) => !prev)} tabIndex={-1} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition cursor-pointer">
                                                 {showNewPassword ? <EyeOff className="h-3.5 w-3.5"/> : <Eye className="h-3.5 w-3.5"/>}
                                             </button>
@@ -379,25 +379,25 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
                                         {newPassword.length > 0 && (<div className="flex flex-wrap items-center gap-1.5 pt-1 animate-in fade-in duration-150">
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${criteria.length
                         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'}`}>
+                        : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'}`}>
                                                     {criteria.length ? <Check className="h-2.5 w-2.5"/> : <span className="w-1 h-1 rounded-full bg-slate-400"/>}
                                                     8+ chars
                                                 </span>
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${criteria.uppercase
                         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'}`}>
+                        : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'}`}>
                                                     {criteria.uppercase ? <Check className="h-2.5 w-2.5"/> : <span className="w-1 h-1 rounded-full bg-slate-400"/>}
                                                     1 uppercase
                                                 </span>
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${criteria.lowercase
                         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'}`}>
+                        : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'}`}>
                                                     {criteria.lowercase ? <Check className="h-2.5 w-2.5"/> : <span className="w-1 h-1 rounded-full bg-slate-400"/>}
                                                     1 lowercase
                                                 </span>
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${criteria.number
                         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'}`}>
+                        : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'}`}>
                                                     {criteria.number ? <Check className="h-2.5 w-2.5"/> : <span className="w-1 h-1 rounded-full bg-slate-400"/>}
                                                     1 number
                                                 </span>
@@ -422,9 +422,9 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                                                 <Lock className="h-3.5 w-3.5"/>
                                             </div>
-                                            <input type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter new password" disabled={isSubmitting} className={`w-full pl-9 pr-9 py-2 text-xs bg-white dark:bg-[#2a2a2e] border rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500 outline-none transition ${confirmPassword.length > 0 && !criteria.match
+                                            <input type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter new password" disabled={isSubmitting} className={`w-full pl-9 pr-9 py-2 text-xs bg-[#ebf0f7] dark:bg-[#14151c] border shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500/40 outline-none transition ${confirmPassword.length > 0 && !criteria.match
                     ? 'border-rose-400 dark:border-rose-500/80 focus:ring-rose-400'
-                    : 'border-slate-200/90 dark:border-slate-700/60'}`}/>
+                    : 'border-slate-200/60 dark:border-slate-800'}`}/>
                                             <button type="button" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition cursor-pointer">
                                                 {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5"/> : <Eye className="h-3.5 w-3.5"/>}
                                             </button>
@@ -433,19 +433,19 @@ export function UserProfileMenu({ className }: UserProfileMenuProps) {
 
                                     {/* Action Buttons - Inline */}
                                     <div className="pt-2 flex items-center justify-between gap-2">
-                                        <button type="button" onClick={handleClose} disabled={isSubmitting} className="px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/80 rounded-xl bg-white dark:bg-[#2a2a2e] hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50 cursor-pointer">
+                                        <button type="button" onClick={handleClose} disabled={isSubmitting} className="px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#e2e8f2] dark:hover:bg-[#252633] border border-white/80 dark:border-[#2a2b38] rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04)] transition active:scale-95 disabled:opacity-50 cursor-pointer">
                                             Cancel
                                         </button>
 
                                         <div className="flex items-center gap-2">
-                                            <button type="button" onClick={() => handleSubmit(false)} disabled={isSubmitting || !isAllCriteriaMet} className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-slate-200 dark:border-slate-700/80 rounded-xl bg-white dark:bg-[#2a2a2e] transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer" title="Save password and keep current session">
+                                            <button type="button" onClick={() => handleSubmit(false)} disabled={isSubmitting || !isAllCriteriaMet} className="px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-pink-600 dark:text-slate-200 dark:hover:text-pink-400 hover:border-pink-300 dark:hover:border-pink-500/50 border border-white/80 dark:border-[#2a2b38] rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04)] transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer active:scale-95" title="Save password and keep current session">
                                                 {isSubmitting && submitMode === 'save' ? (<>
                                                         <Loader2 className="animate-spin h-3.5 w-3.5 text-pink-500"/>
                                                         <span>Saving...</span>
                                                     </>) : (<span>Save Changes</span>)}
                                             </button>
 
-                                            <button type="button" onClick={() => handleSubmit(true)} disabled={isSubmitting || !isAllCriteriaMet} className="px-3.5 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-semibold transition shadow-xs active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer" title="Save password and log out to sign in again">
+                                            <button type="button" onClick={() => handleSubmit(true)} disabled={isSubmitting || !isAllCriteriaMet} className="px-3.5 py-2 bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white border border-pink-400/80 dark:border-pink-500/80 rounded-xl text-xs font-semibold shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer" title="Save password and log out to sign in again">
                                                 {isSubmitting && submitMode === 'save_logout' ? (<>
                                                         <Loader2 className="animate-spin h-3.5 w-3.5"/>
                                                         <span>Logging out...</span>

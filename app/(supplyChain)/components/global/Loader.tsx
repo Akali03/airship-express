@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
@@ -22,9 +23,9 @@ function Wheel({ cx }: { cx: number }) {
             animate={{ rotate: 360 }}
             transition={{ duration: 0.55, repeat: Infinity, ease: "linear" }}
         >
-            <circle cx={cx} cy="82" r="12" fill="#1C1B1F" stroke="#FCFBF9" strokeWidth="3" />
-            <line x1={cx} y1="72" x2={cx} y2="92" stroke="#FCFBF9" strokeWidth="2" />
-            <line x1={cx - 10} y1="82" x2={cx + 10} y2="82" stroke="#FCFBF9" strokeWidth="2" />
+            <circle cx={cx} cy="82" r="12" className="fill-[#1C1B1F] dark:fill-slate-800 stroke-[#FCFBF9] dark:stroke-[#12131a]" strokeWidth="3" />
+            <line x1={cx} y1="72" x2={cx} y2="92" className="stroke-[#FCFBF9] dark:stroke-[#12131a]" strokeWidth="2" />
+            <line x1={cx - 10} y1="82" x2={cx + 10} y2="82" className="stroke-[#FCFBF9] dark:stroke-[#12131a]" strokeWidth="2" />
         </motion.g>
     );
 }
@@ -38,9 +39,9 @@ function TruckIcon() {
             animate={{ y: [0, -3, 0] }}
             transition={{ duration: 0.5, repeat: Infinity, ease: "easeInOut" }}
         >
-            <rect x="10" y="38" width="100" height="42" rx="4" fill="#1C1B1F" />
+            <rect x="10" y="38" width="100" height="42" rx="4" className="fill-[#1C1B1F] dark:fill-slate-700" />
             <rect x="10" y="38" width="100" height="8" fill="#E5167E" />
-            <path d="M110 50h38l27 22v8h-65z" fill="#1C1B1F" />
+            <path d="M110 50h38l27 22v8h-65z" className="fill-[#1C1B1F] dark:fill-slate-700" />
             <path d="M118 58h26l15 14h-41z" fill="#FCFBF9" opacity="0.25" />
             <Wheel cx={45} />
             <Wheel cx={152} />
@@ -49,8 +50,13 @@ function TruckIcon() {
 }
 
 export default function Loader({ onComplete }: LoaderProps) {
+    const [mounted, setMounted] = useState(false);
     const [progress, setProgress] = useState(0);
     const [phase, setPhase] = useState<"loading" | "done">("loading");
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         const duration = 2200;
@@ -74,9 +80,9 @@ export default function Loader({ onComplete }: LoaderProps) {
 
     const currentStage = [...stages].reverse().find((s) => progress >= s.at) ?? stages[0];
 
-    return (
+    const content = (
         <motion.div
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-10 bg-[#FCFBF9] px-6"
+            className="fixed inset-0 z-[9999999] flex flex-col items-center justify-center gap-10 bg-[#FCFBF9] dark:bg-[#12131a] px-6 select-none"
             initial={{ y: 0 }}
             animate={{ y: phase === "done" ? "-100%" : 0 }}
             transition={{ duration: 0.8, ease: [0.76, 0, 0.24, 1] }}
@@ -98,10 +104,10 @@ export default function Loader({ onComplete }: LoaderProps) {
 
                 <div className="h-[2px] w-full overflow-hidden rounded-full">
                     <motion.div
-                        className="h-full w-full"
+                        className="h-full w-full opacity-60 text-slate-800 dark:text-slate-400"
                         style={{
                             backgroundImage:
-                                "repeating-linear-gradient(90deg, #1C1B1F 0 12px, transparent 12px 24px)",
+                                "repeating-linear-gradient(90deg, currentColor 0 12px, transparent 12px 24px)",
                         }}
                         animate={{ backgroundPositionX: ["0px", "-48px"] }}
                         transition={{ duration: 0.5, repeat: Infinity, ease: "linear" }}
@@ -109,11 +115,11 @@ export default function Loader({ onComplete }: LoaderProps) {
                 </div>
 
                 <div className="flex w-full flex-col items-center gap-3">
-                    <span className="font-bricolage text-4xl font-extrabold tracking-[-0.02em] text-[#1C1B1F] sm:text-5xl">
+                    <span className="font-bricolage text-4xl font-extrabold tracking-[-0.02em] text-[#1C1B1F] dark:text-white sm:text-5xl">
                         {progress}%
                     </span>
 
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-[#EAEAEA]">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#EAEAEA] dark:bg-slate-800">
                         <motion.div
                             className="h-full rounded-full bg-[#E5167E]"
                             animate={{ width: `${progress}%` }}
@@ -121,13 +127,19 @@ export default function Loader({ onComplete }: LoaderProps) {
                         />
                     </div>
 
-                    <span className="text-xs font-medium uppercase tracking-[0.14em] text-[#6B6B76] font-rethink">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B6B76] dark:text-slate-400 font-rethink">
                         {currentStage.label}
                     </span>
                 </div>
             </div>
         </motion.div>
     );
+
+    if (!mounted) {
+        return content;
+    }
+
+    return createPortal(content, document.body);
 }
 
 

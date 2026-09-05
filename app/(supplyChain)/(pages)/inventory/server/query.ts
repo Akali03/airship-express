@@ -157,7 +157,7 @@ async function attachLatestPOToItems(items: any[]) {
                         }
                     }
                 }
-            }
+            } 
         }
         return items.map(item => ({
             ...item,

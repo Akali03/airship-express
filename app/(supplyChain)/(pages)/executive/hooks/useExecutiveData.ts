@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
+import { ftmSupabase } from "@/app/(supplyChain)/lib/services/client/ftmSupabase";
 import { toast } from "sonner";
 
 export interface ExecutiveInsight {
@@ -89,10 +90,11 @@ export interface ExecutiveDataPayload {
     procurementStatusBreakdown: Record<string, number>;
     documentTypeBreakdown: Record<string, number>;
     supplierCategoryBreakdown: Record<string, number>;
+    forecast7Day?: any;
     lastUpdated: string;
 }
 
-const CACHE_KEY = "AIRSHIP_EXECUTIVE_DATA_CACHE_V2";
+const CACHE_KEY = "AIRSHIP_EXECUTIVE_DATA_CACHE_V7";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useExecutiveData() {
@@ -141,7 +143,7 @@ export function useExecutiveData() {
             ] = await Promise.all([
                 supabase
                     .from('parcels')
-                    .select('id, barcode, tracking_number, sender_name, destination, courier, status, created_at, region, city')
+                    .select('id, barcode, tracking_number, customer_name, sender_name, destination, courier, status, created_at, region, city')
                     .order('created_at', { ascending: false })
                     .limit(500),
                 supabase
@@ -168,7 +170,7 @@ export function useExecutiveData() {
                     .select('id, barcode, tracking_number, courier, status, scanned_at')
                     .order('scanned_at', { ascending: false })
                     .limit(200),
-                supabase
+                ftmSupabase
                     .from('couriers')
                     .select('id, code, name, is_active')
                     .order('name', { ascending: true }),
@@ -188,6 +190,20 @@ export function useExecutiveData() {
             const receivingQueue = receivingQueueRes.data || [];
             const couriers = couriersRes.data || [];
             const suppliers = suppliersRes.data || [];
+
+            // fetch WASM forecast in parallel
+            let forecast7Day: any = null;
+            try {
+                const fcRes = await fetch('/forecast/api');
+                if (fcRes.ok) {
+                    const fcJson = await fcRes.json();
+                    if (fcJson.success && fcJson.parcel_7_day) {
+                        forecast7Day = fcJson.parcel_7_day;
+                    }
+                }
+            } catch (fcErr) {
+                console.warn("Forecast prefetch failed:", fcErr);
+            }
 
             // daily parcel trends 7d
             const dailyTrend: DailyTrendPoint[] = [];
@@ -318,15 +334,53 @@ export function useExecutiveData() {
                 supplierCategoryBreakdown[cat] = (supplierCategoryBreakdown[cat] || 0) + 1;
             });
 
+            // Helper to prevent address/location strings from leaking into consignee names
+            const isAddressLike = (str?: string | null) => {
+                if (!str) return false;
+                const lower = str.toLowerCase();
+                return lower.includes('hwy') || 
+                       lower.includes('highway') || 
+                       lower.includes('street') || 
+                       lower.includes('st.') || 
+                       lower.includes('road') || 
+                       lower.includes('rd.') || 
+                       lower.includes('ave') || 
+                       lower.includes('avenue') || 
+                       lower.includes('unknown destination') || 
+                       lower.includes('metro manila') || 
+                       lower.includes('zambales') || 
+                       lower.includes('pampanga') || 
+                       lower.includes('central warehouse') || 
+                       str.includes(',');
+            };
+
             // recent transactions
-            const recentTransactions: ExecutiveTransaction[] = parcels.slice(0, 6).map((p) => ({
-                id: p.tracking_number || p.barcode || String(p.id),
-                consignee: p.destination || p.sender_name || "Database Record",
-                courier: p.courier || "Airship Express",
-                area: p.city || p.region || "Central Warehouse",
-                status: (p.status || "sorting").replace(/_/g, ' ').toUpperCase(),
-                received: p.created_at ? new Date(p.created_at).toLocaleString('sv-SE').slice(0, 16) : "-",
-            }));
+            const recentTransactions: ExecutiveTransaction[] = parcels.slice(0, 6).map((p) => {
+                let consigneeName = "Consignee Client";
+                if (p.customer_name && !isAddressLike(p.customer_name) && p.customer_name !== 'Unknown Customer') {
+                    consigneeName = p.customer_name.trim();
+                } else if (p.sender_name && !isAddressLike(p.sender_name) && p.sender_name !== 'Unknown Sender') {
+                    consigneeName = p.sender_name.trim();
+                }
+
+                let areaLocation = "Central Warehouse";
+                if (p.destination && p.destination !== 'Unknown Destination') {
+                    areaLocation = p.destination.trim();
+                } else if (p.city && p.region) {
+                    areaLocation = `${p.city}, ${p.region}`;
+                } else if (p.city || p.region) {
+                    areaLocation = p.city || p.region;
+                }
+
+                return {
+                    id: p.tracking_number || p.barcode || String(p.id),
+                    consignee: consigneeName,
+                    courier: p.courier || "Airship Express",
+                    area: areaLocation,
+                    status: (p.status || "sorting").replace(/_/g, ' ').toUpperCase(),
+                    received: p.created_at ? new Date(p.created_at).toLocaleString('sv-SE').slice(0, 16) : "-",
+                };
+            });
 
             // automated insights
             const insights: ExecutiveInsight[] = [];
@@ -475,6 +529,7 @@ export function useExecutiveData() {
                 procurementStatusBreakdown,
                 documentTypeBreakdown,
                 supplierCategoryBreakdown,
+                forecast7Day,
                 lastUpdated: nowStr,
             };
 

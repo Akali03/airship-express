@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import Chart from "chart.js/auto";
 import OperationsSummary from "../OperationsSummary";
 import ProcurementCard from "../ProcurementCard";
@@ -32,13 +32,14 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
     const inventoryChartInstance = useRef<Chart | null>(null);
     const procurementChartInstance = useRef<Chart | null>(null);
 
-    useEffect(() => {
+    const renderCharts = useCallback(() => {
         const isDark = document.documentElement.classList.contains('dark');
-        const textColor = isDark ? '#fcfbf9' : '#1c1b1f';
-        const mutedColor = '#6b6b76';
-        const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+        const textColor = isDark ? '#f8fafc' : '#0f172a';
+        const mutedColor = isDark ? '#94a3b8' : '#334155';
+        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        const cardBgColor = isDark ? '#191a24' : '#f0f3f8';
 
-        // parcel trend 7d
+        // 1. Parcel trend 7d
         if (parcelsCanvasRef.current) {
             if (parcelsChartInstance.current) parcelsChartInstance.current.destroy();
 
@@ -75,18 +76,35 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { labels: { color: textColor, font: { size: 11 } } },
+                            legend: {
+                                labels: {
+                                    color: textColor,
+                                    font: { size: 11, weight: 'bold' }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: isDark ? '#1e293b' : '#0f172a',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                cornerRadius: 8,
+                            }
                         },
                         scales: {
-                            x: { grid: { display: false }, ticks: { color: mutedColor } },
-                            y: { grid: { color: gridColor }, ticks: { color: mutedColor, stepSize: 1 } }
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: mutedColor, font: { weight: 'bold', size: 10 } }
+                            },
+                            y: {
+                                grid: { color: gridColor },
+                                ticks: { color: mutedColor, font: { weight: 'bold', size: 10 }, stepSize: 1 }
+                            }
                         }
                     }
                 });
             }
         }
 
-        // inventory categories
+        // 2. Inventory SKU categories Breakdown
         if (inventoryCanvasRef.current) {
             if (inventoryChartInstance.current) inventoryChartInstance.current.destroy();
 
@@ -105,7 +123,7 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                                 ? [CHART_COLORS.primary, CHART_COLORS.secondary, CHART_COLORS.success, CHART_COLORS.warning, CHART_COLORS.purple, CHART_COLORS.cyan]
                                 : ['#94a3b8'],
                             borderWidth: 2,
-                            borderColor: isDark ? '#2a2a2e' : '#ffffff',
+                            borderColor: cardBgColor,
                         }]
                     },
                     options: {
@@ -113,14 +131,29 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                         maintainAspectRatio: false,
                         cutout: '65%',
                         plugins: {
-                            legend: { position: 'bottom', labels: { color: textColor, font: { size: 10 } } }
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: textColor,
+                                    font: { size: 11, weight: 'bold' },
+                                    padding: 10,
+                                    usePointStyle: true,
+                                    boxWidth: 8,
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: isDark ? '#1e293b' : '#0f172a',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                cornerRadius: 8,
+                            }
                         }
                     }
                 });
             }
         }
 
-        // procurement status
+        // 3. Procurement requests status
         if (procurementCanvasRef.current) {
             if (procurementChartInstance.current) procurementChartInstance.current.destroy();
 
@@ -144,23 +177,55 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { display: false }
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: isDark ? '#1e293b' : '#0f172a',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                cornerRadius: 8,
+                            }
                         },
                         scales: {
-                            x: { grid: { display: false }, ticks: { color: mutedColor } },
-                            y: { grid: { color: gridColor }, ticks: { color: mutedColor, stepSize: 1 } }
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: mutedColor, font: { weight: 'bold', size: 10 } }
+                            },
+                            y: {
+                                grid: { color: gridColor },
+                                ticks: { color: mutedColor, font: { weight: 'bold', size: 10 }, stepSize: 1 }
+                            }
                         }
                     }
                 });
             }
         }
+    }, [data]);
+
+    useEffect(() => {
+        renderCharts();
+
+        // Listen for dark/light mode toggle only
+        let lastIsDark = document.documentElement.classList.contains('dark');
+        const observer = new MutationObserver(() => {
+            const currentIsDark = document.documentElement.classList.contains('dark');
+            if (currentIsDark !== lastIsDark) {
+                lastIsDark = currentIsDark;
+                renderCharts();
+            }
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
 
         return () => {
+            observer.disconnect();
             if (parcelsChartInstance.current) parcelsChartInstance.current.destroy();
             if (inventoryChartInstance.current) inventoryChartInstance.current.destroy();
             if (procurementChartInstance.current) procurementChartInstance.current.destroy();
         };
-    }, [data]);
+    }, [renderCharts]);
 
     return (
         <div className="space-y-6">
@@ -169,10 +234,10 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                 {/* parcel trend */}
                 <div
                     onClick={() => onOpenModal('parcels')}
-                    className="card p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs hover:border-pink-300 dark:hover:border-pink-800 transition-all cursor-pointer group"
+                    className="p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[6px_6px_18px_rgba(166,175,195,0.35),-6px_-6px_18px_rgba(255,255,255,0.9)] dark:shadow-[8px_8px_24px_rgba(0,0,0,0.65)] hover:border-pink-300 dark:hover:border-pink-800 transition-all cursor-pointer group"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
+                        <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
                             <i className="fas fa-chart-line text-pink-500"></i>
                             <span>Parcel Volume Trend</span>
                             {/* info badge */}
@@ -193,7 +258,7 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenModal('parcels'); }}
-                            className="text-[11px] font-semibold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
+                            className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
                         >
                             Deep Dive
                         </button>
@@ -206,12 +271,12 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                 {/* inventory categories */}
                 <div
                     onClick={() => onOpenModal('inventory')}
-                    className="card p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs hover:border-emerald-300 dark:hover:border-emerald-800 transition-all cursor-pointer group"
+                    className="p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[6px_6px_18px_rgba(166,175,195,0.35),-6px_-6px_18px_rgba(255,255,255,0.9)] dark:shadow-[8px_8px_24px_rgba(0,0,0,0.65)] hover:border-emerald-300 dark:hover:border-emerald-800 transition-all cursor-pointer group"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
+                        <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
                             <i className="fas fa-boxes text-emerald-500"></i>
-                            <span>Inventory SKU Breakdown</span>
+                            <span className="text-slate-900 dark:text-white">Inventory SKU Breakdown</span>
                             {/* info badge */}
                             <div className="info-badge-container" onClick={(e) => e.stopPropagation()}>
                                 <button
@@ -230,7 +295,7 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenModal('inventory'); }}
-                            className="text-[11px] font-semibold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
+                            className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
                         >
                             Details
                         </button>
@@ -243,10 +308,10 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                 {/* procurement pipeline */}
                 <div
                     onClick={() => onOpenModal('procurement')}
-                    className="card p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs hover:border-indigo-300 dark:hover:border-indigo-800 transition-all cursor-pointer group"
+                    className="p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[6px_6px_18px_rgba(166,175,195,0.35),-6px_-6px_18px_rgba(255,255,255,0.9)] dark:shadow-[8px_8px_24px_rgba(0,0,0,0.65)] hover:border-indigo-300 dark:hover:border-indigo-800 transition-all cursor-pointer group"
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
+                        <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
                             <i className="fas fa-shopping-bag text-indigo-500"></i>
                             <span>Procurement Requests</span>
                             {/* info badge */}
@@ -267,7 +332,7 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenModal('procurement'); }}
-                            className="text-[11px] font-semibold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
+                            className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
                         >
                             View All
                         </button>

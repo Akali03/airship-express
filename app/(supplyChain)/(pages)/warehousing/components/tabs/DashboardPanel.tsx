@@ -825,28 +825,28 @@ export default function DashboardPanel() {
             {loading ? (
                 <WarehouseChartSkeleton />
             ) : (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-2xl dark:shadow-black/40 flex flex-col justify-between transition-all hover:shadow-md dark:hover:shadow-2xl">
+                <div className="bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] rounded-3xl p-5 sm:p-6 shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col justify-between transition-all">
                     <div>
-                        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-200/60 dark:border-slate-800/80">
                             <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 dark:from-indigo-500 dark:to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20 dark:shadow-indigo-500/30">
+                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(99,102,241,0.35),inset_0_1px_0_rgba(255,255,255,0.4)]">
                                     <i className={`fas ${isMobile ? 'fa-chart-pie' : 'fa-chart-line'} text-sm`} />
                                 </div>
                                 <div>
-                                    <h2 className="font-semibold text-slate-800 dark:text-white text-sm sm:text-base">
+                                    <h2 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
                                         {isMobile ? 'Courier Distribution' : 'Courier Parcel Volume'}
                                     </h2>
-                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                                         {isMobile ? 'Total parcels by courier' : 'Daily volume over 7 days'}
                                     </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-medium px-2.5 py-1 bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 rounded-full border border-slate-200/60 dark:border-slate-700/60">
+                                <span className="text-[10px] font-bold px-3 py-1 bg-[#ebf0f7] dark:bg-[#14151c] text-slate-700 dark:text-slate-300 rounded-full border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)]">
                                     {isMobile ? 'Distribution' : '7 Days'}
                                 </span>
                                 {!isMobile && stats.courierData.length > 0 && (
-                                    <span className="text-[10px] font-medium px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-200/60 dark:border-indigo-900/40">
+                                    <span className="text-[10px] font-bold px-3 py-1 bg-[#ebf0f7] dark:bg-[#14151c] text-indigo-600 dark:text-indigo-400 rounded-full border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)]">
                                         <i className="fas fa-rotate-right text-[9px] mr-1 animate-spin-slow" />
                                         Live
                                     </span>
@@ -859,7 +859,7 @@ export default function DashboardPanel() {
                                 <canvas ref={chartRef}></canvas>
                             ) : (
                                 <div className="h-[250px] sm:h-[200px] flex flex-col items-center justify-center text-center p-6">
-                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-800/50 flex items-center justify-center text-indigo-500 dark:text-indigo-400 mb-2.5">
+                                    <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 flex items-center justify-center text-indigo-500 dark:text-indigo-400 mb-2.5 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)]">
                                         <i className="fas fa-truck text-base"></i>
                                     </div>
                                     <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No Courier Volume Data</span>
@@ -869,8 +869,8 @@ export default function DashboardPanel() {
                         </div>
                     </div>
 
-                    <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                    <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200/60 dark:border-slate-800/80">
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                             <i className="fas fa-circle-info text-[10px]"></i>
                             <span>{isMobile ? 'Pie chart shows total parcels per courier' : 'Hover over data points to inspect specific metrics'}</span>
                         </div>
@@ -893,7 +893,7 @@ export default function DashboardPanel() {
                                         </div>
                                     )}
                                 </div>
-                                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                                     {stats.courierData.length} couriers
                                 </span>
                             </div>
@@ -909,17 +909,17 @@ export default function DashboardPanel() {
                     </>
                 ) : (
                     <>
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-2xl dark:shadow-black/40 flex flex-col justify-between transition-all hover:shadow-md dark:hover:shadow-2xl">
+                        <div className="bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] rounded-3xl p-5 sm:p-6 shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col justify-between transition-all">
                             <div>
-                                <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-                                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-pink-500/20">
+                                <div className="flex items-center gap-3 pb-4 border-b border-slate-200/60 dark:border-slate-800/80">
+                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(236,72,153,0.35),inset_0_1px_0_rgba(255,255,255,0.4)]">
                                         <i className="fas fa-robot text-sm" />
                                     </div>
                                     <div>
-                                        <h2 className="font-semibold text-slate-800 dark:text-white text-sm sm:text-base">
+                                        <h2 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
                                             Ask AI Assistant
                                         </h2>
-                                        <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                                             Suggested queries
                                         </p>
                                     </div>
@@ -950,32 +950,30 @@ export default function DashboardPanel() {
                                 />
                             </div>
 
-                            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
-                                <AppButton
+                            <div className="mt-5 pt-4 border-t border-slate-200/60 dark:border-slate-800/80">
+                                <button
                                     type="button"
-                                    variant="pink"
-                                    size="md"
-                                    className="w-full justify-center"
+                                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white font-bold text-xs transition-all shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                                     onClick={() => openChat()}
                                 >
-                                    <i className="fas fa-comment-dots text-xs mr-1" />
+                                    <i className="fas fa-comment-dots text-xs" />
                                     <span>Open Interactive AI Chat →</span>
-                                </AppButton>
+                                </button>
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-2xl dark:shadow-black/40 flex flex-col justify-between transition-all hover:shadow-md dark:hover:shadow-2xl">
+                        <div className="bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] rounded-3xl p-5 sm:p-6 shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col justify-between transition-all">
                             <div>
-                                <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center justify-between pb-4 border-b border-slate-200/60 dark:border-slate-800/80">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(99,102,241,0.35),inset_0_1px_0_rgba(255,255,255,0.4)]">
                                             <i className="fas fa-chart-line text-sm" />
                                         </div>
                                         <div>
-                                            <h2 className="font-semibold text-slate-800 dark:text-white text-sm sm:text-base">
+                                            <h2 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
                                                 Model Forecasting
                                             </h2>
-                                            <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate max-w-[180px] sm:max-w-[240px]" title={stats.forecastModel || '7-Day Projection'}>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[180px] sm:max-w-[240px]" title={stats.forecastModel || '7-Day Projection'}>
                                                 {stats.forecastModel || '7-Day Projection'}
                                             </p>
                                         </div>
@@ -1008,21 +1006,21 @@ export default function DashboardPanel() {
                                                         }
                                                     }}
                                                     title="Click to view detailed model breakdown & operational recommendations"
-                                                    className="group p-3 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800/80 hover:border-indigo-200 dark:hover:border-indigo-800/60 transition-all cursor-pointer text-left active:scale-[0.99] shadow-2xs hover:shadow-xs"
+                                                    className="group p-3.5 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] border border-white/70 dark:border-[#2a2b38] hover:border-indigo-300 dark:hover:border-indigo-500/50 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] transition-all cursor-pointer text-left active:scale-[0.98]"
                                                 >
                                                     <div className="flex items-center justify-between text-xs sm:text-sm">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                            <span className="font-bold text-slate-700 dark:text-slate-300">
                                                                 {item.day}
                                                             </span>
                                                             {item.dateFormatted && (
-                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 hidden sm:inline">
+                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 hidden sm:inline font-medium">
                                                                     ({item.dateFormatted.split(',')[0]})
                                                                 </span>
                                                             )}
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-slate-900 dark:text-white">
+                                                            <span className="font-bold text-slate-900 dark:text-white">
                                                                 {item.parcels.toLocaleString()}{" "}
                                                                 <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">
                                                                     parcels
@@ -1039,9 +1037,9 @@ export default function DashboardPanel() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="mt-2.5 w-full bg-slate-200/70 dark:bg-slate-700/50 rounded-full h-1.5 overflow-hidden">
+                                                    <div className="mt-2.5 w-full bg-[#ebf0f7] dark:bg-[#14151c] rounded-full h-2 p-0.5 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.4),inset_-1px_-1px_2px_rgba(255,255,255,0.8)] overflow-hidden">
                                                         <div
-                                                            className="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-500"
+                                                            className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500"
                                                             style={{ width: `${item.width}%` }}
                                                         />
                                                     </div>

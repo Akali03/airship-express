@@ -78,36 +78,12 @@ export default function TabsWrapper({ children }: TabsWrapperProps) {
         const initialTab = getTabFromUrl();
         setActiveTab(initialTab);
     }, [getTabFromUrl]);
-    useEffect(() => {
-        document.querySelectorAll(".tab-btn").forEach((btn) => {
-            const tabId = btn.getAttribute("data-tab");
-            if (tabId === activeTab) {
-                btn.classList.add("border-pink-500", "text-pink-600");
-                btn.classList.remove("border-transparent", "text-slate-500");
-            }
-            else {
-                btn.classList.remove("border-pink-500", "text-pink-600");
-                btn.classList.add("border-transparent", "text-slate-500");
-            }
-        });
-    }, [activeTab]);
     return (<>
-            <div id="tabs" className="sticky top-0 z-20 flex gap-1 p-2 overflow-x-auto no-scrollbar scroll-smooth bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-white/10 transition-colors">
-                <NavBtn link="dashboard" data-tab="dashboard" color={activeTab === "dashboard"
-            ? "border-pink-500 text-pink-600 dark:text-pink-400 dark:border-pink-500 bg-pink-50/50 dark:bg-pink-950/30"
-            : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40"} icon="fas fa-chart-pie mr-2 text-xs opacity-90" label="Dashboard" onClick={() => handleTabChange("dashboard")}/>
-
-                <NavBtn link="incoming" data-tab="incoming" color={activeTab === "incoming"
-            ? "border-pink-500 text-pink-600 dark:text-pink-400 dark:border-pink-500 bg-pink-50/50 dark:bg-pink-950/30"
-            : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40"} icon="fas fa-arrow-down mr-2 text-xs opacity-90" label="Inbound Receiving" onClick={() => handleTabChange("incoming")}/>
-
-                <NavBtn link="sorting" data-tab="sorting" color={activeTab === "sorting"
-            ? "border-pink-500 text-pink-600 dark:text-pink-400 dark:border-pink-500 bg-pink-50/50 dark:bg-pink-950/30"
-            : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40"} icon="fas fa-sort mr-2 text-xs opacity-90" label="Courier Sorting" onClick={() => handleTabChange("sorting")}/>
-
-                <NavBtn link="outgoing" data-tab="outgoing" color={activeTab === "outgoing"
-            ? "border-pink-500 text-pink-600 dark:text-pink-400 dark:border-pink-500 bg-pink-50/50 dark:bg-pink-950/30"
-            : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40"} icon="fas fa-arrow-up mr-2 text-xs opacity-90" label="Outgoing Pickup" onClick={() => handleTabChange("outgoing")}/>
+            <div id="tabs" className="sticky top-0 z-20 flex gap-2 p-2 overflow-x-auto no-scrollbar scroll-smooth bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 backdrop-blur-md shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] border-b border-slate-200/60 dark:border-slate-800/80 transition-colors">
+                <NavBtn link="dashboard" data-tab="dashboard" isActive={activeTab === "dashboard"} icon="fas fa-chart-pie" label="Dashboard" onClick={() => handleTabChange("dashboard")}/>
+                <NavBtn link="incoming" data-tab="incoming" isActive={activeTab === "incoming"} icon="fas fa-arrow-down" label="Inbound Receiving" onClick={() => handleTabChange("incoming")}/>
+                <NavBtn link="sorting" data-tab="sorting" isActive={activeTab === "sorting"} icon="fas fa-sort" label="Courier Sorting" onClick={() => handleTabChange("sorting")}/>
+                <NavBtn link="outgoing" data-tab="outgoing" isActive={activeTab === "outgoing"} icon="fas fa-arrow-up" label="Outgoing Pickup" onClick={() => handleTabChange("outgoing")}/>
             </div>
 
             <div className="relative">

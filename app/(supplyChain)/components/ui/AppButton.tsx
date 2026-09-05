@@ -28,49 +28,44 @@ export interface AppButtonProps
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: `bg-[#ffe6f0] hover:bg-[#ffd9e8] text-pink-700 border-pink-300 hover:border-pink-400
-    shadow-[0_2px_8px_rgba(244,63,94,0.16),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff]
-    dark:bg-[#341427] dark:hover:bg-[#421932] dark:text-pink-200 dark:border-[#67224c] dark:hover:border-[#832b61]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-pink-500/40`,
-  pink: `bg-[#ffe6f0] hover:bg-[#ffd9e8] text-pink-700 border-pink-300 hover:border-pink-400
-    shadow-[0_2px_8px_rgba(244,63,94,0.16),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff]
-    dark:bg-[#341427] dark:hover:bg-[#421932] dark:text-pink-200 dark:border-[#67224c] dark:hover:border-[#832b61]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-pink-500/40`,
-  neutral: `bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300
-    shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.05),inset_0_1px_0_#ffffff]
-    dark:bg-[#1c1d25] dark:hover:bg-[#252630] dark:text-slate-100 dark:border-[#353746] dark:hover:border-[#45475a]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-slate-400/40`,
-  secondary: `bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300
-    shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.05),inset_0_1px_0_#ffffff]
-    dark:bg-[#1c1d25] dark:hover:bg-[#252630] dark:text-slate-100 dark:border-[#353746] dark:hover:border-[#45475a]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-slate-400/40`,
-  danger: `bg-[#ffe8ec] hover:bg-[#ffdbdf] text-rose-700 border-rose-300 hover:border-rose-400
-    shadow-[0_2px_8px_rgba(225,29,72,0.16),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff]
-    dark:bg-[#38141b] dark:hover:bg-[#461922] dark:text-rose-200 dark:border-[#6d202d] dark:hover:border-[#8b2738]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-rose-500/40`,
-  warning: `bg-[#fff8e6] hover:bg-[#ffeed0] text-amber-800 border-amber-300 hover:border-amber-400
-    shadow-[0_2px_8px_rgba(245,158,11,0.16),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff]
-    dark:bg-[#332210] dark:hover:bg-[#422c15] dark:text-amber-200 dark:border-[#664319] dark:hover:border-[#855720]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-amber-500/40`,
-  success: `bg-[#e6f8ef] hover:bg-[#d5f3e4] text-emerald-800 border-emerald-300 hover:border-emerald-400
-    shadow-[0_2px_8px_rgba(16,185,129,0.16),0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_#ffffff]
-    dark:bg-[#0f2c1f] dark:hover:bg-[#153a29] dark:text-emerald-200 dark:border-[#1d573c] dark:hover:border-[#277350]
-    dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]
-    focus-visible:ring-emerald-500/40`,
-  dark: `bg-slate-900 hover:bg-slate-800 text-white border-slate-800 hover:border-slate-700
-    shadow-[0_2px_8px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]
-    dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 dark:border-white
-    dark:shadow-[0_2px_8px_rgba(255,255,255,0.15)]
-    focus-visible:ring-slate-900/40 dark:focus-visible:ring-white/40`,
-  ghost: `bg-transparent hover:bg-slate-100/80 text-slate-700 border-transparent hover:border-slate-200
-    dark:hover:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-700
-    focus-visible:ring-slate-400/30`,
+  primary: `bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border-pink-400/80
+    shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)]
+    dark:border-pink-500/80 dark:shadow-[0_4px_16px_rgba(236,72,153,0.5),inset_0_1px_1.5px_rgba(255,255,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.4)]
+    focus-visible:ring-pink-500/40 active:scale-95`,
+  pink: `bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border-pink-400/80
+    shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)]
+    dark:border-pink-500/80 dark:shadow-[0_4px_16px_rgba(236,72,153,0.5),inset_0_1px_1.5px_rgba(255,255,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.4)]
+    focus-visible:ring-pink-500/40 active:scale-95`,
+  neutral: `bg-[#f0f3f8] hover:bg-[#e6ebf4] text-slate-800 border-white/80
+    shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)]
+    dark:bg-[#1d1e28] dark:hover:bg-[#252633] dark:text-slate-100 dark:border-[#2a2b38]
+    dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)]
+    focus-visible:ring-slate-400/40 active:scale-95`,
+  secondary: `bg-[#f0f3f8] hover:bg-[#e6ebf4] text-slate-800 border-white/80
+    shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)]
+    dark:bg-[#1d1e28] dark:hover:bg-[#252633] dark:text-slate-100 dark:border-[#2a2b38]
+    dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)]
+    focus-visible:ring-slate-400/40 active:scale-95`,
+  danger: `bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white border-rose-400/80
+    shadow-[0_4px_14px_rgba(244,63,94,0.4),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)]
+    dark:border-rose-500/80 dark:shadow-[0_4px_16px_rgba(244,63,94,0.5),inset_0_1px_1.5px_rgba(255,255,255,0.4)]
+    focus-visible:ring-rose-500/40 active:scale-95`,
+  warning: `bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white border-amber-400/80
+    shadow-[0_4px_14px_rgba(245,158,11,0.4),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)]
+    dark:border-amber-500/80 dark:shadow-[0_4px_16px_rgba(245,158,11,0.5),inset_0_1px_1.5px_rgba(255,255,255,0.4)]
+    focus-visible:ring-amber-500/40 active:scale-95`,
+  success: `bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white border-emerald-400/80
+    shadow-[0_4px_14px_rgba(16,185,129,0.4),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)]
+    dark:border-emerald-500/80 dark:shadow-[0_4px_16px_rgba(16,185,129,0.5),inset_0_1px_1.5px_rgba(255,255,255,0.4)]
+    focus-visible:ring-emerald-500/40 active:scale-95`,
+  dark: `bg-slate-900 hover:bg-slate-800 text-white border-slate-700
+    shadow-[3px_3px_8px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.2)]
+    dark:bg-[#1d1e28] dark:hover:bg-[#252633] dark:text-white dark:border-[#2a2b38]
+    dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),inset_0_1px_1px_rgba(255,255,255,0.06)]
+    focus-visible:ring-slate-900/40 active:scale-95`,
+  ghost: `bg-transparent hover:bg-[#e8edf5]/80 text-slate-700 border-transparent
+    dark:hover:bg-[#20212f]/80 dark:text-slate-200
+    focus-visible:ring-slate-400/30 active:scale-95`,
 };
 
 const SIZE_CLASSES: Record<ButtonSize, { button: string; icon: string }> = {

@@ -70,26 +70,43 @@ export function detectGibberish(text: string): { isGibberish: boolean; reason?: 
     const trimmed = text.trim().toLowerCase();
     if (trimmed.length < 3) return { isGibberish: false };
 
-    // Valid common short words / greetings / acronyms to exclude from false positives
+    // Common supply chain and conversational keywords that are ALWAYS valid
+    const VALID_DOMAIN_KEYWORDS = [
+        'stock', 'inventory', 'item', 'items', 'parcel', 'parcels', 'order', 'orders',
+        'purchase', 'request', 'requests', 'supplier', 'suppliers', 'courier', 'couriers',
+        'warehouse', 'procurement', 'delivery', 'deliveries', 'track', 'tracking', 'truck',
+        'batch', 'draft', 'status', 'show', 'list', 'check', 'view', 'create', 'update',
+        'low', 'out', 'help', 'search', 'summary', 'report', 'count', 'spend', 'price',
+        'amount', 'total', 'recent', 'pending', 'approved', 'rejected', 'completed'
+    ];
+
+    // If query contains legitimate domain keywords or phrases, never flag as gibberish
+    for (const kw of VALID_DOMAIN_KEYWORDS) {
+        if (new RegExp(`\\b${kw}\\b`, 'i').test(trimmed)) {
+            return { isGibberish: false };
+        }
+    }
+
+    // Valid common short words / greetings / acronyms
     const allowedShortWords = new Set([
         'hi', 'hey', 'hello', 'yo', 'ok', 'yes', 'no', 'po', 'pr', 'sku', 'id',
-        'qty', 'wms', 'erp', 'api', 'app', 'hub', 'box', 'item', 'list', 'help'
+        'qty', 'wms', 'erp', 'api', 'app', 'hub', 'box', 'item', 'list', 'help',
+        'why', 'how', 'what', 'who', 'when', 'where', 'can', 'you', 'please'
     ]);
     if (allowedShortWords.has(trimmed)) {
         return { isGibberish: false };
     }
 
-    // 1. Single character repetition e.g. "aaa", "zzzz", "1111"
-    if (/(.)\1{2,}/.test(trimmed)) {
+    // 1. Single character repetition e.g. "aaaaa", "zzzzz", "11111" (4+ same consecutive chars)
+    if (/(.)\1{3,}/.test(trimmed)) {
         return { isGibberish: true, reason: 'Repeated characters' };
     }
 
-    // 2. Keyboard smash sequences on standard QWERTY rows
+    // 2. Keyboard smash sequences on standard QWERTY rows (standalone or explicit word match)
     const keyboardSmashPatterns = [
-        /asdf|ghjk|qwerty|qwert|uiop|zxcv|bnm|lkjh|poiu|mnbvc|dfgh/i,
-        /12345|54321|!@#\$%|\$%^&/i,
-        /qweasd|asdzxc|zxcqwe|qweqwe|asdasd|zxczxc|wewew|aweaw|aweawe/i,
-        /jkljkl|hjkhjk|bnmbnm|tyutyu/i
+        /\b(asdfgh|asdf|ghjkl|qwerty|zxcvbn|zxcvb|lkjhg|poiuy|mnbvc|dfghj)\b/i,
+        /123456|!@#\$%\^|\$%^&/i,
+        /\b(qweasd|asdzxc|zxcqwe|qweqwe|asdasd|zxczxc|aweawe|jkljkl|hjkhjk|bnmbnm|tyutyu)\b/i
     ];
     for (const pattern of keyboardSmashPatterns) {
         if (pattern.test(trimmed)) {
@@ -97,35 +114,28 @@ export function detectGibberish(text: string): { isGibberish: boolean; reason?: 
         }
     }
 
-    // 3. Syllable repetition / alternation loops e.g. "aweaw", "asdasd", "ababab", "qwqwqw"
-    if (trimmed.length >= 4 && /^(.{2,4})\1+/i.test(trimmed)) {
+    // 3. Syllable repetition / alternation loops on non-dictionary words e.g. "asdasd", "ababab", "qwqwqw"
+    if (trimmed.length >= 6 && !trimmed.includes(' ') && /^([a-z]{2,3})\1{2,}$/i.test(trimmed)) {
         return { isGibberish: true, reason: 'Repetitive syllable loop' };
     }
 
-    // Alternating 2-3 char patterns e.g. "aweaw", "xyzyx"
-    if (trimmed.length >= 5 && !trimmed.includes(' ')) {
-        const uniqueChars = new Set(trimmed.split('')).size;
-        // E.g. "aweaw" is 5 chars with only 3 unique letters (a, w, e) in non-dictionary pattern
-        if (uniqueChars <= 3 && /^(.)(.)(.)\1\2?$/.test(trimmed)) {
-            return { isGibberish: true, reason: 'Nonsense character pattern' };
-        }
-    }
-
-    // 4. High consonant-to-vowel ratio in single words (no spaces)
-    const words = trimmed.split(/\s+/);
+    // 4. Words with ZERO vowels (a, e, i, o, u, y) with length >= 5 e.g. "sdfgh", "zxcvb", "qwrts"
+    const words = trimmed.split(/[^a-z0-9]+/i).filter(Boolean);
     for (const word of words) {
-        if (word.length >= 5 && /^[a-z]+$/.test(word)) {
+        if (word.length >= 5 && /^[a-z]+$/i.test(word)) {
             const vowels = (word.match(/[aeiouy]/gi) || []).length;
-            const consonants = word.length - vowels;
-            // E.g., "sdfgh" has 0 vowels, or 5+ consonants with 0 vowels
-            if (vowels === 0 || (consonants / word.length) >= 0.8) {
-                return { isGibberish: true, reason: 'Unpronounceable consonant cluster' };
+            if (vowels === 0) {
+                return { isGibberish: true, reason: 'Unpronounceable consonant cluster without vowels' };
+            }
+            // 6+ consecutive consonants without any vowels
+            if (/[bcdfghjklmnpqrstvwxz]{6,}/i.test(word)) {
+                return { isGibberish: true, reason: 'Excessive consecutive consonants' };
             }
         }
     }
 
-    // 5. Repeated multi-character patterns e.g. "abcabcabcabc", "hahahahahaha"
-    if (trimmed.length >= 6 && /^(.{2,4})\1{2,}$/i.test(trimmed)) {
+    // 5. Repeated multi-character patterns e.g. "abcabcabcabc"
+    if (trimmed.length >= 8 && !trimmed.includes(' ') && /^([a-z]{2,4})\1{2,}$/i.test(trimmed)) {
         return { isGibberish: true, reason: 'Repetitive pattern loop' };
     }
 

@@ -41,11 +41,11 @@ export default function RecentTransactions({ transactions }: RecentTransactionsP
     };
 
     return (
-        <div className="card xl:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs dark:shadow-xl overflow-hidden">
+        <div className="xl:col-span-2 bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08] rounded-3xl p-5  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] overflow-hidden transition-all">
             {/* Card Header */}
-            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
-                <div className="flex items-center gap-2.5 font-semibold text-slate-900 dark:text-white text-sm">
-                    <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30 shadow-2xs">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-200/60 dark:border-white/[0.06]">
+                <div className="flex items-center gap-2.5 font-extrabold text-slate-900 dark:text-white text-sm">
+                    <div className="w-9 h-9 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-500 dark:text-pink-400 flex items-center justify-center border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
                         <i className="fas fa-list text-xs"></i>
                     </div>
                     <span>Recent transactions</span>
@@ -54,23 +54,23 @@ export default function RecentTransactions({ transactions }: RecentTransactionsP
             </div>
 
             {/* Table Container */}
-            <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left border-collapse">
-                    <thead className="bg-slate-50/70 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider font-semibold border-b border-slate-200/80 dark:border-slate-800">
+            <div className="overflow-x-auto mt-2">
+                <table className="table-pro w-full text-xs text-left border-collapse">
+                    <thead className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200/60 dark:border-white/[0.04]">
                         <tr>
-                            <th className="px-6 py-3.5">Reference</th>
-                            <th className="px-6 py-3.5">Consignee</th>
-                            <th className="px-6 py-3.5">Courier</th>
-                            <th className="px-6 py-3.5">Area / Location</th>
-                            <th className="px-6 py-3.5">Status</th>
-                            <th className="px-6 py-3.5">Received</th>
-                            <th className="px-6 py-3.5 text-right">Action</th>
+                            <th className="px-5 py-3">Reference</th>
+                            <th className="px-5 py-3">Consignee</th>
+                            <th className="px-5 py-3">Courier</th>
+                            <th className="px-5 py-3">Area / Location</th>
+                            <th className="px-5 py-3">Status</th>
+                            <th className="px-5 py-3">Received</th>
+                            <th className="px-5 py-3 text-right">Action</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                    <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04] font-medium">
                         {list.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-6 py-8 text-center text-slate-400 font-medium text-xs">
+                                <td colSpan={7} className="px-5 py-8 text-center text-slate-400 font-medium text-xs">
                                     No transaction records found in database.
                                 </td>
                             </tr>
@@ -78,11 +78,9 @@ export default function RecentTransactions({ transactions }: RecentTransactionsP
                             list.slice(0, 8).map((tx, index) => (
                                 <tr
                                     key={tx.id || index}
-                                    className={`${index % 2 === 1 ? 'bg-slate-50/30 dark:bg-slate-800/20' : 'bg-white dark:bg-slate-900'} 
-                                               hover:bg-pink-50/40 dark:hover:bg-slate-800/60 
-                                               transition-all duration-150 group`}
+                                    className="hover:bg-[#ebf0f7]/60 dark:hover:bg-[#14151e]/60 transition-all duration-150 group"
                                 >
-                                    <td className="px-6 py-3.5 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                                    <td data-label="Reference" className="px-5 py-3 font-mono font-bold text-slate-800 dark:text-slate-200">
                                         <div className="flex items-center gap-2">
                                             <span>{tx.id}</span>
                                             {/* Hover detail effect (! icon with popover tooltip) */}
@@ -90,7 +88,7 @@ export default function RecentTransactions({ transactions }: RecentTransactionsP
                                                 <button
                                                     type="button"
                                                     onClick={() => handleViewItem(tx)}
-                                                    className="w-4 h-4 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 text-[10px] font-bold flex items-center justify-center hover:scale-110 transition-transform cursor-pointer shadow-2xs"
+                                                    className="w-4 h-4 rounded-full bg-[#ebf0f7] dark:bg-[#14151e] border border-pink-300/80 dark:border-pink-500/30 text-pink-600 dark:text-pink-400 text-[10px] font-extrabold flex items-center justify-center shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3),0_1px_3px_rgba(236,72,153,0.15)] hover:scale-110 transition-transform cursor-pointer"
                                                     title="Hover/Click for info (!)"
                                                 >
                                                     !
@@ -104,16 +102,24 @@ export default function RecentTransactions({ transactions }: RecentTransactionsP
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-3.5 text-slate-900 dark:text-white">{tx.consignee}</td>
-                                    <td className="px-6 py-3.5 text-slate-600 dark:text-slate-300">{tx.courier}</td>
-                                    <td className="px-6 py-3.5 text-slate-500 dark:text-slate-400">{tx.area}</td>
-                                    <td className="px-6 py-3.5">
+                                    <td data-label="Consignee" className="px-5 py-3 text-slate-900 dark:text-white font-medium sm:max-w-[180px]">
+                                        <span className="block truncate text-right ml-auto" title={tx.consignee}>
+                                            {tx.consignee}
+                                        </span>
+                                    </td>
+                                    <td data-label="Courier" className="px-5 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{tx.courier}</td>
+                                    <td data-label="Area / Location" className="px-5 py-3 text-slate-500 dark:text-slate-400 sm:max-w-[220px]">
+                                        <span className="block truncate text-right ml-auto" title={tx.area}>
+                                            {tx.area}
+                                        </span>
+                                    </td>
+                                    <td data-label="Status" className="px-5 py-3">
                                         <StatusBadge tone={getTxTone(tx.status)} dot size="xs">
                                             {tx.status}
                                         </StatusBadge>
                                     </td>
-                                    <td className="px-6 py-3.5 text-slate-400 dark:text-slate-500 font-mono text-[11px]">{tx.received}</td>
-                                    <td className="px-6 py-3.5 text-right">
+                                    <td data-label="Received" className="px-5 py-3 text-slate-500 dark:text-slate-400 font-mono text-[11px]">{tx.received}</td>
+                                    <td data-label="Actions" className="px-5 py-3 text-right">
                                         <div className="flex items-center justify-end">
                                             <CrudActionButton
                                                 action="view"

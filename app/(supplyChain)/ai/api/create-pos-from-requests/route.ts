@@ -42,8 +42,14 @@ export async function POST(request: NextRequest) {
         }
 
         // Fetch suppliers for email addresses
-        const supplierIds = Array.from(new Set(requests.map(r => r.supplier_id).filter(Boolean)));
-        let supplierMap = new Map<string, any>();
+        const rawSupplierIds = requests
+            .map(r => r.supplier_id)
+            .filter(Boolean)
+            .map(id => Number(id))
+            .filter(id => !isNaN(id) && id > 0);
+
+        const supplierIds = Array.from(new Set(rawSupplierIds));
+        let supplierMap = new Map<number, any>();
         if (supplierIds.length > 0) {
             const { data: suppliers } = await supabase
                 .from("suppliers")
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
                 .in("id", supplierIds);
 
             if (suppliers) {
-                suppliers.forEach(s => supplierMap.set(s.id, s));
+                suppliers.forEach(s => supplierMap.set(Number(s.id), s));
             }
         }
 
@@ -60,17 +66,27 @@ export async function POST(request: NextRequest) {
 
         for (const pr of requests) {
             const poNumber = `PO-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 90 + 10)}`;
-            const supplier = pr.supplier_id ? supplierMap.get(pr.supplier_id) : null;
+            const rawSupId = pr.supplier_id ? Number(pr.supplier_id) : null;
+            const validSupplier = (rawSupId && !isNaN(rawSupId) && supplierMap.has(rawSupId)) ? supplierMap.get(rawSupId) : null;
+            const validSupplierId = validSupplier ? Number(validSupplier.id) : null;
+            const supplierName = pr.supplier_name || validSupplier?.name || "Supplier";
             const deliveryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-            // Normalize items with default prices if missing
-            const rawItems = Array.isArray(pr.items) ? pr.items : [];
+            // Normalize items with default prices and ensure item_name and quantity_ordered exist for database trigger
+            const rawItems = Array.isArray(pr.items) && pr.items.length > 0
+                ? pr.items
+                : [{ name: pr.description || "Supply Item", quantity: 1, unit_price: Number(pr.amount) || 100 }];
+
             const items = rawItems.map((item: any) => {
-                const qty = Number(item.quantity) || 1;
+                const itemName = item.item_name || item.name || item.description || pr.description || "Supply Item";
+                const qty = Number(item.quantity_ordered) || Number(item.quantity) || 1;
                 const price = Number(item.unit_price) || (pr.amount && rawItems.length ? Math.round(Number(pr.amount) / rawItems.length / qty) : 100);
                 return {
-                    name: item.name || "Item",
+                    item_name: itemName,
+                    name: itemName,
+                    quantity_ordered: qty,
                     quantity: qty,
+                    quantity_received: 0,
                     unit_price: price,
                     total: qty * price
                 };
@@ -82,43 +98,59 @@ export async function POST(request: NextRequest) {
             const poData: Record<string, any> = {
                 po_number: poNumber,
                 request_id: pr.id,
-                supplier_id: pr.supplier_id,
-                supplier_name: pr.supplier_name || supplier?.name || "Supplier",
+                supplier_id: validSupplierId,
+                supplier_name: supplierName,
                 total_amount: totalAmount,
                 status: status,
                 delivery_date: deliveryDate,
                 notes: pr.reason ? `Generated via AI from ${pr.request_number || 'PR'}: ${pr.reason}` : `Generated from Purchase Request ${pr.request_number || ''}`,
                 items: items,
+                paid: false,
+                fully_received: false,
             };
 
+            let insertedRecord: any = null;
+
+            // Attempt 1: standard insert with select
             const { data: poInserted, error: poInsertErr } = await supabase
                 .from("purchase_orders")
                 .insert([poData])
                 .select()
-                .single();
+                .maybeSingle();
 
-            if (poInsertErr) {
-                console.error("Error inserting PO:", poInsertErr);
-                // Fallback insert without select
-                const { error: fallbackErr } = await supabase
-                    .from("purchase_orders")
-                    .insert([poData]);
+            if (poInserted) {
+                insertedRecord = poInserted;
+            } else if (poInsertErr) {
+                console.error("Error inserting PO with select:", poInsertErr);
                 
-                if (!fallbackErr) {
-                    createdPOs.push({ ...poData, id: poNumber });
+                // Attempt 2: fallback without supplier_id FK in case of supplier mismatch
+                const safePoData = { ...poData, supplier_id: null };
+                const { data: retryData, error: retryErr } = await supabase
+                    .from("purchase_orders")
+                    .insert([safePoData])
+                    .select()
+                    .maybeSingle();
+
+                if (retryData) {
+                    insertedRecord = retryData;
+                } else if (!retryErr) {
+                    insertedRecord = { ...safePoData, id: poNumber };
+                } else {
+                    console.error("Fallback insert also failed:", retryErr);
                 }
-            } else if (poInserted) {
-                createdPOs.push(poInserted);
             }
 
-            // Update purchase request status to 'Approved'
-            await supabase
-                .from("purchase_requests")
-                .update({ status: "Approved", updated_at: new Date().toISOString() })
-                .eq("id", pr.id);
+            if (insertedRecord) {
+                createdPOs.push(insertedRecord);
+
+                // Update purchase request status to 'Approved'
+                await supabase
+                    .from("purchase_requests")
+                    .update({ status: "Approved", updated_at: new Date().toISOString() })
+                    .eq("id", pr.id);
 
                 // If user selected to send via Gmail
-                if (send_email && supplier?.email && process.env.EMAIL_SUPPLYCHAIN_USER && process.env.EMAIL_SUPPLYCHAIN_PASS) {
+                if (send_email && validSupplier?.email && process.env.EMAIL_SUPPLYCHAIN_USER && process.env.EMAIL_SUPPLYCHAIN_PASS) {
                     try {
                         const transporter = nodemailer.createTransport({
                             service: "gmail",
@@ -133,7 +165,7 @@ export async function POST(request: NextRequest) {
 
                         const emailHtml = buildEmailTemplate({
                             poNumber: poNumber,
-                            supplierName: supplier.name || pr.supplier_name,
+                            supplierName: supplierName,
                             items: items,
                             totalAmount: totalAmount,
                             deliveryDate: deliveryDate,
@@ -146,18 +178,26 @@ export async function POST(request: NextRequest) {
 
                         const info = await transporter.sendMail({
                             from: `"AirshipExpress Procurement" <${process.env.EMAIL_SUPPLYCHAIN_USER}>`,
-                            to: supplier.email,
+                            to: validSupplier.email,
                             subject: `Official Purchase Order: ${poNumber} from Airship Express`,
                             html: emailHtml,
                             replyTo: process.env.EMAIL_SUPPLYCHAIN_USER,
                         });
 
-                        emailResults.push({ po_number: poNumber, recipient: supplier.email, status: "sent", messageId: info.messageId });
+                        emailResults.push({ po_number: poNumber, recipient: validSupplier.email, status: "sent", messageId: info.messageId });
                     } catch (e: any) {
                         console.error(`Error emailing PO ${poNumber}:`, e);
-                        emailResults.push({ po_number: poNumber, recipient: supplier.email, status: "failed", error: e.message });
+                        emailResults.push({ po_number: poNumber, recipient: validSupplier.email, status: "failed", error: e.message });
                     }
                 }
+            }
+        }
+
+        if (createdPOs.length === 0) {
+            return NextResponse.json(
+                { success: false, error: "Failed to create Purchase Orders in database. Please check table permissions or request details." },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({

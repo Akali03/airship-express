@@ -57,20 +57,20 @@ function EmptyState({ title, description, icon = "fas fa-inbox", actionText, onA
     actionText?: string;
     onAction?: () => void;
 }) {
-    return (<div className="flex flex-col items-center justify-center py-16 px-4">
-            <div className="w-20 h-20 rounded-3xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-400 mb-4 shadow-xs dark:shadow-black/40 transition-transform duration-300 hover:scale-105">
-                <i className={`${icon} text-3xl text-slate-400 dark:text-slate-400`}/>
+    return (<div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3.5 transition-transform duration-300 hover:scale-105">
+                <i className={`${icon} text-2xl`}/>
             </div>
 
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2 text-center">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">
                 {title}
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 text-center max-w-sm mb-6 leading-relaxed">
+            <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm mb-5 leading-relaxed">
                 {description}
             </p>
 
-            {actionText && onAction && (<button onClick={onAction} className="px-4 py-2.5 bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 hover:bg-pink-100 dark:hover:bg-pink-900/50 border border-pink-200/60 dark:border-pink-800/40 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-2xs dark:shadow-pink-950/30">
-                    <i className="fas fa-plus text-xs"/>
+            {actionText && onAction && (<button onClick={onAction} className="px-4 py-2 bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] rounded-2xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer active:scale-95">
+                    <i className="fas fa-plus text-[10px]"/>
                     <span>{actionText}</span>
                 </button>)}
         </div>);
@@ -763,12 +763,11 @@ export default function Procurement() {
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 transition-colors">
                                 Manage fleet maintenance, spare parts, fuel, and operational supplies.
                             </p>
-
-                            <div className="inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)] transition-all">
+                            <div className="inline-flex items-center gap-2 mt-2 px-3.5 py-1.5 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] transition-all">
                                 <span className="w-2 h-2 rounded-full bg-pink-500 shadow-xs shadow-pink-500/50"/>
-                                <i className="fas fa-user-tag text-[11px] text-slate-400 dark:text-slate-500"/>
-                                <span>Role:</span>
-                                <span className="font-semibold text-slate-700 dark:text-slate-200 capitalize">
+                                <i className="fas fa-user-tag text-[11px] text-pink-500 dark:text-pink-400"/>
+                                <span className="font-medium text-slate-500 dark:text-slate-400">Role:</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-100 capitalize">
                                     {userRole}
                                 </span>
                             </div>
@@ -820,15 +819,18 @@ export default function Procurement() {
 
                 {/* charts */}
                 {loading ? (<ChartsSkeleton />) : (<div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-5 xl:col-span-2 transition-all">
+                        <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] xl:col-span-2 transition-all">
                             <div className="flex items-center justify-between">
-                                <div className="font-semibold text-slate-900 dark:text-white text-sm flex items-center">
-                                    <i className="fas fa-chart-bar mr-2 text-pink-500 dark:text-pink-400"/> Procurement Spending Trend
+                                <div className="font-bold text-slate-900 dark:text-white text-sm flex items-center">
+                                    <div className="w-7 h-7 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center mr-2">
+                                        <i className="fas fa-chart-bar text-xs"/>
+                                    </div>
+                                    <span>Procurement Spending Trend</span>
                                     <div className="relative ml-2 group">
-                                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-[10px] font-bold cursor-help">
+                                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-[10px] font-bold cursor-help shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3)]">
                                             ?
                                         </span>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-900 dark:bg-slate-800 text-slate-200 dark:text-slate-300 text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3.5 bg-slate-900 dark:bg-slate-800 text-slate-200 dark:text-slate-300 text-xs rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 border border-slate-700/60">
                                             <p className="font-semibold text-white mb-1">📊 Chart Info</p>
                                             <p>Shows monthly spending from <span className="text-pink-400 font-medium">Delivered</span> and <span className="text-pink-400 font-medium">Confirmed</span> orders that are <span className="text-emerald-400 font-medium">paid</span>.</p>
                                             <p className="mt-1 text-slate-400 text-[10px]">💡 Click on any data point to see orders for that month.</p>
@@ -836,8 +838,9 @@ export default function Procurement() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                                    <i className="fas fa-calendar-alt mr-1 text-slate-400 dark:text-slate-500"/> Completed orders (Paid)
+                                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                    <i className="fas fa-calendar-alt text-pink-500 dark:text-pink-400 text-[11px]"/>
+                                    <span>Completed orders (Paid)</span>
                                 </div>
                             </div>
                             <div className="w-full h-[200px] mt-3">
@@ -845,7 +848,7 @@ export default function Procurement() {
                                     <canvas ref={expenseChartCanvasRef} className="w-full h-full"/>
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center text-center p-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-900/40 flex items-center justify-center text-pink-500 dark:text-pink-400 mb-2.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-2.5">
                                             <i className="fas fa-chart-line text-base"/>
                                         </div>
                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No Spending Trend Data</span>
@@ -854,16 +857,19 @@ export default function Procurement() {
                                 )}
                             </div>
                         </div>
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-5 transition-all">
-                            <div className="font-semibold text-slate-900 dark:text-white text-sm flex items-center">
-                                <i className="fas fa-chart-pie mr-2 text-pink-500 dark:text-pink-400"/> Request Priority Distribution
+                        <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] transition-all">
+                            <div className="font-bold text-slate-900 dark:text-white text-sm flex items-center">
+                                <div className="w-7 h-7 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center mr-2">
+                                    <i className="fas fa-chart-pie text-xs"/>
+                                </div>
+                                <span>Request Priority Distribution</span>
                             </div>
                             <div className="w-full h-[200px] mt-3">
                                 {requests.length > 0 ? (
                                     <canvas ref={priorityChartCanvasRef} className="w-full h-full"/>
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center text-center p-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-900/40 flex items-center justify-center text-pink-500 dark:text-pink-400 mb-2.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-2.5">
                                             <i className="fas fa-chart-pie text-base"/>
                                         </div>
                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No Priority Data</span>
@@ -888,18 +894,18 @@ export default function Procurement() {
                 { header: 'Next Approver', type: 'text' },
                 { header: 'Approval Step', type: 'badge' },
                 { header: 'Actions', type: 'actions', align: 'right', width: 'w-[170px]' },
-            ]}/>) : (<div ref={tableContainerRef} id="procurement-table" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden relative flex flex-col">
+            ]}/>) : (<div ref={tableContainerRef} id="procurement-table" className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] overflow-hidden relative flex flex-col">
                         {isRefreshing && <TableContentLoader />}
 
                         {/* filter bar */}
-                        <div className="flex-shrink-0 p-3.5 sm:p-4 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md transition-all">
+                        <div className="flex-shrink-0 pb-4 mb-3 border-b border-slate-200/60 dark:border-slate-800/80 transition-all">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
 
                                 {/* left */}
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
                                     {/* title */}
                                     <div className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2.5 shrink-0">
-                                        <div className="p-1.5 rounded-lg bg-pink-50 dark:bg-pink-950/50 border border-pink-200/50 dark:border-pink-800/50 text-pink-500 dark:text-pink-400">
+                                        <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
                                             <i className="fas fa-list text-xs"/>
                                         </div>
                                         <span>Purchase Requests</span>
@@ -909,7 +915,7 @@ export default function Procurement() {
                                     {/* search */}
                                     <div className="relative flex-1 max-w-sm">
                                         <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"/>
-                                        <input className="w-full bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3.5 py-1.5 pl-9 pr-8 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 dark:focus:ring-pink-500/30 transition-all shadow-xs" placeholder="Search by ID, requester, supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
+                                        <input className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2 pl-9 pr-8 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Search by ID, requester, supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
                                         {searchTerm && (<button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs p-1 rounded-md" aria-label="Clear search">
                                                 <i className="fas fa-times"/>
                                             </button>)}
@@ -917,61 +923,60 @@ export default function Procurement() {
                                 </div>
 
                                 {/* right */}
-                                <div className="flex items-center justify-between sm:justify-end gap-2 ">
+                                <div className="flex items-center justify-between sm:justify-end gap-2.5">
                                     {/* tabs */}
-                                    <div className="inline-flex gap-1 bg-slate-200/70 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/50 dark:border-white/5">
+                                    <div className="inline-flex gap-1 bg-[#ebf0f7] dark:bg-[#14151c] p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)]">
                                         {[
                 { key: "all", label: "All", count: totalCounts.all },
                 { key: "pending", label: "Pending", count: totalCounts.pending },
                 { key: "approved", label: "Approved", count: totalCounts.approved },
             ].map((tab) => {
                 const isActive = activeTab === tab.key;
-                return (<button key={tab.key} className={`px-3 py-1 text-xs font-medium rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${isActive
-                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-700/30"}`} onClick={() => {
+                return (<button key={tab.key} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 active:scale-95 ${isActive
+                        ? "bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-900 dark:text-white border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)]"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`} onClick={() => {
                         setActiveTab(tab.key as any);
                         setSelectedIds(new Set());
                         setIsSelectAll(false);
                     }}>
                                                     <span>{tab.label}</span>
                                                     <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${isActive
-                        ? "bg-slate-100 dark:bg-slate-600 text-slate-800 dark:text-slate-100"
-                        : "bg-slate-300/50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400"}`}>
+                        ? "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40"
+                        : "bg-slate-300/50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
                                                         {tab.count}
                                                     </span>
                                                 </button>);
             })}
                                     </div>
 
-                                    {/* po link */}
-                                    <Link href="/purchase-orders" className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-pink-600 hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600 dark:hover:bg-pink-500 rounded-lg transition-all shadow-xs hover:shadow-sm">
-                                        <span className="text-xxs">Purchase Orders</span>
+                                    {/* po action */}
+                                    <Link href="/purchase-orders">
+                                        <AppButton type="button" variant="primary" size="sm" aria-label="Go to Purchase Orders" className="shrink-0">
+                                            <i className="fas fa-file-invoice-dollar text-xs"/>
+                                            <span className="hidden sm:inline">Purchase Orders</span>
+                                        </AppButton>
                                     </Link>
                                 </div>
-
                             </div>
                         </div>
 
-                        {/* body */}
-                        <div data-lenis-prevent className="flex-1 overflow-y-auto max-h-[500px] relative overscroll-contain">
-                            <div className={`transition-opacity duration-200 ${isTabTransitioning ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
-                                <div data-lenis-prevent className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overscroll-contain">
-                                    {isTabTransitioning && <TableContentLoader />}
-                                    <table className="table-pro w-full border-collapse text-left text-xs">
-                                        <thead>
-                                            <tr className="border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80">
-                                                <th className="w-10 py-3 px-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1.5">
-                                                        <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600" checked={isSelectAll && selectedIds.size > 0} onChange={handleSelectAll} disabled={filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected").length === 0} title={filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected").length === 0 ? "No pending or rejected requests to select" : "Select all pending and rejected requests"}/>
-                                                        {selectedIds.size > 0 && (<span className="text-[10px] bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold px-1.5 py-0.2 rounded-full border border-pink-200/60 dark:border-pink-900/40">
-                                                                {selectedIds.size}
-                                                            </span>)}
-                                                    </div>
-                                                </th>
-                                                <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">PR #</th>
-                                                <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Type</th>
-                                                <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Description</th>
-                                                <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Requested By</th>
+                        {/* scrollable table container */}
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.25)]">
+                            <table className="table-pro w-full border-collapse text-left text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-200/80 dark:border-slate-800 bg-[#e4ebf5] dark:bg-[#14151c] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                                        <th className="w-10 py-3 px-4 text-center">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600" checked={isSelectAll && selectedIds.size > 0} onChange={handleSelectAll} disabled={filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected").length === 0} title={filteredRequests.filter((r) => r.status === "Pending" || r.status === "Rejected").length === 0 ? "No pending or rejected requests to select" : "Select all pending and rejected requests"}/>
+                                                {selectedIds.size > 0 && (<span className="text-[10px] bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold px-1.5 py-0.2 rounded-full border border-pink-200/60 dark:border-pink-900/40">
+                                                        {selectedIds.size}
+                                                    </span>)}
+                                            </div>
+                                        </th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">PR #</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Type</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Description</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Requested By</th>
                                                 <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Dept</th>
                                                 <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Supplier</th>
                                                 <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-right">Amount</th>
@@ -1003,8 +1008,8 @@ export default function Procurement() {
                 const rowBusy = pendingRowId === req.id;
                 const isSelected = selectedIds.has(req.id);
                 const isPending = req.status === "Pending";
-                return (<tr key={req.id} className={`group transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${rowBusy ? "opacity-50 pointer-events-none" : ""} ${isSelected ? "bg-pink-50/50 dark:bg-pink-950/20" : "bg-transparent"}`}>
-                                                            <td data-label="" className="py-3.5 px-4 text-center whitespace-nowrap">
+                return (<tr key={req.id} onClick={() => handleEditRequest(req.id)} className={`group transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer ${rowBusy ? "opacity-50 pointer-events-none" : ""} ${isSelected ? "bg-pink-50/50 dark:bg-pink-950/20" : "bg-transparent"}`}>
+                                                            <td data-label="" className="py-3.5 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                                                 <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600 disabled:opacity-30 disabled:cursor-not-allowed" checked={isSelected} onChange={() => handleSelectOne(req.id)} disabled={(!isPending && req.status !== "Rejected") || rowBusy} title={!isPending && req.status !== "Rejected" ? "Only pending or rejected requests can be selected" : ""}/>
                                                             </td>
                                                             <td data-label="PR #" className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap">
@@ -1053,7 +1058,7 @@ export default function Procurement() {
                                                                         {poStatus} {poNumber && `#${poNumber}`}
                                                                     </StatusBadge>) : (<span className="text-[10px] text-slate-400 dark:text-slate-500 italic">No PO</span>)}
                                                             </td>
-                                                            <td data-label="Actions" className="py-3.5 px-4 text-right whitespace-nowrap w-[170px] min-w-[170px]">
+                                                            <td data-label="Actions" className="py-3.5 px-4 text-right whitespace-nowrap w-[170px] min-w-[170px]" onClick={(e) => e.stopPropagation()}>
                                                                 <div className="flex items-center justify-end gap-2.5">
                                                                     {rowBusy && (<svg className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24">
                                                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -1080,10 +1085,8 @@ export default function Procurement() {
                                                             </td>
                                                         </tr>);
             }))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                                </tbody>
+                            </table>
                         </div>
 
                         {/* pagination */}
@@ -1098,13 +1101,12 @@ export default function Procurement() {
                                     </span> of{' '}
                                     <span className="font-semibold text-slate-800 dark:text-white">{totalItems}</span> requests
                                 </span>
-
-                                {selectedIds.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-white/10 animate-in fade-in duration-150">
-                                        <span className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold border border-purple-200/60 dark:border-purple-800/40 shadow-2xs">
+                                {selectedIds.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200/60 dark:border-slate-800 animate-in fade-in duration-150">
+                                        <span className="px-2.5 py-1 rounded-xl bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold border border-pink-200/80 dark:border-pink-900/40 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
                                             {selectedIds.size} selected
                                         </span>
 
-                                        <button onClick={handleBulkDelete} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 text-xs font-semibold bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-xl border border-red-200/60 dark:border-red-800/40 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs">
+                                        <button onClick={handleBulkDelete} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-2xl border border-rose-200/70 dark:border-rose-800/50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95">
                                             {pendingRowId === "bulk" ? (<i className="fas fa-spinner fa-spin text-xs"/>) : (<i className="fas fa-trash-alt text-xs"/>)}
                                             <span>Delete Selected</span>
                                         </button>
@@ -1112,7 +1114,7 @@ export default function Procurement() {
                                         <button onClick={() => {
                     setSelectedIds(new Set());
                     setIsSelectAll(false);
-                }} className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer" title="Clear selection" aria-label="Clear selection">
+                }} className="w-7 h-7 rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95" title="Clear selection" aria-label="Clear selection">
                                             <i className="fas fa-times text-xs"/>
                                         </button>
                                     </div>)}

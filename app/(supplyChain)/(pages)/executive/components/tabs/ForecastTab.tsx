@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Chart from "chart.js/auto";
 import { ExecutiveDataPayload } from "../../hooks/useExecutiveData";
 
@@ -13,18 +13,24 @@ const CHART_COLORS = {
     primary: '#EC4899',
     secondary: '#6366F1',
     success: '#10B981',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    purple: '#8B5CF6',
+    cyan: '#06B6D4',
 };
 
 export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
     const forecastCanvasRef = useRef<HTMLCanvasElement>(null);
     const forecastInstance = useRef<Chart | null>(null);
     const [forecastApiData, setForecastApiData] = useState<any>(null);
-    const [loadingForecast, setLoadingForecast] = useState(true);
+    const [loadingForecast, setLoadingForecast] = useState<boolean>(true);
 
+    // Fetch Rust/WASM forecast prediction from server API route
     useEffect(() => {
         let isMounted = true;
         async function loadWasmForecast() {
             try {
+                setLoadingForecast(true);
                 const res = await fetch('/forecast/api');
                 if (res.ok) {
                     const json = await res.json();
@@ -33,7 +39,7 @@ export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
                     }
                 }
             } catch (err) {
-                console.warn("Forecast API fetch error in executive tab:", err);
+                console.error("Failed to load forecast data:", err);
             } finally {
                 if (isMounted) setLoadingForecast(false);
             }
@@ -42,11 +48,11 @@ export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
         return () => { isMounted = false; };
     }, []);
 
-    useEffect(() => {
+    const renderForecastChart = useCallback(() => {
         const isDark = document.documentElement.classList.contains('dark');
-        const textColor = isDark ? '#fcfbf9' : '#1c1b1f';
-        const mutedColor = '#6b6b76';
-        const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+        const textColor = isDark ? '#f8fafc' : '#0f172a';
+        const mutedColor = isDark ? '#94a3b8' : '#334155';
+        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
 
         if (forecastCanvasRef.current) {
             if (forecastInstance.current) forecastInstance.current.destroy();
@@ -104,21 +110,59 @@ export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { labels: { color: textColor, font: { size: 11 } } }
+                            legend: {
+                                labels: {
+                                    color: textColor,
+                                    font: { size: 11, weight: 'bold' }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: isDark ? '#1e293b' : '#0f172a',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                cornerRadius: 8,
+                            }
                         },
                         scales: {
-                            x: { grid: { display: false }, ticks: { color: mutedColor } },
-                            y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: mutedColor, stepSize: 1 } }
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: mutedColor, font: { weight: 'bold', size: 10 } }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: gridColor },
+                                ticks: { color: mutedColor, font: { weight: 'bold', size: 10 }, stepSize: 1 }
+                            }
                         }
                     }
                 });
             }
         }
+    }, [data, forecastApiData]);
+
+    useEffect(() => {
+        renderForecastChart();
+
+        // Listen for dark/light mode toggle only
+        let lastIsDark = document.documentElement.classList.contains('dark');
+        const observer = new MutationObserver(() => {
+            const currentIsDark = document.documentElement.classList.contains('dark');
+            if (currentIsDark !== lastIsDark) {
+                lastIsDark = currentIsDark;
+                renderForecastChart();
+            }
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
 
         return () => {
+            observer.disconnect();
             if (forecastInstance.current) forecastInstance.current.destroy();
         };
-    }, [data, forecastApiData]);
+    }, [renderForecastChart]);
 
     const p7 = forecastApiData?.parcel_7_day;
     const nextWeekTotal = p7?.total_next_week ?? 0;
@@ -130,10 +174,10 @@ export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
         <div className="space-y-6">
             <div
                 onClick={() => onOpenModal('forecast', forecastApiData)}
-                className="card p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs hover:border-pink-300 dark:hover:border-pink-800 transition-all cursor-pointer group"
+                className="p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[6px_6px_18px_rgba(166,175,195,0.35),-6px_-6px_18px_rgba(255,255,255,0.9)] dark:shadow-[8px_8px_24px_rgba(0,0,0,0.65)] hover:border-pink-300 dark:hover:border-pink-800 transition-all cursor-pointer group"
             >
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <div className="font-semibold text-slate-900 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                    <div className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2 flex-wrap">
                         <i className="fas fa-chart-line text-pink-500"></i>
                         <span>Parcel Volume: Actual Supabase Data → 7-Day WASM Prediction</span>
                         {/* Hover info badge ! with details about chart */}
@@ -151,7 +195,7 @@ export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
                             </div>
                         </div>
                         {prevEval?.has_evaluation && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                                 prevEval.met_percentage >= 90
                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200/80 dark:border-emerald-800/40'
                                     : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200/80 dark:border-amber-800/40'
@@ -168,7 +212,7 @@ export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenModal('forecast', forecastApiData); }}
-                            className="text-[11px] font-semibold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
+                            className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline cursor-pointer"
                         >
                             Inspect WASM Modal
                         </button>
@@ -180,35 +224,35 @@ export default function ForecastTab({ data, onOpenModal }: ForecastTabProps) {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Projected Next 7 Days</p>
+                <div className="p-4 rounded-2xl bg-[#f0f3f8] dark:bg-[#1c1d28] border border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_10px_rgba(166,175,195,0.3),-4px_-4px_10px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)]">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Projected Next 7 Days</p>
                     <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
                         {nextWeekTotal.toLocaleString()} <span className="text-xs font-normal text-slate-400">units</span>
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Sum of predicted daily intake</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Sum of predicted daily intake</p>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Prev Week Target Met</p>
+                <div className="p-4 rounded-2xl bg-[#f0f3f8] dark:bg-[#1c1d28] border border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_10px_rgba(166,175,195,0.3),-4px_-4px_10px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)]">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Prev Week Target Met</p>
                     <p className="text-xl font-bold text-pink-600 dark:text-pink-400 mt-1">
                         {prevEval?.has_evaluation ? `${prevEval.met_percentage}%` : 'N/A'}
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 truncate" title={prevEval?.summary || 'Attainment vs Forecast'}>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate" title={prevEval?.summary || 'Attainment vs Forecast'}>
                         {prevEval?.has_evaluation ? `${prevEval.actual_volume} actual / ${prevEval.predicted_volume} pred` : 'No prior week data'}
                     </p>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Confidence Level</p>
+                <div className="p-4 rounded-2xl bg-[#f0f3f8] dark:bg-[#1c1d28] border border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_10px_rgba(166,175,195,0.3),-4px_-4px_10px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)]">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Confidence Level</p>
                     <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                         {confidenceLevel}
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Engine: @sipemu/anofox-forecast</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Engine: @sipemu/anofox-forecast</p>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Forecasting Model</p>
+                <div className="p-4 rounded-2xl bg-[#f0f3f8] dark:bg-[#1c1d28] border border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_10px_rgba(166,175,195,0.3),-4px_-4px_10px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)]">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Forecasting Model</p>
                     <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mt-1 line-clamp-1">
                         {modelUsed}
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Historical database series</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Historical database series</p>
                 </div>
             </div>
         </div>

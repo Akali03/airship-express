@@ -38,6 +38,14 @@ import {
     deleteAppeal,
 } from './services';
 
+const ROLE_REDIRECTS: Record<string, string> = {
+    'Admin': '/executive',
+    'Executive': '/executive',
+    'Manager': '/warehousing?tab=incoming',
+    'Operator': '/warehousing?tab=incoming',
+    'Employee': '/documents',
+};
+
 export default function SupplyChainLoginPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
@@ -279,15 +287,7 @@ export default function SupplyChainLoginPage() {
 
                     await restoreSupabaseSession();
 
-                    const roleRedirects: Record<string, string> = {
-                        'Admin': '/executive',
-                        'Manager': '/warehousing?tab=incoming',
-                        'Employee': '/documents',
-                        'Operator': '/warehousing?tab=incoming',
-                        'Executive': '/executive',
-                    };
-
-                    const redirectPath = roleRedirects[data.user.role] || '/warehousing';
+                    const redirectPath = ROLE_REDIRECTS[data.user.role] || '/warehousing';
                     window.location.href = redirectPath;
                     return;
                 }
@@ -449,6 +449,7 @@ export default function SupplyChainLoginPage() {
                 }
 
                 localStorage.setItem('session_token', sessionToken);
+                localStorage.setItem('sc_session_token', sessionToken);
             } else {
                 const existingToken = localStorage.getItem('session_token');
                 if (!existingToken) {
@@ -464,16 +465,17 @@ export default function SupplyChainLoginPage() {
             localStorage.setItem('user_name', selectedEmployee.display_name);
             localStorage.setItem('user_email', selectedEmployee.email);
 
-            const roleRedirects: Record<string, string> = {
-                'Admin': '/executive',
-                'Manager': '/warehousing?tab=incoming',
-                'Employee': '/documents',
-            };
+            const effectiveToken = sessionToken || (typeof window !== 'undefined' ? (localStorage.getItem('sc_session_token') || localStorage.getItem('session_token')) : null);
+            if (effectiveToken) {
+                const maxAge = rememberMe ? 15 * 24 * 60 * 60 : 8 * 60 * 60;
+                document.cookie = `sc_session_token=${effectiveToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                document.cookie = `session_token=${effectiveToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            }
 
             toast.success('Login successful!');
             setShowRememberedPasswordModal(false);
             setShowEmployeeModal(false);
-            router.push(roleRedirects[userRole] || '/warehousing');
+            router.push(ROLE_REDIRECTS[userRole] || '/warehousing');
 
         } catch (error) {
             console.error('Error logging in:', error);
@@ -789,12 +791,17 @@ export default function SupplyChainLoginPage() {
                 }
 
                 localStorage.setItem('session_token', data.session_token);
+                localStorage.setItem('sc_session_token', data.session_token);
                 localStorage.setItem('user_role', data.role);
                 localStorage.setItem('user_name', selectedEmployeeForPassword.display_name);
                 localStorage.setItem('user_email', selectedEmployeeForPassword.email);
                 if (data.remember_me) {
                     localStorage.setItem('session_expires', data.expires_at);
                 }
+
+                const maxAge = data.remember_me ? 15 * 24 * 60 * 60 : 8 * 60 * 60;
+                document.cookie = `sc_session_token=${data.session_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                document.cookie = `session_token=${data.session_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
 
                 setShowPasswordModal(false);
                 setShowEmployeeModal(false);

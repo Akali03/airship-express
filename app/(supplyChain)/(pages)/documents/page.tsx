@@ -17,6 +17,7 @@ import { BulkActionsToolbar } from "@/app/(supplyChain)/components/global/BulkAc
 import { AppButton } from "@/app/(supplyChain)/components/ui/AppButton";
 import { StatusBadge } from "@/app/(supplyChain)/components/ui/StatusBadge";
 import EmbeddedDocViewer from "@/app/(supplyChain)/components/ui/EmbeddedDocViewer";
+import Portal from "@/app/(supplyChain)/components/client/Portal";
 
 interface Document {
     id: string;
@@ -35,6 +36,7 @@ interface Document {
     created_at: string;
     updated_at: string;
     version: number;
+    user_id?: string | null;
     session_id?: string | null;
     role?: string | null;
     purchase_id?: string | null;
@@ -99,6 +101,7 @@ export default function Documents() {
         }
     }, [searchParams]);
     const [typeFilter, setTypeFilter] = useState("");
+    const [extensionFilter, setExtensionFilter] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
     const [supplierFilter, setSupplierFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
@@ -126,6 +129,7 @@ export default function Documents() {
     const [userEmail, setUserEmail] = useState<string>(DEFAULT_USER.email);
     const [userRole, setUserRole] = useState<string>("");
     const [userSessionId, setUserSessionId] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
     const [archiveCount, setArchiveCount] = useState(0);
     const [activityDateFrom, setActivityDateFrom] = useState("");
     const [activityDateTo, setActivityDateTo] = useState("");
@@ -152,6 +156,7 @@ export default function Documents() {
         try {
             const { data: { user: authUser } } = await supabase.auth.getUser();
             if (authUser) {
+                setUserId(authUser.id);
                 const { data: userData, error } = await supabase
                     .from('users')
                     .select('display_name, email, role, session_id')
@@ -172,6 +177,7 @@ export default function Documents() {
                     }
                 }
             } else {
+                setUserId(null);
                 setUserName(DEFAULT_USER.name);
                 setUserEmail(DEFAULT_USER.email);
                 setUserRole('');
@@ -179,6 +185,7 @@ export default function Documents() {
             }
         } catch (error) {
             console.error('Error getting user:', error);
+            setUserId(null);
             setUserName(DEFAULT_USER.name);
             setUserEmail(DEFAULT_USER.email);
             setUserRole('');
@@ -208,10 +215,20 @@ export default function Documents() {
             }
 
             if (typeFilter) {
-                if (typeFilter === 'Official Receipt' || typeFilter === 'Purchase Receipt') {
-                    query = query.in('document_type', ['Official Receipt', 'Purchase Receipt']);
-                } else {
-                    query = query.eq('document_type', typeFilter);
+                query = query.eq('document_type', typeFilter);
+            }
+
+            if (extensionFilter) {
+                if (extensionFilter === "jpg") {
+                    query = query.or('file_name.ilike.%.jpg,file_name.ilike.%.jpeg,file_type.ilike.%jpeg%');
+                } else if (extensionFilter === "png") {
+                    query = query.or('file_name.ilike.%.png,file_type.ilike.%png%');
+                } else if (extensionFilter === "pdf") {
+                    query = query.or('file_name.ilike.%.pdf,file_type.ilike.%pdf%');
+                } else if (extensionFilter === "word") {
+                    query = query.or('file_name.ilike.%.docx,file_name.ilike.%.doc,file_type.ilike.%word%,file_type.ilike.%officedocument%');
+                } else if (extensionFilter === "excel") {
+                    query = query.or('file_name.ilike.%.xlsx,file_name.ilike.%.xls,file_type.ilike.%sheet%,file_type.ilike.%excel%');
                 }
             }
 
@@ -306,7 +323,7 @@ export default function Documents() {
                 setRefreshing(false);
             }
         }
-    }, [debouncedSearch, typeFilter, categoryFilter, supplierFilter, dateFrom, dateTo, currentPage]);
+    }, [debouncedSearch, typeFilter, extensionFilter, categoryFilter, supplierFilter, dateFrom, dateTo, currentPage]);
 
     const fetchActivities = useCallback(async () => {
         try {
@@ -443,8 +460,15 @@ export default function Documents() {
             throw new Error('Document title is required');
         }
 
+        let currentUserId = userId;
+        if (!currentUserId) {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            currentUserId = authUser?.id || null;
+        }
+
         const insertData = {
             ...documentData,
+            user_id: currentUserId || null,
             session_id: userSessionId || null,
             role: userRole || null,
         };
@@ -457,7 +481,7 @@ export default function Documents() {
 
         if (error) throw error;
         return data;
-    }, [userSessionId, userRole]);
+    }, [userId, userSessionId, userRole]);
 
     // update document
     const updateDocument = useCallback(async (id: string, updates: any) => {
@@ -758,6 +782,12 @@ export default function Documents() {
             const uploadedBy = formData.get('uploadedBy') as string || userName || DEFAULT_USER.name;
             const notes = formData.get('notes') as string || null;
 
+            let currentUserId = userId;
+            if (!currentUserId) {
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+                currentUserId = authUser?.id || null;
+            }
+
             let uploadedCount = 0;
             let skippedCount = 0;
             const skippedFiles: string[] = [];
@@ -813,6 +843,7 @@ export default function Documents() {
                     uploaded_by: uploadedBy,
                     notes: notes,
                     version: 1,
+                    user_id: currentUserId || null,
                     session_id: userSessionId || null,
                     role: userRole || null,
                 };
@@ -970,6 +1001,7 @@ export default function Documents() {
     const clearAllFilters = () => {
         setSearchTerm("");
         setTypeFilter("");
+        setExtensionFilter("");
         setCategoryFilter("");
         setSupplierFilter("");
         setDateFrom("");
@@ -1069,11 +1101,73 @@ export default function Documents() {
 
     useEffect(() => {
         fetchDocuments(false);
-    }, [debouncedSearch, typeFilter, categoryFilter, supplierFilter, dateFrom, dateTo, currentPage]);
+    }, [debouncedSearch, typeFilter, extensionFilter, categoryFilter, supplierFilter, dateFrom, dateTo, currentPage]);
 
     useEffect(() => {
         fetchActivities();
     }, [debouncedActivitySearch, activityFilter, activityDateFrom, activityDateTo, activityPage]);
+
+    // Realtime subscription for documents and activity history
+    useEffect(() => {
+        let debounceTimer: NodeJS.Timeout | null = null;
+
+        const handleDocumentChange = (payload: any) => {
+            if (payload?.eventType === 'DELETE' && payload.old && 'id' in payload.old) {
+                const deletedId = (payload.old as { id: string }).id;
+                if (deletedId) {
+                    setSelectedDoc(prev => {
+                        if (prev?.id === deletedId) {
+                            setIsPreviewModalOpen(false);
+                            return null;
+                        }
+                        return prev;
+                    });
+                    setEditingDoc(prev => {
+                        if (prev?.id === deletedId) {
+                            setIsEditModalOpen(false);
+                            return null;
+                        }
+                        return prev;
+                    });
+                }
+            }
+
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                fetchDocuments(false);
+                fetchStatistics();
+                fetchArchiveCount();
+            }, 300);
+        };
+
+        let activityDebounceTimer: NodeJS.Timeout | null = null;
+        const handleActivityChange = () => {
+            if (activityDebounceTimer) clearTimeout(activityDebounceTimer);
+            activityDebounceTimer = setTimeout(() => {
+                fetchActivities();
+            }, 300);
+        };
+
+        const channel = supabase
+            .channel(`documents_realtime_${Date.now()}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'documents' },
+                handleDocumentChange
+            )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'activity_history' },
+                handleActivityChange
+            )
+            .subscribe();
+
+        return () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            if (activityDebounceTimer) clearTimeout(activityDebounceTimer);
+            supabase.removeChannel(channel);
+        };
+    }, [fetchDocuments, fetchStatistics, fetchArchiveCount, fetchActivities]);
 
     return (
         <SessionGuard requiredRole={['Admin', 'Manager', 'Employee', 'Executive']}>
@@ -1092,20 +1186,15 @@ export default function Documents() {
                                 Centralized evidence repository for daily operations and audit trail.
                             </p>
 
-                            <div className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 
-                                          px-3 py-1.5 rounded-full 
-                                          bg-slate-50 dark:bg-slate-900 
-                                          border border-slate-200/90 dark:border-slate-800 
-                                          shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)]
-                                          text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 max-w-full">
+                            <div className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 px-3.5 py-1.5 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 max-w-full transition-all">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                                <i className="fa-solid fa-user text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500"></i>
+                                <i className="fa-solid fa-user text-[10px] sm:text-[11px] text-pink-500 dark:text-pink-400"></i>
                                 <span>Logged in as:</span>
-                                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[140px] sm:max-w-none">
+                                <span className="font-bold text-slate-800 dark:text-slate-100 truncate max-w-[140px] sm:max-w-none">
                                     {userName}
                                 </span>
                                 {userEmail && (
-                                    <span className="text-slate-400 dark:text-slate-400 font-normal sm:border-l sm:border-slate-300/60 dark:sm:border-slate-700 sm:pl-2 sm:ml-0.5 truncate max-w-[180px] sm:max-w-none">
+                                    <span className="text-slate-400 dark:text-slate-500 font-medium sm:border-l sm:border-slate-300/60 dark:sm:border-slate-700 sm:pl-2 sm:ml-0.5 truncate max-w-[180px] sm:max-w-none">
                                         {userEmail}
                                     </span>
                                 )}
@@ -1192,7 +1281,8 @@ export default function Documents() {
                     </div>
                 )}
 
-                <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)] p-2.5 transition-all">
+                {/* Category Filters Dock */}
+                <div className="mt-4 p-3 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] transition-all">
                     <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-0.5">
                         {/* Category Filters */}
                         <div className="flex items-center gap-1.5 pr-3 border-r border-slate-200/60 dark:border-slate-800 shrink-0">
@@ -1202,9 +1292,9 @@ export default function Documents() {
                                     setTypeFilter("");
                                     setCurrentPage(1);
                                 }}
-                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${!categoryFilter && !typeFilter
-                                    ? "bg-pink-500 text-white shadow-sm"
-                                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${!categoryFilter && !typeFilter
+                                    ? "bg-gradient-to-b from-pink-500 to-pink-600 text-white border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]"
+                                    : "bg-[#ebf0f7] dark:bg-[#14151c] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]"
                                     }`}
                             >
                                 <i className="fas fa-folder-open text-xs" />
@@ -1212,7 +1302,7 @@ export default function Documents() {
                                 <span
                                     className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${!categoryFilter && !typeFilter
                                         ? "bg-white/25 text-white"
-                                        : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+                                        : "bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                                         }`}
                                 >
                                     {totalFiles}
@@ -1225,9 +1315,9 @@ export default function Documents() {
                                     setTypeFilter("");
                                     setCurrentPage(1);
                                 }}
-                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${categoryFilter === "photos"
-                                    ? "bg-pink-500 text-white shadow-sm"
-                                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${categoryFilter === "photos"
+                                    ? "bg-gradient-to-b from-pink-500 to-pink-600 text-white border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]"
+                                    : "bg-[#ebf0f7] dark:bg-[#14151c] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]"
                                     }`}
                             >
                                 <i className="fas fa-image text-xs" />
@@ -1235,7 +1325,7 @@ export default function Documents() {
                                 <span
                                     className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${categoryFilter === "photos"
                                         ? "bg-white/25 text-white"
-                                        : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+                                        : "bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                                         }`}
                                 >
                                     {totalPhotos}
@@ -1248,9 +1338,9 @@ export default function Documents() {
                                     setTypeFilter("");
                                     setCurrentPage(1);
                                 }}
-                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${categoryFilter === "documents"
-                                    ? "bg-pink-500 text-white shadow-sm"
-                                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${categoryFilter === "documents"
+                                    ? "bg-gradient-to-b from-pink-500 to-pink-600 text-white border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]"
+                                    : "bg-[#ebf0f7] dark:bg-[#14151c] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]"
                                     }`}
                             >
                                 <i className="fas fa-file-alt text-xs" />
@@ -1258,7 +1348,7 @@ export default function Documents() {
                                 <span
                                     className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${categoryFilter === "documents"
                                         ? "bg-white/25 text-white"
-                                        : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+                                        : "bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                                         }`}
                                 >
                                     {totalFiles - totalPhotos}
@@ -1270,7 +1360,6 @@ export default function Documents() {
                         <div className="flex items-center gap-1.5 pl-1 shrink-0">
                             {[
                                 "Official Receipt",
-                                "Purchase Receipt",
                                 "Invoice",
                                 "Delivery Receipt",
                                 "Parcel Condition",
@@ -1288,9 +1377,9 @@ export default function Documents() {
                                             setCategoryFilter("");
                                             setCurrentPage(1);
                                         }}
-                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${isActive
-                                            ? "bg-pink-500 text-white shadow-sm"
-                                            : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-pink-600 dark:hover:text-pink-400 border border-slate-200/70 dark:border-slate-700/60 shadow-xs"
+                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${isActive
+                                            ? "bg-gradient-to-b from-pink-500 to-pink-600 text-white border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]"
+                                            : "bg-[#ebf0f7] dark:bg-[#14151c] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]"
                                             }`}
                                     >
                                         <i
@@ -1299,9 +1388,9 @@ export default function Documents() {
                                         />
                                         <span>{type}</span>
                                         <span
-                                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isActive
+                                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive
                                                 ? "bg-white/25 text-white"
-                                                : "bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-300"
+                                                : "bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                                                 }`}
                                         >
                                             {count}
@@ -1314,14 +1403,14 @@ export default function Documents() {
                 </div>
 
                 {/* Documents Table */}
-                <div className="bg-paper rounded-2xl border border-line shadow-xs overflow-hidden flex flex-col">
-                    {/* Filter Bar - Stays fixed */}
-                    <div className="flex-shrink-0 border-b border-line bg-slate-50/60 dark:bg-slate-900/40 p-3.5 sm:p-4">
+                <div className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col">
+                    {/* Filter Bar */}
+                    <div className="flex-shrink-0 pb-4 mb-3 border-b border-slate-200/60 dark:border-slate-800/80">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex flex-1 flex-wrap items-center gap-2.5">
                                 <div className="relative w-full sm:w-64">
                                     <i
-                                        className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted pointer-events-none"
+                                        className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none"
                                         aria-hidden="true"
                                     ></i>
                                     <input
@@ -1330,7 +1419,7 @@ export default function Documents() {
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         aria-label="Search files"
                                         placeholder="Search files..."
-                                        className="w-full rounded-xl border border-line bg-paper py-2 pl-8 pr-3 text-xs text-ink placeholder:text-muted transition-all shadow-2xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                                        className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all"
                                     />
                                 </div>
 
@@ -1341,16 +1430,32 @@ export default function Documents() {
                                         setCurrentPage(1);
                                     }}
                                     aria-label="Filter by document type"
-                                    className="w-full sm:w-auto rounded-xl border border-line bg-paper px-3 py-2 text-xs text-ink transition-all cursor-pointer shadow-2xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                                    className="w-full sm:w-auto bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3 py-2 text-xs text-slate-900 dark:text-white transition-all cursor-pointer focus:outline-none focus:border-pink-500"
                                 >
                                     <option value="">All Types</option>
                                     <option value="Official Receipt">Official Receipt</option>
-                                    <option value="Purchase Receipt">Purchase Receipt</option>
                                     <option value="Invoice">Invoice</option>
                                     <option value="Delivery Receipt">Delivery Receipt</option>
                                     <option value="Parcel Condition">Parcel Condition</option>
                                     <option value="Courier Handover">Courier Handover</option>
                                     <option value="Vehicle Maintenance">Vehicle Maintenance</option>
+                                </select>
+
+                                <select
+                                    value={extensionFilter}
+                                    onChange={(e) => {
+                                        setExtensionFilter(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    aria-label="Filter by file extension"
+                                    className="w-full sm:w-auto bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3 py-2 text-xs text-slate-900 dark:text-white transition-all cursor-pointer focus:outline-none focus:border-pink-500"
+                                >
+                                    <option value="">All Extensions</option>
+                                    <option value="jpg">.jpg / .jpeg</option>
+                                    <option value="png">.png</option>
+                                    <option value="pdf">.pdf</option>
+                                    <option value="word">.doc / .docx (Word)</option>
+                                    <option value="excel">.xls / .xlsx (Excel)</option>
                                 </select>
 
                                 <select
@@ -1360,7 +1465,7 @@ export default function Documents() {
                                         setCurrentPage(1);
                                     }}
                                     aria-label="Filter by supplier"
-                                    className="w-full sm:w-auto rounded-xl border border-line bg-paper px-3 py-2 text-xs text-ink transition-all cursor-pointer shadow-2xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                                    className="w-full sm:w-auto bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3 py-2 text-xs text-slate-900 dark:text-white transition-all cursor-pointer focus:outline-none focus:border-pink-500"
                                 >
                                     <option value="">All Suppliers</option>
                                     {suppliers.map((s) => (
@@ -1370,7 +1475,7 @@ export default function Documents() {
                                     ))}
                                 </select>
 
-                                <div className="flex w-full sm:w-auto items-center justify-between gap-1.5 rounded-xl border border-line bg-paper p-1 shadow-2xs">
+                                <div className="flex w-full sm:w-auto items-center justify-between gap-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] p-1">
                                     <input
                                         type="date"
                                         value={dateFrom}
@@ -1380,9 +1485,9 @@ export default function Documents() {
                                         }}
                                         aria-label="Date From"
                                         title="Date From"
-                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-ink cursor-pointer focus:outline-none"
+                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white cursor-pointer focus:outline-none"
                                     />
-                                    <span aria-hidden="true" className="text-[10px] font-medium text-muted uppercase select-none">
+                                    <span aria-hidden="true" className="text-[10px] font-bold text-slate-400 uppercase select-none">
                                         to
                                     </span>
                                     <input
@@ -1394,12 +1499,12 @@ export default function Documents() {
                                         }}
                                         aria-label="Date To"
                                         title="Date To"
-                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-ink cursor-pointer focus:outline-none"
+                                        className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white cursor-pointer focus:outline-none"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-end gap-2 border-t border-line pt-2 lg:border-t-0 lg:pt-0">
+                            <div className="flex items-center justify-end gap-2 border-t border-slate-200/60 dark:border-slate-800/80 pt-2 lg:border-t-0 lg:pt-0">
                                 <AppButton
                                     type="button"
                                     variant="neutral"
@@ -1454,7 +1559,7 @@ export default function Documents() {
                     )}
 
                     {/* Scrollable Table Container */}
-                    <div className="flex-1 overflow-y-auto max-h-[500px] relative">
+                    <div className="flex-1 overflow-y-auto max-h-[500px] relative rounded-2xl bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.2)]">
                         <div className="md:hidden flex items-center justify-between p-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-line rounded-t-xl">
                             <div className="flex items-center gap-2">
                                 <input
@@ -1476,7 +1581,7 @@ export default function Documents() {
 
                             <table className="table-pro p-1 w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-line bg-slate-50/50 dark:bg-slate-900/60 text-[11px] font-semibold text-muted uppercase tracking-wider">
+                                    <tr className="border-b border-slate-200/60 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                                         <th className="w-10 text-center! py-3 px-3">
                                             <input
                                                 type="checkbox"
@@ -1495,7 +1600,7 @@ export default function Documents() {
                                     </tr>
                                 </thead>
 
-                                <tbody className="divide-y divide-line text-xs">
+                                <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/80 text-xs">
                                     {loading ? (
                                         <TableRowsSkeleton
                                             rows={8}
@@ -1512,13 +1617,13 @@ export default function Documents() {
                                         />
                                     ) : documents.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="py-12 text-center text-muted">
-                                                <div className="flex flex-col items-center justify-center gap-2">
-                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-muted mb-1">
-                                                        <i className="fas fa-folder-open text-xl"></i>
+                                            <td colSpan={8} className="py-12 text-center">
+                                                <div className="flex flex-col items-center justify-center text-center p-4">
+                                                    <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3 transition-transform duration-300 hover:scale-105">
+                                                        <i className="fas fa-folder-open text-2xl"></i>
                                                     </div>
-                                                    <p className="font-semibold text-ink">No documents found</p>
-                                                    <p className="text-xs text-muted">Try adjusting your filters or search terms</p>
+                                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">No documents found</p>
+                                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm">Try adjusting your filters or search terms</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1526,8 +1631,12 @@ export default function Documents() {
                                         documents.map((doc) => {
                                             const isSelected = selectedDocIds.has(doc.id);
                                             return (
-                                                <tr key={doc.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group ${isSelected ? 'bg-accent/10 dark:bg-accent/20' : ''}`}>
-                                                    <td data-label="Select" className="py-3 px-3 text-center">
+                                                <tr
+                                                    key={doc.id}
+                                                    onClick={() => handleViewDocument(doc)}
+                                                    className={`hover:bg-white/60 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer ${isSelected ? 'bg-pink-500/10 dark:bg-pink-500/20' : ''}`}
+                                                >
+                                                    <td data-label="Select" className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                                                         <input
                                                             type="checkbox"
                                                             checked={isSelected}
@@ -1549,10 +1658,10 @@ export default function Documents() {
                                                         </div>
                                                     </td>
                                                     <td data-label="Document Title" className="py-3 px-4">
-                                                        <div className="font-semibold text-ink truncate max-w-[240px]" title={doc.title}>
+                                                        <div className="font-semibold text-slate-900 dark:text-white truncate max-w-[240px]" title={doc.title}>
                                                             {doc.title}
                                                         </div>
-                                                        <div className="text-[10px] text-muted font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
 
                                                         {/* Phase 5: PO Link Inline Display */}
                                                         {(doc.purchase_orders || doc.purchase_id || doc.po_number) && (
@@ -1582,14 +1691,14 @@ export default function Documents() {
                                                             {doc.document_type}
                                                         </StatusBadge>
                                                     </td>
-                                                    <td data-label="Size" className="py-3 px-4 text-ink font-medium">{formatFileSize(doc.file_size)}</td>
-                                                    <td data-label="Supplier" className="py-3 px-4 text-ink">
-                                                        {doc.supplier || doc.purchase_orders?.supplier_name || <span className="text-muted">—</span>}
+                                                    <td data-label="Size" className="py-3 px-4 text-slate-900 dark:text-white font-medium">{formatFileSize(doc.file_size)}</td>
+                                                    <td data-label="Supplier" className="py-3 px-4 text-slate-900 dark:text-white">
+                                                        {doc.supplier || doc.purchase_orders?.supplier_name || <span className="text-slate-400">—</span>}
                                                     </td>
-                                                    <td data-label="Date Uploaded" className="py-3 px-4 text-muted whitespace-nowrap">
+                                                    <td data-label="Date Uploaded" className="py-3 px-4 text-slate-400 whitespace-nowrap">
                                                         {new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                                     </td>
-                                                    <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap w-[170px] min-w-[170px]">
+                                                    <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap w-[170px] min-w-[170px]" onClick={(e) => e.stopPropagation()}>
                                                         <div className="flex items-center justify-end gap-2.5">
                                                             <CrudActionButton
                                                                 action="view"
@@ -1628,15 +1737,15 @@ export default function Documents() {
 
                     {/* Pagination - Stays fixed */}
                     {totalPages > 0 && (
-                        <div className="flex-shrink-0 pagination-container-class bg-slate-50/60 dark:bg-slate-900/80 border-t border-line p-3.5 flex items-center justify-between text-xs">
-                            <span className="text-muted">
-                                Showing <span className="font-semibold text-ink">
+                        <div className="flex-shrink-0 pagination-container-class pt-4 mt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs">
+                            <span className="text-slate-400">
+                                Showing <span className="font-semibold text-slate-900 dark:text-white">
                                     {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
                                 </span> to{' '}
-                                <span className="font-semibold text-ink">
+                                <span className="font-semibold text-slate-900 dark:text-white">
                                     {Math.min(currentPage * itemsPerPage, totalItems)}
                                 </span> of{' '}
-                                <span className="font-semibold text-ink">{totalItems}</span> files
+                                <span className="font-semibold text-slate-900 dark:text-white">{totalItems}</span> files
                             </span>
                             <Pagination
                                 currentPage={currentPage}
@@ -1648,14 +1757,15 @@ export default function Documents() {
                 </div>
 
                 {/* Activity History Table */}
-                <div className="bg-paper rounded-2xl border border-line shadow-xs overflow-hidden flex flex-col">
-                    {/* Header - Stays fixed */}
-                    <div className="flex-shrink-0 p-4 border-b border-line bg-slate-50/50 dark:bg-slate-900/40 flex flex-col gap-4">
+                <div className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col">
+                    {/* Header */}
+                    <div className="flex-shrink-0 pb-4 mb-3 border-b border-slate-200/60 dark:border-slate-800/80 flex flex-col gap-4">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
-                            <div className="flex items-center gap-3">
-                                <div>
-                                    <h3 className="font-semibold text-ink leading-tight text-sm">Activity History</h3>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
+                                    <i className="fas fa-clock-rotate-left text-xs"/>
                                 </div>
+                                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">Activity History</h3>
                             </div>
 
                             <AppButton
@@ -1679,20 +1789,20 @@ export default function Documents() {
 
                         <div className="flex flex-wrap items-center gap-2.5">
                             <div className="relative flex-1 min-w-[200px]">
-                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-muted text-xs pointer-events-none"></i>
+                                <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
                                 <input
                                     type="search"
                                     value={activitySearch}
                                     onChange={(e) => setActivitySearch(e.target.value)}
                                     placeholder="Search user or document..."
-                                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-line bg-paper text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all shadow-2xs"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all"
                                 />
                             </div>
 
                             <select
                                 value={activityFilter}
                                 onChange={(e) => setActivityFilter(e.target.value)}
-                                className="py-1.5 px-3 text-xs rounded-xl border border-line bg-paper text-ink focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all cursor-pointer shadow-2xs"
+                                className="bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
                             >
                                 <option value="">All Actions</option>
                                 <option value="upload">Uploads</option>
@@ -1700,31 +1810,31 @@ export default function Documents() {
                                 <option value="delete">Deletions</option>
                             </select>
 
-                            <div className="flex items-center gap-1.5 bg-paper p-1 rounded-xl border border-line shadow-2xs">
+                            <div className="flex items-center gap-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] p-1">
                                 <input
                                     type="date"
                                     value={activityDateFrom}
                                     onChange={(e) => setActivityDateFrom(e.target.value)}
-                                    className="py-0.5 px-2 text-xs border-0 bg-transparent text-ink focus:outline-none cursor-pointer"
+                                    className="border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none cursor-pointer"
                                     title="Activity Date From"
                                 />
-                                <span className="text-muted text-[10px] font-medium uppercase">to</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase select-none">to</span>
                                 <input
                                     type="date"
                                     value={activityDateTo}
                                     onChange={(e) => setActivityDateTo(e.target.value)}
-                                    className="py-0.5 px-2 text-xs border-0 bg-transparent text-ink focus:outline-none cursor-pointer"
+                                    className="border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none cursor-pointer"
                                     title="Activity Date To"
                                 />
                             </div>
                         </div>
                     </div>
 
-                    {/* Bulk Actions Bar - Stays fixed if present */}
+                    {/* Bulk Actions Bar */}
                     {selectedActivityIds.size > 0 && (
-                        <div className="flex-shrink-0 px-4 py-2.5 bg-ink text-paper border-b border-line flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
-                            <div className="flex items-center gap-2 text-xs font-semibold">
-                                <span className="w-5 h-5 rounded-full bg-accent text-paper inline-flex items-center justify-center text-[10px] font-bold">
+                        <div className="flex-shrink-0 px-4 py-2.5 mb-3 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] rounded-2xl flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                <span className="w-5 h-5 rounded-full bg-pink-500 text-white inline-flex items-center justify-center text-[10px] font-bold shadow-xs">
                                     {selectedActivityIds.size}
                                 </span>
                                 <span>record(s) selected</span>
@@ -1732,13 +1842,13 @@ export default function Documents() {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={deleteSelectedActivities}
-                                    className="px-3 py-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                    className="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                 >
                                     <i className="fas fa-trash-can text-[11px]"></i> Delete Selected
                                 </button>
                                 <button
                                     onClick={() => setSelectedActivityIds(new Set())}
-                                    className="px-2.5 py-1.5 text-xs font-medium text-muted hover:text-ink hover:bg-ink/10 rounded-lg transition-all cursor-pointer"
+                                    className="px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer"
                                 >
                                     Clear Selection
                                 </button>
@@ -1747,7 +1857,7 @@ export default function Documents() {
                     )}
 
                     {/* Scrollable Table Container */}
-                    <div className="flex-1 overflow-y-auto max-h-[400px] relative">
+                    <div className="flex-1 overflow-y-auto max-h-[400px] relative rounded-2xl bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.2)]">
                         <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-line">
                             <label className="flex items-center gap-2.5 cursor-pointer">
                                 <input
@@ -1773,7 +1883,7 @@ export default function Documents() {
                         <div className="overflow-x-auto">
                             <table className="table-pro w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-line bg-slate-50/70 dark:bg-slate-800/40 text-[10px] font-bold tracking-wider text-muted uppercase select-none">
+                                    <tr className="border-b border-slate-200/60 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-800/40 text-[10px] font-bold tracking-wider text-slate-400 uppercase select-none">
                                         <th className="py-3 px-4 text-center w-10">
                                             <input
                                                 type="checkbox"
@@ -1790,16 +1900,16 @@ export default function Documents() {
                                         <th className="py-3 px-4 !text-right">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-line text-xs">
+                                <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/80 text-xs">
                                     {activities.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="py-12 text-center text-muted">
-                                                <div className="flex flex-col items-center justify-center gap-2">
-                                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center text-muted mb-1">
-                                                        <i className="fas fa-inbox text-xl"></i>
+                                            <td colSpan={7} className="py-12 text-center">
+                                                <div className="flex flex-col items-center justify-center text-center p-4">
+                                                    <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3 transition-transform duration-300 hover:scale-105">
+                                                        <i className="fas fa-inbox text-2xl"></i>
                                                     </div>
-                                                    <p className="font-semibold text-ink">No activity recorded yet</p>
-                                                    <p className="text-xs text-muted">Activity logs will appear here as users perform operations</p>
+                                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">No activity recorded yet</p>
+                                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm">Activity logs will appear here as users perform operations</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1807,7 +1917,7 @@ export default function Documents() {
                                         activities.map((activity) => {
                                             const isSelected = selectedActivityIds.has(activity.id);
                                             return (
-                                                <tr key={activity.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors group ${isSelected ? 'bg-accent/10 dark:bg-accent/20' : ''}`}>
+                                                <tr key={activity.id} className={`hover:bg-white/60 dark:hover:bg-slate-800/50 transition-colors group ${isSelected ? 'bg-pink-500/10 dark:bg-pink-500/20' : ''}`}>
                                                     <td data-label="Select" className="py-3 px-4 text-center">
                                                         <input
                                                             type="checkbox"
@@ -1827,9 +1937,9 @@ export default function Documents() {
                                                     <td data-label="User" className="py-3 px-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-2.5">
                                                             <div>
-                                                                <div className="font-semibold text-ink leading-snug">{activity.user_name}</div>
+                                                                <div className="font-semibold text-slate-900 dark:text-white leading-snug">{activity.user_name}</div>
                                                                 {activity.user_email && (
-                                                                    <div className="text-[10px] text-muted font-normal">{activity.user_email}</div>
+                                                                    <div className="text-[10px] text-slate-400 font-normal">{activity.user_email}</div>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -1851,26 +1961,26 @@ export default function Documents() {
                                                             {activity.action_type.charAt(0).toUpperCase() + activity.action_type.slice(1)}
                                                         </StatusBadge>
                                                     </td>
-                                                    <td data-label="Target Resource" className="py-3 px-4 text-ink font-medium whitespace-nowrap">
+                                                    <td data-label="Target Resource" className="py-3 px-4 text-slate-900 dark:text-white font-medium whitespace-nowrap">
                                                         {activity.target_resource}
                                                     </td>
                                                     <td data-label="Document" className="py-3 px-4 whitespace-nowrap">
                                                         {activity.document_title ? (
                                                             <div>
-                                                                <div className="text-ink font-medium truncate max-w-[200px]" title={activity.document_title}>
+                                                                <div className="text-slate-900 dark:text-white font-medium truncate max-w-[200px]" title={activity.document_title}>
                                                                     {activity.document_title}
                                                                 </div>
                                                                 {activity.document_id && (
-                                                                    <div className="text-[10px] text-muted font-mono tracking-tight mt-0.5">
+                                                                    <div className="text-[10px] text-slate-400 font-mono tracking-tight mt-0.5">
                                                                         ID: {activity.document_id.substring(0, 8)}
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <span className="text-muted">—</span>
+                                                            <span className="text-slate-400">—</span>
                                                         )}
                                                     </td>
-                                                    <td data-label="Timestamp" className="py-3 px-4 text-muted whitespace-nowrap">
+                                                    <td data-label="Timestamp" className="py-3 px-4 text-slate-400 whitespace-nowrap">
                                                         {new Date(activity.timestamp).toLocaleString(undefined, {
                                                             year: 'numeric',
                                                             month: 'short',
@@ -1895,15 +2005,15 @@ export default function Documents() {
 
                     {/* Pagination - Stays fixed */}
                     {totalActivities > 0 && (
-                        <div className="flex-shrink-0 pagination-container-class px-4 py-3 bg-paper border-t border-line flex items-center justify-between text-xs">
-                            <span className="text-muted">
-                                Showing <span className="font-semibold text-ink">
+                        <div className="flex-shrink-0 pagination-container-class pt-4 mt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs">
+                            <span className="text-slate-400">
+                                Showing <span className="font-semibold text-slate-900 dark:text-white">
                                     {totalActivities === 0 ? 0 : (activityPage - 1) * activitiesPerPage + 1}
                                 </span> to{' '}
-                                <span className="font-semibold text-ink">
+                                <span className="font-semibold text-slate-900 dark:text-white">
                                     {Math.min(activityPage * activitiesPerPage, totalActivities)}
                                 </span> of{' '}
-                                <span className="font-semibold text-ink">{totalActivities}</span> log entries
+                                <span className="font-semibold text-slate-900 dark:text-white">{totalActivities}</span> log entries
                             </span>
                             <Pagination
                                 currentPage={activityPage}
@@ -1915,463 +2025,473 @@ export default function Documents() {
                 </div>
 
                 {isEditModalOpen && editingDoc && (
-                    <div className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                            <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-3xl max-h-[90vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
 
-                            {/* Modal Header */}
-                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/30">
-                                        <i className="fas fa-edit text-sm"></i>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                                            Edit Document
-                                        </h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            Update document metadata (image is read-only)
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <AppButton
-                                    type="button"
-                                    variant="neutral"
-                                    size="icon-sm"
-                                    onClick={() => { setIsEditModalOpen(false); setEditingDoc(null); setEditPreviewUrl(null); }}
-                                    aria-label="Close modal"
-                                >
-                                    <i className="fas fa-times text-xs"></i>
-                                </AppButton>
-                            </div>
-
-                            {/* Modal Body / Form */}
-                            <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto p-6 space-y-4.5">
-                                {editingDoc.file_type.toLowerCase().includes('jpg') ||
-                                    editingDoc.file_type.toLowerCase().includes('jpeg') ||
-                                    editingDoc.file_type.toLowerCase().includes('png') ||
-                                    editingDoc.file_type.toLowerCase().includes('heic') ? (
-                                    <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200/90 dark:border-slate-800">
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">
-                                            Current Image (Read Only)
-                                        </label>
-                                        <div className="flex items-center justify-center min-h-[200px] bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800 p-2">
-                                            {editPreviewLoading ? (
-                                                <div className="text-center py-6">
-                                                    <i className="fas fa-spinner fa-spin text-2xl text-pink-500 dark:text-pink-400 mb-2"></i>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">Loading image...</p>
-                                                </div>
-                                            ) : editPreviewUrl ? (
-                                                <img
-                                                    src={editPreviewUrl}
-                                                    alt={editingDoc.title}
-                                                    className="max-w-full max-h-[280px] object-contain rounded-lg shadow-2xs"
-                                                />
-                                            ) : (
-                                                <div className="text-center text-slate-400 dark:text-slate-500 p-4">
-                                                    <i className="fas fa-image text-3xl mb-2"></i>
-                                                    <p className="text-xs font-medium">Image preview not available</p>
-                                                </div>
-                                            )}
+                                {/* Modal Header */}
+                                <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                            <i className="fas fa-edit text-sm"></i>
                                         </div>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 flex items-center">
-                                            <i className="fas fa-info-circle mr-1.5 text-slate-400"></i>
-                                            Image cannot be edited directly. To change it, delete and re-upload.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200/90 dark:border-slate-800">
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">
-                                            Current File (Read Only)
-                                        </label>
-                                        <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-base border shrink-0 ${getFileColor(editingDoc.file_type)}`}>
-                                                <i className={`fas ${getFileIcon(editingDoc.file_type)}`}></i>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate">{editingDoc.file_name}</div>
-                                                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{formatFileSize(editingDoc.file_size)}</div>
-                                            </div>
-                                            <AppButton
-                                                type="button"
-                                                variant="pink"
-                                                size="xs"
-                                                onClick={() => downloadFile(editingDoc)}
-                                            >
-                                                <i className="fas fa-download text-[10px]"></i>
-                                                <span>Download</span>
-                                            </AppButton>
+                                        <div>
+                                            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                                Edit Document
+                                            </h3>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                                Update document metadata (image is read-only)
+                                            </p>
                                         </div>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 flex items-center">
-                                            <i className="fas fa-info-circle mr-1.5 text-slate-400"></i>
-                                            File cannot be edited directly. To change it, delete and re-upload.
-                                        </p>
                                     </div>
-                                )}
 
-                                <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                        Title <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                        name="title"
-                                        defaultValue={editingDoc.title}
-                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
-                                        required
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Category
-                                        </label>
-                                        <select
-                                            name="category"
-                                            defaultValue={editingDoc.category}
-                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer shadow-2xs"
-                                        >
-                                            <option value="documents" className="dark:bg-slate-900">Documents</option>
-                                            <option value="photos" className="dark:bg-slate-900">Photos</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Document Type
-                                        </label>
-                                        <select
-                                            name="documentType"
-                                            defaultValue={editingDoc.document_type}
-                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer shadow-2xs"
-                                        >
-                                            <option value="Official Receipt" className="dark:bg-slate-900">Official Receipt</option>
-                                            <option value="Invoice" className="dark:bg-slate-900">Invoice</option>
-                                            <option value="Delivery Receipt" className="dark:bg-slate-900">Delivery Receipt</option>
-                                            <option value="Parcel Condition" className="dark:bg-slate-900">Parcel Condition</option>
-                                            <option value="Courier Handover" className="dark:bg-slate-900">Courier Handover</option>
-                                            <option value="Vehicle Maintenance" className="dark:bg-slate-900">Vehicle Maintenance</option>
-                                            <option value="Other" className="dark:bg-slate-900">Other</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Supplier
-                                        </label>
-                                        <select
-                                            name="supplier"
-                                            defaultValue={editingDoc.supplier || ''}
-                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer shadow-2xs"
-                                        >
-                                            <option value="" className="dark:bg-slate-900">Select supplier</option>
-                                            {suppliers.map((s) => (
-                                                <option key={s.id} value={s.name} className="dark:bg-slate-900">{s.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            PO Number
-                                        </label>
-                                        <input
-                                            name="poNumber"
-                                            defaultValue={editingDoc.po_number || ''}
-                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
-                                            placeholder="e.g. PO-2026-0031"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Parcel Batch
-                                        </label>
-                                        <input
-                                            name="parcelBatch"
-                                            defaultValue={editingDoc.parcel_batch || ''}
-                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
-                                            placeholder="e.g. PB-2026-045"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Uploaded By
-                                        </label>
-                                        <input
-                                            name="uploadedBy"
-                                            defaultValue={editingDoc.uploaded_by || ''}
-                                            className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs"
-                                            placeholder="Your name"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Version
-                                        </label>
-                                        <input
-                                            value={`v${(editingDoc.version || 0) + 1}`}
-                                            className="w-full px-3.5 py-2 bg-slate-100/70 dark:bg-slate-800/20 border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 cursor-not-allowed select-none"
-                                            disabled
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                        Notes
-                                    </label>
-                                    <textarea
-                                        name="notes"
-                                        defaultValue={editingDoc.notes || ''}
-                                        rows={2}
-                                        className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs"
-                                        placeholder="Additional details or remarks"
-                                    />
-                                </div>
-
-                                {/* Modal Actions */}
-                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
                                     <AppButton
                                         type="button"
                                         variant="neutral"
-                                        size="md"
+                                        size="icon-sm"
                                         onClick={() => { setIsEditModalOpen(false); setEditingDoc(null); setEditPreviewUrl(null); }}
+                                        aria-label="Close modal"
                                     >
-                                        Cancel
-                                    </AppButton>
-                                    <AppButton
-                                        type="submit"
-                                        variant="primary"
-                                        size="md"
-                                    >
-                                        <i className="fas fa-save text-xs"></i>
-                                        <span>Update Document</span>
+                                        <i className="fas fa-times text-xs"></i>
                                     </AppButton>
                                 </div>
-                            </form>
 
+                                {/* Modal Body / Form */}
+                                <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto p-6 space-y-4.5">
+                                    {editingDoc.file_type.toLowerCase().includes('jpg') ||
+                                        editingDoc.file_type.toLowerCase().includes('jpeg') ||
+                                        editingDoc.file_type.toLowerCase().includes('png') ||
+                                        editingDoc.file_type.toLowerCase().includes('heic') ? (
+                                        <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)]">
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">
+                                                Current Image (Read Only)
+                                            </label>
+                                            <div className="flex items-center justify-center min-h-[200px] bg-[#f0f3f8] dark:bg-[#191a24] rounded-xl border border-slate-200/60 dark:border-white/[0.06] p-2 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.2)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.5)]">
+                                                {editPreviewLoading ? (
+                                                    <div className="text-center py-6">
+                                                        <i className="fas fa-spinner fa-spin text-2xl text-pink-500 dark:text-pink-400 mb-2"></i>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">Loading image...</p>
+                                                    </div>
+                                                ) : editPreviewUrl ? (
+                                                    <img
+                                                        src={editPreviewUrl}
+                                                        alt={editingDoc.title}
+                                                        className="max-w-full max-h-[280px] object-contain rounded-lg shadow-sm"
+                                                    />
+                                                ) : (
+                                                    <div className="text-center text-slate-400 dark:text-slate-500 p-4">
+                                                        <i className="fas fa-image text-3xl mb-2"></i>
+                                                        <p className="text-xs font-medium">Image preview not available</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 flex items-center font-medium">
+                                                <i className="fas fa-info-circle mr-1.5 text-slate-400"></i>
+                                                Image cannot be edited directly. To change it, delete and re-upload.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)]">
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">
+                                                Current File (Read Only)
+                                            </label>
+                                            <div className="flex items-center gap-3 p-3 bg-[#f0f3f8] dark:bg-[#191a24] rounded-xl border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-base border shrink-0 ${getFileColor(editingDoc.file_type)}`}>
+                                                    <i className={`fas ${getFileIcon(editingDoc.file_type)}`}></i>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate">{editingDoc.file_name}</div>
+                                                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{formatFileSize(editingDoc.file_size)}</div>
+                                                </div>
+                                                <AppButton
+                                                    type="button"
+                                                    variant="pink"
+                                                    size="xs"
+                                                    onClick={() => downloadFile(editingDoc)}
+                                                >
+                                                    <i className="fas fa-download text-[10px]"></i>
+                                                    <span>Download</span>
+                                                </AppButton>
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 flex items-center font-medium">
+                                                <i className="fas fa-info-circle mr-1.5 text-slate-400"></i>
+                                                File cannot be edited directly. To change it, delete and re-upload.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Title <span className="text-pink-500">*</span>
+                                        </label>
+                                        <input
+                                            name="title"
+                                            defaultValue={editingDoc.title}
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                Category
+                                            </label>
+                                            <select
+                                                name="category"
+                                                defaultValue={editingDoc.category}
+                                                className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="documents" className="dark:bg-slate-900">Documents</option>
+                                                <option value="photos" className="dark:bg-slate-900">Photos</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                Document Type
+                                            </label>
+                                            <select
+                                                name="documentType"
+                                                defaultValue={editingDoc.document_type}
+                                                className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="Official Receipt" className="dark:bg-slate-900">Official Receipt</option>
+                                                <option value="Invoice" className="dark:bg-slate-900">Invoice</option>
+                                                <option value="Delivery Receipt" className="dark:bg-slate-900">Delivery Receipt</option>
+                                                <option value="Parcel Condition" className="dark:bg-slate-900">Parcel Condition</option>
+                                                <option value="Courier Handover" className="dark:bg-slate-900">Courier Handover</option>
+                                                <option value="Vehicle Maintenance" className="dark:bg-slate-900">Vehicle Maintenance</option>
+                                                <option value="Other" className="dark:bg-slate-900">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                Supplier
+                                            </label>
+                                            <select
+                                                name="supplier"
+                                                defaultValue={editingDoc.supplier || ''}
+                                                className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="" className="dark:bg-slate-900 text-slate-400">Select supplier</option>
+                                                {suppliers.map((s) => (
+                                                    <option key={s.id} value={s.name} className="dark:bg-slate-900">{s.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                PO Number
+                                            </label>
+                                            <input
+                                                name="poNumber"
+                                                defaultValue={editingDoc.po_number || ''}
+                                                className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all"
+                                                placeholder="e.g. PO-2026-0031"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                Parcel Batch
+                                            </label>
+                                            <input
+                                                name="parcelBatch"
+                                                defaultValue={editingDoc.parcel_batch || ''}
+                                                className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all"
+                                                placeholder="e.g. PB-2026-045"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                Uploaded By
+                                            </label>
+                                            <input
+                                                name="uploadedBy"
+                                                defaultValue={editingDoc.uploaded_by || ''}
+                                                className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all"
+                                                placeholder="Your name"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                                Version
+                                            </label>
+                                            <input
+                                                value={`v${(editingDoc.version || 0) + 1}`}
+                                                className="w-full bg-[#e2e8f0]/60 dark:bg-[#101118] border border-slate-200/60 dark:border-slate-800/80 shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.5)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-500 dark:text-slate-400 cursor-not-allowed select-none"
+                                                disabled
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Notes
+                                        </label>
+                                        <textarea
+                                            name="notes"
+                                            defaultValue={editingDoc.notes || ''}
+                                            rows={2}
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all resize-none"
+                                            placeholder="Additional details or remarks"
+                                        />
+                                    </div>
+
+                                    {/* Modal Actions */}
+                                    <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
+                                        <AppButton
+                                            type="button"
+                                            variant="neutral"
+                                            size="md"
+                                            onClick={() => { setIsEditModalOpen(false); setEditingDoc(null); setEditPreviewUrl(null); }}
+                                        >
+                                            Cancel
+                                        </AppButton>
+                                        <AppButton
+                                            type="submit"
+                                            variant="primary"
+                                            size="md"
+                                        >
+                                            <i className="fas fa-save text-xs"></i>
+                                            <span>Update Document</span>
+                                        </AppButton>
+                                    </div>
+                                </form>
+
+                            </div>
                         </div>
-                    </div>
+                    </Portal>
                 )}
 
                 {isPreviewModalOpen && selectedDoc && (
-                    <div className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-6xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                            <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-6xl max-h-[90vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
 
-                            {/* Modal Header */}
-                            <div className="flex items-start justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
-                                <div>
-                                    <h3 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white truncate max-w-2xl">
-                                        {selectedDoc.title}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        <span className="font-mono">{selectedDoc.id}</span> · {selectedDoc.document_type}
-                                    </p>
-                                </div>
-                                <AppButton
-                                    type="button"
-                                    variant="neutral"
-                                    size="icon-sm"
-                                    onClick={() => { setIsPreviewModalOpen(false); setSelectedDoc(null); setPreviewUrl(null); }}
-                                    aria-label="Close modal"
-                                >
-                                    <i className="fas fa-times text-xs"></i>
-                                </AppButton>
-                            </div>
-
-                            {/* Modal Body */}
-                            <div className="flex-1 overflow-y-auto p-6">
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                                    {/* Left: Preview Area */}
-                                    <div className="lg:col-span-2 flex flex-col">
-                                        <div className="bg-slate-50/70 dark:bg-slate-800/40 rounded-2xl flex items-center justify-center min-h-[480px] sm:min-h-[540px] flex-1 border border-slate-200/80 dark:border-slate-800 relative overflow-hidden shadow-2xs">
-                                            {previewLoading ? (
-                                                <div className="text-center py-12">
-                                                    <i className="fas fa-spinner fa-spin text-3xl text-pink-500 dark:text-pink-400 mb-3"></i>
-                                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Loading preview...</p>
-                                                </div>
-                                            ) : previewUrl ? (
-                                                <EmbeddedDocViewer
-                                                    url={previewUrl}
-                                                    fileName={selectedDoc.file_name}
-                                                    title={selectedDoc.title}
-                                                    fileType={selectedDoc.file_type}
-                                                    storagePath={selectedDoc.storage_path}
-                                                    onDownload={() => downloadFile(selectedDoc)}
-                                                    minHeight="min-h-[480px] sm:min-h-[540px]"
-                                                />
-                                            ) : (
-                                                <div className="text-center py-12 text-slate-400 dark:text-slate-500">
-                                                    <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3">
-                                                        <i className="fas fa-file-alt text-3xl"></i>
-                                                    </div>
-                                                    <p className="text-xs font-medium">Preview not available</p>
-                                                </div>
-                                            )}
+                                {/* Modal Header */}
+                                <div className="flex items-start justify-between px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                            <i className="fas fa-file-alt text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate max-w-2xl tracking-tight">
+                                                {selectedDoc.title}
+                                            </h3>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                                                <span className="font-mono">{selectedDoc.id}</span> · {selectedDoc.document_type}
+                                            </p>
                                         </div>
                                     </div>
+                                    <AppButton
+                                        type="button"
+                                        variant="neutral"
+                                        size="icon-sm"
+                                        onClick={() => { setIsPreviewModalOpen(false); setSelectedDoc(null); setPreviewUrl(null); }}
+                                        aria-label="Close modal"
+                                    >
+                                        <i className="fas fa-times text-xs"></i>
+                                    </AppButton>
+                                </div>
 
-                                    {/* Right: Metadata & Info Panel */}
-                                    <div className="space-y-5 flex flex-col justify-between">
-                                        <div className="space-y-4">
-                                            {/* File Information */}
-                                            <div>
-                                                <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-                                                    <i className="fas fa-info-circle text-slate-400 dark:text-slate-500"></i>
-                                                    <span>File Information</span>
-                                                </h4>
-                                                <dl className="mt-2.5 space-y-2 text-xs">
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">ID:</dt>
-                                                        <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.id.substring(0, 8)}</dd>
+                                {/* Modal Body */}
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                                        {/* Left: Preview Area */}
+                                        <div className="lg:col-span-2 flex flex-col">
+                                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl flex items-center justify-center min-h-[480px] sm:min-h-[540px] flex-1 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] relative overflow-hidden">
+                                                {previewLoading ? (
+                                                    <div className="text-center py-12">
+                                                        <i className="fas fa-spinner fa-spin text-3xl text-pink-500 dark:text-pink-400 mb-3"></i>
+                                                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Loading preview...</p>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Type:</dt>
-                                                        <dd className="text-slate-800 dark:text-slate-200 font-medium">{selectedDoc.document_type}</dd>
+                                                ) : previewUrl ? (
+                                                    <EmbeddedDocViewer
+                                                        url={previewUrl}
+                                                        fileName={selectedDoc.file_name}
+                                                        title={selectedDoc.title}
+                                                        fileType={selectedDoc.file_type}
+                                                        storagePath={selectedDoc.storage_path}
+                                                        onDownload={() => downloadFile(selectedDoc)}
+                                                        minHeight="min-h-[480px] sm:min-h-[540px]"
+                                                    />
+                                                ) : (
+                                                    <div className="text-center py-12 text-slate-400 dark:text-slate-500">
+                                                        <div className="w-16 h-16 mx-auto rounded-2xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
+                                                            <i className="fas fa-file-alt text-3xl"></i>
+                                                        </div>
+                                                        <p className="text-xs font-medium">Preview not available</p>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Size:</dt>
-                                                        <dd className="text-slate-800 dark:text-slate-200">{formatFileSize(selectedDoc.file_size)}</dd>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Version:</dt>
-                                                        <dd className="text-slate-800 dark:text-slate-200">v{selectedDoc.version || 1}</dd>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Uploaded:</dt>
-                                                        <dd className="text-slate-800 dark:text-slate-200">{new Date(selectedDoc.created_at).toLocaleDateString()}</dd>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">By:</dt>
-                                                        <dd className="text-slate-800 dark:text-slate-200">{selectedDoc.uploaded_by || 'Unknown'}</dd>
-                                                    </div>
-                                                </dl>
+                                                )}
                                             </div>
+                                        </div>
 
-                                            {/* Related Records */}
-                                            <div>
-                                                <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-                                                    <i className="fas fa-link text-slate-400 dark:text-slate-500"></i>
-                                                    <span>Related Records</span>
-                                                </h4>
-                                                <dl className="mt-2.5 space-y-2 text-xs">
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">PO:</dt>
-                                                        <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.po_number || '-'}</dd>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Supplier:</dt>
-                                                        <dd className="text-slate-800 dark:text-slate-200 truncate max-w-[150px]" title={selectedDoc.supplier || '-'}>{selectedDoc.supplier || '-'}</dd>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <dt className="text-slate-500 dark:text-slate-400 font-medium">Parcel:</dt>
-                                                        <dd className="font-mono text-slate-800 dark:text-slate-200">{selectedDoc.parcel_batch || '-'}</dd>
-                                                    </div>
-                                                </dl>
-                                            </div>
-
-                                            {/* Notes */}
-                                            {selectedDoc.notes && (
-                                                <div>
-                                                    <h4 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-                                                        <i className="fas fa-sticky-note text-slate-400 dark:text-slate-500"></i>
-                                                        <span>Notes</span>
+                                        {/* Right: Metadata & Info Panel */}
+                                        <div className="space-y-4 flex flex-col justify-between">
+                                            <div className="space-y-4">
+                                                {/* File Information */}
+                                                <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)]">
+                                                    <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-200/60 dark:border-white/[0.06]">
+                                                        <i className="fas fa-info-circle text-slate-400 dark:text-slate-500"></i>
+                                                        <span>File Information</span>
                                                     </h4>
-                                                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 leading-relaxed">
-                                                        {selectedDoc.notes}
-                                                    </p>
+                                                    <dl className="mt-2.5 space-y-2 text-xs">
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">ID:</dt>
+                                                            <dd className="font-mono text-slate-800 dark:text-slate-200 font-semibold">{selectedDoc.id.substring(0, 8)}</dd>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">Type:</dt>
+                                                            <dd className="text-slate-800 dark:text-slate-200 font-semibold">{selectedDoc.document_type}</dd>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">Size:</dt>
+                                                            <dd className="text-slate-800 dark:text-slate-200 font-semibold">{formatFileSize(selectedDoc.file_size)}</dd>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">Version:</dt>
+                                                            <dd className="text-slate-800 dark:text-slate-200 font-semibold">v{selectedDoc.version || 1}</dd>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">Uploaded:</dt>
+                                                            <dd className="text-slate-800 dark:text-slate-200 font-semibold">{new Date(selectedDoc.created_at).toLocaleDateString()}</dd>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">By:</dt>
+                                                            <dd className="text-slate-800 dark:text-slate-200 font-semibold">{selectedDoc.uploaded_by || 'Unknown'}</dd>
+                                                        </div>
+                                                    </dl>
                                                 </div>
-                                            )}
+
+                                                {/* Related Records */}
+                                                <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)]">
+                                                    <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-200/60 dark:border-white/[0.06]">
+                                                        <i className="fas fa-link text-slate-400 dark:text-slate-500"></i>
+                                                        <span>Related Records</span>
+                                                    </h4>
+                                                    <dl className="mt-2.5 space-y-2 text-xs">
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">PO:</dt>
+                                                            <dd className="font-mono text-slate-800 dark:text-slate-200 font-semibold">{selectedDoc.po_number || '-'}</dd>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">Supplier:</dt>
+                                                            <dd className="text-slate-800 dark:text-slate-200 truncate max-w-[150px] font-semibold" title={selectedDoc.supplier || '-'}>{selectedDoc.supplier || '-'}</dd>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <dt className="text-slate-500 dark:text-slate-400 font-medium">Parcel:</dt>
+                                                            <dd className="font-mono text-slate-800 dark:text-slate-200 font-semibold">{selectedDoc.parcel_batch || '-'}</dd>
+                                                        </div>
+                                                    </dl>
+                                                </div>
+
+                                                {/* Notes */}
+                                                {selectedDoc.notes && (
+                                                    <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)]">
+                                                        <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-200/60 dark:border-white/[0.06]">
+                                                            <i className="fas fa-sticky-note text-slate-400 dark:text-slate-500"></i>
+                                                            <span>Notes</span>
+                                                        </h4>
+                                                        <p className="mt-2 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                                                            {selectedDoc.notes}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Action Buttons Footer */}
+                                            <div className="flex gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
+                                                <AppButton
+                                                    type="button"
+                                                    variant="primary"
+                                                    size="md"
+                                                    className="flex-1"
+                                                    onClick={() => downloadFile(selectedDoc)}
+                                                >
+                                                    <i className="fas fa-download text-xs"></i>
+                                                    <span>Download</span>
+                                                </AppButton>
+                                                <AppButton
+                                                    type="button"
+                                                    variant="neutral"
+                                                    size="md"
+                                                    className="flex-1"
+                                                    onClick={() => window.print()}
+                                                >
+                                                    <i className="fas fa-print text-xs"></i>
+                                                    <span>Print</span>
+                                                </AppButton>
+                                            </div>
                                         </div>
 
-                                        {/* Action Buttons Footer */}
-                                        <div className="flex gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                            <AppButton
-                                                type="button"
-                                                variant="primary"
-                                                size="md"
-                                                className="flex-1"
-                                                onClick={() => downloadFile(selectedDoc)}
-                                            >
-                                                <i className="fas fa-download text-xs"></i>
-                                                <span>Download</span>
-                                            </AppButton>
-                                            <AppButton
-                                                type="button"
-                                                variant="neutral"
-                                                size="md"
-                                                className="flex-1"
-                                                onClick={() => window.print()}
-                                            >
-                                                <i className="fas fa-print text-xs"></i>
-                                                <span>Print</span>
-                                            </AppButton>
-                                        </div>
                                     </div>
-
                                 </div>
-                            </div>
 
+                            </div>
                         </div>
-                    </div>
+                    </Portal>
                 )}
 
                 {isUploadModalOpen && (
-                    <div className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                            <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
 
-                            {/* Modal Header */}
-                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
-                                        <i className="fas fa-upload text-sm"></i>
+                                {/* Modal Header */}
+                                <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                            <i className="fas fa-upload text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                                Upload Files
+                                            </h3>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                                Upload documents, receipts, or photos for tracking
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                                            Upload Files
-                                        </h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            Upload documents, receipts, or photos for tracking
-                                        </p>
-                                    </div>
+                                    <AppButton
+                                        type="button"
+                                        variant="neutral"
+                                        size="icon-sm"
+                                        onClick={() => {
+                                            setIsUploadModalOpen(false);
+                                            setSelectedFiles([]);
+                                            setUploadProgress(0);
+                                        }}
+                                        aria-label="Close modal"
+                                    >
+                                        <i className="fas fa-times text-xs"></i>
+                                    </AppButton>
                                 </div>
-                                <AppButton
-                                    type="button"
-                                    variant="neutral"
-                                    size="icon-sm"
-                                    onClick={() => {
-                                        setIsUploadModalOpen(false);
-                                        setSelectedFiles([]);
-                                        setUploadProgress(0);
-                                    }}
-                                    aria-label="Close modal"
-                                >
-                                    <i className="fas fa-times text-xs"></i>
-                                </AppButton>
-                            </div>
 
-                            {/* Form Body */}
-                            <form onSubmit={handleUpload} className="flex-1 overflow-y-auto p-6 space-y-4">
+                                {/* Form Body */}
+                                <form onSubmit={handleUpload} className="flex-1 overflow-y-auto p-6 space-y-4">
 
                                 {/* Dropzone Area */}
                                 <div
                                     ref={dropZoneRef}
-                                    className="border-2 border-dashed border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 text-center hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer bg-slate-50/70 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                    className="border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl p-6 text-center hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer bg-[#ebf0f7] dark:bg-[#14151e] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)]"
                                     onClick={() => document.getElementById('fileInput')?.click()}
                                     onDragOver={(e) => {
                                         e.preventDefault();
-                                        e.currentTarget.classList.add('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/30');
+                                        e.currentTarget.classList.add('border-pink-400', 'bg-pink-500/5');
                                     }}
                                     onDragLeave={(e) => {
-                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/30');
+                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/5');
                                     }}
                                     onDrop={(e) => {
                                         e.preventDefault();
-                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-50/50', 'dark:bg-pink-950/30');
+                                        e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/5');
                                         handleFileSelect(e.dataTransfer.files);
                                     }}
                                 >
@@ -2384,24 +2504,24 @@ export default function Documents() {
                                         onChange={(e) => handleFileSelect(e.target.files)}
                                     />
                                     <div className="flex flex-col items-center gap-2">
-                                        <div className="w-12 h-12 rounded-full bg-pink-50 dark:bg-pink-950/50 text-pink-500 dark:text-pink-400 flex items-center justify-center mb-1">
+                                        <div className="w-12 h-12 rounded-2xl bg-[#f0f3f8] dark:bg-[#191a24] text-pink-500 dark:text-pink-400 flex items-center justify-center mb-1 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-cloud-upload-alt text-xl"></i>
                                         </div>
-                                        <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                             Drop files here or <span className="text-pink-600 dark:text-pink-400 underline">browse</span>
                                         </div>
-                                        <div className="text-[11px] text-slate-400 dark:text-slate-500">
+                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                                             Supports PDF, JPG, PNG, HEIC, DOC, XLS (Max 10MB each)
                                         </div>
 
                                         {selectedFiles.length > 0 && (
                                             <div className="w-full max-w-md mt-3 space-y-2 text-left" onClick={(e) => e.stopPropagation()}>
                                                 {selectedFiles.map((file, index) => (
-                                                    <div key={index} className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl text-xs shadow-xs">
+                                                    <div key={index} className="flex items-center justify-between p-2.5 bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)] rounded-xl text-xs">
                                                         <span className="flex items-center gap-2 truncate pr-2">
                                                             <i className="fas fa-file-alt text-slate-400 dark:text-slate-500"></i>
-                                                            <span className="truncate max-w-[220px] text-slate-700 dark:text-slate-200 font-medium">{file.name}</span>
-                                                            <span className="text-[10px] text-slate-400">({formatFileSize(file.size)})</span>
+                                                            <span className="truncate max-w-[220px] text-slate-800 dark:text-slate-200 font-semibold">{file.name}</span>
+                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400">({formatFileSize(file.size)})</span>
                                                         </span>
                                                         <AppButton
                                                             type="button"
@@ -2419,13 +2539,13 @@ export default function Documents() {
 
                                         {uploadProgress > 0 && (
                                             <div className="w-full max-w-md mt-3">
-                                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                <div className="w-full bg-[#ebf0f7] dark:bg-[#14151e] rounded-full h-2 overflow-hidden shadow-[inset_1px_1px_2px_rgba(0,0,0,0.2)]">
                                                     <div
-                                                        className="bg-pink-500 dark:bg-pink-400 h-1.5 rounded-full transition-all duration-300"
+                                                        className="bg-gradient-to-r from-pink-500 to-pink-600 h-2 rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(236,72,153,0.5)]"
                                                         style={{ width: `${uploadProgress}%` }}
                                                     ></div>
                                                 </div>
-                                                <div className="flex justify-between items-center text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                                                <div className="flex justify-between items-center text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
                                                     <span>Uploading...</span>
                                                     <span>{uploadProgress}%</span>
                                                 </div>
@@ -2438,15 +2558,15 @@ export default function Documents() {
                                 <div className="space-y-3.5 pt-1">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                         <div>
-                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Category</label>
-                                            <select name="category" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer">
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Category</label>
+                                            <select name="category" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer">
                                                 <option value="documents" className="dark:bg-slate-900">Documents</option>
                                                 <option value="photos" className="dark:bg-slate-900">Photos</option>
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Document Type</label>
-                                            <select name="documentType" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer">
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Document Type</label>
+                                            <select name="documentType" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer">
                                                 <option value="Official Receipt" className="dark:bg-slate-900">Official Receipt</option>
                                                 <option value="Invoice" className="dark:bg-slate-900">Invoice</option>
                                                 <option value="Delivery Receipt" className="dark:bg-slate-900">Delivery Receipt</option>
@@ -2460,8 +2580,8 @@ export default function Documents() {
 
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                                         <div>
-                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Supplier</label>
-                                            <select name="supplier" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all cursor-pointer">
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Supplier</label>
+                                            <select name="supplier" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer">
                                                 <option value="" className="dark:bg-slate-900 text-slate-400">Select supplier</option>
                                                 {suppliers.map((s) => (
                                                     <option key={s.id} value={s.name} className="dark:bg-slate-900">{s.name}</option>
@@ -2469,29 +2589,29 @@ export default function Documents() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">PO Number</label>
-                                            <input name="poNumber" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="e.g. PO-2026-0031" />
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">PO Number</label>
+                                            <input name="poNumber" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="e.g. PO-2026-0031" />
                                         </div>
                                         <div>
-                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Parcel Batch</label>
-                                            <input name="parcelBatch" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="e.g. PB-2026-045" />
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Parcel Batch</label>
+                                            <input name="parcelBatch" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="e.g. PB-2026-045" />
                                         </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                         <div>
-                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Uploaded By</label>
-                                            <input name="uploadedBy" defaultValue={userName || DEFAULT_USER.name} className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="Your name" />
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Uploaded By</label>
+                                            <input name="uploadedBy" defaultValue={userName || DEFAULT_USER.name} className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Your name" />
                                         </div>
                                         <div>
-                                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
-                                            <input name="notes" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all" placeholder="Additional details" />
+                                            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
+                                            <input name="notes" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl py-2 px-3.5 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Additional details" />
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Modal Actions */}
-                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80 mt-2">
+                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06] mt-2">
                                     <AppButton
                                         type="button"
                                         variant="neutral"
@@ -2518,8 +2638,9 @@ export default function Documents() {
                             </form>
                         </div>
                     </div>
-                )}
-            </div>
-        </SessionGuard>
-    );
+                </Portal>
+            )}
+        </div>
+    </SessionGuard>
+);
 }

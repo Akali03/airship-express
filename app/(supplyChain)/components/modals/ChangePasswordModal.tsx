@@ -356,7 +356,7 @@ export function ChangePasswordModal({
                                             onChange={(e) => setCurrentPassword(e.target.value)}
                                             placeholder="Enter your current password"
                                             disabled={isSubmitting}
-                                            className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-white dark:bg-[#2a2a2e] border border-gray-200/90 dark:border-slate-700/60 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500 outline-none transition"
+                                            className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] rounded-xl text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500/40 outline-none transition"
                                             autoFocus
                                         />
                                         <button
@@ -385,7 +385,7 @@ export function ChangePasswordModal({
                                             onChange={(e) => setNewPassword(e.target.value)}
                                             placeholder="Enter new strong password"
                                             disabled={isSubmitting}
-                                            className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-white dark:bg-[#2a2a2e] border border-gray-200/90 dark:border-slate-700/60 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500 outline-none transition"
+                                            className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] rounded-xl text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500/40 outline-none transition"
                                         />
                                         <button
                                             type="button"
@@ -403,7 +403,7 @@ export function ChangePasswordModal({
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
                                                 criteria.length
                                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'
+                                                    : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'
                                             }`}>
                                                 {criteria.length ? <CheckCircle2 className="h-2.5 w-2.5" /> : <span className="w-1 h-1 rounded-full bg-slate-400" />}
                                                 8+ chars
@@ -411,7 +411,7 @@ export function ChangePasswordModal({
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
                                                 criteria.uppercase
                                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'
+                                                    : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'
                                             }`}>
                                                 {criteria.uppercase ? <CheckCircle2 className="h-2.5 w-2.5" /> : <span className="w-1 h-1 rounded-full bg-slate-400" />}
                                                 1 uppercase
@@ -419,7 +419,7 @@ export function ChangePasswordModal({
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
                                                 criteria.lowercase
                                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'
+                                                    : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'
                                             }`}>
                                                 {criteria.lowercase ? <CheckCircle2 className="h-2.5 w-2.5" /> : <span className="w-1 h-1 rounded-full bg-slate-400" />}
                                                 1 lowercase
@@ -427,7 +427,7 @@ export function ChangePasswordModal({
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
                                                 criteria.number
                                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40'
-                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/40'
+                                                    : 'bg-[#ebf0f7] text-slate-500 dark:bg-[#14151c] dark:text-slate-400 border border-slate-200/60 dark:border-slate-800'
                                             }`}>
                                                 {criteria.number ? <CheckCircle2 className="h-2.5 w-2.5" /> : <span className="w-1 h-1 rounded-full bg-slate-400" />}
                                                 1 number
@@ -466,10 +466,10 @@ export function ChangePasswordModal({
                                             onChange={(e) => setConfirmPassword(e.target.value)}
                                             placeholder="Re-enter your new password"
                                             disabled={isSubmitting}
-                                            className={`w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-white dark:bg-[#2a2a2e] border rounded-xl text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500 outline-none transition ${
+                                            className={`w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[#ebf0f7] dark:bg-[#14151c] border shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] rounded-xl text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-pink-500/40 outline-none transition ${
                                                 confirmPassword.length > 0 && !criteria.match
                                                     ? 'border-rose-400 dark:border-rose-500/80 focus:ring-rose-400'
-                                                    : 'border-gray-200/90 dark:border-slate-700/60'
+                                                    : 'border-slate-200/60 dark:border-slate-800'
                                             }`}
                                         />
                                         <button
@@ -489,7 +489,7 @@ export function ChangePasswordModal({
                                         type="button"
                                         onClick={handleClose}
                                         disabled={isSubmitting}
-                                        className="px-4 py-2 text-xs sm:text-sm font-semibold text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-slate-700/80 rounded-xl bg-white dark:bg-[#1c1d25] hover:bg-gray-50 dark:hover:bg-slate-800 transition disabled:opacity-50 cursor-pointer"
+                                        className="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#e2e8f2] dark:hover:bg-[#252633] border border-white/80 dark:border-[#2a2b38] rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04)] transition active:scale-95 disabled:opacity-50 cursor-pointer"
                                     >
                                         Cancel
                                     </button>
@@ -499,7 +499,7 @@ export function ChangePasswordModal({
                                             type="button"
                                             onClick={() => handleSubmit(false)}
                                             disabled={isSubmitting || !isAllCriteriaMet}
-                                            className="px-4 py-2 text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700/50 border border-gray-200 dark:border-slate-700/80 rounded-xl bg-white dark:bg-[#1c1d25] transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 cursor-pointer"
+                                            className="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:text-pink-600 dark:text-slate-200 dark:hover:text-pink-400 hover:border-pink-300 dark:hover:border-pink-500/50 border border-white/80 dark:border-[#2a2b38] rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04)] transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                                             title="Save password and keep current session"
                                         >
                                             {isSubmitting && submitMode === "save" ? (
@@ -516,7 +516,7 @@ export function ChangePasswordModal({
                                             type="button"
                                             onClick={() => handleSubmit(true)}
                                             disabled={isSubmitting || !isAllCriteriaMet}
-                                            className="px-4.5 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition shadow-xs active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 cursor-pointer"
+                                            className="px-4.5 py-2 bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white border border-pink-400/80 dark:border-pink-500/80 rounded-xl text-xs sm:text-sm font-semibold shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 cursor-pointer"
                                             title="Save password and log out to sign in again"
                                         >
                                             {isSubmitting && submitMode === "save_logout" ? (

@@ -62,10 +62,6 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                         <stop offset="50%" stopColor="#f8fafc" />
                         <stop offset="100%" stopColor="#64748b" />
                     </linearGradient>
-                    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="2" result="blur" />
-                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                    </filter>
                 </defs>
 
                 {/* Ears */}
@@ -81,7 +77,6 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                     cy="8"
                     r="6"
                     fill={isThinking ? '#f59e0b' : isResponding ? '#10b981' : '#ec4899'}
-                    filter="url(#glow)"
                     animate={{
                         scale: isThinking ? [1, 1.25, 1] : 1,
                         opacity: isThinking ? [0.7, 1, 0.7] : 1,
@@ -100,43 +95,44 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                 {/* Main Head */}
                 <rect
                     x="15"
-                    y="20"
+                    y="22"
                     width="70"
                     height="63"
                     rx="20"
                     fill="url(#headGradient)"
-                    stroke="#ffffff"
+                    stroke="#475569"
                     strokeWidth="1.5"
                 />
 
-                {/* Highlight */}
-                <path
-                    d="M 22 23 Q 50 21 78 23"
-                    stroke="white"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    opacity="0.9"
-                />
+                {/* Head Highlight */}
+                <rect x="18" y="24" width="64" height="6" rx="3" fill="white" opacity="0.6" />
 
-                {/* Visor */}
+                {/* Screen Visor */}
                 <rect
-                    x="23"
-                    y="27"
-                    width="54"
-                    height="49"
+                    x="22"
+                    y="32"
+                    width="56"
+                    height="32"
                     rx="12"
-                    fill="#ffffff"
-                    stroke="#e2e8f0"
+                    fill="#0f172a"
+                    stroke="#334155"
                     strokeWidth="1.5"
                 />
 
-                {/* Airship Logo */}
-                <g transform="translate(32, 29) scale(0.18)">
-                    <path
-                        d="M 28 0 L 0 52 L 20 52 L 28 36 L 42 36 L 28 12 Z M 65 0 L 45 52 L 62 52 L 78 22 L 60 52 L 78 52 Z"
-                        fill="#18181b"
-                    />
-                    <path d="M 85 0 L 105 26 L 85 52 L 102 52 L 122 26 L 102 0 Z" fill="#ec4899" />
+                {/* Screen Glare */}
+                <path d="M 24 34 L 50 34 L 38 62 L 24 62 Z" fill="white" opacity="0.06" />
+
+                {/* Cheeks */}
+                <circle cx="28" cy="56" r="3" fill="#f43f5e" opacity="0.4" />
+                <circle cx="72" cy="56" r="3" fill="#f43f5e" opacity="0.4" />
+
+                {/* Headband with Circuit Pattern */}
+                <rect x="22" y="22" width="56" height="6" fill="#ec4899" opacity="0.9" />
+                <g opacity="0.3" transform="translate(25, 23) scale(0.35)">
+                    <path d="M 0 0 L 20 26 L 0 52 L 17 52 L 37 26 L 17 0 Z" fill="#ec4899" />
+                    <path d="M 28 0 L 48 26 L 28 52 L 45 52 L 65 26 L 45 0 Z" fill="#ec4899" />
+                    <path d="M 56 0 L 76 26 L 56 52 L 73 52 L 93 26 L 73 0 Z" fill="#ec4899" />
+                    <path d="M 84 0 L 104 26 L 84 52 L 101 52 L 121 26 L 101 0 Z" fill="#ec4899" />
                     <path d="M 112 0 L 132 26 L 112 52 L 129 52 L 149 26 L 129 0 Z" fill="#ec4899" />
                     <path d="M 139 0 L 159 26 L 139 52 L 156 52 L 176 26 L 156 0 Z" fill="#ec4899" />
                 </g>
@@ -155,7 +151,6 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                         rx="6"
                         ry="7"
                         fill={getEyeColor()}
-                        filter="url(#glow)"
                     />
                     <ellipse
                         cx="64"
@@ -163,7 +158,6 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                         rx="6"
                         ry="7"
                         fill={getEyeColor()}
-                        filter="url(#glow)"
                     />
                     <circle cx="34" cy="43" r="1.8" fill="white" opacity="0.9" />
                     <circle cx="62" cy="43" r="1.8" fill="white" opacity="0.9" />
@@ -176,7 +170,6 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                         cy="56"
                         r="3.5"
                         fill="#f59e0b"
-                        filter="url(#glow)"
                         animate={{ scale: [1, 0.75, 1] }}
                         transition={{
                             duration: 0.8,
@@ -191,7 +184,6 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                         strokeWidth="2"
                         fill="none"
                         strokeLinecap="round"
-                        filter="url(#glow)"
                         animate={{
                             d: [mouthTalking1, mouthTalking2, mouthTalking1],
                         }}
@@ -205,7 +197,7 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                     <path
                         d={mouthSmile}
                         stroke="#ec4899"
-                        strokeWidth="1.8"
+                        strokeWidth="2"
                         fill="none"
                         strokeLinecap="round"
                     />

@@ -11,6 +11,7 @@ import { SessionGuard } from '@/app/(supplyChain)/components/server/SessionGuard
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import EmbeddedDocViewer, { getFileTypeInfo } from '@/app/(supplyChain)/components/ui/EmbeddedDocViewer';
+import Portal from '@/app/(supplyChain)/components/client/Portal';
 interface MediaItem {
     id: string;
     title: string;
@@ -177,6 +178,7 @@ interface FilterState {
     searchType: 'all' | 'title' | 'uploader' | 'supplier' | 'po';
     selectedCategory: string;
     selectedSupplier: string;
+    selectedExtension: string;
     dateRange: 'all' | 'today' | 'week' | 'month' | 'year';
 }
 const formatFileSize = (bytes: number) => {
@@ -200,33 +202,61 @@ const GalleryCard = memo(function GalleryCard({ item, hasError, onPreview, onDow
     const cached = imageCache.get(item.id);
     const [loaded, setLoaded] = useState<boolean>(cached?.loaded ?? false);
     const typeInfo = getFileTypeInfo(item.file_type, item.title, item.storage_path, item.imageUrl);
-    return (<div className="group bg-white dark:bg-[#1c1d25] rounded-2xl overflow-hidden border border-slate-200/90 dark:border-[#353746] hover:border-pink-400 dark:hover:border-pink-500/70 shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:shadow-[0_12px_28px_rgba(0,0,0,0.16)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.6)] dark:hover:shadow-[0_8px_30px_rgba(244,63,94,0.18)] hover:-translate-y-1 transition-all duration-200 flex flex-col cursor-pointer" onClick={() => onPreview(item)}>
-            <div className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-[#15161c] border-b border-slate-200/80 dark:border-[#353746]">
-                {typeInfo.isImage ? (<>
-                        {!loaded && !hasError && (<div className="absolute inset-0 animate-pulse bg-linear-to-r from-slate-200 dark:from-slate-800 via-slate-100 dark:via-slate-700 to-slate-200 dark:to-slate-800"/>)}
+    return (
+        <div
+            className="group p-2 sm:p-2.5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] hover:-translate-y-1.5 transition-all duration-300 flex flex-col cursor-pointer"
+            onClick={() => onPreview(item)}
+        >
+            <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)]">
+                {typeInfo.isImage ? (
+                    <>
+                        {!loaded && !hasError && (
+                            <div className="absolute inset-0 animate-pulse bg-linear-to-r from-slate-200 dark:from-slate-800 via-slate-100 dark:via-slate-700 to-slate-200 dark:to-slate-800" />
+                        )}
 
-                        {!hasError ? (<img src={cached?.url || item.imageUrl} alt={item.title} className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ease-out ${loaded ? 'opacity-100' : 'opacity-0'}`} loading="lazy" onLoad={() => {
-                    setLoaded(true);
-                    imageCache.markLoaded(item.id);
-                }} onError={() => onImageError(item.id)}/>) : (<div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950 text-slate-400 dark:text-slate-500 gap-2 p-4 text-center">
-                                <ImageIcon className="w-9 h-9 opacity-50 text-slate-400"/>
+                        {!hasError ? (
+                            <img
+                                src={cached?.url || item.imageUrl}
+                                alt={item.title}
+                                className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ease-out ${loaded ? 'opacity-100' : 'opacity-0'}`}
+                                loading="lazy"
+                                onLoad={() => {
+                                    setLoaded(true);
+                                    imageCache.markLoaded(item.id);
+                                }}
+                                onError={() => onImageError(item.id)}
+                            />
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-2 p-4 text-center">
+                                <ImageIcon className="w-9 h-9 opacity-50 text-slate-400" />
                                 <span className="text-[11px] font-medium text-slate-400">Failed to load</span>
-                                {imageCache.canRetry(item.id) && (<AppButton type="button" variant="pink" size="xs" onClick={(e) => onRetry(item.id, item.imageUrl, e)}>
-                                        <RefreshCw className="w-3 h-3"/>
+                                {imageCache.canRetry(item.id) && (
+                                    <AppButton
+                                        type="button"
+                                        variant="pink"
+                                        size="xs"
+                                        onClick={(e) => onRetry(item.id, item.imageUrl, e)}
+                                    >
+                                        <RefreshCw className="w-3 h-3" />
                                         <span>Retry</span>
-                                    </AppButton>)}
-                            </div>)}
-                    </>) : (<div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-[#15161c] p-4 text-center select-none relative overflow-hidden group-hover:scale-105 transition-transform duration-300">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-2 shadow-lg border ${typeInfo.colorClasses.bg} ${typeInfo.colorClasses.border}`}>
-                            <i className={`${typeInfo.icon} text-2xl ${typeInfo.colorClasses.text}`}/>
+                                    </AppButton>
+                                )}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center select-none relative overflow-hidden group-hover:scale-105 transition-transform duration-300">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-2 shadow-sm border ${typeInfo.colorClasses.bg} ${typeInfo.colorClasses.border}`}>
+                            <i className={`${typeInfo.icon} text-2xl ${typeInfo.colorClasses.text}`} />
                         </div>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border mb-1.5 ${typeInfo.colorClasses.bg} ${typeInfo.colorClasses.text} ${typeInfo.colorClasses.border}`}>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border mb-1.5 ${typeInfo.colorClasses.bg} ${typeInfo.colorClasses.text} ${typeInfo.colorClasses.border}`}>
                             {typeInfo.typeName}
                         </span>
-                        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 line-clamp-2 max-w-[85%] px-1" title={item.title}>
+                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 line-clamp-2 max-w-[85%] px-1" title={item.title}>
                             {item.title}
                         </p>
-                    </div>)}
+                    </div>
+                )}
 
                 <div className="absolute top-2.5 right-2.5">
                     <StatusBadge tone="pink" size="xs">
@@ -234,24 +264,40 @@ const GalleryCard = memo(function GalleryCard({ item, hasError, onPreview, onDow
                     </StatusBadge>
                 </div>
 
-                {item.supplier && (<div className="absolute bottom-2.5 left-2.5 max-w-[70%]">
+                {item.supplier && (
+                    <div className="absolute bottom-2.5 left-2.5 max-w-[70%]">
                         <StatusBadge tone="neutral" dot size="xs">
                             <span className="truncate">{item.supplier}</span>
                         </StatusBadge>
-                    </div>)}
+                    </div>
+                )}
 
-                <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
-                    <AppButton type="button" variant="pink" size="sm" className="group/btn overflow-hidden transition-all duration-300" onClick={(e) => {
-            e.stopPropagation();
-            onPreview(item);
-        }} title="Preview">
-                        <Eye className="w-3.5 h-3.5 shrink-0"/>
+                <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2 rounded-2xl">
+                    <AppButton
+                        type="button"
+                        variant="pink"
+                        size="sm"
+                        className="group/btn overflow-hidden transition-all duration-300"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onPreview(item);
+                        }}
+                        title="Preview"
+                    >
+                        <Eye className="w-3.5 h-3.5 shrink-0" />
                         <span className="max-w-0 opacity-0 overflow-hidden group-hover/btn:max-w-[70px] group-hover/btn:opacity-100 transition-all duration-300 ease-out whitespace-nowrap">
                             Preview
                         </span>
                     </AppButton>
-                    <AppButton type="button" variant="neutral" size="sm" className="group/btn overflow-hidden transition-all duration-300" onClick={(e) => onDownload(item, e)} title="Download">
-                        <Download className="w-3.5 h-3.5 shrink-0"/>
+                    <AppButton
+                        type="button"
+                        variant="neutral"
+                        size="sm"
+                        className="group/btn overflow-hidden transition-all duration-300"
+                        onClick={(e) => onDownload(item, e)}
+                        title="Download"
+                    >
+                        <Download className="w-3.5 h-3.5 shrink-0" />
                         <span className="max-w-0 opacity-0 overflow-hidden group-hover/btn:max-w-[80px] group-hover/btn:opacity-100 transition-all duration-300 ease-out whitespace-nowrap">
                             Download
                         </span>
@@ -259,33 +305,40 @@ const GalleryCard = memo(function GalleryCard({ item, hasError, onPreview, onDow
                 </div>
             </div>
 
-            <div className="p-3.5 flex-1 flex flex-col justify-between gap-2.5">
+            <div className="p-3 flex-1 flex flex-col justify-between gap-2">
                 <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-xs sm:text-sm leading-snug group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors line-clamp-1" title={item.title}>
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm leading-snug group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors line-clamp-1" title={item.title}>
                             {item.title}
                         </h3>
-                        {item.po_number && (<StatusBadge tone="pink" size="xs">
+                        {item.po_number && (
+                            <StatusBadge tone="pink" size="xs">
                                 <span className="font-mono">PO: {item.po_number}</span>
-                            </StatusBadge>)}
+                            </StatusBadge>
+                        )}
                     </div>
                 </div>
 
-                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-1.5 min-w-0">
-                        <img src={item.uploader.avatar} alt={item.uploader.name} className="w-5 h-5 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0 shadow-2xs"/>
-                        <p className="font-medium text-slate-700 dark:text-slate-300 text-xs truncate leading-none">
+                        <img
+                            src={item.uploader.avatar}
+                            alt={item.uploader.name}
+                            className="w-5 h-5 rounded-full object-cover border border-slate-200/60 dark:border-slate-700 shrink-0 shadow-2xs"
+                        />
+                        <p className="font-semibold text-slate-700 dark:text-slate-300 text-xs truncate leading-none">
                             {item.uploader.name}
                         </p>
                     </div>
 
                     <div className="flex items-center text-slate-400 dark:text-slate-500 shrink-0 gap-1 text-[11px]">
-                        <Calendar className="w-3 h-3 text-slate-400"/>
+                        <Calendar className="w-3 h-3 text-slate-400" />
                         <span>{item.uploadDate}</span>
                     </div>
                 </div>
             </div>
-        </div>);
+        </div>
+    );
 });
 // list row
 interface GalleryListItemProps {
@@ -298,24 +351,44 @@ interface GalleryListItemProps {
 const GalleryListItem = memo(function GalleryListItem({ item, hasError, onPreview, onDownload, onImageError }: GalleryListItemProps) {
     const cached = imageCache.get(item.id);
     const typeInfo = getFileTypeInfo(item.file_type, item.title, item.storage_path, item.imageUrl);
-    return (<div className="p-3.5 sm:p-4 flex items-center justify-between gap-4 hover:bg-slate-50/90 dark:hover:bg-[#23242e] transition-all cursor-pointer group" onClick={() => onPreview(item)}>
+    return (
+        <div
+            className="p-3.5 sm:p-4 rounded-2xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_12px_rgba(166,175,195,0.3),-4px_-4px_12px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_16px_rgba(0,0,0,0.6)] hover:scale-[1.005] transition-all flex items-center justify-between gap-4 cursor-pointer group"
+            onClick={() => onPreview(item)}
+        >
             <div className="flex items-center gap-3.5 sm:gap-4 flex-1 min-w-0">
-                <div className="relative w-16 h-12 sm:w-20 sm:h-14 rounded-xl bg-slate-100 dark:bg-[#15161c] border border-slate-200/90 dark:border-[#353746] shrink-0 overflow-hidden shadow-2xs group-hover:border-pink-400 dark:group-hover:border-pink-500/60 transition-colors">
-                    {typeInfo.isImage ? (!hasError ? (<img src={cached?.url || item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onError={() => onImageError(item.id)}/>) : (<div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-400">
-                                <ImageIcon className="w-5 h-5 text-slate-400"/>
-                            </div>)) : (<div className={`w-full h-full flex items-center justify-center ${typeInfo.colorClasses.bg}`}>
-                            <i className={`${typeInfo.icon} text-lg sm:text-xl ${typeInfo.colorClasses.text}`}/>
-                        </div>)}
+                <div className="relative w-16 h-12 sm:w-20 sm:h-14 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shrink-0 overflow-hidden shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)] group-hover:border-pink-500/60 transition-colors">
+                    {typeInfo.isImage ? (
+                        !hasError ? (
+                            <img
+                                src={cached?.url || item.imageUrl}
+                                alt={item.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                loading="lazy"
+                                onError={() => onImageError(item.id)}
+                            />
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                                <ImageIcon className="w-5 h-5 text-slate-400" />
+                            </div>
+                        )
+                    ) : (
+                        <div className={`w-full h-full flex items-center justify-center ${typeInfo.colorClasses.bg}`}>
+                            <i className={`${typeInfo.icon} text-lg sm:text-xl ${typeInfo.colorClasses.text}`} />
+                        </div>
+                    )}
                 </div>
 
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-xs sm:text-sm truncate group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm truncate group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
                             {item.title}
                         </h3>
-                        {item.po_number && (<StatusBadge tone="pink" size="xs">
+                        {item.po_number && (
+                            <StatusBadge tone="pink" size="xs">
                                 <span className="font-mono">PO: {item.po_number}</span>
-                            </StatusBadge>)}
+                            </StatusBadge>
+                        )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
@@ -323,13 +396,15 @@ const GalleryListItem = memo(function GalleryListItem({ item, hasError, onPrevie
                             {item.category}
                         </StatusBadge>
 
-                        {item.supplier && (<span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                                <User className="w-3 h-3 text-slate-400"/>
+                        {item.supplier && (
+                            <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                                <User className="w-3 h-3 text-slate-400" />
                                 {item.supplier}
-                            </span>)}
+                            </span>
+                        )}
 
                         <span className="inline-flex items-center gap-1 text-slate-400 dark:text-slate-500">
-                            <HardDrive className="w-3 h-3 text-slate-400"/>
+                            <HardDrive className="w-3 h-3 text-slate-400" />
                             {item.fileSize}
                         </span>
                     </div>
@@ -338,35 +413,54 @@ const GalleryListItem = memo(function GalleryListItem({ item, hasError, onPrevie
 
             <div className="flex items-center gap-2.5 sm:gap-3 text-xs shrink-0">
                 <div className="flex items-center gap-2">
-                    <img src={item.uploader.avatar} alt={item.uploader.name} className="w-7 h-7 rounded-full border border-slate-200 dark:border-slate-700 object-cover shrink-0"/>
-                    <span className="font-medium text-slate-700 dark:text-slate-200 hidden lg:inline">
+                    <img
+                        src={item.uploader.avatar}
+                        alt={item.uploader.name}
+                        className="w-7 h-7 rounded-full border border-slate-200/60 dark:border-slate-700 object-cover shrink-0 shadow-2xs"
+                    />
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 hidden lg:inline">
                         {item.uploader.name}
                     </span>
                 </div>
 
                 <div className="hidden md:flex items-center text-slate-400 dark:text-slate-500 font-medium text-[11px]">
-                    <Calendar className="w-3.5 h-3.5 mr-1 text-slate-400"/>
+                    <Calendar className="w-3.5 h-3.5 mr-1 text-slate-400" />
                     <span>{item.uploadDate}</span>
                 </div>
 
-                <AppButton type="button" variant="pink" size="xs" className="group/btn overflow-hidden transition-all duration-300" onClick={(e) => {
-            e.stopPropagation();
-            onPreview(item);
-        }} title="Preview image">
-                    <Eye className="w-3.5 h-3.5 shrink-0"/>
+                <AppButton
+                    type="button"
+                    variant="pink"
+                    size="xs"
+                    className="group/btn overflow-hidden transition-all duration-300"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPreview(item);
+                    }}
+                    title="Preview image"
+                >
+                    <Eye className="w-3.5 h-3.5 shrink-0" />
                     <span className="max-w-0 opacity-0 overflow-hidden group-hover/btn:max-w-[70px] group-hover/btn:opacity-100 transition-all duration-300 ease-out whitespace-nowrap">
                         Preview
                     </span>
                 </AppButton>
 
-                <AppButton type="button" variant="neutral" size="xs" className="group/btn overflow-hidden transition-all duration-300" onClick={(e) => onDownload(item, e)} title="Download file">
-                    <Download className="w-3.5 h-3.5 shrink-0"/>
+                <AppButton
+                    type="button"
+                    variant="neutral"
+                    size="xs"
+                    className="group/btn overflow-hidden transition-all duration-300"
+                    onClick={(e) => onDownload(item, e)}
+                    title="Download file"
+                >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
                     <span className="max-w-0 opacity-0 overflow-hidden group-hover/btn:max-w-[80px] group-hover/btn:opacity-100 transition-all duration-300 ease-out whitespace-nowrap">
                         Download
                     </span>
                 </AppButton>
             </div>
-        </div>);
+        </div>
+    );
 });
 // gallery state
 export default function MediaGallery() {
@@ -406,6 +500,7 @@ export default function MediaGallery() {
         searchType: 'all',
         selectedCategory: 'All',
         selectedSupplier: 'All',
+        selectedExtension: 'all',
         dateRange: 'all'
     });
     useEffect(() => {
@@ -614,6 +709,20 @@ export default function MediaGallery() {
         if (filterState.selectedSupplier !== 'All') {
             query = query.eq('supplier', filterState.selectedSupplier);
         }
+        if (filterState.selectedExtension && filterState.selectedExtension !== 'all') {
+            const ext = filterState.selectedExtension;
+            if (ext === 'jpg') {
+                query = query.or('file_name.ilike.%.jpg,file_name.ilike.%.jpeg,file_type.ilike.%jpeg%');
+            } else if (ext === 'png') {
+                query = query.or('file_name.ilike.%.png,file_type.ilike.%png%');
+            } else if (ext === 'pdf') {
+                query = query.or('file_name.ilike.%.pdf,file_type.ilike.%pdf%');
+            } else if (ext === 'word') {
+                query = query.or('file_name.ilike.%.docx,file_name.ilike.%.doc,file_type.ilike.%word%,file_type.ilike.%officedocument%');
+            } else if (ext === 'excel') {
+                query = query.or('file_name.ilike.%.xlsx,file_name.ilike.%.xls,file_type.ilike.%sheet%,file_type.ilike.%excel%');
+            }
+        }
         const dateFilter = getDateRangeFilter(filterState.dateRange);
         if (dateFilter) {
             query = query.gte('created_at', dateFilter);
@@ -625,42 +734,45 @@ export default function MediaGallery() {
         }
         return query;
     }, [debouncedSearch, filterState, getDateRangeFilter, itemsPerPage]);
-    const fetchImages = useCallback(async (pageNum: number, isLoadMore: boolean = false) => {
+    const fetchImages = useCallback(async (pageNum: number, isLoadMore: boolean = false, bypassCache: boolean = false) => {
         const cacheKey = JSON.stringify({
             s: (filterState.searchTerm || '').trim().toLowerCase(),
             st: filterState.searchType,
             c: filterState.selectedCategory,
             sup: filterState.selectedSupplier,
+            ext: filterState.selectedExtension || 'all',
             d: filterState.dateRange,
             p: pageNum,
         });
         // 1. Check in-memory SWR cache for instant 0ms response
-        const cached = galleryDataCache.get(cacheKey);
-        if (cached.data) {
-            if (isLoadMore) {
-                const existingIds = new Set(mediaItems.map(item => item.id));
-                const newItems = cached.data.items.filter(item => !existingIds.has(item.id));
-                if (newItems.length > 0) {
-                    setMediaItems(prev => [...prev, ...newItems]);
+        if (!bypassCache) {
+            const cached = galleryDataCache.get(cacheKey);
+            if (cached.data) {
+                if (isLoadMore) {
+                    setMediaItems(prev => {
+                        const existingIds = new Set(prev.map(item => item.id));
+                        const newItems = cached.data!.items.filter(item => !existingIds.has(item.id));
+                        return newItems.length > 0 ? [...prev, ...newItems] : prev;
+                    });
                 }
-            }
-            else {
-                setMediaItems(cached.data.items);
-                if (cached.data.categories && cached.data.categories.length > 1) {
-                    setCategories(cached.data.categories);
+                else {
+                    setMediaItems(cached.data.items);
+                    if (cached.data.categories && cached.data.categories.length > 1) {
+                        setCategories(cached.data.categories);
+                    }
+                    if (cached.data.suppliers && cached.data.suppliers.length > 1) {
+                        setSuppliers(cached.data.suppliers);
+                    }
                 }
-                if (cached.data.suppliers && cached.data.suppliers.length > 1) {
-                    setSuppliers(cached.data.suppliers);
+                setTotalCount(cached.data.totalCount);
+                setTotalSize(cached.data.totalSize);
+                setHasMore(cached.data.hasMore);
+                setLoading(false);
+                setLoadingMore(false);
+                // If fresh, return immediately with zero database round-trip
+                if (!cached.isStale) {
+                    return;
                 }
-            }
-            setTotalCount(cached.data.totalCount);
-            setTotalSize(cached.data.totalSize);
-            setHasMore(cached.data.hasMore);
-            setLoading(false);
-            setLoadingMore(false);
-            // If fresh, return immediately with zero database round-trip
-            if (!cached.isStale) {
-                return;
             }
         }
         if (abortControllerRef.current) {
@@ -735,11 +847,11 @@ export default function MediaGallery() {
                 };
             });
             if (isLoadMore) {
-                const existingIds = new Set(mediaItems.map(item => item.id));
-                const newItems = transformedItems.filter(item => !existingIds.has(item.id));
-                if (newItems.length > 0) {
-                    setMediaItems(prev => [...prev, ...newItems]);
-                }
+                setMediaItems(prev => {
+                    const existingIds = new Set(prev.map(item => item.id));
+                    const newItems = transformedItems.filter(item => !existingIds.has(item.id));
+                    return newItems.length > 0 ? [...prev, ...newItems] : prev;
+                });
             }
             else {
                 setMediaItems(transformedItems);
@@ -780,7 +892,7 @@ export default function MediaGallery() {
             setIsInitialLoad(false);
             abortControllerRef.current = null;
         }
-    }, [buildQuery, fetching, mediaItems, itemsPerPage]);
+    }, [buildQuery, fetching, categories, suppliers, itemsPerPage]);
     useEffect(() => {
         setIsInitialLoad(true);
         setPage(1);
@@ -792,6 +904,37 @@ export default function MediaGallery() {
         setPage(1);
         fetchImages(1, false);
     }, [debouncedFilters]);
+
+    // Realtime subscription for documents table
+    useEffect(() => {
+        const channel = supabase
+            .channel(`gallery_realtime_${Date.now()}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'documents' },
+                (payload) => {
+                    galleryDataCache.invalidateAll();
+                    if (payload.eventType === 'DELETE' && payload.old && 'id' in payload.old) {
+                        const oldId = (payload.old as { id: string }).id;
+                        if (oldId) {
+                            imageCache.invalidate(oldId);
+                            setSelectedItem(prev => (prev?.id === oldId ? null : prev));
+                        }
+                    } else if (payload.eventType === 'UPDATE' && payload.new && 'id' in payload.new) {
+                        const newId = (payload.new as { id: string }).id;
+                        if (newId) {
+                            imageCache.invalidate(newId);
+                        }
+                    }
+                    fetchImages(1, false, true);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchImages]);
     const handleLoadMore = () => {
         if (loadingMore || fetching || !hasMore)
             return;
@@ -913,6 +1056,7 @@ export default function MediaGallery() {
             searchType: 'all',
             selectedCategory: 'All',
             selectedSupplier: 'All',
+            selectedExtension: 'all',
             dateRange: 'all'
         });
         setPage(1);
@@ -920,7 +1064,8 @@ export default function MediaGallery() {
             searchInputRef.current?.focus();
         }, 50);
     };
-    return (<SessionGuard requiredRole={['Admin', 'Manager', 'Employee', 'Executive']}>
+    return (
+        <SessionGuard requiredRole={['Admin', 'Manager', 'Employee', 'Executive']}>
             <div className="p-6 space-y-6 animate-in fade-in duration-300 bgCard">
                 <div className="space-y-4">
                     <div className="flex flex-col gap-4">
@@ -930,42 +1075,69 @@ export default function MediaGallery() {
                                     <i className="fa-solid fa-photo-film"></i>
                                 </div>
                                 <div>
-                                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                                        Media Gallery
-                                    </h1>
-                                    <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-500 dark:text-slate-400">
-                                        <StatusBadge tone="pink" size="xs">
+                                    <div className="flex items-center gap-2.5">
+                                        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                            Media Gallery
+                                        </h1>
+                                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span>Live</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-slate-500 dark:text-slate-400">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] font-semibold text-pink-600 dark:text-pink-400 text-[11px]">
                                             <span className="font-bold">{totalCount}</span> images
-                                        </StatusBadge>
+                                        </div>
                                         <span className="text-slate-300 dark:text-slate-600">•</span>
-                                        <StatusBadge tone="neutral" size="xs">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] font-medium text-slate-600 dark:text-slate-400 text-[11px]">
                                             <span>{formatFileSize(totalSize)}</span>
-                                        </StatusBadge>
+                                        </div>
                                         <span className="text-slate-300 dark:text-slate-600">•</span>
-                                        <StatusBadge tone="neutral" size="xs">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] font-medium text-slate-600 dark:text-slate-400 text-[11px]">
                                             <span>{Math.max(0, categories.length - 1)} categories</span>
-                                        </StatusBadge>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-2.5 self-end sm:self-auto">
-                                <AppButton type="button" variant={showFilters ? "pink" : "neutral"} size="sm" onClick={() => setShowFilters(!showFilters)}>
-                                    <Filter className="w-4 h-4 text-pink-500"/>
+                                <AppButton
+                                    type="button"
+                                    variant={showFilters ? 'pink' : 'neutral'}
+                                    size="sm"
+                                    onClick={() => setShowFilters(!showFilters)}
+                                >
+                                    <Filter className="w-4 h-4 text-pink-500" />
                                     <span>Filters</span>
-                                    {showFilters && (<span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"/>)}
+                                    {showFilters && (
+                                        <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
+                                    )}
                                 </AppButton>
 
-                                <div className="bg-slate-100 dark:bg-slate-900 p-1 rounded-full border border-slate-200/90 dark:border-slate-800 flex items-center gap-1 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)]">
-                                    <button type="button" onClick={() => setViewMode('grid')} title="Grid View" className={`p-1.5 rounded-full transition-all cursor-pointer ${viewMode === 'grid'
-            ? 'bg-white dark:bg-slate-800 text-pink-600 dark:text-pink-400 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)] font-semibold'
-            : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-                                        <Grid className="w-4 h-4"/>
+                                <div className="bg-[#ebf0f7] dark:bg-[#14151c] p-1 rounded-full border border-slate-200/60 dark:border-slate-800 flex items-center gap-1 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode('grid')}
+                                        title="Grid View"
+                                        className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                                            viewMode === 'grid'
+                                                ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white shadow-[0_2px_6px_rgba(236,72,153,0.35)] font-semibold'
+                                                : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                        }`}
+                                    >
+                                        <Grid className="w-4 h-4" />
                                     </button>
-                                    <button type="button" onClick={() => setViewMode('list')} title="List View" className={`p-1.5 rounded-full transition-all cursor-pointer ${viewMode === 'list'
-            ? 'bg-white dark:bg-slate-800 text-pink-600 dark:text-pink-400 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)] font-semibold'
-            : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-                                        <List className="w-4 h-4"/>
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode('list')}
+                                        title="List View"
+                                        className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                                            viewMode === 'list'
+                                                ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white shadow-[0_2px_6px_rgba(236,72,153,0.35)] font-semibold'
+                                                : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                        }`}
+                                    >
+                                        <List className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
@@ -973,28 +1145,48 @@ export default function MediaGallery() {
 
                         <div className="flex flex-col sm:flex-row gap-2.5">
                             <div className="relative flex-1">
-                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4 pointer-events-none"/>
-                                <input ref={searchInputRef} type="text" placeholder={`Search by ${filterState.searchType === 'all'
-            ? 'title, uploader, supplier, or PO'
-            : filterState.searchType === 'title'
-                ? 'title'
-                : filterState.searchType === 'uploader'
-                    ? 'uploader name'
-                    : filterState.searchType === 'supplier'
-                        ? 'supplier name'
-                        : 'PO number'}...`} value={filterState.searchTerm} onChange={handleSearchChange} className="w-full pl-10 pr-9 py-2.5 bg-white dark:bg-[#1c1d25] border border-slate-200/90 dark:border-[#353746] rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.04)] focus:shadow-[0_4px_16px_rgba(244,63,94,0.08)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.5)]"/>
-                                {filterState.searchTerm && (<button type="button" onClick={() => {
-                handleFilterChange('searchTerm', '');
-                setTimeout(() => searchInputRef.current?.focus(), 50);
-            }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-0.5 cursor-pointer" title="Clear search">
-                                        <XCircle className="w-4 h-4"/>
-                                    </button>)}
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4 pointer-events-none" />
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    placeholder={`Search by ${
+                                        filterState.searchType === 'all'
+                                            ? 'title, uploader, supplier, or PO'
+                                            : filterState.searchType === 'title'
+                                                ? 'title'
+                                                : filterState.searchType === 'uploader'
+                                                    ? 'uploader name'
+                                                    : filterState.searchType === 'supplier'
+                                                        ? 'supplier name'
+                                                        : 'PO number'
+                                    }...`}
+                                    value={filterState.searchTerm}
+                                    onChange={handleSearchChange}
+                                    className="w-full pl-10 pr-9 py-2.5 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)]"
+                                />
+                                {filterState.searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            handleFilterChange('searchTerm', '');
+                                            setTimeout(() => searchInputRef.current?.focus(), 50);
+                                        }}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-0.5 cursor-pointer"
+                                        title="Clear search"
+                                    >
+                                        <XCircle className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
 
-                            <select value={filterState.searchType} onChange={(e) => {
-            handleFilterChange('searchType', e.target.value);
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-        }} className="py-2.5 px-3.5 bg-white dark:bg-[#1c1d25] border border-slate-200/90 dark:border-[#353746] rounded-xl text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
+                            <select
+                                value={filterState.searchType}
+                                onChange={(e) => {
+                                    handleFilterChange('searchType', e.target.value);
+                                    setTimeout(() => searchInputRef.current?.focus(), 50);
+                                }}
+                                className="py-2.5 px-3.5 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_4px_rgba(255,255,255,0.85)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
+                            >
                                 <option value="all">All Fields</option>
                                 <option value="title">Title</option>
                                 <option value="uploader">Uploader</option>
@@ -1004,11 +1196,12 @@ export default function MediaGallery() {
                         </div>
                     </div>
 
-                    {showFilters && (<div className="bg-white dark:bg-[#1c1d25] rounded-2xl border border-slate-200/90 dark:border-[#353746] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.6)] space-y-4 animate-in fade-in duration-200">
-                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    {showFilters && (
+                        <div className="rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75)] p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800/80 pb-3">
                                 <div className="flex items-center gap-2">
                                     <div className="w-7 h-7 rounded-lg bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center text-xs border border-pink-200/80 dark:border-pink-800/50">
-                                        <Filter className="w-3.5 h-3.5"/>
+                                        <Filter className="w-3.5 h-3.5" />
                                     </div>
                                     <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                                         Filter Options
@@ -1016,44 +1209,80 @@ export default function MediaGallery() {
                                 </div>
 
                                 <AppButton type="button" variant="neutral" size="xs" onClick={clearFilters}>
-                                    <RefreshCw className="w-3 h-3"/>
+                                    <RefreshCw className="w-3 h-3" />
                                     <span>Reset All</span>
                                 </AppButton>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Category
                                     </label>
                                     <div className="relative">
-                                        <select value={filterState.selectedCategory} onChange={(e) => handleFilterChange('selectedCategory', e.target.value)} className="w-full py-2 pl-3 pr-8 bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-2xs">
-                                            {categories.map((cat) => (<option key={cat} value={cat}>
+                                        <select
+                                            value={filterState.selectedCategory}
+                                            onChange={(e) => handleFilterChange('selectedCategory', e.target.value)}
+                                            className="w-full py-2.5 pl-3 pr-8 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
+                                        >
+                                            {categories.map((cat) => (
+                                                <option key={cat} value={cat}>
                                                     {cat}
-                                                </option>))}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Supplier
                                     </label>
                                     <div className="relative">
-                                        <select value={filterState.selectedSupplier} onChange={(e) => handleFilterChange('selectedSupplier', e.target.value)} className="w-full py-2 pl-3 pr-8 bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-2xs">
-                                            {suppliers.map((sup) => (<option key={sup} value={sup}>
+                                        <select
+                                            value={filterState.selectedSupplier}
+                                            onChange={(e) => handleFilterChange('selectedSupplier', e.target.value)}
+                                            className="w-full py-2.5 pl-3 pr-8 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
+                                        >
+                                            {suppliers.map((sup) => (
+                                                <option key={sup} value={sup}>
                                                     {sup}
-                                                </option>))}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Extension
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={filterState.selectedExtension}
+                                            onChange={(e) => handleFilterChange('selectedExtension', e.target.value)}
+                                            className="w-full py-2.5 pl-3 pr-8 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
+                                        >
+                                            <option value="all">All Extensions</option>
+                                            <option value="jpg">.jpg / .jpeg</option>
+                                            <option value="png">.png</option>
+                                            <option value="pdf">.pdf</option>
+                                            <option value="word">.doc / .docx (Word)</option>
+                                            <option value="excel">.xls / .xlsx (Excel)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Date Range
                                     </label>
                                     <div className="relative">
-                                        <select value={filterState.dateRange} onChange={(e) => handleFilterChange('dateRange', e.target.value as any)} className="w-full py-2 pl-3 pr-8 bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-2xs">
+                                        <select
+                                            value={filterState.dateRange}
+                                            onChange={(e) => handleFilterChange('dateRange', e.target.value as any)}
+                                            className="w-full py-2.5 pl-3 pr-8 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all cursor-pointer shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
+                                        >
                                             <option value="all">All Time</option>
                                             <option value="today">Today</option>
                                             <option value="week">Last 7 Days</option>
@@ -1064,241 +1293,443 @@ export default function MediaGallery() {
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Active Filters
                                     </label>
-                                    <div className="min-h-9.5 p-1 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex flex-wrap items-center gap-1.5">
-                                        {filterState.selectedCategory !== 'All' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-800/50 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)]">
+                                    <div className="min-h-9.5 p-1 bg-[#ebf0f7] dark:bg-[#14151c] rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)] flex flex-wrap items-center gap-1.5">
+                                        {filterState.selectedCategory !== 'All' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-800/50 shadow-2xs">
                                                 <span>{filterState.selectedCategory}</span>
-                                                <button onClick={() => handleFilterChange('selectedCategory', 'All')} className="p-0.5 hover:bg-pink-200/60 rounded transition-colors text-pink-700 dark:text-pink-300 cursor-pointer" title="Remove filter">
-                                                    <X className="w-3 h-3"/>
+                                                <button
+                                                    onClick={() => handleFilterChange('selectedCategory', 'All')}
+                                                    className="p-0.5 hover:bg-pink-200/60 rounded transition-colors text-pink-700 dark:text-pink-300 cursor-pointer"
+                                                    title="Remove filter"
+                                                >
+                                                    <X className="w-3 h-3" />
                                                 </button>
-                                            </span>)}
+                                            </span>
+                                        )}
 
-                                        {filterState.selectedSupplier !== 'All' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/50 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)]">
+                                        {filterState.selectedExtension !== 'all' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-800/50 shadow-2xs">
+                                                <span className="uppercase">.{filterState.selectedExtension}</span>
+                                                <button
+                                                    onClick={() => handleFilterChange('selectedExtension', 'all')}
+                                                    className="p-0.5 hover:bg-pink-200/60 rounded transition-colors text-pink-700 dark:text-pink-300 cursor-pointer"
+                                                    title="Remove filter"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        )}
+
+                                        {filterState.selectedSupplier !== 'All' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/50 shadow-2xs">
                                                 <span>{filterState.selectedSupplier}</span>
-                                                <button onClick={() => handleFilterChange('selectedSupplier', 'All')} className="p-0.5 hover:bg-purple-200/60 rounded transition-colors text-purple-700 dark:text-purple-300 cursor-pointer" title="Remove filter">
-                                                    <X className="w-3 h-3"/>
+                                                <button
+                                                    onClick={() => handleFilterChange('selectedSupplier', 'All')}
+                                                    className="p-0.5 hover:bg-purple-200/60 rounded transition-colors text-purple-700 dark:text-purple-300 cursor-pointer"
+                                                    title="Remove filter"
+                                                >
+                                                    <X className="w-3 h-3" />
                                                 </button>
-                                            </span>)}
+                                            </span>
+                                        )}
 
-                                        {filterState.dateRange !== 'all' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50 shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)]">
+                                        {filterState.dateRange !== 'all' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50 shadow-2xs">
                                                 <span className="capitalize">{filterState.dateRange}</span>
-                                                <button onClick={() => handleFilterChange('dateRange', 'all')} className="p-0.5 hover:bg-emerald-200/60 rounded transition-colors text-emerald-700 dark:text-emerald-300 cursor-pointer" title="Remove filter">
-                                                    <X className="w-3 h-3"/>
+                                                <button
+                                                    onClick={() => handleFilterChange('dateRange', 'all')}
+                                                    className="p-0.5 hover:bg-emerald-200/60 rounded transition-colors text-emerald-700 dark:text-emerald-300 cursor-pointer"
+                                                    title="Remove filter"
+                                                >
+                                                    <X className="w-3 h-3" />
                                                 </button>
-                                            </span>)}
+                                            </span>
+                                        )}
 
                                         {filterState.selectedCategory === 'All' &&
-                filterState.selectedSupplier === 'All' &&
-                filterState.dateRange === 'all' &&
-                !filterState.searchTerm && (<span className="text-xs text-slate-400 dark:text-slate-500 italic px-2">
+                                            filterState.selectedSupplier === 'All' &&
+                                            filterState.dateRange === 'all' &&
+                                            !filterState.searchTerm && (
+                                                <span className="text-xs text-slate-400 dark:text-slate-500 italic px-2">
                                                     No active filters applied
-                                                </span>)}
+                                                </span>
+                                            )}
                                     </div>
                                 </div>
                             </div>
-                        </div>)}
+                        </div>
+                    )}
                 </div>
 
-                {loading && mediaItems.length === 0 ? (<GallerySkeleton count={8}/>) : viewMode === 'grid' ? (<motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {loading && mediaItems.length === 0 ? (
+                    <GallerySkeleton count={8} />
+                ) : viewMode === 'grid' ? (
+                    <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         <AnimatePresence mode="popLayout">
-                            {mediaItems.map((item, index) => (<motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.94, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: -8 }} transition={{
-                    duration: 0.25,
-                    ease: [0.25, 1, 0.5, 1],
-                    delay: Math.min(index * 0.03, 0.3)
-                }}>
-                                    <GalleryCard item={item} hasError={imageErrors.has(item.id)} onPreview={handleImageClick} onDownload={downloadImage} onRetry={handleRetry} onImageError={handleImageError}/>
-                                </motion.div>))}
+                            {mediaItems.map((item, index) => (
+                                <motion.div
+                                    key={item.id}
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.94, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.92, y: -8 }}
+                                    transition={{
+                                        duration: 0.25,
+                                        ease: [0.25, 1, 0.5, 1],
+                                        delay: Math.min(index * 0.03, 0.3),
+                                    }}
+                                >
+                                    <GalleryCard
+                                        item={item}
+                                        hasError={imageErrors.has(item.id)}
+                                        onPreview={handleImageClick}
+                                        onDownload={downloadImage}
+                                        onRetry={handleRetry}
+                                        onImageError={handleImageError}
+                                    />
+                                </motion.div>
+                            ))}
                         </AnimatePresence>
-                    </motion.div>) : (<motion.div layout className="bg-white dark:bg-[#1c1d25] rounded-2xl border border-slate-200/90 dark:border-[#353746] shadow-[0_4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.6)] overflow-hidden divide-y divide-slate-100 dark:divide-[#2a2a2e]">
+                    </motion.div>
+                ) : (
+                    <motion.div layout className="space-y-3">
                         <AnimatePresence mode="popLayout">
-                            {mediaItems.map((item, index) => (<motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{
-                    duration: 0.2,
-                    delay: Math.min(index * 0.02, 0.2)
-                }}>
-                                    <GalleryListItem item={item} hasError={imageErrors.has(item.id)} onPreview={handleImageClick} onDownload={downloadImage} onImageError={handleImageError}/>
-                                </motion.div>))}
+                            {mediaItems.map((item, index) => (
+                                <motion.div
+                                    key={item.id}
+                                    layout
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -8 }}
+                                    transition={{
+                                        duration: 0.2,
+                                        delay: Math.min(index * 0.02, 0.2),
+                                    }}
+                                >
+                                    <GalleryListItem
+                                        item={item}
+                                        hasError={imageErrors.has(item.id)}
+                                        onPreview={handleImageClick}
+                                        onDownload={downloadImage}
+                                        onImageError={handleImageError}
+                                    />
+                                </motion.div>
+                            ))}
                         </AnimatePresence>
-                    </motion.div>)}
+                    </motion.div>
+                )}
 
-                {!loading && mediaItems.length > 0 && (<div className="flex flex-col items-center justify-center py-10 gap-3">
-                        {hasMore ? (<AppButton type="button" variant="pink" size="lg" onClick={handleLoadMore} disabled={loadingMore || fetching}>
-                                {loadingMore ? (<>
-                                        <Loader2 className="w-4 h-4 animate-spin text-pink-500 dark:text-pink-400"/>
+                {!loading && mediaItems.length > 0 && (
+                    <div className="flex flex-col items-center justify-center py-10 gap-3">
+                        {hasMore ? (
+                            <AppButton
+                                type="button"
+                                variant="pink"
+                                size="lg"
+                                onClick={handleLoadMore}
+                                disabled={loadingMore || fetching}
+                            >
+                                {loadingMore ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin text-white" />
                                         <span className="tracking-wide">Loading more...</span>
-                                    </>) : (<>
-                                        <RefreshCw className="w-4 h-4 opacity-80"/>
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 opacity-80" />
                                         <span>
                                             Load More <span className="opacity-80 font-mono text-xs">({mediaItems.length} / {totalCount})</span>
                                         </span>
-                                    </>)}
-                            </AppButton>) : (<StatusBadge tone="emerald" size="md">
-                                <Check className="w-4 h-4 text-emerald-500 dark:text-emerald-400 mr-1"/>
+                                    </>
+                                )}
+                            </AppButton>
+                        ) : (
+                            <StatusBadge tone="emerald" size="md">
+                                <Check className="w-4 h-4 text-emerald-500 dark:text-emerald-400 mr-1" />
                                 <span>All {totalCount} items loaded</span>
-                            </StatusBadge>)}
+                            </StatusBadge>
+                        )}
 
-                        <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 tracking-wider uppercase">
+                        <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">
                             Showing <span className="font-mono text-slate-700 dark:text-slate-300">{mediaItems.length}</span> of <span className="font-mono text-slate-700 dark:text-slate-300">{totalCount}</span> items
                         </div>
-                    </div>)}
+                    </div>
+                )}
 
-                {!loading && mediaItems.length === 0 && (<div className="text-center py-16 px-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs animate-in fade-in duration-200">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-pink-50 dark:bg-pink-950/40 border border-pink-200/80 dark:border-pink-800/50 flex items-center justify-center shadow-2xs">
-                            <ImageIcon className="w-8 h-8 text-pink-500"/>
+                {!loading && mediaItems.length === 0 && (
+                    <div className="text-center py-16 px-4 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75)] animate-in fade-in duration-200">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] flex items-center justify-center">
+                            <ImageIcon className="w-8 h-8 text-pink-500" />
                         </div>
                         <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                            No images found
+                            No media items found
                         </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto mt-1 leading-relaxed">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto mt-1 leading-relaxed font-medium">
                             We couldn't find anything matching your search or filters.
                         </p>
-                        <button onClick={clearFilters} className="mt-5 inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-pink-50 hover:bg-pink-100 dark:bg-pink-950/40 dark:hover:bg-pink-900/50 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-800/50 transition-all duration-200 shadow-2xs cursor-pointer active:scale-95">
-                            <RefreshCw className="w-3.5 h-3.5"/>
+                        <button
+                            onClick={clearFilters}
+                            className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-2xl bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all duration-200 cursor-pointer active:scale-95"
+                        >
+                            <RefreshCw className="w-3.5 h-3.5" />
                             <span>Clear all filters</span>
                         </button>
-                    </div>)}
+                    </div>
+                )}
 
-                {isPreviewOpen && selectedItem && (<div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 dark:bg-black/90 backdrop-blur-md animate-in fade-in duration-200 select-none" onClick={closePreview} role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
-                        <div className="flex flex-col w-full max-w-5xl max-h-[94vh] overflow-hidden bg-white dark:bg-[#1c1d25] rounded-3xl border border-slate-200/90 dark:border-[#353746] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] transition-all" onClick={(e) => e.stopPropagation()}>
-                            <div className="sticky top-0 z-20 flex items-center justify-between gap-4 px-6 py-3.5 bg-white/95 dark:bg-[#1c1d25]/95 backdrop-blur-xl border-b border-slate-200/90 dark:border-[#353746]">
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <span className="inline-flex items-center shrink-0 px-3 py-0.5 rounded-full text-xs font-semibold bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-800/50 shadow-2xs">
-                                        <Tag className="w-3 h-3 mr-1 text-pink-500"/>
-                                        {selectedItem.category}
-                                    </span>
-                                    <h2 id="preview-modal-title" className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate tracking-tight" title={selectedItem.title}>
-                                        {selectedItem.title}
-                                    </h2>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    {selectedItemIndex >= 0 && (<span className="text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 mr-2 hidden sm:inline">
-                                            {selectedItemIndex + 1} / {mediaItems.length}
-                                        </span>)}
-                                    <AppButton type="button" variant="neutral" size="icon-sm" onClick={closePreview} aria-label="Close preview">
-                                        <X className="w-4 h-4"/>
-                                    </AppButton>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto custom-scrollbar">
-                                <div ref={viewerContainerRef} className="relative min-h-[440px] sm:min-h-[560px] flex items-center justify-center p-2 sm:p-4 bg-slate-900 dark:bg-black overflow-hidden border-b border-slate-200/90 dark:border-slate-800" onMouseDown={selectedTypeInfo?.isImage ? handleMouseDown : undefined} onMouseMove={selectedTypeInfo?.isImage ? handleMouseMove : undefined} onMouseUp={selectedTypeInfo?.isImage ? handleMouseUp : undefined} onMouseLeave={selectedTypeInfo?.isImage ? handleMouseUp : undefined} onDoubleClick={selectedTypeInfo?.isImage ? handleDoubleClick : undefined} style={{ cursor: selectedTypeInfo?.isImage && zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}>
-                                    {selectedItemIndex > 0 && (<button type="button" onClick={(e) => {
-                    e.stopPropagation();
-                    handlePrevImage();
-                }} className="absolute left-3 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-slate-700/80 hover:border-pink-500 shadow-xl backdrop-blur-md transition-all active:scale-90 cursor-pointer" title="Previous Item (← Left Arrow)">
-                                            <ChevronLeft className="w-5 h-5"/>
-                                        </button>)}
-
-                                    {selectedItemIndex < mediaItems.length - 1 && (<button type="button" onClick={(e) => {
-                    e.stopPropagation();
-                    handleNextImage();
-                }} className="absolute right-3 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-slate-700/80 hover:border-pink-500 shadow-xl backdrop-blur-md transition-all active:scale-90 cursor-pointer" title="Next Item (→ Right Arrow)">
-                                            <ChevronRight className="w-5 h-5"/>
-                                        </button>)}
-
-                                    <EmbeddedDocViewer url={selectedItem.imageUrl} fileName={selectedItem.title} title={selectedItem.title} fileType={selectedItem.file_type} storagePath={selectedItem.storage_path} onDownload={() => downloadImage(selectedItem)} zoom={zoom} rotation={rotation} pan={pan} onImageError={() => setImageErrors((prev) => new Set(prev).add(selectedItem.id))} minHeight="min-h-[440px] sm:min-h-[560px]"/>
-
-                                    {selectedTypeInfo?.isImage && !imageErrors.has(selectedItem.id) && (<div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl text-white text-xs font-semibold" onClick={(e) => e.stopPropagation()}>
-                                            <button type="button" onClick={handleZoomOut} disabled={zoom <= 0.5} className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors disabled:opacity-40 cursor-pointer" title="Zoom Out (-)">
-                                                <ZoomOut className="w-4 h-4"/>
-                                            </button>
-
-                                            <button type="button" onClick={resetZoomAndPan} className="px-2.5 py-1 hover:bg-slate-800 rounded-xl font-mono text-[11px] text-pink-400 transition-colors cursor-pointer" title="Reset Zoom (0 or double click)">
-                                                {Math.round(zoom * 100)}%
-                                            </button>
-
-                                            <button type="button" onClick={handleZoomIn} disabled={zoom >= 4} className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors disabled:opacity-40 cursor-pointer" title="Zoom In (+)">
-                                                <ZoomIn className="w-4 h-4"/>
-                                            </button>
-
-                                            <span className="w-px h-4 bg-slate-700 mx-1"/>
-
-                                            <button type="button" onClick={handleRotateCcw} className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer" title="Rotate Counterclockwise">
-                                                <RotateCcw className="w-4 h-4"/>
-                                            </button>
-
-                                            <button type="button" onClick={handleRotateCw} className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer" title="Rotate Clockwise">
-                                                <RotateCw className="w-4 h-4"/>
-                                            </button>
-
-                                            <button type="button" onClick={resetZoomAndPan} className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer" title="Fit to Screen">
-                                                <Maximize2 className="w-4 h-4"/>
-                                            </button>
-                                        </div>)}
-                                </div>
-
-                                <div className="p-6 bg-white dark:bg-slate-900 space-y-6">
-                                    <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
-                                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-                                            {selectedItem.supplier && (<span className="inline-flex items-center px-3 py-1 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/50 shadow-2xs">
-                                                    <User className="w-3.5 h-3.5 mr-1.5 text-purple-500"/>
-                                                    {selectedItem.supplier}
-                                                </span>)}
-
-                                            {selectedItem.po_number && (<span className="inline-flex items-center px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50 shadow-2xs font-mono">
-                                                    PO: {selectedItem.po_number}
-                                                </span>)}
-
-                                            {selectedItem.uploadDate && (<span className="inline-flex items-center px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
-                                                    <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400"/>
-                                                    {selectedItem.uploadDate}
-                                                </span>)}
-
-                                            {selectedItem.fileSize && (<span className="inline-flex items-center px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
-                                                    <HardDrive className="w-3.5 h-3.5 mr-1.5 text-slate-400"/>
-                                                    {selectedItem.fileSize}
-                                                </span>)}
-                                        </div>
-
-                                        <AppButton type="button" variant="primary" size="sm" onClick={() => downloadImage(selectedItem)}>
-                                            <Download className="w-4 h-4"/>
-                                            <span>Download Asset</span>
-                                        </AppButton>
+                {isPreviewOpen && selectedItem && (
+                    <Portal>
+                        <div
+                            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 dark:bg-black/90 backdrop-blur-md animate-in fade-in duration-200 select-none"
+                            onClick={closePreview}
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="preview-modal-title"
+                        >
+                            <div
+                                className="flex flex-col w-full max-w-5xl max-h-[94vh] overflow-hidden rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75)] transition-all"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="sticky top-0 z-20 flex items-center justify-between gap-4 px-6 py-3.5 bg-[#f0f3f8]/95 dark:bg-[#191a24]/95 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/80">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <span className="inline-flex items-center shrink-0 px-3 py-1 rounded-full text-xs font-bold bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-800/50 shadow-2xs">
+                                            <Tag className="w-3 h-3 mr-1 text-pink-500" />
+                                            {selectedItem.category}
+                                        </span>
+                                        <h2 id="preview-modal-title" className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate tracking-tight" title={selectedItem.title}>
+                                            {selectedItem.title}
+                                        </h2>
                                     </div>
 
-                                    {(selectedItem.parcel_batch || selectedItem.notes) && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                                            {selectedItem.parcel_batch && (<div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
-                                                    <span className="block mb-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-                                                        Parcel Batch
-                                                    </span>
-                                                    <p className="font-semibold text-slate-800 dark:text-slate-100">
-                                                        {selectedItem.parcel_batch}
-                                                    </p>
-                                                </div>)}
+                                    <div className="flex items-center gap-2">
+                                        {selectedItemIndex >= 0 && (
+                                            <span className="text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 mr-2 hidden sm:inline">
+                                                {selectedItemIndex + 1} / {mediaItems.length}
+                                            </span>
+                                        )}
+                                        <AppButton type="button" variant="neutral" size="icon-sm" onClick={closePreview} aria-label="Close preview">
+                                            <X className="w-4 h-4" />
+                                        </AppButton>
+                                    </div>
+                                </div>
 
-                                            {selectedItem.notes && (<div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-amber-900 dark:text-amber-200 sm:col-span-2 shadow-2xs">
-                                                    <span className="block mb-1 text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                                                        Notes
-                                                    </span>
-                                                    <p className="leading-relaxed text-slate-700 dark:text-slate-200 text-xs sm:text-sm">
-                                                        {selectedItem.notes}
-                                                    </p>
-                                                </div>)}
-                                        </div>)}
+                                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                                    <div
+                                        ref={viewerContainerRef}
+                                        className="relative min-h-[440px] sm:min-h-[560px] flex items-center justify-center p-2 sm:p-4 bg-slate-900 dark:bg-black overflow-hidden border-b border-slate-200/60 dark:border-slate-800/80"
+                                        onMouseDown={selectedTypeInfo?.isImage ? handleMouseDown : undefined}
+                                        onMouseMove={selectedTypeInfo?.isImage ? handleMouseMove : undefined}
+                                        onMouseUp={selectedTypeInfo?.isImage ? handleMouseUp : undefined}
+                                        onMouseLeave={selectedTypeInfo?.isImage ? handleMouseUp : undefined}
+                                        onDoubleClick={selectedTypeInfo?.isImage ? handleDoubleClick : undefined}
+                                        style={{ cursor: selectedTypeInfo?.isImage && zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+                                    >
+                                        {selectedItemIndex > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handlePrevImage();
+                                                }}
+                                                className="absolute left-3 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-slate-700/80 hover:border-pink-500 shadow-xl backdrop-blur-md transition-all active:scale-90 cursor-pointer"
+                                                title="Previous Item (← Left Arrow)"
+                                            >
+                                                <ChevronLeft className="w-5 h-5" />
+                                            </button>
+                                        )}
 
-                                    {selectedItem.uploader && (<div className="pt-2 flex items-center justify-between gap-4">
-                                            <div className="flex items-center gap-3">
-                                                <img src={selectedItem.uploader.avatar} alt={selectedItem.uploader.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-2xs"/>
-                                                <div>
-                                                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                                                        {selectedItem.uploader.name}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                                        <span>{selectedItem.uploader.role}</span>
-                                                        {selectedItem.uploader.email && (<>
-                                                                <span>•</span>
-                                                                <span>{selectedItem.uploader.email}</span>
-                                                            </>)}
+                                        {selectedItemIndex < mediaItems.length - 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleNextImage();
+                                                }}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-slate-700/80 hover:border-pink-500 shadow-xl backdrop-blur-md transition-all active:scale-90 cursor-pointer"
+                                                title="Next Item (→ Right Arrow)"
+                                            >
+                                                <ChevronRight className="w-5 h-5" />
+                                            </button>
+                                        )}
+
+                                        <EmbeddedDocViewer
+                                            url={selectedItem.imageUrl}
+                                            fileName={selectedItem.title}
+                                            title={selectedItem.title}
+                                            fileType={selectedItem.file_type}
+                                            storagePath={selectedItem.storage_path}
+                                            onDownload={() => downloadImage(selectedItem)}
+                                            zoom={zoom}
+                                            rotation={rotation}
+                                            pan={pan}
+                                            onImageError={() => setImageErrors((prev) => new Set(prev).add(selectedItem.id))}
+                                            minHeight="min-h-[440px] sm:min-h-[560px]"
+                                        />
+
+                                        {selectedTypeInfo?.isImage && !imageErrors.has(selectedItem.id) && (
+                                            <div
+                                                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl text-white text-xs font-semibold"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    onClick={handleZoomOut}
+                                                    disabled={zoom <= 0.5}
+                                                    className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors disabled:opacity-40 cursor-pointer"
+                                                    title="Zoom Out (-)"
+                                                >
+                                                    <ZoomOut className="w-4 h-4" />
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={resetZoomAndPan}
+                                                    className="px-2.5 py-1 hover:bg-slate-800 rounded-xl font-mono text-[11px] text-pink-400 transition-colors cursor-pointer"
+                                                    title="Reset Zoom (0 or double click)"
+                                                >
+                                                    {Math.round(zoom * 100)}%
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={handleZoomIn}
+                                                    disabled={zoom >= 4}
+                                                    className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors disabled:opacity-40 cursor-pointer"
+                                                    title="Zoom In (+)"
+                                                >
+                                                    <ZoomIn className="w-4 h-4" />
+                                                </button>
+
+                                                <span className="w-px h-4 bg-slate-700 mx-1" />
+
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRotateCcw}
+                                                    className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                                                    title="Rotate Counterclockwise"
+                                                >
+                                                    <RotateCcw className="w-4 h-4" />
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRotateCw}
+                                                    className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                                                    title="Rotate Clockwise"
+                                                >
+                                                    <RotateCw className="w-4 h-4" />
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={resetZoomAndPan}
+                                                    className="p-1.5 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                                                    title="Fit to Screen"
+                                                >
+                                                    <Maximize2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="p-6 bg-[#f0f3f8] dark:bg-[#191a24] space-y-6">
+                                        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-200/60 dark:border-slate-800/80">
+                                            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                                                {selectedItem.supplier && (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/50 shadow-2xs">
+                                                        <User className="w-3.5 h-3.5 mr-1.5 text-purple-500" />
+                                                        {selectedItem.supplier}
+                                                    </span>
+                                                )}
+
+                                                {selectedItem.po_number && (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50 shadow-2xs font-mono">
+                                                        PO: {selectedItem.po_number}
+                                                    </span>
+                                                )}
+
+                                                {selectedItem.uploadDate && (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)]">
+                                                        <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                                                        {selectedItem.uploadDate}
+                                                    </span>
+                                                )}
+
+                                                {selectedItem.fileSize && (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)]">
+                                                        <HardDrive className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                                                        {selectedItem.fileSize}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <AppButton type="button" variant="primary" size="sm" onClick={() => downloadImage(selectedItem)}>
+                                                <Download className="w-4 h-4" />
+                                                <span>Download Asset</span>
+                                            </AppButton>
+                                        </div>
+
+                                        {(selectedItem.parcel_batch || selectedItem.notes) && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                                {selectedItem.parcel_batch && (
+                                                    <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                                                        <span className="block mb-1 text-xs font-bold uppercase tracking-wider text-slate-400">
+                                                            Parcel Batch
+                                                        </span>
+                                                        <p className="font-bold text-slate-800 dark:text-slate-100">
+                                                            {selectedItem.parcel_batch}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {selectedItem.notes && (
+                                                    <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-amber-900 dark:text-amber-200 sm:col-span-2 shadow-2xs">
+                                                        <span className="block mb-1 text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                                                            Notes
+                                                        </span>
+                                                        <p className="leading-relaxed text-slate-700 dark:text-slate-200 text-xs sm:text-sm">
+                                                            {selectedItem.notes}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {selectedItem.uploader && (
+                                            <div className="pt-2 flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <img
+                                                        src={selectedItem.uploader.avatar}
+                                                        alt={selectedItem.uploader.name}
+                                                        className="w-10 h-10 rounded-full object-cover border border-slate-200/60 dark:border-slate-700 shadow-2xs"
+                                                    />
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                                                            {selectedItem.uploader.name}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                            <span>{selectedItem.uploader.role}</span>
+                                                            {selectedItem.uploader.email && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span>{selectedItem.uploader.email}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>)}
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>)}
+                    </Portal>
+                )}
             </div>
-        </SessionGuard>);
+        </SessionGuard>
+    );
 }

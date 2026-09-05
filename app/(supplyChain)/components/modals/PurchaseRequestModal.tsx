@@ -4,7 +4,16 @@ import { toast } from "sonner";
 import { sanitizeText, sanitizeNumber } from "@/app/(supplyChain)/components/global/sanitize";
 import { AppButton } from "@/app/(supplyChain)/components/ui/AppButton";
 import { PurchaseRequestItem, PurchaseRequestModalProps } from "@/app/(supplyChain)/(pages)/procurement/types/index";
-export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubmitted, editData, isEdit = false, }: PurchaseRequestModalProps) {
+import Portal from "@/app/(supplyChain)/components/client/Portal";
+
+export function PurchaseRequestModal({
+    isOpen,
+    onClose,
+    suppliers,
+    onRequestSubmitted,
+    editData,
+    isEdit = false,
+}: PurchaseRequestModalProps) {
     const defaultFormState = {
         requested_by: "",
         supplier_id: "",
@@ -14,8 +23,10 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
         priority: "Normal",
         amount: 0,
     };
+
     const [formData, setFormData] = useState(defaultFormState);
     const [submitting, setSubmitting] = useState(false);
+
     useEffect(() => {
         if (isOpen) {
             if (isEdit && editData) {
@@ -26,7 +37,9 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                         unit_price: Number(i.unit_price ?? i.price ?? 0),
                     }))
                     : [{ name: "", quantity: 1, unit_price: 0 }];
+
                 const computedAmount = loadedItems.reduce((sum: number, item: any) => sum + (item.quantity * (item.unit_price || 0)), 0);
+
                 setFormData({
                     requested_by: editData.requested_by || "",
                     supplier_id: editData.supplier_id || "",
@@ -36,12 +49,12 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                     priority: editData.priority || "Normal",
                     amount: editData.amount || computedAmount || 0,
                 });
-            }
-            else {
+            } else {
                 setFormData(defaultFormState);
             }
         }
     }, [isOpen, editData, isEdit]);
+
     // Computed total from all item rows
     const calculatedItemsTotal = useMemo(() => {
         return formData.items.reduce((sum, item) => {
@@ -50,26 +63,34 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
             return sum + (qty * price);
         }, 0);
     }, [formData.items]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (submitting)
-            return;
+        if (submitting) return;
+
         const sanitizedRequestedBy = sanitizeText(formData.requested_by);
         const sanitizedReason = sanitizeText(formData.reason);
+
         if (!sanitizedRequestedBy || !formData.supplier_id || !sanitizedReason) {
             toast.warning("Please fill in all required fields");
             return;
         }
-        const hasEmptyItem = formData.items.some((item) => !sanitizeText(item.name) || sanitizeNumber(item.quantity) <= 0);
+
+        const hasEmptyItem = formData.items.some(
+            (item) => !sanitizeText(item.name) || sanitizeNumber(item.quantity) <= 0
+        );
+
         if (hasEmptyItem) {
             toast.warning("Please fill in all item names and valid quantities");
             return;
         }
+
         const selectedSupplier = suppliers.find((s) => String(s.id) === String(formData.supplier_id));
         if (!selectedSupplier) {
             toast.warning("Please select a valid supplier");
             return;
         }
+
         const sanitizedItems = formData.items.map((item) => {
             const name = sanitizeText(item.name);
             const quantity = sanitizeNumber(item.quantity) || 1;
@@ -83,7 +104,9 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                 total,
             };
         });
+
         const totalAmount = formData.amount > 0 ? formData.amount : calculatedItemsTotal;
+
         const requestData = {
             id: isEdit ? editData?.id : undefined,
             request_number: isEdit ? editData?.request_number : undefined,
@@ -100,20 +123,22 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
             items: sanitizedItems,
             reason: sanitizedReason,
         };
+
         try {
             setSubmitting(true);
             await onRequestSubmitted?.(requestData);
-        }
-        finally {
+        } finally {
             setSubmitting(false);
         }
     };
+
     const addItem = () => {
         setFormData((prev) => ({
             ...prev,
             items: [...prev.items, { name: "", quantity: 1, unit_price: 0 }],
         }));
     };
+
     const removeItem = (index: number) => {
         if (formData.items.length === 1) {
             toast.warning("At least one item is required");
@@ -129,16 +154,15 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
             };
         });
     };
+
     const updateItem = (index: number, field: keyof PurchaseRequestItem, value: string | number) => {
         setFormData((prev) => {
             const updatedItems = [...prev.items];
             if (field === "name") {
                 updatedItems[index] = { ...updatedItems[index], name: sanitizeText(value as string) };
-            }
-            else if (field === "quantity") {
+            } else if (field === "quantity") {
                 updatedItems[index] = { ...updatedItems[index], quantity: sanitizeNumber(value as number) };
-            }
-            else if (field === "unit_price") {
+            } else if (field === "unit_price") {
                 const parsedPrice = parseFloat(String(value)) || 0;
                 updatedItems[index] = {
                     ...updatedItems[index],
@@ -155,15 +179,18 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
             };
         });
     };
-    if (!isOpen)
-        return null;
-    return (<div className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl dark:shadow-black/60 border border-slate-100 dark:border-white/10 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-white/10">
+
+    if (!isOpen) return null;
+
+    return (
+        <Portal>
+            <div className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200" onClick={onClose}>
+            <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-200/60 dark:border-white/[0.06]">
                     <div className="flex items-center gap-3">
-                        <span className="w-10 h-10 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-pink-100/50 dark:border-pink-500/20">
+                        <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)]">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
                         </span>
                         <div>
@@ -177,7 +204,7 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                     </div>
                     <AppButton variant="neutral" size="icon-sm" onClick={onClose} aria-label="Close modal" title="Close">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </AppButton>
                 </div>
@@ -187,20 +214,35 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Requested By <span className="text-pink-500 dark:text-pink-400">*</span>
                         </label>
-                        <input type="text" className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 dark:focus:ring-pink-500/20 transition-all outline-none" placeholder="Your full name" value={formData.requested_by} onChange={(e) => setFormData({ ...formData, requested_by: e.target.value })} required maxLength={150}/>
+                        <input
+                            type="text"
+                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all"
+                            placeholder="Your full name"
+                            value={formData.requested_by}
+                            onChange={(e) => setFormData({ ...formData, requested_by: e.target.value })}
+                            required
+                            maxLength={150}
+                        />
                     </div>
 
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Supplier <span className="text-pink-500 dark:text-pink-400">*</span>
                         </label>
-                        <select className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 dark:focus:ring-pink-500/20 transition-all outline-none cursor-pointer" value={formData.supplier_id} onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })} required>
+                        <select
+                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                            value={formData.supplier_id}
+                            onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
+                            required
+                        >
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-500">
                                 Select a supplier...
                             </option>
-                            {suppliers.map((s) => (<option key={s.id} value={s.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                            {suppliers.map((s) => (
+                                <option key={s.id} value={s.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                                     {s.name}
-                                </option>))}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
@@ -209,7 +251,11 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                                 Department
                             </label>
-                            <select className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 dark:focus:ring-pink-500/20 transition-all outline-none cursor-pointer" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })}>
+                            <select
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                                value={formData.department}
+                                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                            >
                                 <option value="Fleet" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Fleet</option>
                                 <option value="Warehouse" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Warehouse</option>
                                 <option value="Operations" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Operations</option>
@@ -220,7 +266,11 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                                 Priority
                             </label>
-                            <select className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 dark:focus:ring-pink-500/20 transition-all outline-none cursor-pointer" value={formData.priority} onChange={(e) => setFormData({ ...formData, priority: e.target.value })}>
+                            <select
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                                value={formData.priority}
+                                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                            >
                                 <option value="Normal" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Normal</option>
                                 <option value="Urgent" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Urgent</option>
                                 <option value="Critical" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Critical</option>
@@ -241,13 +291,27 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
 
                         <div className="space-y-2.5">
                             {formData.items.map((item, index) => {
-            const rowTotal = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
-            return (<div key={index} className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                                const rowTotal = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
+                                return (
+                                    <div key={index} className="p-3 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] space-y-2.5">
                                         <div className="flex items-center gap-2">
-                                            <input type="text" className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/10 outline-none" placeholder="Item name (e.g. Oil Filter, Brake Pad)" value={item.name} onChange={(e) => updateItem(index, "name", e.target.value)} required maxLength={100}/>
-                                            <button type="button" className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors shrink-0 cursor-pointer" onClick={() => removeItem(index)} title="Remove item">
+                                            <input
+                                                type="text"
+                                                className="flex-1 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500"
+                                                placeholder="Item name (e.g. Oil Filter, Brake Pad)"
+                                                value={item.name}
+                                                onChange={(e) => updateItem(index, "name", e.target.value)}
+                                                required
+                                                maxLength={100}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors shrink-0 cursor-pointer"
+                                                onClick={() => removeItem(index)}
+                                                title="Remove item"
+                                            >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
                                             </button>
                                         </div>
@@ -255,23 +319,40 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                                         <div className="flex items-center gap-2 text-xs">
                                             <div className="flex items-center gap-1.5 w-28">
                                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Qty:</span>
-                                                <input type="number" min="1" className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-pink-500 outline-none text-center" placeholder="Qty" value={item.quantity || ""} onChange={(e) => updateItem(index, "quantity", parseInt(e.target.value) || 0)} required/>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-center"
+                                                    placeholder="Qty"
+                                                    value={item.quantity || ""}
+                                                    onChange={(e) => updateItem(index, "quantity", parseInt(e.target.value) || 0)}
+                                                    required
+                                                />
                                             </div>
 
                                             <div className="flex items-center gap-1.5 flex-1">
                                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Unit Price:</span>
                                                 <div className="relative flex-1">
-                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₱</span>
-                                                    <input type="number" step="0.01" min="0" className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg pl-5 pr-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-pink-500 outline-none text-right" placeholder="0.00" value={item.unit_price || ""} onChange={(e) => updateItem(index, "unit_price", e.target.value)}/>
+                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₱</span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl pl-6 pr-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-right"
+                                                        placeholder="0.00"
+                                                        value={item.unit_price || ""}
+                                                        onChange={(e) => updateItem(index, "unit_price", e.target.value)}
+                                                    />
                                                 </div>
                                             </div>
 
-                                            <div className="text-right pl-2 text-slate-600 dark:text-slate-300 font-semibold min-w-[70px]">
+                                            <div className="text-right pl-2 text-slate-700 dark:text-slate-300 font-semibold min-w-[70px]">
                                                 ₱{rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </div>
                                         </div>
-                                    </div>);
-        })}
+                                    </div>
+                                );
+                            })}
 
                             <AppButton type="button" variant="pink" size="xs" onClick={addItem} className="flex">
                                 <span>+ Add more items</span>
@@ -285,7 +366,15 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                         </label>
                         <div className="relative">
                             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₱</span>
-                            <input type="number" step="0.01" min="0" className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 dark:focus:ring-pink-500/20 transition-all outline-none" placeholder="0.00" value={formData.amount || calculatedItemsTotal || ""} onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}/>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-8 pr-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all"
+                                placeholder="0.00"
+                                value={formData.amount || calculatedItemsTotal || ""}
+                                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                            />
                         </div>
                     </div>
 
@@ -293,10 +382,18 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                             Reason <span className="text-pink-500 dark:text-pink-400">*</span>
                         </label>
-                        <textarea className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-pink-500 dark:focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10 dark:focus:ring-pink-500/20 transition-all outline-none resize-none" rows={3} placeholder="Provide a brief reason for this request..." value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} required maxLength={500}/>
+                        <textarea
+                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none"
+                            rows={3}
+                            placeholder="Provide a brief reason for this request..."
+                            value={formData.reason}
+                            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                            required
+                            maxLength={500}
+                        />
                     </div>
 
-                    <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-white/10">
+                    <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
                         <AppButton type="button" variant="neutral" size="md" onClick={onClose} disabled={submitting}>
                             Cancel
                         </AppButton>
@@ -307,5 +404,7 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers, onRequestSubm
                     </div>
                 </form>
             </div>
-        </div>);
+        </div>
+        </Portal>
+    );
 }

@@ -2,6 +2,7 @@
 
 'use client';
 
+import { memo } from 'react';
 import { InventoryItem } from '../../types';
 import { StatsCards } from '../common/StatsCards';
 import { LowStockAlert } from '../common/LowStockAlert';
@@ -24,7 +25,7 @@ interface DashboardTabProps {
     onStatusClick: (status: string) => void;
 }
 
-export function DashboardTab({
+export const DashboardTab = memo(function DashboardTab({
     inventoryItems,
     stats,
     isLoading = false,
@@ -62,35 +63,35 @@ export function DashboardTab({
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
                 {/* Category Distribution Card */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl 
-                        border border-slate-200/80 dark:border-slate-800 
-                        shadow-xs p-4 sm:p-5 lg:col-span-2 
+                <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl 
+                        border border-white/80 dark:border-[#2c2d3c] 
+                        shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] 
+                        dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] 
+                        p-5 sm:p-6 lg:col-span-2 
                         flex flex-col justify-between 
-                        hover:border-slate-300/80 dark:hover:border-slate-700/80 
-                        transition-colors">
-                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                        transition-all">
+                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap pb-3 border-b border-slate-200/60 dark:border-slate-800/80">
                         <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl 
-                            bg-pink-50 dark:bg-pink-950/40 
-                            border border-pink-100 dark:border-pink-900/30 
-                            flex items-center justify-center text-pink-600 dark:text-pink-400 
-                            text-xs shadow-2xs shrink-0">
+                            <div className="w-10 h-10 rounded-2xl 
+                            bg-gradient-to-tr from-pink-500 to-rose-400 text-white 
+                            flex items-center justify-center 
+                            text-sm shadow-[0_2px_8px_rgba(236,72,153,0.35),inset_0_1px_0_rgba(255,255,255,0.4)] shrink-0">
                                 <i className="fas fa-chart-simple"></i>
                             </div>
                             <div>
-                                <h3 className="font-semibold text-slate-900 dark:text-white text-sm leading-tight">
+                                <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
                                     Inventory by Category
                                 </h3>
-                                <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                                     Distribution of current stock across categories
                                 </p>
                             </div>
                         </div>
 
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full 
-                               bg-slate-100/80 dark:bg-slate-800/60 
-                               text-slate-500 dark:text-slate-300 text-[11px] font-semibold 
-                               border border-slate-200/60 dark:border-slate-700/60 shadow-2xs select-none">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full 
+                               bg-[#ebf0f7] dark:bg-[#14151c] 
+                               text-slate-700 dark:text-slate-300 text-[11px] font-bold 
+                               border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] select-none">
                             <i className="fas fa-hand-pointer text-[10px] text-pink-500 dark:text-pink-400"></i>
                             <span>Click bar to filter</span>
                         </span>
@@ -104,8 +105,8 @@ export function DashboardTab({
                             />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center 
-                                  bg-slate-50/50 dark:bg-slate-800/30 
-                                  rounded-xl border border-dashed border-slate-200 dark:border-slate-800 
+                                  bg-[#ebf0f7] dark:bg-[#14151c] 
+                                  rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 
                                   text-slate-400 dark:text-slate-400 text-xs gap-1">
                                 <i className="fas fa-chart-column text-slate-300 dark:text-slate-600 text-lg mb-1"></i>
                                 <span>No category data available</span>
@@ -115,34 +116,34 @@ export function DashboardTab({
                 </div>
 
                 {/* Stock Status Card */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl 
-                        border border-slate-200/80 dark:border-slate-800 
-                        shadow-xs p-4 sm:p-5 flex flex-col justify-between 
-                        hover:border-slate-300/80 dark:hover:border-slate-700/80 
-                        transition-colors">
-                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl 
+                        border border-white/80 dark:border-[#2c2d3c] 
+                        shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] 
+                        dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] 
+                        p-5 sm:p-6 flex flex-col justify-between 
+                        transition-all">
+                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap pb-3 border-b border-slate-200/60 dark:border-slate-800/80">
                         <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl 
-                                  bg-amber-50 dark:bg-amber-950/40 
-                                  border border-amber-100 dark:border-amber-900/30 
-                                  flex items-center justify-center text-amber-600 dark:text-amber-400 
-                                  text-xs shadow-2xs shrink-0">
+                            <div className="w-10 h-10 rounded-2xl 
+                                  bg-gradient-to-tr from-amber-500 to-orange-400 text-white 
+                                  flex items-center justify-center 
+                                  text-sm shadow-[0_2px_8px_rgba(245,158,11,0.35),inset_0_1px_0_rgba(255,255,255,0.4)] shrink-0">
                                 <i className="fas fa-chart-pie"></i>
                             </div>
                             <div>
-                                <h3 className="font-semibold text-slate-900 dark:text-white text-sm leading-tight">
+                                <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
                                     Stock Status
                                 </h3>
-                                <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                                     Overview of availability levels
                                 </p>
                             </div>
                         </div>
 
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full 
-                               bg-slate-100/80 dark:bg-slate-800/60 
-                               text-slate-500 dark:text-slate-300 text-[11px] font-semibold 
-                               border border-slate-200/60 dark:border-slate-700/60 shadow-2xs select-none">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full 
+                               bg-[#ebf0f7] dark:bg-[#14151c] 
+                               text-slate-700 dark:text-slate-300 text-[11px] font-bold 
+                               border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] select-none">
                             <i className="fas fa-filter text-[10px] text-amber-500 dark:text-amber-400"></i>
                             <span>Click segment</span>
                         </span>
@@ -156,8 +157,8 @@ export function DashboardTab({
                             />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center 
-                                  bg-slate-50/50 dark:bg-slate-800/30 
-                                  rounded-xl border border-dashed border-slate-200 dark:border-slate-800 
+                                  bg-[#ebf0f7] dark:bg-[#14151c] 
+                                  rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 
                                   text-slate-400 dark:text-slate-400 text-xs gap-1">
                                 <i className="fas fa-chart-pie text-slate-300 dark:text-slate-600 text-lg mb-1"></i>
                                 <span>No status data available</span>
@@ -168,4 +169,4 @@ export function DashboardTab({
             </div>
         </div>
     );
-}
+});

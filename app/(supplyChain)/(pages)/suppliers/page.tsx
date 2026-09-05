@@ -12,6 +12,7 @@ import { CrudActionButton } from "@/app/(supplyChain)/components/ui/CrudActionBu
 import { AppButton } from "@/app/(supplyChain)/components/ui/AppButton";
 import { StatusBadge, getPOStatusTone } from "@/app/(supplyChain)/components/ui/StatusBadge";
 import { CardsSkeleton, SupplierChartsSkeleton, SupplierDirectorySkeleton, PurchaseHistorySkeleton } from "@/app/(supplyChain)/components/ui/SkeletonLoader";
+import Portal from "@/app/(supplyChain)/components/client/Portal";
 let isRegistered = false;
 interface Supplier {
     id: number;
@@ -729,7 +730,7 @@ export default function Suppliers() {
 
     return (
         <SessionGuard requiredRole={['Admin', 'Employee', 'Executive']}>
-            <main className="main-shell bgCard">
+            <div className="main-shell bgCard">
                 <div className="p-6 space-y-6 fade-in">
                     {/* header */}
                     <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-3.5">
@@ -745,19 +746,14 @@ export default function Suppliers() {
                                 Track supplier purchases, order frequency, and spending patterns.
                             </p>
 
-                            <div className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 
-                      px-3 py-1.5 rounded-full 
-                      bg-slate-50 dark:bg-slate-900 
-                      border border-slate-200/90 dark:border-slate-800 
-                      shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)] 
-                      text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 max-w-full transition-all">
+                            <div className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 px-3.5 py-1.5 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 max-w-full transition-all">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                                <i className="fas fa-users text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500"></i>
+                                <i className="fas fa-users text-[10px] sm:text-[11px] text-pink-500 dark:text-pink-400"></i>
                                 <span>Total Suppliers:</span>
-                                <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[140px] sm:max-w-none">
+                                <span className="font-bold text-slate-800 dark:text-slate-100 truncate max-w-[140px] sm:max-w-none">
                                     {suppliers.length}
                                 </span>
-                                <span className="text-slate-400 dark:text-slate-500 font-normal sm:border-l sm:border-slate-300/60 sm:pl-2 sm:ml-0.5 truncate max-w-[180px] sm:max-w-none">
+                                <span className="text-slate-400 dark:text-slate-500 font-medium sm:border-l sm:border-slate-300/60 dark:sm:border-slate-700 sm:pl-2 sm:ml-0.5 truncate max-w-[180px] sm:max-w-none">
                                     {suppliers.filter(s => s.is_active).length} active
                                 </span>
                             </div>
@@ -795,20 +791,20 @@ export default function Suppliers() {
                     ) : (
                         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
                             {/* purchase activity card */}
-                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs xl:col-span-3 flex flex-col justify-between transition-all">
+                            <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] xl:col-span-3 flex flex-col justify-between transition-all">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <h3 className="font-bold text-sm text-slate-900 dark:text-white">Purchase Activity by Supplier</h3>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Total orders and paid amount per supplier</p>
                                     </div>
-                                    <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                    <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
                                         <i className="fas fa-chart-bar text-xs"></i>
                                     </div>
                                 </div>
                                 <div className="h-60 relative w-full flex items-center justify-center">
                                     {suppliers.length === 0 ? (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3 border border-slate-200/60 dark:border-slate-700/50">
+                                            <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3">
                                                 <i className="fas fa-building text-base"></i>
                                             </div>
                                             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">No suppliers registered yet</span>
@@ -816,7 +812,7 @@ export default function Suppliers() {
                                         </div>
                                     ) : purchaseOrders.length === 0 ? (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3 border border-slate-200/60 dark:border-slate-700/50">
+                                            <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3">
                                                 <i className="fas fa-shopping-cart text-base"></i>
                                             </div>
                                             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">No purchase orders yet</span>
@@ -829,24 +825,32 @@ export default function Suppliers() {
                             </div>
 
                             {/* supplier categories card */}
-                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs xl:col-span-2 flex flex-col justify-between transition-all">
+                            <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] xl:col-span-2 flex flex-col justify-between transition-all">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <h3 className="font-bold text-sm text-slate-900 dark:text-white">Supplier Categories</h3>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution by category</p>
                                     </div>
-                                    <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
+                                    <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
                                         <i className="fas fa-chart-pie text-xs"></i>
                                     </div>
                                 </div>
                                 <div className="h-60 relative w-full flex items-center justify-center">
                                     {suppliers.length === 0 ? (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
-                                            <div className="w-12 h-12 rounded-2xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-900/40 flex items-center justify-center text-pink-500 dark:text-pink-400 mb-2.5">
+                                            <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-2.5">
                                                 <i className="fas fa-chart-pie text-base"></i>
                                             </div>
-                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No Supplier Categories</span>
-                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs mt-0.5 leading-tight">Category breakdown will display once suppliers are registered</span>
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">No Supplier Categories</span>
+                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs mt-0.5 mb-3 leading-tight">Category breakdown will display once suppliers are registered</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowNewSupplierModal(true)}
+                                                className="px-3.5 py-1.5 bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                            >
+                                                <i className="fas fa-plus text-[10px]"/>
+                                                <span>Add Supplier</span>
+                                            </button>
                                         </div>
                                     ) : (
                                         <canvas ref={categoryChartRef} className="w-full h-full max-h-60"></canvas>
@@ -857,24 +861,26 @@ export default function Suppliers() {
                     )}
 
                     {/* supplier directory table */}
-                    <div className="card flex flex-col">
+                    <div className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col">
                         {/* filter bar */}
-                        <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-pink-500"/>
-                                <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
+                        <div className="flex-shrink-0 pb-4 mb-3 border-b border-slate-200/60 dark:border-slate-800/80 flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
+                                    <i className="fas fa-building text-xs"/>
+                                </div>
+                                <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
                                     Supplier Directory
                                 </h2>
                             </div>
 
-                            <div className="flex gap-2 items-center ml-auto">
+                            <div className="flex gap-2.5 items-center ml-auto">
                                 <div className="relative flex-1 sm:flex-initial sm:max-w-xs ml-auto">
                                     <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"/>
-                                    <input type="text" placeholder="Search suppliers..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full py-1.5 pl-8 pr-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all"/>
+                                    <input type="text" placeholder="Search suppliers..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full py-2 pl-8 pr-3 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 transition-all"/>
                                 </div>
 
                                 <div className="relative max-w-[180px] w-full sm:w-auto">
-                                    <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="Filter by category" className="w-full py-1.5 pl-3 pr-8 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-pink-500/40 focus:border-pink-500 dark:focus:border-pink-500/80 transition-all cursor-pointer appearance-none">
+                                    <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="Filter by category" className="w-full py-2 pl-3 pr-8 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-pink-500 transition-all cursor-pointer appearance-none">
                                         <option value="">All categories</option>
                                         {categories.map((cat) => (
                                             <option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
@@ -887,7 +893,7 @@ export default function Suppliers() {
                             </div>
 
                             {selectedSuppliers.size > 0 && (
-                                <button onClick={handleBulkDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/40 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors cursor-pointer">
+                                <button onClick={handleBulkDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200/70 dark:border-rose-800/50 rounded-2xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95">
                                     <i className="fas fa-trash-alt text-[10px]"/>
                                     <span>Delete Selected ({selectedSuppliers.size})</span>
                                 </button>
@@ -903,12 +909,12 @@ export default function Suppliers() {
                                     No suppliers found
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto">
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.25)]">
                                     <table className="table-pro w-full text-left text-xs border-collapse p-1" id="supplierTableId">
-                                        <thead className="bg-slate-50/75 dark:bg-slate-900/50 border-b border-slate-200/80 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                                        <thead className="bg-[#e4ebf5] dark:bg-[#14151c] border-b border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
                                             <tr>
                                                 <th className="w-10 py-3.5 px-4">
-                                                    <input type="checkbox" checked={selectedSuppliers.size === filteredSuppliers.length && filteredSuppliers.length > 0} onChange={handleSelectAll} aria-label="Select all suppliers" className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"/>
+                                                    <input type="checkbox" checked={selectedSuppliers.size === filteredSuppliers.length && filteredSuppliers.length > 0} onChange={handleSelectAll} aria-label="Select all suppliers" className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer accent-pink-600"/>
                                                 </th>
                                                 <th className="py-3.5 px-4">Supplier ID</th>
                                                 <th className="py-3.5 px-4">Supplier Name</th>
@@ -919,10 +925,18 @@ export default function Suppliers() {
                                                 <th className="py-3.5 px-4 text-right! w-[150px] min-w-[150px]">Actions</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                                            {paginatedSuppliers.map((supplier) => (<tr key={supplier.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                                                    <td className="py-3 px-4">
-                                                        <input type="checkbox" checked={selectedSuppliers.has(supplier.id)} onChange={() => handleToggleSelect(supplier.id)} aria-label={`Select ${supplier.name}`} className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"/>
+                                        <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60">
+                                            {paginatedSuppliers.map((supplier) => (
+                                                <tr 
+                                                    key={supplier.id} 
+                                                    onClick={() => {
+                                                        setSelectedSupplier(supplier);
+                                                        setShowModal(true);
+                                                    }}
+                                                    className="hover:bg-white/50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                                                >
+                                                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                                                        <input type="checkbox" checked={selectedSuppliers.has(supplier.id)} onChange={() => handleToggleSelect(supplier.id)} aria-label={`Select ${supplier.name}`} className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer accent-pink-600"/>
                                                     </td>
                                                     <td data-label="Supplier ID" className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
                                                         SUP-{String(supplier.id).padStart(3, '0')}
@@ -941,25 +955,26 @@ export default function Suppliers() {
                                                     <td data-label="Location" className="py-3 px-4 text-slate-700 dark:text-slate-300">
                                                         {supplier.location}
                                                     </td>
-                                                    <td data-label="Status" className="py-3 px-4">
+                                                    <td data-label="Status" className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                                                         <StatusBadge tone={supplier.is_active ? 'emerald' : 'neutral'} dot size="xs" interactive onClick={() => handleToggleActive(supplier.id, supplier.is_active)} title={`Click to set ${supplier.name} as ${supplier.is_active ? 'Inactive' : 'Active'}`}>
                                                             {supplier.is_active ? 'Active' : 'Inactive'}
                                                         </StatusBadge>
                                                     </td>
-                                                    <td data-label="Action" className="py-3 px-4 text-right w-[150px] min-w-[150px]">
+                                                    <td data-label="Action" className="py-3 px-4 text-right w-[150px] min-w-[150px]" onClick={(e) => e.stopPropagation()}>
                                                         <div className="flex items-center justify-end gap-2.5">
                                                             <CrudActionButton action="view" ariaLabel={`View ${supplier.name}`} onClick={() => {
-                    setSelectedSupplier(supplier);
-                    setShowModal(true);
-                }}/>
+                                                                setSelectedSupplier(supplier);
+                                                                setShowModal(true);
+                                                            }}/>
                                                             <CrudActionButton action="edit" ariaLabel={`Edit ${supplier.name}`} onClick={() => {
-                    setEditingSupplier({ ...supplier });
-                    setShowEditSupplierModal(true);
-                }}/>
+                                                                setEditingSupplier({ ...supplier });
+                                                                setShowEditSupplierModal(true);
+                                                            }}/>
                                                             <CrudActionButton action="delete" ariaLabel={`Delete ${supplier.name}`} onClick={() => handleDeleteSupplier(supplier.id, supplier.name)}/>
                                                         </div>
                                                     </td>
-                                                </tr>))}
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>)}
@@ -980,19 +995,19 @@ export default function Suppliers() {
                                     </span> suppliers
                                 </span>
 
-                                {selectedSuppliers.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-white/10 animate-in fade-in duration-150">
-                                        <span className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold border border-purple-200/60 dark:border-purple-800/40 shadow-2xs">
+                                {selectedSuppliers.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200/60 dark:border-slate-800 animate-in fade-in duration-150">
+                                        <span className="px-2.5 py-1 rounded-xl bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold border border-pink-200/80 dark:border-pink-900/40 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
                                             {selectedSuppliers.size} selected
                                         </span>
 
-                                        <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-semibold bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-xl border border-red-200/60 dark:border-red-800/40 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs">
+                                        <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-2xl border border-rose-200/70 dark:border-rose-800/50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95">
                                             <i className="fas fa-trash-alt text-xs"/>
                                             <span>Delete Selected</span>
                                         </button>
 
                                         <button onClick={() => {
                 setSelectedSuppliers(new Set());
-            }} className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer" title="Clear selection" aria-label="Clear selection">
+            }} className="w-7 h-7 rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95" title="Clear selection" aria-label="Clear selection">
                                             <i className="fas fa-times text-xs"/>
                                         </button>
                                     </div>)}
@@ -1003,12 +1018,14 @@ export default function Suppliers() {
                     </div>
 
                     {/* purchase history table */}
-                    <div className="card flex flex-col">
-                        <div className="flex-shrink-0 px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col">
+                        <div className="flex-shrink-0 pb-4 mb-3 border-b border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between">
                             <div>
                                 <div className="flex items-center gap-2.5 mb-1">
-                                    <div className="w-2 h-2 rounded-full bg-pink-500"/>
-                                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                    <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
+                                        <i className="fas fa-history text-xs"/>
+                                    </div>
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                                         Recent Purchase History
                                     </h3>
                                 </div>
@@ -1017,23 +1034,23 @@ export default function Suppliers() {
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                {selectedPurchaseOrders.size > 0 && (<button onClick={handleBulkDeletePurchaseOrders} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/40 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors cursor-pointer">
+                                {selectedPurchaseOrders.size > 0 && (<button onClick={handleBulkDeletePurchaseOrders} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200/70 dark:border-rose-800/50 rounded-2xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95">
                                         <i className="fas fa-trash-alt text-[10px]"/>
                                         <span>Delete Selected ({selectedPurchaseOrders.size})</span>
                                     </button>)}
-                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200/60 dark:border-slate-700/60">
+                                <span className="text-xs font-bold text-pink-600 dark:text-pink-300 bg-pink-50 dark:bg-pink-950/60 px-3 py-1 rounded-2xl border border-pink-200/80 dark:border-pink-900/40 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
                                     {purchaseOrders?.length || 0} Total
                                 </span>
                             </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto max-h-[300px]">
-                            {isLoading ? (<PurchaseHistorySkeleton rows={5}/>) : (<div className="overflow-x-auto">
+                            {isLoading ? (<PurchaseHistorySkeleton rows={5}/>) : (<div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.25)]">
                                     <table className="table-pro w-full text-left text-xs border-collapse p-1" id="purchaseOrderTableId">
-                                        <thead className="bg-slate-50/75 dark:bg-slate-900/50 border-b border-slate-200/80 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px] sticky top-0 z-10">
+                                        <thead className="bg-[#e4ebf5] dark:bg-[#14151c] border-b border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px] sticky top-0 z-10">
                                             <tr>
                                                 <th className="w-10 py-3.5 px-4">
-                                                    <input type="checkbox" checked={selectedPurchaseOrders.size === paginatedPurchaseOrders.length && paginatedPurchaseOrders.length > 0} onChange={handleSelectAllPO} aria-label="Select all purchase orders" className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"/>
+                                                    <input type="checkbox" checked={selectedPurchaseOrders.size === paginatedPurchaseOrders.length && paginatedPurchaseOrders.length > 0} onChange={handleSelectAllPO} aria-label="Select all purchase orders" className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer accent-pink-600"/>
                                                 </th>
                                                 <th className="py-3.5 px-4">Order #</th>
                                                 <th className="py-3.5 px-4">Supplier</th>
@@ -1044,52 +1061,60 @@ export default function Suppliers() {
                                                 <th className="py-3.5 px-4 text-right! w-[125px] min-w-[125px]">Actions</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                                            {paginatedPurchaseOrders.length === 0 ? (<tr>
+                                        <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60">
+            {paginatedPurchaseOrders.length === 0 ? (<tr>
                                                     <td colSpan={8} className="text-center py-12 text-slate-400 dark:text-slate-500">
                                                         <div className="flex flex-col items-center justify-center gap-1.5">
-                                                            <i className="fas fa-shopping-cart text-3xl mb-2 opacity-30"/>
-                                                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">No purchase orders found</span>
-                                                            <span className="text-xs text-slate-400">Orders placed will appear here automatically.</span>
+                                                            <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-2">
+                                                                <i className="fas fa-shopping-cart text-lg"/>
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No purchase orders found</span>
+                                                            <span className="text-[11px] text-slate-400 dark:text-slate-500">Orders placed will appear here automatically.</span>
                                                         </div>
                                                     </td>
                                                 </tr>) : (paginatedPurchaseOrders.map((order) => {
                 const isSelected = selectedPurchaseOrders.has(order.id);
-                return (<tr key={order.id} className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected
-                        ? 'bg-pink-50/40 dark:bg-pink-950/20'
-                        : ''}`}>
-                                                            <td className="py-3.5 px-4">
-                                                                <input type="checkbox" checked={isSelected} onChange={() => handleToggleSelectPO(order.id)} aria-label={`Select ${order.po_number}`} className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"/>
-                                                            </td>
-                                                            <td data-label="Order #" className="py-3.5 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                                                                {order.po_number}
-                                                            </td>
-                                                            <td data-label="Supplier" className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200">
-                                                                {order.supplier_name}
-                                                            </td>
-                                                            <td data-label="Total" className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
-                                                                {order.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                                                            </td>
-                                                            <td data-label="Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
-                                                                {new Date(order.created_at).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                    })}
-                                                            </td>
-                                                            <td data-label="Status" className="py-3.5 px-4">
-                                                                {getStatusBadge(order.status)}
-                                                            </td>
-                                                            <td data-label="Payment" className="py-3.5 px-4">
-                                                                {getPaidBadge(order.paid || false)}
-                                                            </td>
-                                                            <td data-label="Actions" className="py-3.5 px-4 text-right w-[125px] min-w-[125px]">
-                                                                <div className="flex items-center justify-end gap-2.5">
-                                                                    <CrudActionButton action="view" ariaLabel={`View purchase order ${order.po_number}`} onClick={() => handleViewPurchaseOrder(order)}/>
-                                                                    <CrudActionButton action="delete" ariaLabel={`Delete purchase order ${order.po_number}`} onClick={() => handleDeletePurchaseOrder(order.id, order.po_number)}/>
-                                                                </div>
-                                                            </td>
-                                                        </tr>);
+                return (
+                                                <tr
+                                                    key={order.id}
+                                                    onClick={() => handleViewPurchaseOrder(order)}
+                                                    className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer ${isSelected
+                                                        ? 'bg-pink-50/40 dark:bg-pink-950/20'
+                                                        : ''}`}
+                                                >
+                                                    <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                                                        <input type="checkbox" checked={isSelected} onChange={() => handleToggleSelectPO(order.id)} aria-label={`Select ${order.po_number}`} className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer"/>
+                                                    </td>
+                                                    <td data-label="Order #" className="py-3.5 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                                        {order.po_number}
+                                                    </td>
+                                                    <td data-label="Supplier" className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200">
+                                                        {order.supplier_name}
+                                                    </td>
+                                                    <td data-label="Total" className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                                                        {order.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                                    </td>
+                                                    <td data-label="Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                                        {new Date(order.created_at).toLocaleDateString(undefined, {
+                                                            year: 'numeric',
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                        })}
+                                                    </td>
+                                                    <td data-label="Status" className="py-3.5 px-4">
+                                                        {getStatusBadge(order.status)}
+                                                    </td>
+                                                    <td data-label="Payment" className="py-3.5 px-4">
+                                                        {getPaidBadge(order.paid || false)}
+                                                    </td>
+                                                    <td data-label="Actions" className="py-3.5 px-4 text-right w-[125px] min-w-[125px]" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-end gap-2.5">
+                                                            <CrudActionButton action="view" ariaLabel={`View purchase order ${order.po_number}`} onClick={() => handleViewPurchaseOrder(order)}/>
+                                                            <CrudActionButton action="delete" ariaLabel={`Delete purchase order ${order.po_number}`} onClick={() => handleDeletePurchaseOrder(order.id, order.po_number)}/>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                );
             }))}
                                         </tbody>
                                     </table>
@@ -1126,37 +1151,44 @@ export default function Suppliers() {
                 </div>
 
                 {/* view supplier modal */}
-                {showModal && selectedSupplier && (<div className="fixed inset-0 z-[90] bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-start justify-between bg-slate-50/50 dark:bg-slate-900/50">
-                                <div>
-                                    <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
-                                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                                            {selectedSupplier.name}
-                                        </h2>
-                                        <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200/80 dark:border-slate-700/60">
-                                            SUP-{String(selectedSupplier.id).padStart(3, '0')}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                        <span>Category:</span>
-                                        <span className="text-slate-700 dark:text-slate-300 font-semibold">
-                                            {selectedSupplier.category || 'General'}
-                                        </span>
+                {showModal && selectedSupplier && (
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] flex items-start justify-between bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                        <i className="fas fa-building text-sm" />
+                                    </span>
+                                    <div>
+                                        <div className="flex items-center gap-2.5 mb-1 flex-wrap">
+                                            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                                                {selectedSupplier.name}
+                                            </h2>
+                                            <span className="font-mono text-[11px] px-2.5 py-0.5 rounded-lg bg-[#ebf0f7] dark:bg-[#14151e] text-pink-600 dark:text-pink-400 font-bold border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                                SUP-{String(selectedSupplier.id).padStart(3, '0')}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                            <span>Category:</span>
+                                            <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                                                {selectedSupplier.category || 'General'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <AppButton type="button" variant="neutral" size="icon-sm" onClick={() => setShowModal(false)} aria-label="Close modal">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </AppButton>
                             </div>
 
                             <div className="p-6 overflow-y-auto space-y-5">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-user text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1169,8 +1201,8 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-phone text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1183,8 +1215,8 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-envelope text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1197,8 +1229,8 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-map-marker-alt text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1212,29 +1244,45 @@ export default function Suppliers() {
                                     </div>
                                 </div>
 
+                                {selectedSupplier.fb_link && (
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
+                                            <i className="fab fa-facebook text-xs"/>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                Facebook / Social
+                                            </span>
+                                            <a href={selectedSupplier.fb_link} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm font-semibold text-pink-600 dark:text-pink-400 hover:underline truncate block">
+                                                {selectedSupplier.fb_link}
+                                            </a>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {selectedSupplier.products && (<div>
-                                        <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                        <h3 className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                                             Products & Services
                                         </h3>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {selectedSupplier.products.split(',').map((product: string, idx: number) => (<span key={idx} className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60 rounded-lg text-xs font-medium">
+                                            {selectedSupplier.products.split(',').map((product: string, idx: number) => (<span key={idx} className="px-3 py-1 bg-[#ebf0f7] dark:bg-[#14151e] text-slate-700 dark:text-slate-300 border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] rounded-xl text-xs font-semibold">
                                                     {product.trim()}
                                                 </span>))}
                                         </div>
                                     </div>)}
 
                                 {selectedSupplier.notes && (<div>
-                                        <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                        <h3 className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                                             Internal Notes
                                         </h3>
-                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/80 leading-relaxed whitespace-pre-wrap">
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#14151e] p-3.5 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] leading-relaxed whitespace-pre-wrap">
                                             {selectedSupplier.notes}
                                         </p>
                                     </div>)}
 
                                 {purchaseOrders.filter((po) => po.supplier_id === selectedSupplier.id).length > 0 && (<div>
                                         <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                            <h3 className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                                                 Recent Purchase Orders
                                             </h3>
                                             <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
@@ -1242,20 +1290,20 @@ export default function Suppliers() {
                                             </span>
                                         </div>
 
-                                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                                             {purchaseOrders
                     .filter((po) => po.supplier_id === selectedSupplier.id)
                     .slice(0, 5)
-                    .map((po) => (<div key={po.id} className="flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40 px-3.5 py-2.5 rounded-xl border border-slate-100 dark:border-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
+                    .map((po) => (<div key={po.id} className="flex items-center justify-between bg-[#ebf0f7] dark:bg-[#14151e] px-4 py-2.5 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                            <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
                                                                 {po.po_number}
                                                             </span>
                                                         </div>
 
                                                         <div className="flex items-center gap-3.5">
                                                             <span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-mono">
-                                                                {po.total_amount?.toLocaleString() || '0'}
+                                                                ₱{po.total_amount?.toLocaleString() || '0'}
                                                             </span>
                                                             <div>{getStatusBadge(po.status)}</div>
                                                             <div>{getPaidBadge(po.paid || false)}</div>
@@ -1265,7 +1313,7 @@ export default function Suppliers() {
                                     </div>)}
                             </div>
 
-                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                            <div className="px-6 py-4 border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 flex items-center justify-between">
                                 <AppButton type="button" variant="danger" size="sm" onClick={() => handleDeleteSupplier(selectedSupplier.id, selectedSupplier.name)}>
                                     Delete Supplier
                                 </AppButton>
@@ -1284,20 +1332,22 @@ export default function Suppliers() {
                                 </div>
                             </div>
                         </div>
-                    </div>)}
+                    </div>
+                    </Portal>
+                )}
 
                 {/* add supplier modal */}
-                {showNewSupplierModal && (<div className="fixed inset-0 z-[90] bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                {showNewSupplierModal && (
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
-                                        <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                                        </svg>
-                                    </div>
+                                    <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                        <i className="fas fa-plus text-sm" />
+                                    </span>
                                     <div>
-                                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                                        <h2 className="text-base font-bold text-slate-900 dark:text-white">
                                             Add New Supplier
                                         </h2>
                                         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1307,27 +1357,27 @@ export default function Suppliers() {
                                 </div>
 
                                 <AppButton type="button" variant="neutral" size="icon-sm" onClick={() => setShowNewSupplierModal(false)} aria-label="Close modal">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </AppButton>
                             </div>
 
-                            <form onSubmit={handleAddSupplier} className="flex-1 overflow-y-auto p-6 space-y-4.5">
+                            <form onSubmit={handleAddSupplier} className="flex-1 overflow-y-auto p-6 space-y-4">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Supplier Name <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Supplier Name <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="text" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" placeholder="e.g. Apex Tire & Auto Supplies" value={newSupplier.name} onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })} required/>
+                                        <input type="text" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="e.g. Apex Tire & Auto Supplies" value={newSupplier.name} onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })} required/>
                                     </div>
 
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Category <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Category <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
                                         <div className="relative">
-                                            <select className="w-full px-3.5 py-2 pr-9 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all appearance-none cursor-pointer shadow-2xs" value={newSupplier.category} onChange={(e) => setNewSupplier({ ...newSupplier, category: e.target.value })} required>
+                                            <select className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 pr-9 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all appearance-none cursor-pointer" value={newSupplier.category} onChange={(e) => setNewSupplier({ ...newSupplier, category: e.target.value })} required>
                                                 <option value="" disabled className="dark:bg-slate-900 text-slate-400">
                                                     Select category
                                                 </option>
@@ -1338,7 +1388,7 @@ export default function Suppliers() {
                                                     Other
                                                 </option>
                                             </select>
-                                            <svg className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-3.5 h-3.5 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
                                             </svg>
                                         </div>
@@ -1347,59 +1397,58 @@ export default function Suppliers() {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Contact Person <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Contact Person <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="text" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" placeholder="Full Name" value={newSupplier.contact_person} onChange={(e) => setNewSupplier({ ...newSupplier, contact_person: sanitizeText(e.target.value) })} required/>
+                                        <input type="text" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Full Name" value={newSupplier.contact_person} onChange={(e) => setNewSupplier({ ...newSupplier, contact_person: sanitizeText(e.target.value) })} required/>
                                     </div>
 
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Phone Number <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Phone Number <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="tel" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" placeholder="+63 912 345 6789" value={newSupplier.phone} onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })} required/>
+                                        <input type="tel" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="+63 912 345 6789" value={newSupplier.phone} onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })} required/>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Email Address <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Email Address <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="email" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" placeholder="contact@gmail.com" value={newSupplier.email} onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })} required/>
+                                        <input type="email" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="contact@gmail.com" value={newSupplier.email} onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })} required/>
                                     </div>
 
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Location / Address <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Location / Address <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="text" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" placeholder="City, Province" value={newSupplier.location} onChange={(e) => setNewSupplier({ ...newSupplier, location: sanitizeText(e.target.value) })} required/>
+                                        <input type="text" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="City, Province" value={newSupplier.location} onChange={(e) => setNewSupplier({ ...newSupplier, location: sanitizeText(e.target.value) })} required/>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
                                         Facebook Link
                                     </label>
-                                    <input className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs" placeholder="https://www.facebook.com/share/12345446/" value={newSupplier.fb_link} onChange={(e) => setNewSupplier({ ...newSupplier, fb_link: sanitizeText(e.target.value) })}/>
+                                    <input className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="https://www.facebook.com/share/12345446/" value={newSupplier.fb_link} onChange={(e) => setNewSupplier({ ...newSupplier, fb_link: sanitizeText(e.target.value) })}/>
                                 </div>
 
-
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
                                         Products / Services Offered
                                     </label>
-                                    <textarea rows={2} className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs" placeholder="e.g. Heavy equipment tires, brake pads, routine maintenance services" value={newSupplier.products} onChange={(e) => setNewSupplier({ ...newSupplier, products: sanitizeText(e.target.value) })}/>
+                                    <textarea rows={2} className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none" placeholder="e.g. Heavy equipment tires, brake pads, routine maintenance services" value={newSupplier.products} onChange={(e) => setNewSupplier({ ...newSupplier, products: sanitizeText(e.target.value) })}/>
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
                                         Internal Notes
                                     </label>
-                                    <textarea rows={2} className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs" placeholder="Payment terms, delivery lead times, or special remarks" value={newSupplier.notes} onChange={(e) => setNewSupplier({ ...newSupplier, notes: sanitizeText(e.target.value) })}/>
+                                    <textarea rows={2} className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none" placeholder="Payment terms, delivery lead times, or special remarks" value={newSupplier.notes} onChange={(e) => setNewSupplier({ ...newSupplier, notes: sanitizeText(e.target.value) })}/>
                                 </div>
 
-                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
                                     <AppButton type="button" variant="neutral" size="sm" onClick={() => setShowNewSupplierModal(false)}>
                                         Cancel
                                     </AppButton>
@@ -1409,20 +1458,22 @@ export default function Suppliers() {
                                 </div>
                             </form>
                         </div>
-                    </div>)}
+                    </div>
+                    </Portal>
+                )}
 
                 {/* edit supplier modal */}
-                {showEditSupplierModal && editingSupplier && (<div className="fixed inset-0 z-[90] bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+                {showEditSupplierModal && editingSupplier && (
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center border border-pink-100 dark:border-pink-900/30">
-                                        <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                        </svg>
-                                    </div>
+                                    <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                        <i className="fas fa-edit text-sm" />
+                                    </span>
                                     <div>
-                                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                                        <h2 className="text-base font-bold text-slate-900 dark:text-white">
                                             Edit Supplier
                                         </h2>
                                         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1435,27 +1486,27 @@ export default function Suppliers() {
                 setShowEditSupplierModal(false);
                 setEditingSupplier(null);
             }} aria-label="Close modal">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </AppButton>
                             </div>
 
-                            <form onSubmit={handleUpdateSupplier} className="flex-1 overflow-y-auto p-6 space-y-4.5">
+                            <form onSubmit={handleUpdateSupplier} className="flex-1 overflow-y-auto p-6 space-y-4">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Supplier Name <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Supplier Name <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="text" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" value={editingSupplier?.name || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, name: e.target.value })} required/>
+                                        <input type="text" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" value={editingSupplier?.name || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, name: e.target.value })} required/>
                                     </div>
 
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Category <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Category <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
                                         <div className="relative">
-                                            <select className="w-full px-3.5 py-2 pr-9 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all appearance-none cursor-pointer shadow-2xs" value={editingSupplier?.category || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, category: e.target.value })} required>
+                                            <select className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 pr-9 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all appearance-none cursor-pointer" value={editingSupplier?.category || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, category: e.target.value })} required>
                                                 {categories.map((cat) => (<option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
                                                         {cat}
                                                     </option>))}
@@ -1463,7 +1514,7 @@ export default function Suppliers() {
                                                     Other
                                                 </option>
                                             </select>
-                                            <svg className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-3.5 h-3.5 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
                                             </svg>
                                         </div>
@@ -1472,62 +1523,62 @@ export default function Suppliers() {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Contact Person <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Contact Person <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="text" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" value={editingSupplier?.contact_person || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, contact_person: e.target.value })} required/>
+                                        <input type="text" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" value={editingSupplier?.contact_person || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, contact_person: e.target.value })} required/>
                                     </div>
 
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Phone Number <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Phone Number <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="tel" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" value={editingSupplier?.phone || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, phone: e.target.value })} required/>
+                                        <input type="tel" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" value={editingSupplier?.phone || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, phone: e.target.value })} required/>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Email Address <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Email Address <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="email" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" value={editingSupplier?.email || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, email: e.target.value })} required/>
+                                        <input type="email" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" value={editingSupplier?.email || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, email: e.target.value })} required/>
                                     </div>
 
                                     <div>
-                                        <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                            Location / Address <span className="text-rose-500">*</span>
+                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
+                                            Location / Address <span className="text-pink-500 dark:text-pink-400">*</span>
                                         </label>
-                                        <input type="text" className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all shadow-2xs" value={editingSupplier?.location || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, location: e.target.value })} required/>
+                                        <input type="text" className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" value={editingSupplier?.location || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, location: e.target.value })} required/>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
                                         Facebook Link
                                     </label>
-                                    <input className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs" placeholder="https://www.facebook.com/share/12345446/" value={newSupplier.fb_link} onChange={(e) => setNewSupplier({ ...newSupplier, fb_link: sanitizeText(e.target.value) })}/>
+                                    <input className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="https://www.facebook.com/share/12345446/" value={editingSupplier?.fb_link || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, fb_link: sanitizeText(e.target.value) })}/>
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
                                         Products / Services Offered
                                     </label>
-                                    <textarea rows={2} className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs" placeholder="List products or services offered (comma separated)" value={editingSupplier?.products || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, products: e.target.value })}/>
+                                    <textarea rows={2} className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none" placeholder="List products or services offered (comma separated)" value={editingSupplier?.products || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, products: e.target.value })}/>
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1.5">
                                         Internal Notes
                                     </label>
-                                    <textarea rows={2} className="w-full px-3.5 py-2 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-700/70 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500/80 focus:bg-white dark:focus:bg-slate-800/80 transition-all resize-none shadow-2xs" placeholder="Additional supplier details or terms" value={editingSupplier?.notes || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, notes: e.target.value })}/>
+                                    <textarea rows={2} className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none" placeholder="Additional supplier details or terms" value={editingSupplier?.notes || ""} onChange={(e) => setEditingSupplier({ ...editingSupplier, notes: e.target.value })}/>
                                 </div>
 
-                                <div className="p-3 bg-slate-50/80 dark:bg-slate-800/30 rounded-xl border border-slate-200/70 dark:border-slate-800">
+                                <div className="p-3.5 bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)]">
                                     <label className="flex items-center gap-3 cursor-pointer select-none">
                                         <input type="checkbox" checked={Boolean(editingSupplier?.is_active)} onChange={(e) => setEditingSupplier({ ...editingSupplier, is_active: e.target.checked })} className="w-4 h-4 rounded text-pink-500 focus:ring-pink-500/20 border-slate-300 dark:border-slate-600 dark:bg-slate-700 cursor-pointer"/>
                                         <div className="flex flex-col">
-                                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                                 Active Vendor Status
                                             </span>
                                             <span className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -1539,7 +1590,7 @@ export default function Suppliers() {
                                     </label>
                                 </div>
 
-                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
                                     <AppButton type="button" variant="neutral" size="sm" onClick={() => {
                 setShowEditSupplierModal(false);
                 setEditingSupplier(null);
@@ -1552,30 +1603,39 @@ export default function Suppliers() {
                                 </div>
                             </form>
                         </div>
-                    </div>)}
+                    </div>
+                    </Portal>
+                )}
 
                 {/* activity chart detail modal */}
-                {showActivityDetailModal && selectedChartData.supplierName && (<div className="fixed inset-0 z-[90] bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-md max-h-[80vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                                        Supplier Details
-                                    </h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        {selectedChartData.supplierName}
-                                    </p>
+                {showActivityDetailModal && selectedChartData.supplierName && (
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-md max-h-[80vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                        <i className="fas fa-chart-bar text-sm" />
+                                    </span>
+                                    <div>
+                                        <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                            Supplier Details
+                                        </h2>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {selectedChartData.supplierName}
+                                        </p>
+                                    </div>
                                 </div>
                                 <AppButton type="button" variant="neutral" size="icon-sm" onClick={() => setShowActivityDetailModal(false)} aria-label="Close modal">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </AppButton>
                             </div>
 
                             <div className="p-6 space-y-4 overflow-y-auto">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] text-center">
                                         <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                             Total Orders
                                         </p>
@@ -1583,30 +1643,30 @@ export default function Suppliers() {
                                             {selectedChartData.orderCount || 0}
                                         </p>
                                     </div>
-                                    <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                    <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] text-center">
                                         <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                             Total Paid
                                         </p>
                                         <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                                            {(selectedChartData.totalSpent || 0).toLocaleString()}
+                                            ₱{(selectedChartData.totalSpent || 0).toLocaleString()}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80">
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                                <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)]">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5">
                                         Recent Orders
                                     </p>
-                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                    <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                                         {purchaseOrders
                 .filter(po => po.supplier_name === selectedChartData.supplierName)
                 .slice(0, 5)
-                .map((po) => (<div key={po.id} className="flex items-center justify-between text-xs">
-                                                    <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                .map((po) => (<div key={po.id} className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-white/[0.06] shadow-[1px_1px_3px_rgba(166,175,195,0.25)]">
+                                                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                                                         {po.po_number}
                                                     </span>
-                                                    <span className="font-semibold text-slate-900 dark:text-slate-100">
-                                                        {po.total_amount?.toLocaleString() || '0'}
+                                                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                                                        ₱{po.total_amount?.toLocaleString() || '0'}
                                                     </span>
                                                     <div>{getStatusBadge(po.status)}</div>
                                                     <div>{getPaidBadge(po.paid || false)}</div>
@@ -1618,29 +1678,38 @@ export default function Suppliers() {
                                 </div>
                             </div>
 
-                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end">
+                            <div className="px-6 py-4 border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 flex justify-end">
                                 <AppButton type="button" variant="neutral" size="sm" onClick={() => setShowActivityDetailModal(false)}>
                                     Close
                                 </AppButton>
                             </div>
                         </div>
-                    </div>)}
+                    </div>
+                    </Portal>
+                )}
 
                 {/* category detail modal */}
-                {showCategoryDetailModal && selectedChartData.category && (<div className="fixed inset-0 z-[90] bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-lg max-h-[80vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                                        Category Details
-                                    </h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        {selectedChartData.category} • {selectedChartData.suppliers?.length || 0} suppliers
-                                    </p>
+                {showCategoryDetailModal && selectedChartData.category && (
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-lg max-h-[80vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                        <i className="fas fa-tags text-sm" />
+                                    </span>
+                                    <div>
+                                        <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                            Category Details
+                                        </h2>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {selectedChartData.category} • {selectedChartData.suppliers?.length || 0} suppliers
+                                        </p>
+                                    </div>
                                 </div>
                                 <AppButton type="button" variant="neutral" size="icon-sm" onClick={() => setShowCategoryDetailModal(false)} aria-label="Close modal">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </AppButton>
                             </div>
@@ -1648,27 +1717,27 @@ export default function Suppliers() {
                             <div className="p-6 overflow-y-auto">
                                 <div className="space-y-3">
                                     <div className="grid grid-cols-3 gap-3 mb-4">
-                                        <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                        <div className="p-3 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] text-center">
                                             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                                 Suppliers
                                             </p>
-                                            <p className="text-xl font-bold text-slate-900 dark:text-white">
+                                            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">
                                                 {selectedChartData.suppliers?.length || 0}
                                             </p>
                                         </div>
-                                        <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                        <div className="p-3 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] text-center">
                                             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                                 Active
                                             </p>
-                                            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                                            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
                                                 {selectedChartData.suppliers?.filter(s => s.is_active).length || 0}
                                             </p>
                                         </div>
-                                        <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 text-center">
+                                        <div className="p-3 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] text-center">
                                             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                                 Inactive
                                             </p>
-                                            <p className="text-xl font-bold text-rose-600 dark:text-rose-400">
+                                            <p className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">
                                                 {selectedChartData.suppliers?.filter(s => !s.is_active).length || 0}
                                             </p>
                                         </div>
@@ -1681,22 +1750,22 @@ export default function Suppliers() {
                                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                                         {selectedChartData.suppliers?.map((supplier) => {
                 const orderCount = purchaseOrders.filter(po => po.supplier_id === supplier.id).length;
-                return (<div key={supplier.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
+                return (<div key={supplier.id} className="flex items-center justify-between p-3 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                        <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                                                             {supplier.name}
                                                         </p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                                                             {supplier.contact_person} • {supplier.location}
                                                         </p>
                                                     </div>
                                                     <div className="flex items-center gap-3 ml-3 shrink-0">
-                                                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                                             {orderCount} orders
                                                         </span>
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${supplier.is_active
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                        : 'bg-slate-50 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400'}`}>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold ${supplier.is_active
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                        : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/20'}`}>
                                                             {supplier.is_active ? 'Active' : 'Inactive'}
                                                         </span>
                                                     </div>
@@ -1706,46 +1775,55 @@ export default function Suppliers() {
                                 </div>
                             </div>
 
-                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end">
+                            <div className="px-6 py-4 border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 flex justify-end">
                                 <AppButton type="button" variant="neutral" size="sm" onClick={() => setShowCategoryDetailModal(false)}>
                                     Close
                                 </AppButton>
                             </div>
                         </div>
-                    </div>)}
+                    </div>
+                    </Portal>
+                )}
 
                 {/* po detail modal */}
-                {showPurchaseOrderModal && selectedPurchaseOrder && (<div className="fixed inset-0 z-[90] bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-                            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-start justify-between bg-slate-50/50 dark:bg-slate-900/50">
-                                <div>
-                                    <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
-                                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                                            Purchase Order
-                                        </h2>
-                                        <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200/80 dark:border-slate-700/60">
-                                            {selectedPurchaseOrder.po_number}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                        <span>Supplier:</span>
-                                        <span className="text-slate-700 dark:text-slate-300 font-semibold">
-                                            {selectedPurchaseOrder.supplier_name}
-                                        </span>
+                {showPurchaseOrderModal && selectedPurchaseOrder && (
+                    <Portal>
+                        <div className="fixed inset-0 z-[99999] bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] flex items-start justify-between bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
+                                        <i className="fas fa-file-invoice text-sm" />
+                                    </span>
+                                    <div>
+                                        <div className="flex items-center gap-2.5 mb-1 flex-wrap">
+                                            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                                                Purchase Order
+                                            </h2>
+                                            <span className="font-mono text-[11px] px-2.5 py-0.5 rounded-lg bg-[#ebf0f7] dark:bg-[#14151e] text-pink-600 dark:text-pink-400 font-bold border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                                {selectedPurchaseOrder.po_number}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                            <span>Supplier:</span>
+                                            <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                                                {selectedPurchaseOrder.supplier_name}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <AppButton type="button" variant="neutral" size="icon-sm" onClick={() => setShowPurchaseOrderModal(false)} aria-label="Close modal">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </AppButton>
                             </div>
 
                             <div className="p-6 overflow-y-auto space-y-5">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-building text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1758,22 +1836,22 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-dollar-sign text-xs"/>
                                         </div>
                                         <div className="min-w-0">
                                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">
                                                 Total Amount
                                             </span>
-                                            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                                                {selectedPurchaseOrder.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white font-mono">
+                                                ₱{selectedPurchaseOrder.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-calendar-alt text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1790,8 +1868,8 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-truck text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1812,8 +1890,8 @@ export default function Suppliers() {
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-tag text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1824,8 +1902,8 @@ export default function Suppliers() {
                                         </div>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 flex items-start gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400">
+                                    <div className="p-3.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#f0f3f8] dark:bg-[#191a24] flex items-center justify-center shrink-0 text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
                                             <i className="fas fa-credit-card text-xs"/>
                                         </div>
                                         <div className="min-w-0">
@@ -1838,17 +1916,17 @@ export default function Suppliers() {
                                 </div>
 
                                 {selectedPurchaseOrder.notes && (<div>
-                                        <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                        <h3 className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                                             Order Notes
                                         </h3>
-                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/80 leading-relaxed whitespace-pre-wrap">
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#14151e] p-3.5 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.55)] leading-relaxed whitespace-pre-wrap">
                                             {selectedPurchaseOrder.notes}
                                         </p>
                                     </div>)}
 
                                 {selectedPurchaseOrder.items && selectedPurchaseOrder.items.length > 0 && (<div>
                                         <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                            <h3 className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                                                 Order Items
                                             </h3>
                                             <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
@@ -1857,21 +1935,21 @@ export default function Suppliers() {
                                         </div>
 
                                         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                            {selectedPurchaseOrder.items.map((item: any, idx: number) => (<div key={idx} className="flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40 px-3.5 py-2.5 rounded-xl border border-slate-100 dark:border-slate-800/70">
+                                            {selectedPurchaseOrder.items.map((item: any, idx: number) => (<div key={idx} className="flex items-center justify-between bg-[#ebf0f7] dark:bg-[#14151e] px-4 py-2.5 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                                             {item.name || `Item ${idx + 1}`}
                                                         </span>
-                                                        {item.quantity && (<span className="text-xs text-slate-500 dark:text-slate-400">
+                                                        {item.quantity && (<span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                                                 × {item.quantity}
                                                             </span>)}
                                                     </div>
                                                     <div className="flex items-center gap-3.5">
-                                                        {item.price && (<span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                                                                @{item.price.toLocaleString()}
+                                                        {item.price && (<span className="text-xs font-medium text-slate-600 dark:text-slate-400 font-mono">
+                                                                @₱{item.price.toLocaleString()}
                                                             </span>)}
-                                                        {item.total && (<span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                                                                {item.total.toLocaleString()}
+                                                        {item.total && (<span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-mono">
+                                                                ₱{item.total.toLocaleString()}
                                                             </span>)}
                                                     </div>
                                                 </div>))}
@@ -1879,7 +1957,7 @@ export default function Suppliers() {
                                     </div>)}
                             </div>
 
-                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-2">
+                            <div className="px-6 py-4 border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 flex items-center justify-end gap-2">
                                 <AppButton type="button" variant="neutral" size="sm" onClick={() => setShowPurchaseOrderModal(false)}>
                                     Close
                                 </AppButton>
@@ -1891,7 +1969,9 @@ export default function Suppliers() {
                                 </AppButton>
                             </div>
                         </div>
-                    </div>)}
-            </main>
+                    </div>
+                    </Portal>
+                )}
+            </div>
         </SessionGuard>);
 }

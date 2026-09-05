@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,6 +5,7 @@ import { toast } from 'sonner';
 import { sanitizeText } from '@/app/(supplyChain)/components/global/sanitize';
 import { EditItemFormData, InventoryItem, Supplier } from '../../types';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
+import Portal from '@/app/(supplyChain)/components/client/Portal';
 
 interface EditItemModalProps {
     isOpen: boolean;
@@ -74,18 +74,19 @@ export function EditItemModal({
     if (!isOpen) return null;
 
     return (
-        <div
-            className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
-            onClick={onClose}
-        >
+        <Portal>
             <div
-                className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl dark:shadow-2xl border border-slate-200/90 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden"
+                className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+                onClick={onClose}
+            >
+            <div
+                className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] animate-in zoom-in-95 duration-200 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/60 dark:bg-slate-900/60 shrink-0">
+                <div className="px-6 py-5 border-b border-slate-200/60 dark:border-white/[0.06] flex items-center justify-between bg-[#ebf0f7]/70 dark:bg-[#14151e]/60 shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-800/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                        <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
                             <i className="fas fa-pen-to-square text-base"></i>
                         </div>
                         <div>
@@ -115,7 +116,7 @@ export function EditItemModal({
 
                         {/* Basic Details */}
                         <div className="space-y-4">
-                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                                 <i className="fas fa-circle-info text-blue-500 dark:text-blue-400"></i>
                                 <span>Basic Details</span>
                             </div>
@@ -127,7 +128,7 @@ export function EditItemModal({
                                     <div className="relative">
                                         <i className="fas fa-hashtag absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
                                         <input
-                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all"
                                             value={formData.item_code}
                                             onChange={(e) => setFormData({ ...formData, item_code: e.target.value })}
                                             placeholder="e.g. PKG-001"
@@ -144,7 +145,7 @@ export function EditItemModal({
                                     <div className="relative">
                                         <i className="fas fa-tag absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
                                         <input
-                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all"
                                             value={formData.item_name}
                                             onChange={(e) => setFormData({ ...formData, item_name: sanitizeText(e.target.value) })}
                                             placeholder="e.g. Bubble Wrap Roll"
@@ -161,7 +162,7 @@ export function EditItemModal({
                                     <div className="relative">
                                         <i className="fas fa-layer-group absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
                                         <select
-                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none outline-none cursor-pointer"
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer"
                                             value={formData.category}
                                             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                             required
@@ -186,7 +187,7 @@ export function EditItemModal({
                                     <div className="relative">
                                         <i className="fas fa-ruler-horizontal absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
                                         <input
-                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all"
                                             value={formData.unit}
                                             onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                                             placeholder="e.g. rolls, pcs, boxes"
@@ -198,15 +199,13 @@ export function EditItemModal({
                             </div>
                         </div>
 
-                        <hr className="border-slate-100 dark:border-slate-800" />
-
                         {/* Stock Thresholds */}
                         <div className="space-y-4">
-                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                                 <i className="fas fa-boxes-stacked text-blue-500 dark:text-blue-400"></i>
                                 <span>Stock Thresholds</span>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/60 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#ebf0f7] dark:bg-[#14151e] p-4 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                                         Current Stock <span className="text-rose-500 dark:text-rose-400">*</span>
@@ -214,7 +213,7 @@ export function EditItemModal({
                                     <input
                                         type="number"
                                         min="0"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 transition-all"
                                         value={formData.current_stock}
                                         onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
                                         required
@@ -229,7 +228,7 @@ export function EditItemModal({
                                     <input
                                         type="number"
                                         min="0"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 transition-all"
                                         value={formData.minimum_stock}
                                         onChange={(e) => setFormData({ ...formData, minimum_stock: parseInt(e.target.value) || 0 })}
                                         required
@@ -239,11 +238,9 @@ export function EditItemModal({
                             </div>
                         </div>
 
-                        <hr className="border-slate-100 dark:border-slate-800" />
-
                         {/* Logistics & Cost */}
                         <div className="space-y-4">
-                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                                 <i className="fas fa-truck-ramp-box text-blue-500 dark:text-blue-400"></i>
                                 <span>Logistics & Cost</span>
                             </div>
@@ -255,7 +252,7 @@ export function EditItemModal({
                                     <div className="relative">
                                         <i className="fas fa-location-dot absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
                                         <input
-                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-9 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all"
                                             value={formData.storage_location}
                                             onChange={(e) => setFormData({ ...formData, storage_location: e.target.value })}
                                             placeholder="e.g. Shelf A-04, Zone 2"
@@ -271,7 +268,7 @@ export function EditItemModal({
                                     <div className="relative">
                                         <i className="fas fa-building-user absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
                                         <select
-                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none outline-none cursor-pointer"
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer"
                                             value={formData.supplier}
                                             onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
                                             disabled={loading}
@@ -295,7 +292,7 @@ export function EditItemModal({
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl pl-8 pr-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-8 pr-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all"
                                             value={formData.purchase_price}
                                             onChange={(e) => setFormData({ ...formData, purchase_price: parseFloat(e.target.value) || 0 })}
                                             placeholder="0.00"
@@ -309,7 +306,7 @@ export function EditItemModal({
                                         Notes / Description
                                     </label>
                                     <textarea
-                                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none resize-none"
+                                        className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all resize-none"
                                         rows={3}
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -323,7 +320,7 @@ export function EditItemModal({
                     </div>
 
                     {/* Footer */}
-                    <div className="px-6 py-4 bg-slate-50/80 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3 shrink-0">
+                    <div className="px-6 py-4 bg-[#ebf0f7]/70 dark:bg-[#14151e]/60 border-t border-slate-200/60 dark:border-white/[0.06] flex items-center justify-end gap-3 shrink-0">
                         <AppButton
                             type="button"
                             variant="neutral"
@@ -346,6 +343,7 @@ export function EditItemModal({
                     </div>
                 </form>
             </div>
-        </div>
+            </div>
+        </Portal>
     );
 }

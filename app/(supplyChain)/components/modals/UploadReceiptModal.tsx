@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { user } from '@/app/(supplyChain)/lib/services/Class/user';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
+import Portal from '@/app/(supplyChain)/components/client/Portal';
 import {
     uploadReceiptAndVerifyAction,
     forceInsertVerificationAction,
@@ -295,23 +296,24 @@ export function UploadReceiptModal({
     };
 
     return (
-        <div
-            className="fixed inset-0 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
-            onClick={onClose}
-        >
+        <Portal>
             <div
-                className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200/80 dark:border-slate-800 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden"
+                className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+                onClick={onClose}
+            >
+            <div
+                className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-2xl w-full p-6  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200/60 dark:border-white/[0.06] shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-2xs shrink-0 ${
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] ${
                             verificationState === 'matched'
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800'
+                                ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-emerald-600'
                                 : verificationState === 'mismatched'
-                                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 border border-amber-200 dark:border-amber-800'
-                                    : 'bg-pink-50 dark:bg-pink-950/40 text-pink-600 border border-pink-100 dark:border-pink-900/40'
+                                    ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-amber-600'
+                                    : 'bg-[#ebf0f7] dark:bg-[#14151e] text-pink-600'
                         }`}>
                             <i className={`fas ${
                                 verificationState === 'matched'
@@ -374,7 +376,7 @@ export function UploadReceiptModal({
                     {verificationState === 'upload' && (
                         <div className="space-y-4">
                             {/* PO Target Details */}
-                            <div className="p-3.5 bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between text-xs">
+                            <div className="p-3.5 bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] flex items-center justify-between text-xs">
                                 <div>
                                     <span className="text-slate-400 block text-[11px]">Expected Supplier:</span>
                                     <strong className="text-slate-800 dark:text-slate-200">{po.supplier_name}</strong>
@@ -392,7 +394,7 @@ export function UploadReceiptModal({
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={handleDrop}
                                 onClick={() => fileInputRef.current?.click()}
-                                className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-pink-500 dark:hover:border-pink-500 rounded-3xl p-8 text-center cursor-pointer bg-slate-50/40 dark:bg-slate-800/20 hover:bg-pink-50/20 transition-all space-y-3"
+                                className="border-2 border-dashed border-slate-300/80 dark:border-slate-700/80 hover:border-pink-500 dark:hover:border-pink-500 rounded-3xl p-8 text-center cursor-pointer bg-[#ebf0f7]/60 dark:bg-[#14151e]/60 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] hover:bg-pink-50/20 transition-all space-y-3"
                             >
                                 <input
                                     type="file"
@@ -415,7 +417,7 @@ export function UploadReceiptModal({
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="w-14 h-14 rounded-2xl bg-pink-100/60 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 mx-auto flex items-center justify-center text-xl shadow-inner">
+                                        <div className="w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-600 dark:text-pink-400 mx-auto flex items-center justify-center text-xl">
                                             <i className="fas fa-cloud-arrow-up"></i>
                                         </div>
                                         <div>
@@ -467,7 +469,7 @@ export function UploadReceiptModal({
                     {/* 2. VERIFYING STATE */}
                     {verificationState === 'verifying' && (
                         <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-                            <div className="w-16 h-16 rounded-3xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 flex items-center justify-center text-2xl shadow-inner animate-pulse">
+                            <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] text-pink-600 flex items-center justify-center text-2xl animate-pulse">
                                 <i className="fas fa-spinner fa-spin"></i>
                             </div>
                             <div>
@@ -530,9 +532,9 @@ export function UploadReceiptModal({
                             )}
 
                             {/* Side-by-Side Comparison Table */}
-                            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden text-xs">
+                            <div className="rounded-2xl border border-white/80 dark:border-white/[0.06] bg-[#ebf0f7] dark:bg-[#14151e] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] overflow-hidden text-xs">
                                 <table className="w-full border-collapse">
-                                    <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-[10px] uppercase font-bold text-slate-500">
+                                    <thead className="bg-[#e4ebf5] dark:bg-[#111218] border-b border-slate-200/60 dark:border-white/[0.06] text-[10px] uppercase font-bold text-slate-500">
                                         <tr>
                                             <th className="px-3.5 py-2.5 text-left">Field</th>
                                             <th className="px-3.5 py-2.5 text-left">Extracted (Receipt)</th>
@@ -540,7 +542,7 @@ export function UploadReceiptModal({
                                             <th className="px-3.5 py-2.5 text-center">Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    <tbody className="divide-y divide-slate-200/60 dark:divide-white/[0.06]">
                                         {/* Vendor */}
                                         <tr>
                                             <td className="px-3.5 py-2.5 font-bold text-slate-600 dark:text-slate-400">Vendor / Supplier</td>
@@ -606,7 +608,7 @@ export function UploadReceiptModal({
 
                             {/* Admin Force Insert Section for Mismatches */}
                             {verificationState === 'mismatched' && isAdminOrManager && (
-                                <div className="p-4 rounded-2xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-3">
+                                <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] space-y-3">
                                     <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                                         <i className="fas fa-shield-halved text-pink-500"></i>
                                         <span>Authorize Administrative Force Insert</span>
@@ -616,7 +618,7 @@ export function UploadReceiptModal({
                                         placeholder="Reason for manual approval (e.g. Authorized vendor fee variation)"
                                         value={forceReason}
                                         onChange={(e) => setForceReason(e.target.value)}
-                                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500"
+                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500"
                                     />
                                     <AppButton
                                         type="button"
@@ -659,8 +661,9 @@ export function UploadReceiptModal({
                             </div>
                         </div>
                     )}
+                    </div>
                 </div>
             </div>
-        </div>
+        </Portal>
     );
 }

@@ -50,15 +50,11 @@ interface MobileNavMenuProps {
 }
 
 export const Navbar = ({ children, className }: NavbarProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollY } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
+  const { scrollY } = useScroll();
   const [visible, setVisible] = useState<boolean>(false);
 
   useMotionValueEvent(scrollY, "change", (latest) => {
-    if (latest > 40) {
+    if (latest > 20) {
       setVisible(true);
     } else {
       setVisible(false);
@@ -67,9 +63,8 @@ export const Navbar = ({ children, className }: NavbarProps) => {
 
   return (
     <motion.div
-      ref={ref}
       className={cn(
-        "fixed inset-x-0 top-0 z-50 w-full px-4 sm:px-6 transition-all duration-300",
+        "fixed inset-x-0 top-0 z-40 w-full px-4 sm:px-6 transition-all duration-300",
         className,
       )}
     >
@@ -90,9 +85,6 @@ export const NavBody = ({ children, className, visible }: NavBodyProps) => {
     <motion.div
       animate={{
         backdropFilter: visible ? "blur(16px)" : "blur(8px)",
-        boxShadow: visible
-          ? "0 12px 36px -8px rgba(0, 0, 0, 0.1), inset 0 1px 0 #ffffff"
-          : "0 4px 20px -4px rgba(0, 0, 0, 0.06), inset 0 1px 0 #ffffff",
         width: visible ? "96%" : "100%",
         maxWidth: "1440px",
         y: visible ? 6 : 0,
@@ -104,8 +96,9 @@ export const NavBody = ({ children, className, visible }: NavBodyProps) => {
         damping: 32,
       }}
       className={cn(
-        "relative z-[60] mx-auto hidden w-full flex-row items-center justify-between self-start px-4 xl:px-6 py-2 xl:py-2.5 lg:flex transition-all duration-200 gap-3 xl:gap-6",
-        "bg-white/95 border border-slate-200/90 dark:bg-[#181920]/95 dark:border-[#353746] dark:shadow-[0_12px_36px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]",
+        "relative z-10 mx-auto hidden w-full flex-row items-center justify-between self-start px-4 xl:px-6 py-2 xl:py-2.5 lg:flex transition-all duration-200 gap-3 xl:gap-6",
+        "bg-[#f0f3f8]/95 border border-white/80 dark:bg-[#191a24]/95 dark:border-[#2c2d3c]",
+        "shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)]",
         className,
       )}
     >
@@ -152,9 +145,6 @@ export const MobileNav = ({ children, className, visible }: MobileNavProps) => {
     <motion.div
       animate={{
         backdropFilter: visible ? "blur(16px)" : "blur(12px)",
-        boxShadow: visible
-          ? "0 10px 25px -5px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff"
-          : "0 4px 12px rgba(0,0,0,0.04), inset 0 1px 0 #ffffff",
         width: visible ? "96%" : "100%",
         paddingRight: visible ? "14px" : "12px",
         paddingLeft: visible ? "14px" : "12px",
@@ -167,7 +157,8 @@ export const MobileNav = ({ children, className, visible }: MobileNavProps) => {
         damping: 32,
       }}
       className={cn(
-        "relative z-50 mx-auto flex w-full flex-col items-center justify-between bg-white/95 border border-slate-200/90 px-4 py-2.5 lg:hidden dark:bg-[#181920]/95 dark:border-[#353746] dark:shadow-[0_10px_30px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]",
+        "relative z-10 mx-auto flex w-full flex-col items-center justify-between bg-[#f0f3f8]/95 border border-white/80 px-4 py-2.5 lg:hidden dark:bg-[#191a24]/95 dark:border-[#2c2d3c]",
+        "shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)]",
         className,
       )}
     >
@@ -234,8 +225,9 @@ export const MobileNavMenu = ({
               damping: 28,
             }}
             className={cn(
-              "fixed left-4 right-4 top-20 z-40 flex flex-col rounded-2xl bg-white/95 backdrop-blur-sm shadow-2xl dark:bg-neutral-900/95",
-              "max-h-[calc(100vh-6.5rem)] overflow-hidden border border-slate-200/80 dark:border-neutral-800",
+              "fixed left-4 right-4 top-20 z-40 flex flex-col rounded-2xl bg-[#f0f3f8]/98 backdrop-blur-sm dark:bg-[#191a24]/98",
+              "max-h-[calc(100vh-6.5rem)] overflow-hidden border border-white/80 dark:border-[#2c2d3c]",
+              "shadow-[8px_8px_24px_rgba(166,175,195,0.45),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)]",
               className,
             )}
           >

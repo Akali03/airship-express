@@ -43,39 +43,39 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
     const variantColors = {
         pink: {
-            button: "bg-pink-600 hover:bg-pink-700 text-white shadow-xs focus:ring-pink-500/30",
+            button: "bg-pink-500 hover:bg-pink-600 active:bg-pink-700 text-white border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]",
             icon: "text-pink-600 dark:text-pink-400",
-            bg: "bg-pink-50 dark:bg-pink-950/40",
-            border: "border-pink-200 dark:border-pink-800/40",
-            glow: "ring-4 ring-pink-500/10 dark:ring-pink-500/20",
+            bg: "bg-pink-50/50 dark:bg-pink-950/30",
+            border: "border-pink-200/80 dark:border-pink-800/40",
+            glow: "ring-2 ring-pink-500/20",
         },
         danger: {
-            button: "bg-red-600 hover:bg-red-700 text-white shadow-xs focus:ring-red-500/30",
-            icon: "text-red-500 dark:text-red-400",
-            bg: "bg-red-50 dark:bg-red-950/40",
-            border: "border-red-200 dark:border-red-800/40",
-            glow: "ring-4 ring-red-500/10 dark:ring-red-500/20",
+            button: "bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white border-rose-400/80 shadow-[0_3px_10px_rgba(244,63,94,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]",
+            icon: "text-rose-500 dark:text-rose-400",
+            bg: "bg-rose-50/50 dark:bg-rose-950/30",
+            border: "border-rose-200/80 dark:border-rose-800/40",
+            glow: "ring-2 ring-rose-500/20",
         },
         warning: {
-            button: "bg-amber-600 hover:bg-amber-700 text-white shadow-xs focus:ring-amber-500/30",
+            button: "bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white border-amber-400/80 shadow-[0_3px_10px_rgba(245,158,11,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]",
             icon: "text-amber-500 dark:text-amber-400",
-            bg: "bg-amber-50 dark:bg-amber-950/40",
-            border: "border-amber-200 dark:border-amber-800/40",
-            glow: "ring-4 ring-amber-500/10 dark:ring-amber-500/20",
+            bg: "bg-amber-50/50 dark:bg-amber-950/30",
+            border: "border-amber-200/80 dark:border-amber-800/40",
+            glow: "ring-2 ring-amber-500/20",
         },
         success: {
-            button: "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs focus:ring-emerald-500/30",
+            button: "bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white border-emerald-400/80 shadow-[0_3px_10px_rgba(16,185,129,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]",
             icon: "text-emerald-500 dark:text-emerald-400",
-            bg: "bg-emerald-50 dark:bg-emerald-950/40",
-            border: "border-emerald-200 dark:border-emerald-800/40",
-            glow: "ring-4 ring-emerald-500/10 dark:ring-emerald-500/20",
+            bg: "bg-emerald-50/50 dark:bg-emerald-950/30",
+            border: "border-emerald-200/80 dark:border-emerald-800/40",
+            glow: "ring-2 ring-emerald-500/20",
         },
         info: {
-            button: "bg-blue-600 hover:bg-blue-700 text-white shadow-xs focus:ring-blue-500/30",
+            button: "bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white border-blue-400/80 shadow-[0_3px_10px_rgba(59,130,246,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]",
             icon: "text-blue-500 dark:text-blue-400",
-            bg: "bg-blue-50 dark:bg-blue-950/40",
-            border: "border-blue-200 dark:border-blue-800/40",
-            glow: "ring-4 ring-blue-500/10 dark:ring-blue-500/20",
+            bg: "bg-blue-50/50 dark:bg-blue-950/30",
+            border: "border-blue-200/80 dark:border-blue-800/40",
+            glow: "ring-2 ring-blue-500/20",
         },
     };
 
@@ -100,22 +100,24 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
             {isOpen && (
                 <Portal>
-                    <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
                         <div
                             className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
                             onClick={handleCancel}
                         />
 
-                        {/* Raindrop Container Card */}
-                        <div className="relative bg-white/95 dark:bg-[#202128]/95 backdrop-blur-xl rounded-[28px] max-w-md w-full p-6 sm:p-7 
-                                        shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3),inset_0_1px_0_#ffffff] 
-                                        dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.08)]
-                                        border border-slate-200/80 dark:border-[#353746] 
+                        {/* Neumorphic Modal Card */}
+                        <div className="relative bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl max-w-md w-full p-6 sm:p-8 
+                                        border border-white/80 dark:border-[#2c2d3c] 
+                                        shadow-[12px_12px_36px_rgba(166,175,195,0.5),-12px_-12px_36px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] 
+                                        dark:shadow-[14px_14px_40px_rgba(0,0,0,0.85),-8px_-8px_24px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)]
                                         animate-in fade-in zoom-in-95 duration-200 z-10">
                             
-                            {/* Raindrop Icon Pill */}
+                            {/* Debossed Inset Icon Well */}
                             <div
-                                className={`w-16 h-16 rounded-[22px] ${colors.bg} ${colors.border} ${colors.glow} border 
+                                className={`w-16 h-16 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] ${colors.border} ${colors.glow} border 
+                                        shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] 
+                                        dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)]
                                         flex items-center justify-center mx-auto mb-4.5 transition-transform`}
                             >
                                 <i className={`fas ${iconMap[variantKey]} text-2xl ${colors.icon}`}></i>
@@ -142,7 +144,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                                 <button
                                     type="button"
                                     onClick={handleConfirm}
-                                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${colors.button}`}
+                                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer border active:scale-95 ${colors.button}`}
                                 >
                                     {confirmText}
                                 </button>

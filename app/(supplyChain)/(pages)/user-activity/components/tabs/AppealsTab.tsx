@@ -31,7 +31,7 @@ export const AppealsTab: React.FC<AppealsTabProps> = ({ appeals, isLoading, sele
     const areAllSelectedPending = selectedAppeals.size > 0 &&
         Array.from(selectedAppeals).every(id => appeals.find(a => a.id === id)?.status === 'pending');
     return (
-        <div className="bg-white dark:bg-[#1c1d25] rounded-2xl border border-slate-200/90 dark:border-[#353746] shadow-[0_4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.5)] overflow-hidden">
+        <div className="rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75)] overflow-hidden">
             {/* Contextual Bulk Action Bar */}
             {selectedAppeals.size > 0 && (<div className="p-3.5 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white flex items-center justify-between flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200 border-b border-slate-800">
                     <div className="flex items-center gap-3">
@@ -67,7 +67,7 @@ export const AppealsTab: React.FC<AppealsTabProps> = ({ appeals, isLoading, sele
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="border-b border-slate-200/70 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
+                        <tr className="border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
                             <th className="py-4 px-4 w-12 text-center">
                                 <input type="checkbox" checked={allAppealsSelected} ref={(input) => {
             if (input) {
@@ -95,13 +95,13 @@ export const AppealsTab: React.FC<AppealsTabProps> = ({ appeals, isLoading, sele
                 { type: 'date' },
                 { type: 'actions', align: 'right', width: 'w-[150px]' },
             ]}/>) : appeals.length === 0 ? (<tr>
-                                <td colSpan={8} className="py-16 text-center">
-                                    <div className="flex flex-col items-center justify-center gap-2 text-slate-400 dark:text-slate-500">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1 shadow-2xs">
-                                            <i className="fas fa-inbox text-xl"/>
+                                <td colSpan={8} className="py-16 text-center text-slate-400 dark:text-slate-500">
+                                    <div className="flex flex-col items-center justify-center gap-2">
+                                        <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
+                                            <i className="fa-solid fa-message text-2xl text-pink-500 dark:text-pink-400"></i>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">No appeals found</p>
-                                        <p className="text-xs text-slate-400 dark:text-slate-500">There are no appeals matching your current view filter.</p>
+                                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">No appeals found</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">There are no appeals matching your current view filter.</p>
                                     </div>
                                 </td>
                             </tr>) : (appeals.map((appeal) => {
@@ -122,7 +122,7 @@ export const AppealsTab: React.FC<AppealsTabProps> = ({ appeals, isLoading, sele
                                                 <div className="w-7 h-7 rounded-full bg-pink-50 dark:bg-pink-950/40 border border-pink-200/80 dark:border-pink-800/50 text-pink-600 dark:text-pink-400 font-bold text-xs flex items-center justify-center shrink-0 uppercase shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)]">
                                                     {appeal.user_name ? appeal.user_name.charAt(0) : 'U'}
                                                 </div>
-                                                <div className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
+                                                <div className="font-bold text-slate-800 dark:text-slate-200 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
                                                     {appeal.user_name}
                                                 </div>
                                             </div>
@@ -135,14 +135,14 @@ export const AppealsTab: React.FC<AppealsTabProps> = ({ appeals, isLoading, sele
 
                                         {/* Appeal Message */}
                                         <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 max-w-[220px]">
-                                            <span className="truncate block text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-800/60 group-hover:bg-white dark:group-hover:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/60 dark:border-slate-700/60 transition-colors shadow-2xs" title={appeal.appeal_message}>
+                                            <span className="truncate block text-slate-700 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#14151c] px-2.5 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.85)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.6)] font-medium" title={appeal.appeal_message}>
                                                 {appeal.appeal_message}
                                             </span>
                                         </td>
 
                                         {/* Response Message */}
                                         <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 max-w-[180px]">
-                                            {appeal.response_message ? (<span className="truncate block text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40 font-medium shadow-2xs" title={appeal.response_message}>
+                                            {appeal.response_message ? (<span className="truncate block text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 px-2.5 py-1.5 rounded-xl border border-emerald-200/60 dark:border-emerald-900/40 font-semibold shadow-2xs" title={appeal.response_message}>
                                                     {appeal.response_message}
                                                 </span>) : (<span className="text-slate-400 dark:text-slate-500 italic text-[11px] px-1">
                                                     No response yet

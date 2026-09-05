@@ -14,5 +14,5 @@ export default function Portal({ children }: { children: React.ReactNode }) {
 
     if (!mounted) return null;
 
-    return createPortal(children, document.body);
+    return createPortal(<div className="supplychain-container !bg-transparent">{children}</div>, document.body);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
 import { sanitizeBarcode } from "@/app/(supplyChain)/components/global/sanitize";
@@ -46,11 +47,13 @@ const DRIVERS = [
 ];
 
 export default function OutgoingPanel({ isVisible = true }) {
+    const searchParams = useSearchParams();
+    const currentTab = searchParams.get('tab');
     const [parcels, setParcels] = useState<Parcel[]>([]);
     const [loading, setLoading] = useState(true);
     const [barcode, setBarcode] = useState("");
     const [isScanning, setIsScanning] = useState(false);
-    const [isListening, setIsListening] = useState(false);
+    const [isListening, setIsListening] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [bulkQrCode, setBulkQrCode] = useState<string | null>(null);
     const [selectedDriver, setSelectedDriver] = useState<string>("");
@@ -64,30 +67,40 @@ export default function OutgoingPanel({ isVisible = true }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const { confirm } = useConfirm();
 
+    // Auto-focus input when tab is outgoing and scanner is listening
     useEffect(() => {
-        if (isListening && inputRef.current) {
-            setTimeout(() => {
-                inputRef.current?.focus();
-            }, 50);
-        }
-    }, [isListening]);
-
-    useEffect(() => {
-        if (isVisible && isListening && inputRef.current) {
-            setTimeout(() => {
+        if ((currentTab === 'outgoing' || isVisible) && isListening && !isScanning && !showScanner && inputRef.current) {
+            const timer = setTimeout(() => {
                 inputRef.current?.focus();
             }, 100);
+            return () => clearTimeout(timer);
         }
-    }, [isVisible, isListening]);
+    }, [currentTab, isVisible, isListening, isScanning, showScanner]);
+
+    // Keep focus when window gains focus
+    useEffect(() => {
+        const handleWindowFocus = () => {
+            if ((currentTab === 'outgoing' || isVisible) && isListening && !isScanning && !showScanner && inputRef.current) {
+                inputRef.current?.focus();
+            }
+        };
+        window.addEventListener('focus', handleWindowFocus);
+        return () => window.removeEventListener('focus', handleWindowFocus);
+    }, [currentTab, isVisible, isListening, isScanning, showScanner]);
 
     useEffect(() => {
         const fetchCouriers = async () => {
-            const { data } = await supabase
-                .from('couriers')
-                .select('id, code, name')
-                .eq('is_active', true)
-                .order('name');
-            if (data) setCouriers(data);
+            try {
+                const res = await fetch('/api/couriers');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        setCouriers(data.filter((c: any) => c.is_active !== false));
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to load couriers from /api/couriers:', err);
+            }
         };
         fetchCouriers();
     }, []);
@@ -113,9 +126,11 @@ export default function OutgoingPanel({ isVisible = true }) {
         return colors[courierName || ''] || 'text-slate-600';
     };
 
-    const fetchParcels = useCallback(async () => {
+    const fetchParcels = useCallback(async (showLoading = true) => {
         try {
-            setLoading(true);
+            if (showLoading) {
+                setLoading(true);
+            }
 
             const offset = (page - 1) * limit;
 
@@ -152,12 +167,29 @@ export default function OutgoingPanel({ isVisible = true }) {
             setStats({ total: 0 });
             setTotalPages(1);
         } finally {
-            setLoading(false);
+            if (showLoading) {
+                setLoading(false);
+            }
         }
     }, [bulkQrCode, selectedDriver, page, limit]);
 
     useEffect(() => {
-        fetchParcels();
+        fetchParcels(true);
+
+        const subscription = supabase
+            .channel('outgoing_tab_realtime')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'parcels',
+            }, () => {
+                fetchParcels(false);
+            })
+            .subscribe();
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, [fetchParcels]);
 
     const processBarcode = async (barcodeValue: string) => {
@@ -217,7 +249,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                 });
 
                 setBarcode("");
-                await fetchParcels();
+                await fetchParcels(false);
                 setIsScanning(false);
 
                 if (isListening && inputRef.current) {
@@ -273,15 +305,25 @@ export default function OutgoingPanel({ isVisible = true }) {
                     updateData.driver_name = selectedDriver;
                 }
 
-                const { error: updateError } = await supabase
+                const { data: updatedData, error: updateError } = await supabase
                     .from('parcels')
                     .update(updateData)
-                    .eq('id', parcel.id);
+                    .eq('id', parcel.id)
+                    .select()
+                    .single();
 
                 if (updateError) {
                     console.error('Update error:', updateError);
                     throw updateError;
                 }
+
+                // Add to table instantly without full refresh
+                const updatedParcel = updatedData || { ...parcel, ...updateData };
+                setParcels(prev => {
+                    const withoutCurrent = prev.filter(p => p.id !== parcel.id);
+                    return [updatedParcel, ...withoutCurrent];
+                });
+                setStats(prev => ({ total: prev.total + (parcel.status !== 'ready_for_pickup' ? 1 : 0) }));
 
                 toast.success(`Parcel ${parcel.barcode} marked as ready for pickup${selectedDriver ? ` for ${selectedDriver}` : ''}`, {
                     id: toastId,
@@ -295,7 +337,7 @@ export default function OutgoingPanel({ isVisible = true }) {
             }
 
             setBarcode("");
-            await fetchParcels();
+            await fetchParcels(false);
 
             if (isListening && inputRef.current) {
                 setTimeout(() => inputRef.current?.focus(), 100);
@@ -438,7 +480,7 @@ export default function OutgoingPanel({ isVisible = true }) {
             });
 
             setSelectedIds(new Set());
-            await fetchParcels();
+            await fetchParcels(false);
 
             if (isListening && inputRef.current) {
                 setTimeout(() => inputRef.current?.focus(), 100);
@@ -481,7 +523,7 @@ export default function OutgoingPanel({ isVisible = true }) {
             }
 
             toast.success(`Parcel ${barcode} moved back to received`);
-            await fetchParcels();
+            await fetchParcels(false);
 
             if (isListening && inputRef.current) {
                 setTimeout(() => inputRef.current?.focus(), 100);
@@ -532,7 +574,7 @@ export default function OutgoingPanel({ isVisible = true }) {
             });
 
             setSelectedIds(new Set());
-            await fetchParcels();
+            await fetchParcels(false);
 
             if (isListening && inputRef.current) {
                 setTimeout(() => inputRef.current?.focus(), 100);
@@ -580,7 +622,7 @@ export default function OutgoingPanel({ isVisible = true }) {
             }
 
             toast.success(`Parcel ${barcode} dispatched${selectedDriver ? ` to ${selectedDriver}` : ''}`);
-            await fetchParcels();
+            await fetchParcels(false);
 
             if (isListening && inputRef.current) {
                 setTimeout(() => inputRef.current?.focus(), 100);
@@ -596,7 +638,7 @@ export default function OutgoingPanel({ isVisible = true }) {
         setBulkQrCode(null);
         setBulkScannedCount(0);
         toast.info('Showing all ready parcels', { duration: 2000 });
-        fetchParcels();
+        fetchParcels(false);
         if (isListening && inputRef.current) {
             setTimeout(() => inputRef.current?.focus(), 100);
         }
@@ -605,6 +647,7 @@ export default function OutgoingPanel({ isVisible = true }) {
     const clearDriverFilter = () => {
         setSelectedDriver("");
         toast.info('Driver filter cleared', { duration: 2000 });
+        fetchParcels(false);
         if (isListening && inputRef.current) {
             setTimeout(() => inputRef.current?.focus(), 100);
         }
@@ -748,8 +791,8 @@ export default function OutgoingPanel({ isVisible = true }) {
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 transition-all">
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-3 p-4 bg-[#f0f3f8] dark:bg-[#191a24] rounded-2xl border border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_10px_rgba(166,175,195,0.3),-4px_-4px_10px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <i className="fas fa-user-tie text-pink-500 dark:text-pink-400"></i>
                     Assign Driver:
                 </label>
@@ -765,7 +808,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 setTimeout(() => inputRef.current?.focus(), 100);
                             }
                         }}
-                        className="appearance-none bg-white dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700/80 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer min-w-[160px]"
+                        className="appearance-none bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] transition-all cursor-pointer min-w-[160px]"
                     >
                         <option value="" className="dark:bg-slate-900 text-slate-400">No driver assigned</option>
                         {DRIVERS.map((driver) => (
@@ -782,19 +825,19 @@ export default function OutgoingPanel({ isVisible = true }) {
                 </div>
 
                 {selectedDriver && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] text-xs font-bold text-emerald-700 dark:text-emerald-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                         Active: {selectedDriver}
                     </span>
                 )}
 
-                <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto flex items-center gap-1">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto flex items-center gap-1 font-medium">
                     <i className="fas fa-info-circle"></i>
                     <span>Assigned to scanned or dispatched parcels</span>
                 </span>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs dark:shadow-none p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-slate-900 dark:text-slate-100">
+            <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-slate-900 dark:text-slate-100">
                 <div className="lg:col-span-2 space-y-4">
                     <div className="space-y-1.5">
                         <label
@@ -823,10 +866,10 @@ export default function OutgoingPanel({ isVisible = true }) {
                                     onKeyDown={handleKeyDown}
                                     onPaste={handlePaste}
                                     readOnly={!isListening || isScanning}
-                                    className={`w-full rounded-xl border py-2.5 pl-10 pr-24 text-sm font-mono text-slate-800 dark:text-slate-200 transition-all outline-hidden ${isListening
-                                        ? 'border-emerald-500 dark:border-emerald-600 focus-visible:ring-emerald-500/20'
-                                        : 'border-slate-300 dark:border-slate-800 focus-visible:border-pink-500 focus-visible:ring-pink-500/20'
-                                        } ${isScanning ? 'cursor-wait bg-slate-50 dark:bg-slate-800/50 opacity-75' : ''}`}
+                                    className={`w-full rounded-2xl border py-3 pl-10 pr-24 text-sm font-mono text-slate-800 dark:text-slate-200 transition-all outline-hidden bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] ${isListening
+                                        ? 'border-emerald-500/80 dark:border-emerald-600/80'
+                                        : 'border-slate-300/60 dark:border-slate-800/60'
+                                        } ${isScanning ? 'cursor-wait opacity-75' : ''}`}
                                     placeholder={
                                         isListening
                                             ? "Scan barcode or type and press Enter..."
@@ -840,7 +883,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 />
 
                                 <span
-                                    className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-medium px-2 py-0.5 rounded-md flex items-center gap-1.5 transition-colors ${isListening
+                                    className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 transition-colors ${isListening
                                         ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60'
                                         : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                         }`}
@@ -854,11 +897,14 @@ export default function OutgoingPanel({ isVisible = true }) {
                             </div>
 
                             <div className="flex shrink-0 gap-2.5">
-                                <AppButton
+                                <button
                                     type="button"
-                                    variant={isListening ? "warning" : "success"}
-                                    size="lg"
                                     onClick={isListening ? handleStopListening : handleStartListening}
+                                    className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] active:scale-95 cursor-pointer ${
+                                        isListening
+                                            ? 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-amber-600 dark:text-amber-400 border border-white/70 dark:border-[#2a2b38] hover:border-amber-300'
+                                            : 'bg-gradient-to-b from-emerald-500 to-emerald-600 text-white border border-emerald-400/80 shadow-[0_4px_14px_rgba(16,185,129,0.35),inset_0_1px_1.5px_rgba(255,255,255,0.5)]'
+                                    }`}
                                 >
                                     {isListening ? (
                                         <i className="fas fa-pause text-xs" />
@@ -866,17 +912,16 @@ export default function OutgoingPanel({ isVisible = true }) {
                                         <i className="fas fa-play text-xs" />
                                     )}
                                     <span>{isListening ? 'Pause' : 'Start'}</span>
-                                </AppButton>
+                                </button>
 
-                                <AppButton
+                                <button
                                     type="button"
-                                    variant="pink"
-                                    size="lg"
                                     onClick={() => setShowScanner(true)}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white border border-pink-400/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] active:scale-95 transition-all cursor-pointer"
                                 >
                                     <i className="fas fa-camera text-xs" />
                                     <span>Camera</span>
-                                </AppButton>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -884,7 +929,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                     <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                             {!isListening && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/60 rounded-md font-medium">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 text-amber-700 dark:text-amber-400 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-full font-bold shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)]">
                                     <svg className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
@@ -893,7 +938,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                             )}
 
                             {selectedDriver && isListening && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-md font-medium">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 text-emerald-700 dark:text-emerald-400 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-full font-bold shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)]">
                                     <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
@@ -902,7 +947,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                             )}
 
                             {bulkQrCode ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-md font-medium">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 text-blue-700 dark:text-blue-400 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-full font-bold shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)]">
                                     <svg className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                                     </svg>
@@ -920,7 +965,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                             )}
                         </div>
 
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 text-xs text-slate-400 dark:text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                             <span className="flex items-center gap-1">
                                 1. Scan barcode to mark <span className="font-semibold text-slate-700 dark:text-slate-300 ml-1">Ready</span>
                             </span>
@@ -937,8 +982,8 @@ export default function OutgoingPanel({ isVisible = true }) {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 lg:flex lg:flex-col lg:justify-center">
-                    <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 p-3.5 rounded-xl flex flex-col justify-between">
-                        <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">
+                    <div className="bg-[#f0f3f8] dark:bg-[#1d1e28] border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] p-4 rounded-2xl flex flex-col justify-between">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                             Total
                         </span>
                         <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1">
@@ -948,7 +993,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                 </div>
             </div>
 
-            <div className="card border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm dark:shadow-none overflow-hidden text-slate-900 dark:text-slate-100">
+            <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] overflow-hidden text-slate-900 dark:text-slate-100">
                 <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                     <table className="table-pro w-full text-left border-collapse">
                         <thead>
@@ -963,7 +1008,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                             }
                                         }}
                                         onChange={handleSelectAll}
-                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500/20 focus:ring-2 cursor-pointer transition-colors"
+                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-transparent text-pink-500 focus:ring-pink-500/20 focus:ring-2 cursor-pointer transition-colors accent-pink-500"
                                     />
                                 </th>
                                 <th className="w-10 text-center">#</th>
@@ -994,41 +1039,63 @@ export default function OutgoingPanel({ isVisible = true }) {
                                 />
                             ) : parcels.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="py-12 text-center">
-                                        <div className="flex flex-col items-center justify-center gap-3">
-                                            <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
-                                                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                                </svg>
+                                    <td colSpan={9} className="p-0">
+                                        <div className="w-full py-16 px-6 sm:px-12 bg-[#f0f3f8] dark:bg-[#191a24] border-t border-slate-200/60 dark:border-slate-800/80 flex flex-col items-center justify-center text-center">
+                                            <div className="w-full max-w-xl space-y-4">
+                                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] text-emerald-600 dark:text-emerald-400 border border-slate-200/60 dark:border-slate-800 shadow-[inset_3px_3px_7px_rgba(166,175,195,0.4),inset_-3px_-3px_7px_rgba(255,255,255,0.95)] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.06)] mx-auto animate-in zoom-in duration-300">
+                                                    <Send className="w-7 h-7" />
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <h4 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
+                                                        {bulkQrCode 
+                                                            ? 'No Parcels for Bulk QR' 
+                                                            : selectedDriver 
+                                                            ? 'No Parcels for Driver' 
+                                                            : 'No Outgoing Parcels Ready'}
+                                                    </h4>
+                                                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium max-w-md mx-auto">
+                                                        {bulkQrCode 
+                                                            ? `No parcels found matching bulk QR code: ${bulkQrCode}.` 
+                                                            : selectedDriver 
+                                                            ? `No pickup parcels currently assigned to ${selectedDriver}.` 
+                                                            : 'Scan or enter a barcode above to prepare parcels for courier pickup and carrier dispatch.'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                                                    {bulkQrCode && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={clearBulkFilter}
+                                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-800 dark:text-slate-200 border border-white/80 dark:border-[#2a2b38] font-bold text-xs shadow-[4px_4px_9px_rgba(166,175,195,0.35),-4px_-4px_9px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[2px_2px_4px_rgba(166,175,195,0.5),-2px_-2px_4px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95"
+                                                        >
+                                                            <i className="fas fa-undo-alt text-xs" />
+                                                            <span>Show All Parcels</span>
+                                                        </button>
+                                                    )}
+                                                    {selectedDriver && !bulkQrCode && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={clearDriverFilter}
+                                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-800 dark:text-slate-200 border border-white/80 dark:border-[#2a2b38] font-bold text-xs shadow-[4px_4px_9px_rgba(166,175,195,0.35),-4px_-4px_9px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[2px_2px_4px_rgba(166,175,195,0.5),-2px_-2px_4px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95"
+                                                        >
+                                                            <i className="fas fa-times text-xs" />
+                                                            <span>Clear Driver Filter</span>
+                                                        </button>
+                                                    )}
+                                                    {!bulkQrCode && !selectedDriver && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => fetchParcels(true)}
+                                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] border border-white/80 dark:border-[#2a2b38] text-slate-700 dark:text-slate-200 hover:text-pink-600 dark:hover:text-pink-400 text-xs font-bold shadow-[4px_4px_9px_rgba(166,175,195,0.35),-4px_-4px_9px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[2px_2px_4px_rgba(166,175,195,0.5),-2px_-2px_4px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95"
+                                                        >
+                                                            <i className="fas fa-sync-alt text-xs" />
+                                                            <span>Refresh Outgoing</span>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-slate-600 dark:text-slate-200 font-semibold text-sm">No parcels ready for pickup</p>
-                                                <p className="text-slate-400 dark:text-slate-400 text-xs mt-0.5">
-                                                    {bulkQrCode ? `No parcels found with bulk QR: ${bulkQrCode}` : 'Scan barcodes to mark parcels as ready'}
-                                                </p>
-                                            </div>
-                                            {bulkQrCode && (
-                                                <button
-                                                    onClick={clearBulkFilter}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-pink-50 dark:bg-pink-950/40 hover:bg-pink-100 dark:hover:bg-pink-900/50 text-pink-600 dark:text-pink-400 font-semibold text-xs transition-colors cursor-pointer"
-                                                >
-                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                    Show all parcels
-                                                </button>
-                                            )}
-                                            {selectedDriver && !bulkQrCode && (
-                                                <button
-                                                    onClick={clearDriverFilter}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 font-semibold text-xs transition-colors cursor-pointer"
-                                                >
-                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                    Clear driver filter
-                                                </button>
-                                            )}
                                         </div>
                                     </td>
                                 </tr>

@@ -60,16 +60,16 @@ export function LowStockAlert({ items, onStockIn }: LowStockAlertProps) {
     }
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-slate-900/20 dark:hover:shadow-black/60 overflow-hidden">
+        <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] overflow-hidden">
             {/* Header Banner */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50/80 dark:from-amber-950/20 via-amber-50/30 dark:via-transparent to-transparent border-b border-amber-100/80 dark:border-amber-900/30 flex items-center justify-between gap-4 flex-wrap">
+            <div className="p-4 sm:p-5 border-b border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 border border-amber-200/60 dark:border-amber-800/40 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-2xs shrink-0 transition-transform duration-300 hover:scale-110">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-400 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(245,158,11,0.35),inset_0_1px_0_rgba(255,255,255,0.4)] shrink-0">
                         <i className="fas fa-exclamation-triangle text-base" />
                     </div>
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
+                            <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
                                 Low Stock Alert
                             </h3>
                             <StatusBadge tone="amber" size="xs">
@@ -81,7 +81,7 @@ export function LowStockAlert({ items, onStockIn }: LowStockAlertProps) {
                                 </StatusBadge>
                             )}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                             Items currently at or below minimum threshold requiring restocking
                         </p>
                     </div>
@@ -116,16 +116,16 @@ export function LowStockAlert({ items, onStockIn }: LowStockAlertProps) {
                                     }
                                 }}
                                 aria-label={`Restock ${item.item_name}`}
-                                className={`group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl dark:hover:shadow-black/50 hover:-translate-y-0.5 ${isOutOfStock
-                                    ? 'bg-white dark:bg-slate-800/80 border-rose-200/80 dark:border-rose-900/50'
-                                    : 'bg-white dark:bg-slate-800/80 border-amber-200/80 dark:border-amber-900/40'
+                                className={`group relative flex flex-col justify-between p-4 rounded-2xl border transition-all duration-300 cursor-pointer shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] hover:-translate-y-0.5 ${isOutOfStock
+                                    ? 'bg-[#f0f3f8] dark:bg-[#1d1e28] border-rose-300/80 dark:border-rose-900/50'
+                                    : 'bg-[#f0f3f8] dark:bg-[#1d1e28] border-white/70 dark:border-[#2a2b38]'
                                     }`}
                             >
                                 <div>
                                     {/* Item Title & Status Badge */}
                                     <div className="flex items-start justify-between gap-2 mb-2">
                                         <h4
-                                            className="font-semibold text-xs sm:text-sm text-slate-800 dark:text-slate-100 line-clamp-1 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors duration-300"
+                                            className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100 line-clamp-1 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors duration-300"
                                             title={item.item_name}
                                         >
                                             {item.item_name}
@@ -142,17 +142,17 @@ export function LowStockAlert({ items, onStockIn }: LowStockAlertProps) {
                                     {/* Stock Metrics */}
                                     <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
                                         <span>
-                                            Current: <strong className="text-slate-900 dark:text-slate-200 font-semibold">{item.current_stock}</strong> <span className="text-slate-400 dark:text-slate-400">{item.unit}</span>
+                                            Current: <strong className="text-slate-900 dark:text-slate-200 font-bold">{item.current_stock}</strong> <span className="text-slate-400 dark:text-slate-400">{item.unit}</span>
                                         </span>
                                         <span>
-                                            Min: <strong className="text-slate-700 dark:text-slate-300 font-medium">{item.minimum_stock}</strong> <span className="text-slate-400 dark:text-slate-400">{item.unit}</span>
+                                            Min: <strong className="text-slate-700 dark:text-slate-300 font-semibold">{item.minimum_stock}</strong> <span className="text-slate-400 dark:text-slate-400">{item.unit}</span>
                                         </span>
                                     </div>
 
                                     {/* Progress Indicator */}
                                     <div className="space-y-1 mb-3">
                                         <div
-                                            className="w-full h-1.5 bg-slate-100 dark:bg-slate-700/60 rounded-full overflow-hidden transition-all duration-300 group-hover:h-2"
+                                            className="w-full h-2 bg-[#ebf0f7] dark:bg-[#14151c] rounded-full overflow-hidden p-0.5 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.4),inset_-1px_-1px_2px_rgba(255,255,255,0.8)]"
                                             role="progressbar"
                                             aria-valuenow={percentage}
                                             aria-valuemin={0}
@@ -174,15 +174,14 @@ export function LowStockAlert({ items, onStockIn }: LowStockAlertProps) {
                                 </div>
 
                                 {/* Quick Action Footer */}
-                                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs transition-colors duration-300">
+                                <div className="pt-2.5 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs">
                                     <span className="text-[11px] text-slate-400 dark:text-slate-400 font-medium">
                                         <i className="fas fa-clock text-[9px] mr-1"></i>
                                         Quick Action
                                     </span>
-                                    <AppButton
+                                    <button
                                         type="button"
-                                        variant="success"
-                                        size="xs"
+                                        className="px-3 py-1 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-[0_2px_6px_rgba(16,185,129,0.35),inset_0_1px_0_rgba(255,255,255,0.4)] active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onStockIn(item.item_name);
@@ -190,7 +189,7 @@ export function LowStockAlert({ items, onStockIn }: LowStockAlertProps) {
                                     >
                                         <i className="fas fa-plus text-[9px]" />
                                         Add Stock
-                                    </AppButton>
+                                    </button>
                                 </div>
                             </div>
                         );
@@ -200,17 +199,16 @@ export function LowStockAlert({ items, onStockIn }: LowStockAlertProps) {
                 {/* Show More / Show Less Toggle */}
                 {sortedItems.length > 6 && (
                     <div className="flex justify-center pt-2">
-                        <AppButton
+                        <button
                             type="button"
-                            variant="neutral"
-                            size="sm"
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-700 dark:text-slate-200 border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
                             onClick={() => setIsExpanded(!isExpanded)}
                         >
                             <span>
                                 {isExpanded ? 'Show Less' : `Show All Low Stock (${sortedItems.length})`}
                             </span>
                             <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'} text-[10px]`} />
-                        </AppButton>
+                        </button>
                     </div>
                 )}
             </div>

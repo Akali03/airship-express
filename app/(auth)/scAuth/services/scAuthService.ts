@@ -56,6 +56,7 @@ export async function clearUserSession(): Promise<void> {
         localStorage.removeItem('user_id');
         localStorage.removeItem('session_backup');
         document.cookie = 'session_token=; path=/; max-age=0';
+        document.cookie = 'sc_session_token=; path=/; max-age=0';
     }
 }
 

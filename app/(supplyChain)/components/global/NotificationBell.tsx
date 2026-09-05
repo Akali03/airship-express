@@ -677,7 +677,7 @@ export function NotificationBell() {
                             fetchUnreadCount();
                         }
                     }}
-                    className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-[#1c1d25] border border-slate-200/90 dark:border-[#353746] shadow-[0_2px_6px_rgba(0,0,0,0.05),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] hover:bg-slate-50 dark:hover:bg-[#252630] active:scale-95 transition-all duration-200 cursor-pointer"
+                    className="relative flex items-center justify-center w-8 h-8 rounded-full bg-[#f0f3f8] dark:bg-[#1d1e28] border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] active:scale-95 transition-all duration-200 cursor-pointer"
                     aria-label="Notifications"
                 >
                     {totalUnread > 0 ? (
@@ -703,24 +703,24 @@ export function NotificationBell() {
 
                         {/* Main Popover / Modal Panel */}
                         <div className="fixed sm:absolute inset-x-0 top-0 sm:top-full sm:right-0 sm:left-auto mt-0 sm:mt-2 w-full sm:w-96 h-[100dvh] sm:h-auto sm:max-h-[560px] 
-                        bg-white dark:bg-[#1c1d25] 
+                        bg-[#f2f5fa] dark:bg-[#191a24] 
                         rounded-none sm:rounded-2xl 
-                        border-0 sm:border border-slate-200/90 dark:border-[#353746] 
-                        shadow-[0_16px_50px_rgba(0,0,0,0.15),inset_0_1px_0_#ffffff] dark:shadow-[0_20px_60px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] 
+                        border-0 sm:border border-white/80 dark:border-[#2c2d3c] 
+                        shadow-[8px_8px_24px_rgba(166,175,195,0.45),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] 
                         z-50 flex flex-col overflow-hidden animate-in slide-in-from-top-2 duration-200">
 
                             {/* Header */}
                             <div className="flex items-center justify-between px-4 py-3.5 
-                          border-b border-slate-100 dark:border-slate-800 
-                          bg-white/90 dark:bg-[#1c1d25]/90 backdrop-blur-md shrink-0">
+                          border-b border-slate-200/60 dark:border-slate-800 
+                          bg-[#f0f3f8]/95 dark:bg-[#191a24]/95 backdrop-blur-md shrink-0">
                                 <div className="flex items-center gap-2">
                                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                                         Notifications
                                     </h3>
                                     {totalCount > 0 && (
                                         <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold 
-                                bg-slate-100 dark:bg-slate-800 
-                                text-slate-700 dark:text-slate-300 rounded-full border border-slate-200/80 dark:border-slate-700/60">
+                                bg-[#ebf0f7] dark:bg-[#14151c] 
+                                text-slate-700 dark:text-slate-300 rounded-full border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                             {totalCount}
                                         </span>
                                     )}
@@ -795,12 +795,12 @@ export function NotificationBell() {
                                                 key={notification.id}
                                                 onClick={() => handleNotificationClick(notification)}
                                                 className={`group w-full text-left p-4 transition-all duration-150 flex items-start gap-3.5 cursor-pointer 
-                                hover:bg-slate-50/80 dark:hover:bg-slate-700/30 
-                                active:bg-slate-100 dark:active:bg-slate-700/50 
-                                focus:outline-none focus:bg-slate-50 dark:focus:bg-slate-700/30 
+                                hover:bg-[#e8edf5] dark:hover:bg-[#222432] 
+                                active:bg-[#e0e7f1] dark:active:bg-[#262838] 
+                                focus:outline-none focus:bg-[#e8edf5] dark:focus:bg-[#222432] 
                                 ${!notification.is_read
-                                                        ? 'bg-pink-50/25 dark:bg-pink-950/20 relative before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-pink-500'
-                                                        : 'bg-white dark:bg-[#2a2a2e]'
+                                                        ? 'bg-pink-50/40 dark:bg-pink-950/20 relative before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-pink-500'
+                                                        : 'bg-[#f0f3f8] dark:bg-[#191a24]'
                                                     }`}
                                             >
                                                 {/* Icon Column */}
@@ -938,15 +938,13 @@ export function NotificationBell() {
                         </div>
                     </>
                 )}
-            </div>
-
-            {/* Purchase Request Modal - Rendered via Portal */}
+            </div>            {/* Purchase Request Modal - Rendered via Portal */}
             {showModal && selectedNotification && (
                 <Portal>
                     {/* Backdrop with click-to-close */}
                     <div
                         className="fixed inset-0 z-[9999] grid place-items-center p-4 
-                                  bg-gray-900/60 dark:bg-slate-950/80 backdrop-blur-sm 
+                                  bg-slate-950/60 dark:bg-black/75 backdrop-blur-md 
                                   overflow-hidden animate-in fade-in duration-200"
                         onClick={() => {
                             setShowModal(false);
@@ -956,40 +954,34 @@ export function NotificationBell() {
                     >
                         {/* Modal Container */}
                         <div
-                            className="flex flex-col w-full max-w-3xl max-h-[88vh] 
-                                    bg-white dark:bg-[#2a2a2e] 
-                                    rounded-2xl shadow-2xl dark:shadow-[0_20px_25px_-5px_rgba(0,0,0,0.8),0_8px_10px_-6px_rgba(0,0,0,0.5)] 
-                                    overflow-hidden border border-gray-100 dark:border-slate-700/60 
+                            className="flex flex-col w-full max-w-3xl max-h-[90vh] 
+                                    bg-[#f0f3f8] dark:bg-[#161722] 
+                                    rounded-3xl  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] 
+                                    overflow-hidden border border-white/90 dark:border-white/[0.08] 
                                     transform transition-all animate-in zoom-in-95 duration-200"
                             onClick={(e) => e.stopPropagation()}
                         >
 
                             {/* Fixed Header */}
                             <div className="shrink-0 flex items-center justify-between 
-                                          border-b border-gray-100 dark:border-slate-700/60 
-                                          px-6 py-5 bg-white dark:bg-[#2a2a2e]">
+                                          border-b border-slate-200/60 dark:border-white/[0.06] 
+                                          px-6 py-4.5 bg-[#f0f3f8] dark:bg-[#161722]">
                                 <div className="flex items-center gap-3.5">
-                                    <div className="p-3 rounded-xl 
-                                                  bg-indigo-50 dark:bg-indigo-950/30 
-                                                  text-indigo-600 dark:text-indigo-400 
-                                                  border border-indigo-100 dark:border-indigo-800/30">
+                                    <div className="w-11 h-11 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 text-lg">
                                         <FileText className="h-5 w-5" />
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-none">
+                                            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-none">
                                                 Purchase Request
                                             </h3>
                                             {purchaseRequest?.request_number && (
-                                                <span className="text-xs font-mono font-medium 
-                                                                text-gray-500 dark:text-slate-400 
-                                                                bg-gray-100 dark:bg-slate-700/50 
-                                                                px-2 py-0.5 rounded-md">
+                                                <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-[#ebf0f7] dark:bg-[#14151e] px-2.5 py-0.5 rounded-lg border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                     #{purchaseRequest.request_number}
                                                 </span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
                                             Review and manage request details below
                                         </p>
                                     </div>
@@ -1002,40 +994,37 @@ export function NotificationBell() {
                                         setSelectedNotification(null);
                                         setPurchaseRequest(null);
                                     }}
-                                    className="text-gray-400 dark:text-slate-500 
-                                              hover:text-gray-600 dark:hover:text-slate-300 
-                                              hover:bg-gray-100 dark:hover:bg-slate-700/50 
-                                              p-2 rounded-xl transition-colors"
+                                    className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center transition-all cursor-pointer active:scale-95"
                                     aria-label="Close modal"
                                 >
-                                    <X className="h-5 w-5" />
+                                    <X className="h-4 w-4" />
                                 </button>
                             </div>
 
                             {/* Scrollable Content Area */}
-                            <div className="flex-1 overflow-y-auto p-6 space-y-6 dark:bg-[#1c1b1f]">
+                            <div className="flex-1 overflow-y-auto p-6 space-y-5">
                                 {isLoadingPR ? (
                                     <div className="flex flex-col items-center justify-center py-20 gap-3">
                                         <Loader2 className="animate-spin h-8 w-8 text-indigo-600 dark:text-indigo-400" />
-                                        <span className="text-sm text-gray-500 dark:text-slate-400 font-medium">Fetching request details...</span>
+                                        <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Fetching request details...</span>
                                     </div>
                                 ) : purchaseRequest ? (
-                                    <div className="space-y-6">
+                                    <div className="space-y-5">
 
                                         {/* Status & Date Bar */}
                                         <div className="flex flex-wrap items-center justify-between gap-3 
-                                                      p-3.5 bg-gray-50/80 dark:bg-slate-800/30 
-                                                      rounded-xl border border-gray-100 dark:border-slate-700/60">
+                                                      p-4 bg-[#ebf0f7] dark:bg-[#14151e] 
+                                                      rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                                             <div className="flex items-center gap-2">
-                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${getStatusColor(purchaseRequest.status)}`}>
+                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${getStatusColor(purchaseRequest.status)}`}>
                                                     {purchaseRequest.status}
                                                 </span>
-                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${getPriorityColor(purchaseRequest.priority)}`}>
+                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${getPriorityColor(purchaseRequest.priority)}`}>
                                                     {purchaseRequest.priority} Priority
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400 font-medium">
-                                                <Calendar className="h-3.5 w-3.5 text-gray-400 dark:text-slate-500" />
+                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                                <Calendar className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                                                 <span>
                                                     Requested on {new Date(purchaseRequest.date).toLocaleDateString(undefined, {
                                                         year: 'numeric',
@@ -1048,43 +1037,43 @@ export function NotificationBell() {
 
                                         {/* Overview Key-Value Grid */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                            <div className="bg-white dark:bg-[#2a2a2e] rounded-xl p-3.5 
-                                                          border border-gray-200/80 dark:border-slate-700/60 shadow-2xs">
-                                                <div className="flex items-center gap-1.5 text-gray-400 dark:text-slate-500 mb-1">
+                                            <div className="bg-[#f0f3f8] dark:bg-[#1a1b26] rounded-2xl p-4 
+                                                          border border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.3),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)]">
+                                                <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 mb-1">
                                                     <User className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
-                                                    <span className="text-[11px] font-semibold uppercase tracking-wider">Requester</span>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-wider">Requester</span>
                                                 </div>
-                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{purchaseRequest.requested_by}</p>
-                                                <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{purchaseRequest.department}</p>
+                                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{purchaseRequest.requested_by}</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{purchaseRequest.department}</p>
                                             </div>
 
-                                            <div className="bg-white dark:bg-[#2a2a2e] rounded-xl p-3.5 
-                                                          border border-gray-200/80 dark:border-slate-700/60 shadow-2xs">
-                                                <div className="flex items-center gap-1.5 text-gray-400 dark:text-slate-500 mb-1">
+                                            <div className="bg-[#f0f3f8] dark:bg-[#1a1b26] rounded-2xl p-4 
+                                                          border border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.3),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)]">
+                                                <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 mb-1">
                                                     <Building className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
-                                                    <span className="text-[11px] font-semibold uppercase tracking-wider">Supplier</span>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-wider">Supplier</span>
                                                 </div>
-                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{purchaseRequest.supplier_name || '—'}</p>
-                                                <p className="text-xs text-gray-400 dark:text-slate-500">Vendor</p>
+                                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{purchaseRequest.supplier_name || '—'}</p>
+                                                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Vendor</p>
                                             </div>
 
-                                            <div className="bg-white dark:bg-[#2a2a2e] rounded-xl p-3.5 
-                                                          border border-gray-200/80 dark:border-slate-700/60 shadow-2xs">
-                                                <div className="flex items-center gap-1.5 text-gray-400 dark:text-slate-500 mb-1">
+                                            <div className="bg-[#f0f3f8] dark:bg-[#1a1b26] rounded-2xl p-4 
+                                                          border border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.3),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)]">
+                                                <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 mb-1">
                                                     <Tag className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
-                                                    <span className="text-[11px] font-semibold uppercase tracking-wider">Type</span>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-wider">Type</span>
                                                 </div>
-                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{purchaseRequest.type}</p>
-                                                <p className="text-xs text-gray-400 dark:text-slate-500">Category</p>
+                                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{purchaseRequest.type}</p>
+                                                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Category</p>
                                             </div>
 
-                                            <div className="bg-pink-50/50 dark:bg-pink-950/20 rounded-xl p-3.5 
-                                                          border border-pink-100/80 dark:border-pink-800/30 shadow-2xs">
+                                            <div className="bg-[#f0f3f8] dark:bg-[#1a1b26] rounded-2xl p-4 
+                                                          border border-pink-200/80 dark:border-pink-900/40 shadow-[3px_3px_7px_rgba(166,175,195,0.3),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)]">
                                                 <div className="flex items-center gap-1.5 text-pink-600 dark:text-pink-400 mb-1">
                                                     <DollarSign className="h-3.5 w-3.5" />
-                                                    <span className="text-[11px] font-semibold uppercase tracking-wider">Total Amount</span>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-wider">Total Amount</span>
                                                 </div>
-                                                <p className="text-base font-bold text-pink-950 dark:text-pink-200">
+                                                <p className="text-base font-extrabold text-pink-600 dark:text-pink-400">
                                                     ₱{(() => {
                                                         const computedSum = purchaseRequest.items?.reduce((acc: number, item: any) => {
                                                             const q = Number(item.quantity) || 1;
@@ -1100,24 +1089,24 @@ export function NotificationBell() {
 
                                         {/* Context Cards: Description & Reason */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="bg-gray-50/60 dark:bg-slate-800/30 rounded-xl p-4 
-                                                          border border-gray-200/60 dark:border-slate-700/60">
+                                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 
+                                                          border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <FileText className="h-4 w-4 text-gray-400 dark:text-slate-500" />
-                                                    <h4 className="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Description</h4>
+                                                    <FileText className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+                                                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Description</h4>
                                                 </div>
-                                                <p className="text-sm text-gray-600 dark:text-slate-400 whitespace-pre-line leading-relaxed">
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line leading-relaxed font-medium">
                                                     {purchaseRequest.description || 'No description provided.'}
                                                 </p>
                                             </div>
 
-                                            <div className="bg-gray-50/60 dark:bg-slate-800/30 rounded-xl p-4 
-                                                          border border-gray-200/60 dark:border-slate-700/60">
+                                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 
+                                                          border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <AlertCircle className="h-4 w-4 text-amber-500" />
-                                                    <h4 className="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Business Reason</h4>
+                                                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Business Reason</h4>
                                                 </div>
-                                                <p className="text-sm text-gray-600 dark:text-slate-400 whitespace-pre-line leading-relaxed">
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line leading-relaxed font-medium">
                                                     {purchaseRequest.reason || 'No reason specified.'}
                                                 </p>
                                             </div>
@@ -1125,33 +1114,28 @@ export function NotificationBell() {
 
                                         {/* Line Items Table */}
                                         {purchaseRequest.items && purchaseRequest.items.length > 0 && (
-                                            <div className="border border-gray-200/80 dark:border-slate-700/60 rounded-xl overflow-hidden 
-                                                          bg-white dark:bg-[#2a2a2e]">
-                                                <div className="bg-gray-50/80 dark:bg-slate-800/30 px-4 py-3 
-                                                                border-b border-gray-200/80 dark:border-slate-700/60 
-                                                                flex items-center justify-between">
+                                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                                                <div className="pb-3 mb-2 border-b border-slate-200/60 dark:border-white/[0.04] flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
                                                         <Package className="h-4 w-4 text-pink-500 dark:text-pink-400" />
-                                                        <span className="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Requested Line Items</span>
+                                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Requested Line Items</span>
                                                     </div>
-                                                    <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">
+                                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-bold bg-[#f0f3f8] dark:bg-[#1a1b26] px-2 py-0.5 rounded-lg border border-white/80 dark:border-[#2a2b38]">
                                                         {purchaseRequest.items.length} {purchaseRequest.items.length === 1 ? 'Item' : 'Items'}
                                                     </span>
                                                 </div>
 
-                                                <div className="divide-y divide-gray-100 dark:divide-slate-700/60 overflow-x-auto">
+                                                <div className="overflow-x-auto">
                                                     <table className="w-full text-left border-collapse">
                                                         <thead>
-                                                            <tr className="text-[11px] font-semibold uppercase 
-                                                                          text-gray-400 dark:text-slate-500 
-                                                                          bg-gray-50/30 dark:bg-slate-800/20">
-                                                                <th className="py-2.5 px-4">Item</th>
-                                                                <th className="py-2.5 px-4 text-center">Qty</th>
-                                                                <th className="py-2.5 px-4 text-right">Unit Price</th>
-                                                                <th className="py-2.5 px-4 text-right">Total</th>
+                                                            <tr className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200/40 dark:border-white/[0.03]">
+                                                                <th className="py-2 px-3">Item</th>
+                                                                <th className="py-2 px-3 text-center">Qty</th>
+                                                                <th className="py-2 px-3 text-right">Unit Price</th>
+                                                                <th className="py-2 px-3 text-right">Total</th>
                                                             </tr>
                                                         </thead>
-                                                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700/60 text-sm">
+                                                        <tbody className="divide-y divide-slate-200/40 dark:divide-white/[0.03] text-xs font-medium">
                                                             {purchaseRequest.items.map((item: any, index: number) => {
                                                                 const qty = Number(item.quantity) || 1;
                                                                 const directPrice = Number(item.unit_price ?? item.price ?? item.purchase_price ?? 0);
@@ -1163,17 +1147,17 @@ export function NotificationBell() {
                                                                 const rowTotal = Number(item.total) > 0 ? Number(item.total) : (qty * unitPrice);
 
                                                                 return (
-                                                                    <tr key={index} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                                                        <td className="py-3 px-4 font-medium text-gray-800 dark:text-slate-200">
+                                                                    <tr key={index} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                                                                        <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
                                                                             {item.name || item.item_name || item.description || 'Inventory Item'}
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-center text-gray-600 dark:text-slate-400">
+                                                                        <td className="py-2.5 px-3 text-center text-slate-600 dark:text-slate-400">
                                                                             {qty}
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-right text-gray-600 dark:text-slate-400">
+                                                                        <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">
                                                                             ₱{unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-right font-semibold text-gray-900 dark:text-white">
+                                                                        <td className="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-white">
                                                                             ₱{rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                         </td>
                                                                     </tr>
@@ -1186,14 +1170,13 @@ export function NotificationBell() {
                                         )}
 
                                         {/* Creation Audit Stamp */}
-                                        <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500 
-                                                        pt-2 border-t border-gray-100 dark:border-slate-700/60">
+                                        <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-1">
                                             <span>System Record</span>
                                             <span>Created: {new Date(purchaseRequest.created_at).toLocaleString()}</span>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-center py-16 text-gray-500 dark:text-slate-400 font-medium">
+                                    <div className="text-center py-16 text-slate-500 dark:text-slate-400 font-medium">
                                         Failed to load purchase request details.
                                     </div>
                                 )}
@@ -1201,22 +1184,16 @@ export function NotificationBell() {
 
                             {/* Fixed Footer Actions */}
                             {purchaseRequest && (
-                                <div className="shrink-0 border-t border-gray-100 dark:border-slate-700/60 
-                                                p-4 bg-gray-50/80 dark:bg-slate-800/30">
+                                <div className="shrink-0 border-t border-slate-200/60 dark:border-white/[0.06] 
+                                                px-6 py-4 bg-[#ebf0f7]/60 dark:bg-[#14151e]/60 flex items-center justify-end">
                                     {/* Action Buttons (Approve/Reject) for Pending Requests */}
                                     {purchaseRequest.status === 'Pending' && ['admin', 'executive', 'manager'].includes((userRole || '').toLowerCase()) ? (
-                                        <div className="flex items-center justify-end gap-3 pt-2">
+                                        <div className="flex items-center justify-end gap-3 w-full sm:w-auto">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowRejectModal(true)}
                                                 disabled={isApproving}
-                                                className="px-5 py-2.5 text-xs sm:text-sm font-semibold 
-                                                          text-rose-600 dark:text-rose-400 
-                                                          hover:text-rose-700 dark:hover:text-rose-300 
-                                                          bg-white dark:bg-[#202128] 
-                                                          border border-rose-200 dark:border-rose-800/40 
-                                                          hover:bg-rose-50 dark:hover:bg-rose-950/20 
-                                                          rounded-full transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                                                className="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-[#f0f3f8] dark:bg-[#1a1b26] border border-rose-200/80 dark:border-rose-900/40 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
                                             >
                                                 <X className="h-4 w-4" />
                                                 <span>Reject Request</span>
@@ -1225,13 +1202,7 @@ export function NotificationBell() {
                                                 type="button"
                                                 onClick={handleApprove}
                                                 disabled={isApproving}
-                                                className="px-6 py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 
-                                                          hover:from-pink-500 hover:to-rose-500 
-                                                          active:from-pink-700 active:to-rose-700 
-                                                          text-white text-xs sm:text-sm font-semibold rounded-full 
-                                                          transition-all disabled:opacity-50 flex items-center gap-2 
-                                                          shadow-[0_4px_16px_rgba(244,63,94,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] 
-                                                          hover:shadow-[0_6px_20px_rgba(244,63,94,0.45)] cursor-pointer"
+                                                className="px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 shadow-[3px_3px_8px_rgba(236,72,153,0.35),-2px_-2px_6px_rgba(255,255,255,0.4)] border border-pink-400/60 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                                             >
                                                 {isApproving ? (
                                                     <>
@@ -1248,8 +1219,8 @@ export function NotificationBell() {
                                         </div>
                                     ) : (
                                         <div className="flex items-center justify-center gap-2 text-xs font-medium 
-                                                        text-gray-500 dark:text-slate-400 py-1">
-                                            <Clock className="h-4 w-4 text-gray-400 dark:text-slate-500" />
+                                                        text-slate-500 dark:text-slate-400 py-1 w-full">
+                                            <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <span>This request is currently {purchaseRequest.status.toLowerCase()}</span>
                                         </div>
                                     )}
@@ -1264,17 +1235,17 @@ export function NotificationBell() {
             {/* Reject Reason Modal - Rendered via Portal with high z-index */}
             {showRejectModal && (
                 <Portal>
-                    <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-md 
+                    <div className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md 
                                   flex items-center justify-center z-[100000] p-4 animate-in fade-in duration-200">
-                        <div className="bg-white/95 dark:bg-[#202128]/95 backdrop-blur-xl rounded-[28px] max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200/80 dark:border-[#353746] animate-in zoom-in-95 duration-200">
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-md w-full p-6 sm:p-7  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] animate-in zoom-in-95 duration-200">
                             
-                            {/* Raindrop Warning Icon */}
-                            <div className="w-14 h-14 rounded-[20px] bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4 shadow-[0_4px_16px_rgba(244,63,94,0.15)]">
+                            {/* Inset Icon Well */}
+                            <div className="w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-rose-200/80 dark:border-rose-900/40 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4">
                                 <X className="h-6 w-6" />
                             </div>
 
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white text-center">Reject Purchase Request</h3>
-                            <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 text-center mt-1 mb-4">
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white text-center tracking-tight">Reject Purchase Request</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1 mb-4 font-medium">
                                 Please provide a reason for rejecting this purchase request.
                             </p>
 
@@ -1283,14 +1254,13 @@ export function NotificationBell() {
                                     value={rejectReason}
                                     onChange={(e) => setRejectReason(e.target.value)}
                                     placeholder="Enter specific reason for rejection..."
-                                    className="w-full px-4 py-3 border border-gray-200 dark:border-slate-700/80 
-                                              bg-slate-50 dark:bg-slate-900/60 
-                                              text-gray-900 dark:text-white
-                                              rounded-2xl focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 
-                                              outline-none transition resize-none h-28 text-xs sm:text-sm"
+                                    className="w-full px-4 py-3 bg-[#e2e8f0]/60 dark:bg-[#101118] border border-white/60 dark:border-white/[0.04] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] 
+                                              text-slate-800 dark:text-slate-200
+                                              rounded-2xl focus:ring-2 focus:ring-rose-500/30 
+                                              outline-none transition resize-none h-28 text-xs sm:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600"
                                     maxLength={500}
                                 />
-                                <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1 text-right">
+                                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 text-right font-medium">
                                     {rejectReason.length}/500 characters
                                 </p>
                             </div>
@@ -1302,9 +1272,9 @@ export function NotificationBell() {
                                         setShowRejectModal(false);
                                         setRejectReason('');
                                     }}
-                                    className="flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold 
-                                              text-gray-700 dark:text-slate-300 
-                                              bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                    className="flex-1 py-2.5 px-4 rounded-2xl text-xs sm:text-sm font-bold 
+                                              text-slate-700 dark:text-slate-300 
+                                              bg-[#f0f3f8] dark:bg-[#1a1b26] border border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55)] transition-all cursor-pointer active:scale-95"
                                 >
                                     Cancel
                                 </button>
@@ -1312,10 +1282,9 @@ export function NotificationBell() {
                                     type="button"
                                     onClick={handleReject}
                                     disabled={isApproving || !rejectReason.trim()}
-                                    className="flex-1 py-2.5 px-4 bg-gradient-to-r from-red-600 to-rose-600 
-                                              hover:from-red-500 hover:to-rose-500 
-                                              text-white text-xs sm:text-sm font-semibold rounded-full 
-                                              transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(239,68,68,0.35)] cursor-pointer"
+                                    className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 border border-rose-400/60
+                                              text-white text-xs sm:text-sm font-bold rounded-2xl 
+                                              shadow-[3px_3px_8px_rgba(225,29,72,0.35)] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                                 >
                                     {isApproving ? (
                                         <>

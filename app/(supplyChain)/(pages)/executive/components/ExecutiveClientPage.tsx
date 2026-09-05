@@ -6,9 +6,12 @@ import AiQuestions from "@/app/(supplyChain)/components/global/AiQuestions";
 import ExecutiveCharts from './ExecutiveCharts';
 import { useExecutiveData } from '../hooks/useExecutiveData';
 import { CardsSkeleton, ChartsSkeleton } from '@/app/(supplyChain)/components/ui/SkeletonLoader';
+import ExecutivePdfExportModal from './modals/ExecutivePdfExportModal';
+import { useState } from 'react';
 
 export default function ExecutiveClientPage() {
     const { data, loading, isRefreshing, isLoadedFromCache, refresh } = useExecutiveData();
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
     const pageKpis = data?.pageKpis || {
         parcelsToday: 0,
@@ -68,11 +71,10 @@ export default function ExecutiveClientPage() {
                 </div>
 
                 <div className="shrink-0 self-stretch sm:self-auto flex items-center justify-end">
-                    <DownloadBtn />
+                    <DownloadBtn onClick={() => setIsPdfModalOpen(true)} />
                 </div>
             </div>
 
-            {/* KPI Cards Grid */}
             {loading && !data ? (
                 <CardsSkeleton count={4} className="grid-cols-2 sm:grid-cols-2 xl:grid-cols-4" />
             ) : (
@@ -108,7 +110,6 @@ export default function ExecutiveClientPage() {
                 </div>
             )}
 
-            {/* AI Questions */}
             <AiQuestions />
 
             {/* Executive Charts Container */}
@@ -116,6 +117,15 @@ export default function ExecutiveClientPage() {
                 <ChartsSkeleton layout="dual-line-doughnut" />
             ) : (
                 data && <ExecutiveCharts data={data} />
+            )}
+
+            {/* Executive Official PDF Export Modal */}
+            {data && (
+                <ExecutivePdfExportModal
+                    isOpen={isPdfModalOpen}
+                    onClose={() => setIsPdfModalOpen(false)}
+                    data={data}
+                />
             )}
         </div>
     );

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
 import { useDebounce } from "@/app/(supplyChain)/hooks/useDebounce";
 import { toast } from "sonner";
@@ -127,6 +127,7 @@ export default function SortingPanel() {
     const [allCities, setAllCities] = useState<string[]>([]);
     const [allRegions, setAllRegions] = useState<string[]>([]);
     const [generatingAllBulk, setGeneratingAllBulk] = useState(false);
+    const [allParcelsList, setAllParcelsList] = useState<Parcel[]>([]);
     const [groupedParcels, setGroupedParcels] = useState<GroupedParcel[]>([]);
     const [viewParcel, setViewParcel] = useState<Parcel | null>(null);
     const [showViewModal, setShowViewModal] = useState(false);
@@ -157,8 +158,11 @@ export default function SortingPanel() {
         return Math.random().toString(36).substring(2, 8).toUpperCase();
     }, []); // check qr
     const allHaveAllQr = useCallback(() => {
-        return parcels.length > 0 && parcels.every(p => p.bulk_qr_code && p.bulk_qr_city && p.bulk_qr_courier);
-    }, [parcels]); // existing qr
+        const list = selectedParcelIds.size > 0
+            ? allParcelsList.filter(p => selectedParcelIds.has(p.id))
+            : (allParcelsList.length > 0 ? allParcelsList : parcels);
+        return list.length > 0 && list.every(p => p.bulk_qr_code && p.bulk_qr_city && p.bulk_qr_courier);
+    }, [selectedParcelIds, allParcelsList, parcels]); // existing qr
     const buildExistingQrMaps = useCallback((parcelsList: Parcel[]) => {
         const cityMap = new Map<string, string>();
         const courierMap = new Map<string, string>();
@@ -179,12 +183,18 @@ export default function SortingPanel() {
         return { cityQrMap: cityMap, courierQrMap: courierMap };
     }, [sanitizeForQr]);
     const handleGenerateAllBulkQr = async () => {
-        if (parcels.length === 0) {
+        const targetList = selectedParcelIds.size > 0
+            ? allParcelsList.filter(p => selectedParcelIds.has(p.id))
+            : allParcelsList.length > 0
+                ? allParcelsList
+                : parcels;
+
+        if (targetList.length === 0) {
             toast.warning('No parcels found to generate bulk QR');
             return;
         }
-        if (allHaveAllQr()) {
-            toast.info(`All ${parcels.length} parcels already have all QR codes`, { duration: 3000 });
+        if (targetList.every(p => p.bulk_qr_code && p.bulk_qr_city && p.bulk_qr_courier)) {
+            toast.info(`All ${targetList.length} parcels already have all QR codes`, { duration: 3000 });
             return;
         }
         const warningMessage = (<div className="space-y-3 text-left text-sm text-slate-600 dark:text-slate-300">
@@ -198,7 +208,7 @@ export default function SortingPanel() {
                         Batch Summary:
                     </p>
                     <ul className="list-disc list-inside text-slate-600 dark:text-slate-400 space-y-0.5">
-                        <li>Items: <span className="font-semibold text-slate-900 dark:text-white">{parcels.length} parcel{parcels.length > 1 ? 's' : ''}</span></li>
+                        <li>Items: <span className="font-semibold text-slate-900 dark:text-white">{targetList.length} parcel{targetList.length > 1 ? 's' : ''}</span></li>
                         <li>Action: Assign shared Global, City, and Courier QR codes & Move to Ready for Pickup</li>
                     </ul>
                 </div>{/* note */}
@@ -219,7 +229,7 @@ export default function SortingPanel() {
 
                 <p className="pt-1 font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2">
                     <i className="fas fa-qrcode text-emerald-500 dark:text-emerald-400"></i>
-                    Proceed with generating QR codes for {parcels.length} parcel{parcels.length > 1 ? 's' : ''}?
+                    Proceed with generating QR codes for {targetList.length} parcel{targetList.length > 1 ? 's' : ''}?
                 </p>
             </div>);
         const confirmed = await confirm({
@@ -232,17 +242,17 @@ export default function SortingPanel() {
         if (!confirmed)
             return;
         setGeneratingAllBulk(true);
-        const toastId = toast.loading(`Generating all bulk QR codes for ${parcels.length} parcels...`);
+        const toastId = toast.loading(`Generating all bulk QR codes for ${targetList.length} parcels...`);
         try { // build qr maps
-            const existingMaps = buildExistingQrMaps(parcels);
+            const existingMaps = buildExistingQrMaps(targetList);
             const generatedCityQrs = new Map<string, string>();
             const generatedCourierQrs = new Map<string, string>(); // main global qr
-            const existingGlobalQr = parcels.find(p => p.bulk_qr_code)?.bulk_qr_code;
+            const existingGlobalQr = targetList.find(p => p.bulk_qr_code)?.bulk_qr_code;
             const globalQrCode = existingGlobalQr || `BULK-${generateRandomCode()}`; // group qr
             const cityGroups: Record<string, number[]> = {};
             const courierGroups: Record<string, number[]> = {};
             const globalIds: number[] = [];
-            parcels.forEach((parcel) => {
+            targetList.forEach((parcel) => {
                 if (!parcel.bulk_qr_code) {
                     globalIds.push(parcel.id);
                 } // group city
@@ -295,7 +305,7 @@ export default function SortingPanel() {
                 if (courierError)
                     throw courierError;
             } // update status
-            const allParcelIds = parcels.map(p => p.id);
+            const allParcelIds = targetList.map(p => p.id);
             if (allParcelIds.length > 0) {
                 const { error: statusError } = await supabase
                     .from('parcels')
@@ -304,7 +314,7 @@ export default function SortingPanel() {
                 if (statusError)
                     throw statusError;
             }
-            toast.success(`All bulk QR codes generated & moved to Ready for pickup for ${parcels.length} parcels!`, {
+            toast.success(`All bulk QR codes generated & moved to Ready for pickup for ${targetList.length} parcels!`, {
                 id: toastId,
                 duration: 4000,
                 action: {
@@ -324,10 +334,153 @@ export default function SortingPanel() {
         finally {
             setGeneratingAllBulk(false);
         }
-    }; // fetch data
-    const fetchData = useCallback(async () => {
+    };
+
+    // Helper to group parcels by region, city, courier, and date in-memory
+    const processSortingParcels = useCallback((parcelsList: Parcel[], preserveExpandedMap?: Map<string, boolean>) => {
+        // 1. Group by Region and City
+        const regionsMap = new Map<string, Map<string, {
+            parcels: Parcel[];
+            couriers: Map<string, number>;
+            bulkQrCode: string | null;
+            bulkQrCity: string | null;
+        }>>();
+
+        // 2. Courier stats
+        const courierStatsMap = new Map<string, { parcels: Parcel[]; bulkQrCode: string | null }>();
+
+        // 3. Date groups
+        const dateGroupsMap = new Map<string, Parcel[]>();
+
+        parcelsList.forEach(parcel => {
+            const region = parcel.region || 'Unassigned Region';
+            const city = parcel.city || 'Unassigned City';
+            const courier = parcel.courier || 'Unassigned Courier';
+
+            // Region & City Map
+            if (!regionsMap.has(region)) {
+                regionsMap.set(region, new Map());
+            }
+            const regionCities = regionsMap.get(region)!;
+            if (!regionCities.has(city)) {
+                regionCities.set(city, {
+                    parcels: [],
+                    couriers: new Map(),
+                    bulkQrCode: parcel.bulk_qr_code || null,
+                    bulkQrCity: parcel.bulk_qr_city || null
+                });
+            }
+            const cityData = regionCities.get(city)!;
+            cityData.parcels.push(parcel);
+            cityData.couriers.set(courier, (cityData.couriers.get(courier) || 0) + 1);
+            if (parcel.bulk_qr_code && !cityData.bulkQrCode) cityData.bulkQrCode = parcel.bulk_qr_code;
+            if (parcel.bulk_qr_city && !cityData.bulkQrCity) cityData.bulkQrCity = parcel.bulk_qr_city;
+
+            // Courier stats
+            if (!courierStatsMap.has(courier)) {
+                courierStatsMap.set(courier, { parcels: [], bulkQrCode: parcel.bulk_qr_courier || null });
+            }
+            const courierData = courierStatsMap.get(courier)!;
+            courierData.parcels.push(parcel);
+            if (parcel.bulk_qr_courier && !courierData.bulkQrCode) courierData.bulkQrCode = parcel.bulk_qr_courier;
+
+            // Date groups
+            const dateStr = new Date(parcel.created_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            if (!dateGroupsMap.has(dateStr)) {
+                dateGroupsMap.set(dateStr, []);
+            }
+            dateGroupsMap.get(dateStr)!.push(parcel);
+        });
+
+        // Convert Region Map to RegionGroup[]
+        const regionGroupsData: RegionGroup[] = Array.from(regionsMap.entries()).map(([region, citiesMap]) => {
+            const cities: CityGroup[] = Array.from(citiesMap.entries()).map(([city, data]) => ({
+                city,
+                total: data.parcels.length,
+                couriers: Array.from(data.couriers.entries()).map(([name, count]) => ({ name, count })),
+                parcels: data.parcels,
+                hasBulkQr: Boolean(data.bulkQrCode || data.bulkQrCity),
+                bulkQrCode: data.bulkQrCode,
+                bulkQrCity: data.bulkQrCity
+            }));
+            const total = cities.reduce((sum, c) => sum + c.total, 0);
+            const isExpanded = preserveExpandedMap?.has(region) ? Boolean(preserveExpandedMap.get(region)) : false;
+            return {
+                region,
+                total,
+                cities,
+                expanded: isExpanded
+            };
+        });
+
+        // Convert all cities across regions to CityGroup[] for city view
+        const allCitiesMap = new Map<string, {
+            parcels: Parcel[];
+            couriers: Map<string, number>;
+            bulkQrCode: string | null;
+            bulkQrCity: string | null;
+        }>();
+        parcelsList.forEach(parcel => {
+            const city = parcel.city || 'Unassigned City';
+            const courier = parcel.courier || 'Unassigned Courier';
+            if (!allCitiesMap.has(city)) {
+                allCitiesMap.set(city, {
+                    parcels: [],
+                    couriers: new Map(),
+                    bulkQrCode: parcel.bulk_qr_code || null,
+                    bulkQrCity: parcel.bulk_qr_city || null
+                });
+            }
+            const data = allCitiesMap.get(city)!;
+            data.parcels.push(parcel);
+            data.couriers.set(courier, (data.couriers.get(courier) || 0) + 1);
+            if (parcel.bulk_qr_code && !data.bulkQrCode) data.bulkQrCode = parcel.bulk_qr_code;
+            if (parcel.bulk_qr_city && !data.bulkQrCity) data.bulkQrCity = parcel.bulk_qr_city;
+        });
+
+        const cityGroupsData: CityGroup[] = Array.from(allCitiesMap.entries()).map(([city, data]) => ({
+            city,
+            total: data.parcels.length,
+            couriers: Array.from(data.couriers.entries()).map(([name, count]) => ({ name, count })),
+            parcels: data.parcels,
+            hasBulkQr: Boolean(data.bulkQrCode || data.bulkQrCity),
+            bulkQrCode: data.bulkQrCode,
+            bulkQrCity: data.bulkQrCity
+        }));
+
+        // Convert Courier stats to CourierStats[]
+        const courierStatsData: CourierStats[] = Array.from(courierStatsMap.entries()).map(([name, data]) => ({
+            name,
+            count: data.parcels.length,
+            parcels: data.parcels,
+            hasBulkQr: Boolean(data.bulkQrCode),
+            bulkQrCode: data.bulkQrCode
+        }));
+
+        // Convert Date groups to GroupedParcel[]
+        const groupedArray: GroupedParcel[] = Array.from(dateGroupsMap.entries()).map(([date, parcels]) => ({
+            date,
+            parcels
+        }));
+
+        return {
+            regionGroupsData,
+            cityGroupsData,
+            courierStatsData,
+            groupedArray
+        };
+    }, []);
+
+    // fetch data
+    const fetchData = useCallback(async (showLoading = true) => {
         try {
-            setLoading(true);
+            if (showLoading) {
+                setLoading(true);
+            }
             const offset = (page - 1) * limit;
             let query = supabase
                 .from('parcels')
@@ -382,145 +535,16 @@ export default function SortingPanel() {
                 .not('region', 'is', null);
             const regions = [...new Set((allRegionsData || []).map(p => p.region).filter(Boolean))] as string[];
             setAllRegions(regions.sort());
-            const regionMap: Record<string, Record<string, CityGroup>> = {};
-            (allParcels || []).forEach((p: any) => {
-                const region = p.region || 'N/A';
-                const city = p.city || 'N/A';
-                if (!regionMap[region]) {
-                    regionMap[region] = {};
-                }
-                if (!regionMap[region][city]) {
-                    regionMap[region][city] = {
-                        city: city,
-                        total: 0,
-                        couriers: [],
-                        parcels: [],
-                        hasBulkQr: false,
-                        bulkQrCode: null,
-                        bulkQrCity: null
-                    };
-                }
-                const cityGroup = regionMap[region][city];
-                cityGroup.total += 1;
-                cityGroup.parcels.push(p);
-                if (p.courier) {
-                    const existingCourier = cityGroup.couriers.find(c => c.name === p.courier);
-                    if (existingCourier) {
-                        existingCourier.count += 1;
-                    }
-                    else {
-                        cityGroup.couriers.push({ name: p.courier, count: 1 });
-                    }
-                }
-                if (p.bulk_qr_city) {
-                    cityGroup.hasBulkQr = true;
-                    cityGroup.bulkQrCode = p.bulk_qr_city;
-                    cityGroup.bulkQrCity = p.bulk_qr_city;
-                }
-            });
-            const regionGroupsData: RegionGroup[] = Object.entries(regionMap).map(([region, citiesMap]) => {
-                const citiesData = Object.values(citiesMap);
-                const total = citiesData.reduce((sum, c) => sum + c.total, 0);
-                return {
-                    region,
-                    total,
-                    cities: citiesData,
-                    expanded: false
-                };
-            });
-            regionGroupsData.sort((a, b) => b.total - a.total);
-            setRegionGroups(regionGroupsData);
-            const allCitiesMap: Record<string, CityGroup> = {};
-            (allParcels || []).forEach((p: any) => {
-                const city = p.city || 'NA';
-                if (!allCitiesMap[city]) {
-                    allCitiesMap[city] = {
-                        city: city,
-                        total: 0,
-                        couriers: [],
-                        parcels: [],
-                        hasBulkQr: false,
-                        bulkQrCode: null,
-                        bulkQrCity: null
-                    };
-                }
-                const cityGroup = allCitiesMap[city];
-                cityGroup.total += 1;
-                cityGroup.parcels.push(p);
-                if (p.courier) {
-                    const existingCourier = cityGroup.couriers.find(c => c.name === p.courier);
-                    if (existingCourier) {
-                        existingCourier.count += 1;
-                    }
-                    else {
-                        cityGroup.couriers.push({ name: p.courier, count: 1 });
-                    }
-                }
-                if (p.bulk_qr_city) {
-                    cityGroup.hasBulkQr = true;
-                    cityGroup.bulkQrCode = p.bulk_qr_city;
-                    cityGroup.bulkQrCity = p.bulk_qr_city;
-                }
-            });
-            const cityGroupsData = Object.values(allCitiesMap);
-            cityGroupsData.sort((a, b) => b.total - a.total);
-            setCityGroups(cityGroupsData);
-            const courierMap: Record<string, {
-                count: number;
-                parcels: Parcel[];
-                hasBulkQr: boolean;
-                bulkQrCode?: string | null;
-                bulkQrCourier?: string | null;
-            }> = {};
-            (allParcels || []).forEach((p: any) => {
-                if (p.courier) {
-                    if (!courierMap[p.courier]) {
-                        courierMap[p.courier] = { count: 0, parcels: [], hasBulkQr: false, bulkQrCode: null, bulkQrCourier: null };
-                    }
-                    courierMap[p.courier].count += 1;
-                    courierMap[p.courier].parcels.push(p);
-                    if (p.bulk_qr_courier) {
-                        courierMap[p.courier].hasBulkQr = true;
-                        courierMap[p.courier].bulkQrCode = p.bulk_qr_courier;
-                        courierMap[p.courier].bulkQrCourier = p.bulk_qr_courier;
-                    }
-                }
-            });
-            const courierStatsData = Object.entries(courierMap)
-                .map(([name, data]) => ({
-                name,
-                count: data.count,
-                parcels: data.parcels,
-                hasBulkQr: data.hasBulkQr,
-                bulkQrCode: data.bulkQrCode,
-                bulkQrCourier: data.bulkQrCourier
-            }))
-                .sort((a, b) => b.count - a.count);
-            setCourierStats(courierStatsData);
-            const grouped = (allParcels || []).reduce((acc: Record<string, Parcel[]>, p: any) => {
-                const date = new Date(p.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-                if (!acc[date])
-                    acc[date] = [];
-                acc[date].push(p);
-                return acc;
-            }, {});
-            const groupedArray = Object.entries(grouped).map(([date, parcels]) => ({
-                date,
-                parcels
-            }));
-            groupedArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            setGroupedParcels(groupedArray);
+            setAllParcelsList(allParcels || []);
+            const derived = processSortingParcels(allParcels || []);
+            setRegionGroups(derived.regionGroupsData);
+            setCityGroups(derived.cityGroupsData);
+            setCourierStats(derived.courierStatsData);
+            setGroupedParcels(derived.groupedArray);
             if (locationCityFilter) {
                 setViewMode("city");
             }
             else if (locationRegionFilter) {
-                setViewMode("region");
-            }
-            else {
                 setViewMode("region");
             }
         }
@@ -529,26 +553,109 @@ export default function SortingPanel() {
             toast.error('Failed to load sorting data');
         }
         finally {
-            setLoading(false);
+            if (showLoading) {
+                setLoading(false);
+            }
         }
-    }, [page, debouncedSearch, locationRegionFilter, locationCityFilter, buildExistingQrMaps]);
+    }, [page, debouncedSearch, locationRegionFilter, locationCityFilter, buildExistingQrMaps, processSortingParcels]);
+
+    // Smooth Realtime Handler - updates in-memory state without re-fetching or page refreshing!
+    const handleRealtimeParcelChange = useCallback((payload: any) => {
+        const eventType = payload.eventType;
+        const newRecord = payload.new as Parcel;
+        const oldRecord = payload.old as { id: number };
+
+        setAllParcelsList(prevAll => {
+            let nextAll: Parcel[];
+            if (eventType === 'INSERT') {
+                if (!newRecord || newRecord.status !== 'received') return prevAll;
+                if (prevAll.some(p => p.id === newRecord.id)) {
+                    nextAll = prevAll.map(p => p.id === newRecord.id ? { ...p, ...newRecord } : p);
+                } else {
+                    nextAll = [newRecord, ...prevAll];
+                    toast.info(`New parcel received in sorting: ${newRecord.barcode || newRecord.tracking_number || newRecord.id}`, { duration: 3000 });
+                }
+            } else if (eventType === 'UPDATE') {
+                if (!newRecord) return prevAll;
+                if (newRecord.status !== 'received') {
+                    nextAll = prevAll.filter(p => p.id !== newRecord.id);
+                } else {
+                    if (prevAll.some(p => p.id === newRecord.id)) {
+                        nextAll = prevAll.map(p => p.id === newRecord.id ? { ...p, ...newRecord } : p);
+                    } else {
+                        nextAll = [newRecord, ...prevAll];
+                    }
+                }
+            } else if (eventType === 'DELETE') {
+                if (!oldRecord?.id) return prevAll;
+                nextAll = prevAll.filter(p => p.id !== oldRecord.id);
+            } else {
+                return prevAll;
+            }
+
+            // In-memory recomputation of all grouping views - zero flicker, zero page refresh!
+            setRegionGroups(prevRegions => {
+                const preserveMap = new Map(prevRegions.map(r => [r.region, r.expanded]));
+                const derived = processSortingParcels(nextAll, preserveMap);
+                setCityGroups(derived.cityGroupsData);
+                setCourierStats(derived.courierStatsData);
+                setGroupedParcels(derived.groupedArray);
+                return derived.regionGroupsData;
+            });
+
+            setFilteredParcels(prevFiltered => {
+                if (eventType === 'INSERT') {
+                    if (!newRecord || newRecord.status !== 'received') return prevFiltered;
+                    if (prevFiltered.some(p => p.id === newRecord.id)) return prevFiltered;
+                    return [newRecord, ...prevFiltered];
+                } else if (eventType === 'UPDATE') {
+                    if (!newRecord || newRecord.status !== 'received') {
+                        return prevFiltered.filter(p => p.id !== newRecord?.id);
+                    }
+                    return prevFiltered.map(p => p.id === newRecord.id ? { ...p, ...newRecord } : p);
+                } else if (eventType === 'DELETE') {
+                    return prevFiltered.filter(p => p.id !== oldRecord?.id);
+                }
+                return prevFiltered;
+            });
+
+            setParcels(prevParcels => {
+                if (eventType === 'INSERT') {
+                    if (!newRecord || newRecord.status !== 'received') return prevParcels;
+                    if (prevParcels.some(p => p.id === newRecord.id)) return prevParcels;
+                    return [newRecord, ...prevParcels];
+                } else if (eventType === 'UPDATE') {
+                    if (!newRecord || newRecord.status !== 'received') {
+                        return prevParcels.filter(p => p.id !== newRecord?.id);
+                    }
+                    return prevParcels.map(p => p.id === newRecord.id ? { ...p, ...newRecord } : p);
+                } else if (eventType === 'DELETE') {
+                    return prevParcels.filter(p => p.id !== oldRecord?.id);
+                }
+                return prevParcels;
+            });
+
+            setTotalItems(nextAll.length);
+            return nextAll;
+        });
+    }, [processSortingParcels]);
+
     useEffect(() => {
-        fetchData();
+        fetchData(true);
         const subscription = supabase
-            .channel('sorting_updates')
+            .channel('sorting_tab_realtime')
             .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'parcels',
-            filter: 'status=eq.received',
-        }, () => {
-            fetchData();
-        })
+                event: '*',
+                schema: 'public',
+                table: 'parcels',
+            }, (payload) => {
+                handleRealtimeParcelChange(payload);
+            })
             .subscribe();
         return () => {
             subscription.unsubscribe();
         };
-    }, [fetchData]); // toggle region
+    }, [fetchData, handleRealtimeParcelChange]); // toggle region
     const toggleRegion = (regionName: string) => {
         setRegionGroups(prev => prev.map(region => region.region === regionName
             ? { ...region, expanded: !region.expanded }
@@ -661,10 +768,32 @@ export default function SortingPanel() {
             setDeleting(false);
         }
     }; // select all
+    const allParcelsInGroups = useMemo(() => {
+        const list: Parcel[] = [];
+        groupedParcels.forEach(g => {
+            list.push(...g.parcels);
+        });
+        return list;
+    }, [groupedParcels]);
+
+    const totalGroupedParcelsCount = allParcelsInGroups.length;
+
+    const isAllSelected = useMemo(() => {
+        if (totalGroupedParcelsCount === 0) return false;
+        return allParcelsInGroups.every((p: Parcel) => selectedParcelIds.has(p.id));
+    }, [allParcelsInGroups, selectedParcelIds, totalGroupedParcelsCount]);
+
+    const isSomeSelected = useMemo(() => {
+        return selectedParcelIds.size > 0 && !isAllSelected;
+    }, [selectedParcelIds, isAllSelected]);
+
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            const ids = new Set(filteredParcels.map(p => p.id));
-            setSelectedParcelIds(ids);
+            const allIds = new Set<number>();
+            allParcelsInGroups.forEach((p: Parcel) => allIds.add(p.id));
+            filteredParcels.forEach((p: Parcel) => allIds.add(p.id));
+            allParcelsList.forEach((p: Parcel) => allIds.add(p.id));
+            setSelectedParcelIds(allIds);
         }
         else {
             setSelectedParcelIds(new Set());
@@ -1071,7 +1200,7 @@ export default function SortingPanel() {
                         <span className="inline-flex items-center text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/60 px-3 py-1 rounded-full border border-slate-200/60 dark:border-slate-700/60">
                             <i className="far fa-calendar-alt text-slate-400 dark:text-slate-500 mr-1.5"></i> {new Date().toISOString().split('T')[0]}
                         </span>
-                        <button type="button" onClick={fetchData} aria-label="Refresh data" className="p-2 rounded-xl text-slate-500 hover:text-pink-600 dark:text-slate-400 dark:hover:text-pink-400 bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer">
+                        <button type="button" onClick={() => fetchData(true)} aria-label="Refresh data" className="p-2 rounded-xl text-slate-500 hover:text-pink-600 dark:text-slate-400 dark:hover:text-pink-400 bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer">
                             <i className="fas fa-sync-alt text-xs"></i>
                         </button>
                     </div>
@@ -1084,8 +1213,8 @@ export default function SortingPanel() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                             </svg>
                         </div>
-                        <input type="text" className="w-full h-10 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-8 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-medium" placeholder="Search by barcode, tracking, or destination..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
-                        {searchTerm && (<button type="button" onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                        <input type="text" className="w-full h-10 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl pl-9 pr-8 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.35),inset_-1px_-1px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-all font-medium" placeholder="Search by barcode, tracking, or destination..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
+                        {searchTerm && (<button type="button" onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[#e8edf5] dark:hover:bg-slate-800 transition-colors cursor-pointer">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
@@ -1093,7 +1222,7 @@ export default function SortingPanel() {
                     </div>
 
                     <div className="relative">
-                        <select className="appearance-none bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer min-w-[130px]" value={locationRegionFilter} onChange={(e) => {
+                        <select className="appearance-none bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:outline-none focus:border-pink-500 transition-all cursor-pointer min-w-[130px]" value={locationRegionFilter} onChange={(e) => {
             setLocationRegionFilter(e.target.value);
             setLocationCityFilter('');
         }}>
@@ -1110,7 +1239,7 @@ export default function SortingPanel() {
                     </div>
 
                     <div className="relative">
-                        <select className="appearance-none bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer min-w-[130px]" value={locationCityFilter} onChange={(e) => {
+                        <select className="appearance-none bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:outline-none focus:border-pink-500 transition-all cursor-pointer min-w-[130px]" value={locationCityFilter} onChange={(e) => {
             setLocationCityFilter(e.target.value);
             if (e.target.value) {
                 setLocationRegionFilter('');
@@ -1128,16 +1257,34 @@ export default function SortingPanel() {
                         </div>
                     </div>
 
-                    <AppButton type="button" variant="success" size="md" onClick={handleGenerateAllBulkQr} disabled={generatingAllBulk || parcels.length === 0 || allHaveAllQr()}>
+                    <AppButton
+                        type="button"
+                        variant={isAllSelected ? "primary" : "neutral"}
+                        size="md"
+                        onClick={() => handleSelectAll(!isAllSelected)}
+                        disabled={totalGroupedParcelsCount === 0}
+                        title={isAllSelected ? "Deselect all parcels across all dates" : "Bulk select all parcels across all dates"}
+                    >
+                        <i className={`fas ${isAllSelected ? 'fa-check-square' : isSomeSelected ? 'fa-minus-square text-pink-500' : 'fa-square'}`} />
+                        <span>{isAllSelected ? `Deselect All (${selectedParcelIds.size})` : `Bulk Select All (${totalGroupedParcelsCount})`}</span>
+                    </AppButton>
+
+                    <AppButton
+                        type="button"
+                        variant="success"
+                        size="md"
+                        onClick={handleGenerateAllBulkQr}
+                        disabled={generatingAllBulk || (allParcelsList.length === 0 && parcels.length === 0) || allHaveAllQr()}
+                    >
                         {generatingAllBulk ? (<>
                                 <i className="fas fa-spinner fa-spin"/>
                                 <span>Generating...</span>
                             </>) : allHaveAllQr() ? (<>
                                 <i className="fas fa-check-circle"/>
-                                <span>All QR Ready</span>
+                                <span>{selectedParcelIds.size > 0 ? "Selected QR Ready" : "All QR Ready"}</span>
                             </>) : (<>
                                 <i className="fas fa-qrcode"/>
-                                <span>Generate All QR (Global, City, Courier)</span>
+                                <span>{selectedParcelIds.size > 0 ? `Generate QR for Selected (${selectedParcelIds.size})` : "Generate All QR (Global, City, Courier)"}</span>
                             </>)}
                     </AppButton>
 
@@ -1182,7 +1329,7 @@ export default function SortingPanel() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
-                        {displayData.length > 0 ? (viewMode === "city" ? ((displayData as CityGroup[]).map((city) => (<div key={city.city} className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md">
+                        {displayData.length > 0 ? (viewMode === "city" ? ((displayData as CityGroup[]).map((city) => (<div key={city.city} className="group relative flex flex-col justify-between rounded-2xl border border-white/80 dark:border-[#2c2d3c] bg-[#f0f3f8] dark:bg-[#191a24] p-4 shadow-[4px_4px_12px_rgba(166,175,195,0.35),-4px_-4px_12px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_14px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all duration-200 hover:-translate-y-0.5">
                                         <div>
                                             <div className="flex items-center justify-between gap-2 mb-3">
                                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -1210,16 +1357,16 @@ export default function SortingPanel() {
                                                                     <span className="font-medium text-slate-600 dark:text-slate-400 truncate mr-2">{courier.name}</span>
                                                                     <span className="font-bold text-slate-800 dark:text-slate-200 shrink-0">{courier.count}</span>
                                                                 </div>
-                                                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                                <div className="w-full bg-[#ebf0f7] dark:bg-[#14151c] rounded-full h-1.5 overflow-hidden shadow-[inset_1px_1px_2px_rgba(0,0,0,0.15)]">
                                                                     <div className={`${barColor} h-full rounded-full transition-all duration-500 ease-out`} style={{ width: `${percentage}%` }}/>
                                                                 </div>
                                                             </div>);
-            })) : (<div className="text-xs text-slate-400 dark:text-slate-500 py-2 italic text-center rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800">
+            })) : (<div className="text-xs text-slate-400 dark:text-slate-500 py-2 italic text-center rounded-lg bg-[#ebf0f7]/60 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800">
                                                         No courier assigned
                                                     </div>)}
                                             </div>
 
-                                            {city.bulkQrCity && (<div className="mt-2 flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1.5 border border-slate-100 dark:border-slate-800">
+                                            {city.bulkQrCity && (<div className="mt-2 flex items-center justify-between rounded-lg bg-[#ebf0f7] dark:bg-[#14151c] px-2.5 py-1.5 border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
                                                     <span className="truncate text-[10px] font-mono font-medium text-slate-600 dark:text-slate-400 max-w-[130px]">
                                                         {city.bulkQrCity}
                                                     </span>
@@ -1232,7 +1379,7 @@ export default function SortingPanel() {
                                                 </div>)}
                                         </div>
 
-                                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                                        <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2">
                                             <button type="button" onClick={() => handleViewCityParcels(city.city, city.parcels)} className="group/viewcity inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-[#ffe6f0] hover:bg-[#ffd9e8] text-pink-700 border border-pink-300/90 shadow-[0_2px_6px_rgba(244,63,94,0.16),inset_0_1px_0_#ffffff] dark:bg-[#341427] dark:hover:bg-[#421932] dark:text-pink-200 dark:border-[#67224c] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="View parcels">
                                                 <Eye className="w-3.5 h-3.5 shrink-0 text-pink-600 dark:text-pink-400"/>
                                                 <span className="max-w-0 overflow-hidden opacity-0 group-hover/viewcity:max-w-[100px] group-hover/viewcity:opacity-100 group-hover/viewcity:ml-1.5 transition-all duration-300 ease-in-out whitespace-nowrap font-bold">
@@ -1246,10 +1393,10 @@ export default function SortingPanel() {
                                                 </StatusBadge>
                                             </div>
                                         </div>
-                                    </div>))) : ((displayData as RegionGroup[]).map((region) => (<div key={region.region} className="h-fit rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm overflow-hidden">
-                                        <div className="flex items-center justify-between p-3.5 cursor-pointer bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors select-none" onClick={() => toggleRegion(region.region)}>
+                                    </div>))) : ((displayData as RegionGroup[]).map((region) => (<div key={region.region} className="h-fit rounded-2xl border border-white/80 dark:border-[#2c2d3c] bg-[#f0f3f8] dark:bg-[#191a24] shadow-[4px_4px_12px_rgba(166,175,195,0.35),-4px_-4px_12px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_14px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all duration-200 overflow-hidden">
+                                        <div className="flex items-center justify-between p-3.5 cursor-pointer bg-[#f0f3f8] dark:bg-[#191a24] hover:bg-[#e8edf5] dark:hover:bg-[#20212f] transition-colors select-none" onClick={() => toggleRegion(region.region)}>
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                                <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#ebf0f7] dark:bg-[#14151c] text-slate-500 dark:text-slate-400 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3)]">
                                                     <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${region.expanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
                                                     </svg>
@@ -1303,38 +1450,75 @@ export default function SortingPanel() {
                                                 </div>
                                             </div>
                                         </AnimatedRegionContent>
-                                    </div>)))) : (<div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-gradient-to-b from-slate-50/80 to-white dark:from-slate-900/50 dark:to-slate-900 py-16 px-6 text-center">
-                                <div className="relative mb-4">
-                                    <div className="absolute inset-0 blur-2xl bg-pink-200/30 dark:bg-pink-900/10 rounded-full"></div>
-                                    <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-pink-50 dark:bg-pink-950/50 text-pink-500 dark:text-pink-400 shadow-sm ring-1 ring-pink-500/10 dark:ring-pink-500/20">
-                                        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <p className="text-base font-bold text-slate-900 dark:text-white">No destinations found</p>
-                                <p className="mt-1.5 max-w-xs text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                                    {searchTerm || locationRegionFilter || locationCityFilter ? (<>
-                                            Try adjusting your search or filter criteria
-                                            <span className="block text-xs text-slate-400 dark:text-slate-500 mt-1">
-                                                No parcels match the current {searchTerm && 'search term'}{searchTerm && (locationRegionFilter || locationCityFilter) && ' and '}{locationRegionFilter && 'region filter'}{locationRegionFilter && locationCityFilter && ' and '}{locationCityFilter && 'city filter'}
-                                            </span>
-                                        </>) : ('No received parcels available for sorting at this time.')}
-                                </p>
-                                {(searchTerm || locationRegionFilter || locationCityFilter) && (<button onClick={() => {
-                    setSearchTerm('');
-                    setLocationRegionFilter('');
-                    setLocationCityFilter('');
-                }} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white cursor-pointer">
-                                        <i className="fas fa-undo-alt text-[10px]"></i>
-                                        <span>Clear all filters</span>
-                                    </button>)}
-                            </div>)}
+                                    </div>)))) : (<div className="col-span-full relative overflow-hidden rounded-3xl border border-white/80 dark:border-[#2c2d3c] bg-[#f0f3f8] dark:bg-[#191a24] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] py-12 px-6 text-center">
+                                 <div className="relative z-10 max-w-sm mx-auto space-y-3">
+                                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-600 dark:text-pink-400 border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] mx-auto">
+                                         <i className="fas fa-map-marked-alt text-xl"></i>
+                                     </div>
+                                     <div className="space-y-1">
+                                         <h4 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">No Destination Groups Found</h4>
+                                         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                             {searchTerm || locationRegionFilter || locationCityFilter 
+                                                 ? 'No destinations match the active search or location filters.'
+                                                 : 'No received parcels currently awaiting destination assignment.'}
+                                         </p>
+                                     </div>
+                                     {(searchTerm || locationRegionFilter || locationCityFilter) && (
+                                         <button
+                                             onClick={() => {
+                                                 setSearchTerm('');
+                                                 setLocationRegionFilter('');
+                                                 setLocationCityFilter('');
+                                             }}
+                                             className="inline-flex items-center gap-2 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-800 dark:text-slate-200 border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] px-3.5 py-2 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                                         >
+                                             <i className="fas fa-undo-alt text-[10px]"></i>
+                                             <span>Clear all filters</span>
+                                         </button>
+                                     )}
+                                 </div>
+                             </div>)}
                     </div>
-                </div>{/* container */}
-                <div className="flex-1 overflow-y-auto max-h-[600px] p-4 space-y-5 bg-slate-50/30 dark:bg-slate-950/40">
-                    {loading ? (<TableContentLoader />) : groupedParcels.length > 0 ? (groupedParcels.map((group) => (<div key={group.date} className="rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-2xs bg-white dark:bg-slate-900 transition-colors">{/* date header */}
-                                <div className="bg-slate-50/80 dark:bg-slate-800/40 px-4 py-2.5 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                </div>                {/* container */}
+                <div className="flex-1 overflow-y-auto max-h-[600px] p-4 space-y-5 bg-[#ebf0f7]/40 dark:bg-[#12131b]/30 rounded-3xl border border-white/70 dark:border-white/[0.04]">
+                    {!loading && groupedParcels.length > 0 && (
+                        <div className="flex items-center justify-between px-5 py-3 rounded-2xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08] shadow-[4px_4px_12px_rgba(166,175,195,0.3),-4px_-4px_12px_rgba(255,255,255,0.9)] dark:shadow-[4px_4px_14px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-colors">
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="checkbox"
+                                    id="bulk-select-all-warehousing"
+                                    checked={isAllSelected}
+                                    ref={(el) => {
+                                        if (el) el.indeterminate = isSomeSelected;
+                                    }}
+                                    onChange={(e) => handleSelectAll(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
+                                />
+                                <label htmlFor="bulk-select-all-warehousing" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer flex items-center gap-2">
+                                    <span>Select All Parcels Across All Dates</span>
+                                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-[#ebf0f7] dark:bg-[#12131b] px-2.5 py-0.5 rounded-full border border-white/80 dark:border-white/[0.05]">
+                                        {totalGroupedParcelsCount} total parcels ({groupedParcels.length} {groupedParcels.length === 1 ? 'date group' : 'date groups'})
+                                    </span>
+                                </label>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {selectedParcelIds.size > 0 && (
+                                    <span className="text-xs font-bold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40 px-2.5 py-1 rounded-full border border-pink-200 dark:border-pink-800/40">
+                                        {selectedParcelIds.size} of {totalGroupedParcelsCount} selected
+                                    </span>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => handleSelectAll(!isAllSelected)}
+                                    className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors px-3 py-1.5 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.3),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_6px_rgba(0,0,0,0.6)] cursor-pointer active:scale-95"
+                                >
+                                    {isAllSelected ? 'Deselect All' : 'Select All Dates'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    {loading ? (<TableContentLoader />) : groupedParcels.length > 0 ? (groupedParcels.map((group) => (<div key={group.date} className="rounded-3xl border border-white/90 dark:border-white/[0.08] overflow-hidden shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-4px_-4px_12px_rgba(255,255,255,0.03)] bg-[#f0f3f8] dark:bg-[#161722] transition-colors">{/* date header */}
+                                <div className="bg-[#ebf0f7]/90 dark:bg-[#12131b]/90 px-5 py-3.5 border-b border-slate-200/60 dark:border-white/[0.06] flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <input type="checkbox" checked={group.parcels.length > 0 && group.parcels.every(p => selectedParcelIds.has(p.id))} onChange={(e) => {
                 const checked = e.target.checked;
@@ -1348,22 +1532,22 @@ export default function SortingPanel() {
                 }
                 setSelectedParcelIds(newSelected);
             }} className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"/>
-                                        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                            <span className="w-6 h-6 rounded-lg bg-pink-50 dark:bg-pink-500/10 border border-pink-100 dark:border-pink-500/20 inline-flex items-center justify-center text-pink-500 dark:text-pink-400 text-[11px]">
+                                        <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                            <span className="w-7 h-7 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.35),inset_-1px_-1px_2px_rgba(255,255,255,0.9)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.6)] inline-flex items-center justify-center text-pink-500 dark:text-pink-400 text-xs">
                                                 <i className="fas fa-calendar-day"></i>
                                             </span>
                                             {group.date}
                                         </h3>
                                     </div>
-                                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-950/80 px-2.5 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-800 shadow-2xs">
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#12131b] px-3 py-1 rounded-full border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                         {group.parcels.length} {group.parcels.length === 1 ? 'parcel' : 'parcels'}
                                     </span>
                                 </div>{/* table */}
                                 <div className="overflow-x-auto">
                                     <table className="table-pro w-full">
                                         <thead>
-                                            <tr>
-                                                <th className="w-10 text-center">
+                                            <tr className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider font-extrabold border-b border-slate-200/60 dark:border-white/[0.04]">
+                                                <th className="w-10 text-center py-3.5 px-4">
                                                     <input type="checkbox" checked={group.parcels.length > 0 && group.parcels.every(p => selectedParcelIds.has(p.id))} onChange={(e) => {
                 const checked = e.target.checked;
                 const ids = group.parcels.map(p => p.id);
@@ -1377,27 +1561,27 @@ export default function SortingPanel() {
                 setSelectedParcelIds(newSelected);
             }} className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"/>
                                                 </th>
-                                                <th className="w-10 text-center">#</th>
-                                                <th>Barcode</th>
-                                                <th>Tracking</th>
-                                                <th>Sender</th>
-                                                <th>Customer</th>
-                                                <th>Customer Number</th>
-                                                <th>Destination</th>
-                                                <th>Courier</th>
-                                                <th>Status</th>
-                                                <th>Time</th>
-                                                <th className="text-center">Global QR</th>
-                                                <th className="text-center">City QR</th>
-                                                <th className="text-center">Courier QR</th>
-                                                <th className="text-right! w-[120px] min-w-[120px]">Actions</th>
+                                                <th className="w-10 text-center py-3.5 px-4">#</th>
+                                                <th className="py-3.5 px-4">Barcode</th>
+                                                <th className="py-3.5 px-4">Tracking</th>
+                                                <th className="py-3.5 px-4">Sender</th>
+                                                <th className="py-3.5 px-4">Customer</th>
+                                                <th className="py-3.5 px-4">Customer Number</th>
+                                                <th className="py-3.5 px-4">Destination</th>
+                                                <th className="py-3.5 px-4">Courier</th>
+                                                <th className="py-3.5 px-4">Status</th>
+                                                <th className="py-3.5 px-4">Time</th>
+                                                <th className="text-center py-3.5 px-4">Global QR</th>
+                                                <th className="text-center py-3.5 px-4">City QR</th>
+                                                <th className="text-center py-3.5 px-4">Courier QR</th>
+                                                <th className="text-right! w-[120px] min-w-[120px] py-3.5 px-4">Actions</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04]">
                                             {group.parcels.map((parcel, index) => {
                 const isSelected = selectedParcelIds.has(parcel.id);
-                return (<tr key={parcel.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors duration-150 group ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''}`}>
-                                                        <td data-label="Select" className="text-center">
+                return (<tr key={parcel.id} className={`hover:bg-[#ebf0f7]/70 dark:hover:bg-[#14151e]/70 transition-colors duration-150 group ${isSelected ? 'bg-pink-50/50 dark:bg-pink-950/30' : ''}`}>
+                                                        <td data-label="Select" className="text-center py-3.5 px-4">
                                                             <input type="checkbox" checked={isSelected} onChange={() => {
                         const newSelected = new Set(selectedParcelIds);
                         if (newSelected.has(parcel.id)) {
@@ -1409,42 +1593,42 @@ export default function SortingPanel() {
                         setSelectedParcelIds(newSelected);
                     }} className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"/>
                                                         </td>
-                                                        <td data-label="#" className="text-center text-slate-400 dark:text-slate-500 font-mono text-[11px]">
+                                                        <td data-label="#" className="text-center text-slate-400 dark:text-slate-500 font-mono text-[11px] py-3.5 px-4">
                                                             {index + 1}
                                                         </td>
-                                                        <td data-label="Barcode" className="whitespace-nowrap">
-                                                            <span className="font-mono text-[11px] text-slate-800 dark:text-slate-200 font-bold bg-slate-100 dark:bg-slate-800/60 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/50">
+                                                        <td data-label="Barcode" className="whitespace-nowrap py-3.5 px-4">
+                                                            <span className="font-mono text-[11px] text-slate-800 dark:text-slate-200 font-bold bg-[#ebf0f7] dark:bg-[#12131b] px-2.5 py-1 rounded-xl border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                                 {parcel.barcode}
                                                             </span>
                                                         </td>
-                                                        <td data-label="Tracking" className="font-mono text-[11px] text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                                        <td data-label="Tracking" className="font-mono text-[11px] text-slate-600 dark:text-slate-300 whitespace-nowrap py-3.5 px-4 font-bold">
                                                             {parcel.tracking_number}
                                                         </td>
-                                                        <td data-label="Sender" className="text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
+                                                        <td data-label="Sender" className="text-slate-800 dark:text-slate-200 font-bold whitespace-nowrap py-3.5 px-4">
                                                             {parcel.sender_name || 'N/A'}
                                                         </td>
-                                                        <td data-label="Customer" className="text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
+                                                        <td data-label="Customer" className="text-slate-800 dark:text-slate-200 font-bold whitespace-nowrap py-3.5 px-4">
                                                             {parcel.customer_name || 'N/A'}
                                                         </td>
-                                                        <td data-label="Customer Number" className="text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
+                                                        <td data-label="Customer Number" className="text-slate-800 dark:text-slate-200 font-bold whitespace-nowrap py-3.5 px-4">
                                                             {parcel.customer_number || 'N/A'}
                                                         </td>
-                                                        <td data-label="Destination" className="text-slate-600 dark:text-slate-300 whitespace-nowrap truncate max-w-3">
+                                                        <td data-label="Destination" className="text-slate-600 dark:text-slate-300 whitespace-nowrap truncate max-w-3 py-3.5 px-4">
                                                             {parcel.destination || 'N/A'}
                                                         </td>
-                                                        <td data-label="Courier" className="text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
+                                                        <td data-label="Courier" className="text-slate-700 dark:text-slate-300 font-bold whitespace-nowrap py-3.5 px-4">
                                                             {parcel.courier || 'N/A'}
                                                         </td>
-                                                        <td data-label="Status" className="whitespace-nowrap">
-                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${getStatusBadge(parcel.status)}`}>
+                                                        <td data-label="Status" className="whitespace-nowrap py-3.5 px-4">
+                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusBadge(parcel.status)}`}>
                                                                 {getStatusLabel(parcel.status)}
                                                             </span>
                                                         </td>
-                                                        <td data-label="Time" className="text-slate-400 dark:text-slate-500 text-[11px] font-mono whitespace-nowrap">
+                                                        <td data-label="Time" className="text-slate-400 dark:text-slate-500 text-[11px] font-mono whitespace-nowrap py-3.5 px-4">
                                                             {new Date(parcel.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                         </td>{/* qr cells */}
-                                                        <td data-label="Global QR" className="text-center">
-                                                            {parcel.bulk_qr_code ? (<button type="button" onClick={(e) => handleCopyTableQr(parcel.bulk_qr_code!, e)} className="group/globalqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-semibold bg-[#e6f8ef] hover:bg-[#d5f3e4] text-emerald-800 border border-emerald-300/90 shadow-[0_2px_6px_rgba(16,185,129,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0f2c1f] dark:hover:bg-[#153a29] dark:text-emerald-200 dark:border-[#1d573c] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Global QR">
+                                                        <td data-label="Global QR" className="text-center py-3.5 px-4">
+                                                            {parcel.bulk_qr_code ? (<button type="button" onClick={(e) => handleCopyTableQr(parcel.bulk_qr_code!, e)} className="group/globalqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-bold bg-[#e6f8ef] hover:bg-[#d5f3e4] text-emerald-800 border border-emerald-300/90 shadow-[0_2px_6px_rgba(16,185,129,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0f2c1f] dark:hover:bg-[#153a29] dark:text-emerald-200 dark:border-[#1d573c] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Global QR">
                                                                     <Clipboard className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"/>
                                                                     <span className="max-w-0 overflow-hidden opacity-0 group-hover/globalqr:max-w-[120px] group-hover/globalqr:opacity-100 group-hover/globalqr:ml-1.5 transition-all duration-300 ease-in-out whitespace-nowrap font-bold">
                                                                         {parcel.bulk_qr_code}
@@ -1452,8 +1636,8 @@ export default function SortingPanel() {
                                                                 </button>) : (<span className="text-slate-300 dark:text-slate-600 text-[10px]">—</span>)}
                                                         </td>
 
-                                                        <td data-label="City QR" className="text-center">
-                                                            {parcel.bulk_qr_city ? (<button type="button" onClick={(e) => handleCopyTableQr(parcel.bulk_qr_city!, e)} className="group/cityqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-semibold bg-[#e0f2fe] hover:bg-[#bae6fd] text-sky-900 border border-sky-300/90 shadow-[0_2px_6px_rgba(14,165,233,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0c2a3a] dark:hover:bg-[#13374b] dark:text-sky-200 dark:border-[#1b4e68] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy City QR">
+                                                        <td data-label="City QR" className="text-center py-3.5 px-4">
+                                                            {parcel.bulk_qr_city ? (<button type="button" onClick={(e) => handleCopyTableQr(parcel.bulk_qr_city!, e)} className="group/cityqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-bold bg-[#e0f2fe] hover:bg-[#bae6fd] text-sky-900 border border-sky-300/90 shadow-[0_2px_6px_rgba(14,165,233,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0c2a3a] dark:hover:bg-[#13374b] dark:text-sky-200 dark:border-[#1b4e68] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy City QR">
                                                                     <Clipboard className="w-3.5 h-3.5 shrink-0 text-sky-600 dark:text-sky-400"/>
                                                                     <span className="max-w-0 overflow-hidden opacity-0 group-hover/cityqr:max-w-[120px] group-hover/cityqr:opacity-100 group-hover/cityqr:ml-1.5 transition-all duration-300 ease-in-out whitespace-nowrap font-bold">
                                                                         {parcel.bulk_qr_city}
@@ -1461,8 +1645,8 @@ export default function SortingPanel() {
                                                                 </button>) : (<span className="text-slate-300 dark:text-slate-600 text-[10px]">—</span>)}
                                                         </td>
 
-                                                        <td data-label="Courier QR" className="text-center">
-                                                            {parcel.bulk_qr_courier ? (<button type="button" onClick={(e) => handleCopyTableQr(parcel.bulk_qr_courier!, e)} className="group/courierqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-semibold bg-[#f3e8ff] hover:bg-[#e9d5ff] text-purple-900 border border-purple-300/90 shadow-[0_2px_6px_rgba(168,85,247,0.16),inset_0_1px_0_#ffffff] dark:bg-[#2e1065] dark:hover:bg-[#3b0764] dark:text-purple-200 dark:border-[#581c87] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Courier QR">
+                                                        <td data-label="Courier QR" className="text-center py-3.5 px-4">
+                                                            {parcel.bulk_qr_courier ? (<button type="button" onClick={(e) => handleCopyTableQr(parcel.bulk_qr_courier!, e)} className="group/courierqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-bold bg-[#f3e8ff] hover:bg-[#e9d5ff] text-purple-900 border border-purple-300/90 shadow-[0_2px_6px_rgba(168,85,247,0.16),inset_0_1px_0_#ffffff] dark:bg-[#2e1065] dark:hover:bg-[#3b0764] dark:text-purple-200 dark:border-[#581c87] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Courier QR">
                                                                     <Clipboard className="w-3.5 h-3.5 shrink-0 text-purple-600 dark:text-purple-400"/>
                                                                     <span className="max-w-0 overflow-hidden opacity-0 group-hover/courierqr:max-w-[120px] group-hover/courierqr:opacity-100 group-hover/courierqr:ml-1.5 transition-all duration-300 ease-in-out whitespace-nowrap font-bold">
                                                                         {parcel.bulk_qr_courier}
@@ -1470,7 +1654,7 @@ export default function SortingPanel() {
                                                                 </button>) : (<span className="text-slate-300 dark:text-slate-600 text-[10px]">—</span>)}
                                                         </td>
 
-                                                        <td data-label="Actions" className="text-right whitespace-nowrap w-[120px] min-w-[120px]">
+                                                        <td data-label="Actions" className="text-right whitespace-nowrap w-[120px] min-w-[120px] py-3.5 px-4">
                                                             <div className="flex items-center justify-end gap-2.5">
                                                                 <CrudActionButton action="view" ariaLabel={`View parcel ${parcel.barcode}`} title="View Parcel" onClick={() => handleViewParcel(parcel)}/>
                                                                 <CrudActionButton action="delete" ariaLabel={`Delete parcel ${parcel.barcode}`} title="Delete Parcel" onClick={() => handleDeleteParcel(parcel.id, parcel.barcode)}/>
@@ -1481,119 +1665,152 @@ export default function SortingPanel() {
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>))) : (<div className="text-center py-16 text-slate-400 dark:text-slate-500">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200/50 dark:border-slate-700/50 flex items-center justify-center text-slate-400 dark:text-slate-500 mx-auto mb-3 shadow-inner">
-                                <i className="fas fa-box-open text-xl"></i>
+                            </div>))) : (<div className="relative overflow-hidden rounded-3xl border border-white/80 dark:border-[#2c2d3c] bg-[#f0f3f8] dark:bg-[#191a24] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] py-14 px-6 text-center">
+                            <div className="relative z-10 max-w-sm mx-auto space-y-3">
+                                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-600 dark:text-pink-400 border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] mx-auto">
+                                    <i className="fas fa-boxes-stacked text-xl"></i>
+                                </div>
+                                <div className="space-y-1">
+                                    <h4 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">No Received Parcels in Sorting</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                        {searchTerm || locationRegionFilter || locationCityFilter
+                                            ? 'No parcels match your active search or filter parameters.'
+                                            : 'Parcels accepted from Inbound Receiving will appear here automatically for QR code assignment and sorting.'}
+                                    </p>
+                                </div>
+                                {(searchTerm || locationRegionFilter || locationCityFilter) ? (
+                                    <button
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            setLocationRegionFilter('');
+                                            setLocationCityFilter('');
+                                        }}
+                                        className="inline-flex items-center gap-2 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-800 dark:text-slate-200 border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] px-3.5 py-2 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                                    >
+                                        <i className="fas fa-undo-alt text-[10px]"></i>
+                                        <span>Clear filters</span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => fetchData(true)}
+                                        className="inline-flex items-center gap-2 rounded-2xl bg-[#f0f3f8] dark:bg-[#1d1e28] border border-white/70 dark:border-[#2a2b38] text-slate-700 dark:text-slate-200 hover:text-pink-600 dark:hover:text-pink-400 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] px-3.5 py-2 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                                    >
+                                        <i className="fas fa-sync-alt text-[10px]"></i>
+                                        <span>Refresh Sorting</span>
+                                    </button>
+                                )}
                             </div>
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No parcels found</p>
-                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-xs mx-auto">Try adjusting your search query or active filter parameters</p>
                         </div>)}
                 </div>
-                {totalItems > 0 && (<div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-3 border-t border-slate-100 dark:border-slate-800">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {totalItems > 0 && (<div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3.5 px-5 bg-[#ebf0f7]/40 dark:bg-[#12131b]/30 rounded-2xl border border-white/70 dark:border-white/[0.04]">
+                        <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
                             Showing {parcels.length} of {totalItems} parcels
                         </div>
                         <Pagination currentPage={page} totalPages={totalPages} onPageChange={handlePageChange}/>
                     </div>)}
             </div>{/* courier summary */}
-            <div className="text-slate-900 dark:text-slate-100">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                    <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-pink-50 dark:bg-pink-950/40 flex items-center justify-center">
-                            <i className="fas fa-truck text-pink-500 dark:text-pink-400 text-xs"></i>
+            <div className="bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08] rounded-3xl p-6  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] transition-all">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-5 pb-3.5 border-b border-slate-200/60 dark:border-white/[0.06]">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-500 dark:text-pink-400 flex items-center justify-center border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
+                            <i className="fas fa-truck text-xs"></i>
                         </div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                            Courier Pickup Summary
-                        </h3>
+                        <div>
+                            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight">
+                                Courier Pickup Summary
+                            </h3>
+                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                Aggregated parcel queues and batch dispatch readiness
+                            </p>
+                        </div>
                     </div>
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-full border border-slate-200/60 dark:border-slate-700/60">
-                        <i className="far fa-clock text-slate-400 dark:text-slate-500 mr-1"></i> Ready for pickup
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#12131b] px-3 py-1 rounded-full border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] flex items-center gap-1.5">
+                        <i className="far fa-clock text-slate-400 dark:text-slate-500"></i>
+                        <span>Ready for pickup</span>
                     </span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {courierStats.length > 0 ? (courierStats.map((courier) => {
             const hasQr = courier.hasBulkQr;
             const qrCode = courier.bulkQrCourier;
-            return (<div key={courier.name} className={`group relative flex flex-col justify-between rounded-2xl border bg-white dark:bg-slate-900 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${hasQr
-                    ? 'border-emerald-200 dark:border-emerald-900/60 hover:border-emerald-300 dark:hover:border-emerald-700/60 hover:shadow-emerald-500/5'
-                    : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-slate-500/5'}`}>
+            return (<div key={courier.name} className={`group relative flex flex-col justify-between rounded-3xl border bg-[#f0f3f8] dark:bg-[#191a24] p-5 transition-all duration-200 hover:-translate-y-1 shadow-[6px_6px_18px_rgba(166,175,195,0.35),-6px_-6px_18px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[6px_6px_20px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] ${hasQr
+                    ? 'border-emerald-300/80 dark:border-emerald-500/30'
+                    : 'border-white/80 dark:border-[#2c2d3c]'}`}>
                                     <div>
-                                        <div className="mb-2 flex items-center justify-between gap-2">
-                                            <span className="truncate text-sm font-bold tracking-tight text-slate-800 dark:text-white" title={courier.name}>
+                                        <div className="mb-3 flex items-center justify-between gap-2">
+                                            <span className="truncate text-sm font-extrabold tracking-tight text-slate-900 dark:text-white" title={courier.name}>
                                                 {courier.name}
                                             </span>
-                                            <span className="inline-flex items-center rounded-full bg-pink-50 dark:bg-pink-950/40 px-2.5 py-0.5 text-xs font-bold text-pink-600 dark:text-pink-400 ring-1 ring-inset ring-pink-500/10 dark:ring-pink-500/20">
-                                                {courier.count}
+                                            <span className="inline-flex items-center rounded-xl bg-[#ebf0f7] dark:bg-[#12131b] px-3 py-1 text-xs font-extrabold text-pink-600 dark:text-pink-400 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3)]">
+                                                {courier.count} {courier.count === 1 ? 'item' : 'items'}
                                             </span>
                                         </div>
 
-                                        <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                                        <div className="flex items-center gap-2 text-[11px] font-bold">
                                             <span className={`h-2 w-2 rounded-full ${hasQr ? 'bg-emerald-500 ring-2 ring-emerald-100 dark:ring-emerald-950' : 'bg-amber-500 ring-2 ring-amber-100 dark:ring-amber-950'}`}/>
-                                            <span className={hasQr ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400'}>
+                                            <span className={hasQr ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400'}>
                                                 {hasQr ? 'Courier QR Ready' : 'Ready for pickup'}
                                             </span>
                                         </div>
 
-                                        {hasQr && qrCode && (<div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1.5 border border-slate-100 dark:border-slate-800">
-                                                <span className="truncate text-[11px] font-mono font-medium text-slate-600 dark:text-slate-400 max-w-[130px]">
+                                        {hasQr && qrCode && (<div className="mt-3.5 flex items-center justify-between rounded-2xl bg-[#ebf0f7] dark:bg-[#12131b] px-3 py-2 border border-white/80 dark:border-white/[0.05] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)]">
+                                                <span className="truncate text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 max-w-[130px]">
                                                     {qrCode}
                                                 </span>
                                                 <button type="button" onClick={(e) => {
                         e.stopPropagation();
                         copyToClipboard(qrCode);
-                    }} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-mono font-semibold bg-[#f3e8ff] hover:bg-[#e9d5ff] text-purple-900 border border-purple-300/90 shadow-[0_2px_6px_rgba(168,85,247,0.16),inset_0_1px_0_#ffffff] dark:bg-[#2e1065] dark:hover:bg-[#3b0764] dark:text-purple-200 dark:border-[#581c87] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-200 ease-in-out cursor-pointer active:scale-95" title="Copy Courier QR">
+                    }} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-mono font-bold bg-[#f3e8ff] hover:bg-[#e9d5ff] text-purple-900 border border-purple-300/90 shadow-[0_2px_6px_rgba(168,85,247,0.16),inset_0_1px_0_#ffffff] dark:bg-[#2e1065] dark:hover:bg-[#3b0764] dark:text-purple-200 dark:border-[#581c87] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-200 ease-in-out cursor-pointer active:scale-95" title="Copy Courier QR">
                                                     <Clipboard className="w-3 h-3 shrink-0 text-purple-600 dark:text-purple-400"/>
-                                                    <span className="font-bold">Copy</span>
+                                                    <span>Copy</span>
                                                 </button>
                                             </div>)}
                                     </div>
 
-                                    <div className="mt-4 flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                        <button type="button" onClick={() => handleViewCourierParcels(courier.name)} className="w-full inline-flex items-center justify-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold bg-[#ffe6f0] hover:bg-[#ffd9e8] text-pink-700 border border-pink-300/90 shadow-[0_2px_6px_rgba(244,63,94,0.16),inset_0_1px_0_#ffffff] dark:bg-[#341427] dark:hover:bg-[#421932] dark:text-pink-200 dark:border-[#67224c] dark:shadow-[0_3px_8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-200 ease-in-out cursor-pointer active:scale-95" title="View parcels">
+                                    <div className="mt-4.5 flex flex-col gap-2 pt-3 border-t border-slate-200/60 dark:border-white/[0.04]">
+                                        <button type="button" onClick={() => handleViewCourierParcels(courier.name)} className="w-full inline-flex items-center justify-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold bg-[#f0f3f8] dark:bg-[#1d1e28] text-pink-700 dark:text-pink-300 border border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] transition-all duration-200 ease-in-out cursor-pointer active:scale-95" title="View parcels">
                                             <Eye className="w-3.5 h-3.5 shrink-0 text-pink-600 dark:text-pink-400"/>
-                                            <span className="font-bold">View parcels</span>
+                                            <span>View parcels</span>
                                         </button>
 
-                                        <button type="button" onClick={() => handleGenerateCourierBulkQr(courier.name)} disabled={generatingBulk || courier.parcels.length === 0 || hasQr} className={`w-full inline-flex items-center justify-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ease-in-out cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${hasQr
-                    ? 'bg-[#e6f8ef] text-emerald-800 border border-emerald-300/90 shadow-[0_2px_6px_rgba(16,185,129,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0f2c1f] dark:text-emerald-200 dark:border-[#1d573c]'
-                    : 'bg-[#e6f8ef] hover:bg-[#d5f3e4] text-emerald-800 border border-emerald-300/90 shadow-[0_2px_6px_rgba(16,185,129,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0f2c1f] dark:hover:bg-[#153a29] dark:text-emerald-200 dark:border-[#1d573c]'}`}>
+                                        <button type="button" onClick={() => handleGenerateCourierBulkQr(courier.name)} disabled={generatingBulk || courier.parcels.length === 0 || hasQr} className={`w-full inline-flex items-center justify-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ease-in-out cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${hasQr
+                    ? 'bg-[#ebf0f7] dark:bg-[#14151c] text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-600/30 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]'
+                    : 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-emerald-700 dark:text-emerald-300 border border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)]'}`}>
                                             <i className={`fas ${hasQr ? 'fa-check-circle text-emerald-600 dark:text-emerald-400' : 'fa-qrcode'} text-xs shrink-0`}/>
-                                            <span className="font-bold">
+                                            <span>
                                                 {hasQr ? 'Courier QR Ready' : 'Generate Courier QR'}
                                             </span>
                                         </button>
                                     </div>
                                 </div>);
-        })) : (<div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-gradient-to-b from-slate-50/80 to-white dark:from-slate-900/50 dark:to-slate-900 py-14 px-6 text-center">
-                            <div className="relative mb-3">
-                                <div className="absolute inset-0 blur-2xl bg-amber-200/30 dark:bg-amber-900/10 rounded-full"></div>
-                                <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-500 dark:text-amber-400 shadow-sm ring-1 ring-amber-500/10 dark:ring-amber-500/20">
-                                    <i className="fas fa-truck text-xl"></i>
+        })) : (<div className="col-span-full relative overflow-hidden rounded-3xl border border-white/80 dark:border-[#2c2d3c] bg-[#f0f3f8] dark:bg-[#191a24] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] py-12 px-6 text-center">
+                            <div className="relative z-10 max-w-sm mx-auto space-y-3">
+                                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-amber-600 dark:text-amber-400 border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] mx-auto">
+                                    <i className="fas fa-truck-fast text-xl"></i>
                                 </div>
-                            </div>
-                            <p className="text-base font-bold text-slate-900 dark:text-white">No couriers available</p>
-                            <p className="mt-1.5 max-w-sm text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                                There are currently no couriers with pending parcels ready for pickup.
-                            </p>
-                            <div className="mt-4 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
-                                <i className="fas fa-info-circle text-slate-300 dark:text-slate-600"></i>
-                                <span>Parcels will appear here when assigned to a courier</span>
+                                <div className="space-y-1">
+                                    <h4 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">No Active Courier Batches</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                        Courier breakdown and bulk QR code generators will display here once received parcels are assigned to couriers.
+                                    </p>
+                                </div>
                             </div>
                         </div>)}
                 </div>
-            </div>{/* city modal */}
+            </div>            {/* city modal */}
             <Portal>
                 {showModal && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-                        <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl bg-white dark:bg-slate-900 shadow-2xl dark:shadow-black/70 border border-slate-200/80 dark:border-slate-800 animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+                        <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-3xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 overflow-hidden">
 
-                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 p-4 sm:px-6">
+                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/[0.06] p-5 sm:px-6">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 border border-pink-100 dark:border-pink-900/30">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
                                         <i className="fas fa-map-pin text-base"></i>
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                                             {selectedParcels.length > 0 ? selectedParcels[0]?.city || 'Parcels' : 'Parcels'}
                                         </h3>
                                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -1619,31 +1836,31 @@ export default function SortingPanel() {
 
                             <div className="relative flex-1 overflow-y-auto">
                                 <table className="w-full text-left text-xs border-collapse">
-                                    <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 backdrop-blur-xs border-b border-slate-200/80 dark:border-slate-800">
+                                    <thead className="sticky top-0 z-10 bg-[#ebf0f7]/95 dark:bg-[#12131b]/95 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-400 backdrop-blur-xs border-b border-slate-200/60 dark:border-white/[0.06]">
                                         <tr>
-                                            <th className="py-3 px-4 sm:px-6">Barcode</th>
-                                            <th className="py-3 px-3">Tracking</th>
-                                            <th className="py-3 px-3">Courier</th>
-                                            <th className="py-3 px-4 sm:px-6">Bulk QR (City)</th>
-                                            <th className="py-3 px-4 sm:px-6 text-right">Bulk QR (Global)</th>
+                                            <th className="py-3.5 px-4 sm:px-6">Barcode</th>
+                                            <th className="py-3.5 px-3">Tracking</th>
+                                            <th className="py-3.5 px-3">Courier</th>
+                                            <th className="py-3.5 px-4 sm:px-6">Bulk QR (City)</th>
+                                            <th className="py-3.5 px-4 sm:px-6 text-right">Bulk QR (Global)</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                                        {selectedParcels.map((parcel) => (<tr key={parcel.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                                                <td className="py-3 px-4 sm:px-6 font-mono font-bold text-slate-900 dark:text-slate-100">
-                                                    <span className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 border border-slate-200/60 dark:border-slate-700/60 text-slate-800 dark:text-slate-200">
+                                    <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04] font-medium">
+                                        {selectedParcels.map((parcel) => (<tr key={parcel.id} className="transition-colors hover:bg-[#ebf0f7]/70 dark:hover:bg-[#14151e]/70">
+                                                <td className="py-3.5 px-4 sm:px-6 font-mono font-bold text-slate-900 dark:text-slate-100">
+                                                    <span className="rounded-xl bg-[#ebf0f7] dark:bg-[#12131b] px-2.5 py-1 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] text-slate-800 dark:text-slate-200">
                                                         {parcel.barcode}
                                                     </span>
                                                 </td>
-                                                <td className="py-3 px-3 font-mono text-slate-500 dark:text-slate-400">
+                                                <td className="py-3.5 px-3 font-mono text-slate-500 dark:text-slate-400 font-bold">
                                                     {parcel.tracking_number}
                                                 </td>
-                                                <td className="py-3 px-3 font-semibold text-slate-700 dark:text-slate-300">
+                                                <td className="py-3.5 px-3 font-bold text-slate-700 dark:text-slate-300">
                                                     {parcel.courier || 'N/A'}
                                                 </td>
-                                                <td className="py-3 px-4 sm:px-6">
-                                                    {parcel.bulk_qr_city ? (<div className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 border border-emerald-200/60 dark:border-emerald-800/60">
-                                                            <span className="font-mono text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 max-w-[100px] truncate">
+                                                <td className="py-3.5 px-4 sm:px-6">
+                                                    {parcel.bulk_qr_city ? (<div className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 border border-emerald-200/60 dark:border-emerald-800/60 shadow-2xs">
+                                                            <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 max-w-[100px] truncate">
                                                                 {parcel.bulk_qr_city}
                                                             </span>
                                                             <button type="button" onClick={() => copyToClipboard(parcel.bulk_qr_city!)} className="rounded p-0.5 text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer" title="Copy QR code">
@@ -1651,9 +1868,9 @@ export default function SortingPanel() {
                                                             </button>
                                                         </div>) : (<span className="text-slate-300 dark:text-slate-600 font-semibold">—</span>)}
                                                 </td>
-                                                <td className="py-3 px-4 sm:px-6 text-right">
-                                                    {parcel.bulk_qr_code ? (<div className="inline-flex items-center justify-end gap-1.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 border border-emerald-200/60 dark:border-emerald-800/60">
-                                                            <span className="font-mono text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 max-w-[100px] truncate">
+                                                <td className="py-3.5 px-4 sm:px-6 text-right">
+                                                    {parcel.bulk_qr_code ? (<div className="inline-flex items-center justify-end gap-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 border border-emerald-200/60 dark:border-emerald-800/60 shadow-2xs">
+                                                            <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 max-w-[100px] truncate">
                                                                 {parcel.bulk_qr_code}
                                                             </span>
                                                             <button type="button" onClick={() => copyToClipboard(parcel.bulk_qr_code!)} className="rounded p-0.5 text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer" title="Copy QR code">
@@ -1666,7 +1883,7 @@ export default function SortingPanel() {
                                 </table>
                             </div>
 
-                            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4 sm:px-6">
+                            <div className="flex items-center justify-between border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/40 dark:bg-[#12131b]/30 p-4 sm:px-6">
                                 <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60">
                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
@@ -1690,15 +1907,15 @@ export default function SortingPanel() {
             </Portal>{/* courier modal */}
             <Portal>
                 {showCourierModal && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 dark:bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200">
-                        <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200/80 dark:border-slate-800 animate-in slide-in-from-bottom-4 duration-300 overflow-hidden">
+                        <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-3xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in slide-in-from-bottom-4 duration-300 overflow-hidden">
 
-                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4">
+                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/[0.06] px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-500 dark:text-pink-400 border border-pink-100 dark:border-pink-900/30">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-pink-500 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
                                         <i className="fas fa-truck text-base"></i>
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                                             {selectedCourier || 'Courier Parcels'}
                                         </h3>
                                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -1717,35 +1934,37 @@ export default function SortingPanel() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto px-6 py-4">
-                                {courierParcels.length > 0 ? (<div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800">
+                                {courierParcels.length > 0 ? (<div className="overflow-x-auto rounded-2xl border border-white/80 dark:border-white/[0.06] overflow-hidden">
                                         <table className="w-full text-left text-xs">
                                             <thead>
-                                                <tr className="border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                                    <th scope="col" className="px-3 py-2.5">Barcode</th>
-                                                    <th scope="col" className="px-3 py-2.5">Tracking</th>
-                                                    <th scope="col" className="px-3 py-2.5">Destination</th>
-                                                    <th scope="col" className="px-3 py-2.5">City</th>
-                                                    <th scope="col" className="px-3 py-2.5">Bulk QR (Courier)</th>
-                                                    <th scope="col" className="px-3 py-2.5">Bulk QR (Global)</th>
+                                                <tr className="border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/90 dark:bg-[#12131b]/90 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                                    <th scope="col" className="px-3.5 py-3">Barcode</th>
+                                                    <th scope="col" className="px-3.5 py-3">Tracking</th>
+                                                    <th scope="col" className="px-3.5 py-3">Destination</th>
+                                                    <th scope="col" className="px-3.5 py-3">City</th>
+                                                    <th scope="col" className="px-3.5 py-3">Bulk QR (Courier)</th>
+                                                    <th scope="col" className="px-3.5 py-3">Bulk QR (Global)</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 bg-white dark:bg-slate-900">
-                                                {courierParcels.map((parcel) => (<tr key={parcel.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                                                        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                                                            {parcel.barcode}
+                                            <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04]">
+                                                {courierParcels.map((parcel) => (<tr key={parcel.id} className="transition-colors hover:bg-[#ebf0f7]/60 dark:hover:bg-[#14151e]/60">
+                                                        <td className="whitespace-nowrap px-3.5 py-3 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                            <span className="bg-[#ebf0f7] dark:bg-[#12131b] px-2 py-0.5 rounded-lg border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                                                {parcel.barcode}
+                                                            </span>
                                                         </td>
-                                                        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">
+                                                        <td className="whitespace-nowrap px-3.5 py-3 font-mono text-xs text-slate-500 dark:text-slate-400 font-bold">
                                                             {parcel.tracking_number}
                                                         </td>
-                                                        <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-700 dark:text-slate-300">
+                                                        <td className="whitespace-nowrap px-3.5 py-3 font-bold text-slate-700 dark:text-slate-300">
                                                             {parcel.destination || <span className="text-slate-400 dark:text-slate-600">N/A</span>}
                                                         </td>
-                                                        <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-700 dark:text-slate-300">
+                                                        <td className="whitespace-nowrap px-3.5 py-3 font-bold text-slate-700 dark:text-slate-300">
                                                             {parcel.city || <span className="text-slate-400 dark:text-slate-600">N/A</span>}
                                                         </td>
-                                                        <td className="whitespace-nowrap px-3 py-2.5">
-                                                            {parcel.bulk_qr_courier ? (<div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200/80 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-950/40 px-2 py-0.5">
-                                                                    <span className="font-mono text-[10px] font-medium text-emerald-700 dark:text-emerald-400 max-w-[120px] truncate">
+                                                        <td className="whitespace-nowrap px-3.5 py-3">
+                                                            {parcel.bulk_qr_courier ? (<div className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-950/40 px-2 py-0.5 shadow-2xs">
+                                                                    <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 max-w-[120px] truncate">
                                                                         {parcel.bulk_qr_courier}
                                                                     </span>
                                                                     <button type="button" onClick={() => copyToClipboard(parcel.bulk_qr_courier!)} className="rounded p-0.5 text-emerald-600 dark:text-emerald-400 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-800 dark:hover:text-emerald-300 cursor-pointer" title="Copy QR code">
@@ -1753,9 +1972,9 @@ export default function SortingPanel() {
                                                                     </button>
                                                                 </div>) : (<span className="text-slate-300 dark:text-slate-700 font-mono">—</span>)}
                                                         </td>
-                                                        <td className="whitespace-nowrap px-3 py-2.5">
-                                                            {parcel.bulk_qr_code ? (<div className="inline-flex items-center gap-1.5 rounded-md border border-blue-200/80 dark:border-blue-800/60 bg-blue-50/60 dark:bg-blue-950/40 px-2 py-0.5">
-                                                                    <span className="font-mono text-[10px] font-medium text-blue-700 dark:text-blue-400 max-w-[120px] truncate">
+                                                        <td className="whitespace-nowrap px-3.5 py-3">
+                                                            {parcel.bulk_qr_code ? (<div className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200/80 dark:border-blue-800/60 bg-blue-50/60 dark:bg-blue-950/40 px-2 py-0.5 shadow-2xs">
+                                                                    <span className="font-mono text-[10px] font-bold text-blue-700 dark:text-blue-400 max-w-[120px] truncate">
                                                                         {parcel.bulk_qr_code}
                                                                     </span>
                                                                     <button type="button" onClick={() => copyToClipboard(parcel.bulk_qr_code!)} className="rounded p-0.5 text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer" title="Copy QR code">
@@ -1767,15 +1986,15 @@ export default function SortingPanel() {
                                             </tbody>
                                         </table>
                                     </div>) : (<div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="mb-2 rounded-full bg-slate-100 dark:bg-slate-800 p-3 text-slate-400 dark:text-slate-500">
+                                        <div className="mb-2 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] p-3 text-slate-400 dark:text-slate-500 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3)]">
                                             <i className="fas fa-box-open text-xl"></i>
                                         </div>
-                                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No parcels found</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200">No parcels found</p>
                                         <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">There are no individual parcels attached to this courier.</p>
                                     </div>)}
                             </div>
 
-                            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/80 px-6 py-3.5">
+                            <div className="flex items-center justify-between border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/40 dark:bg-[#12131b]/30 px-6 py-4">
                                 <div className="flex items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400">
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40">
                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
@@ -1801,16 +2020,16 @@ export default function SortingPanel() {
             </Portal>{/* view modal */}
             <Portal>
                 {showViewModal && viewParcel && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-                        <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white dark:bg-slate-900 shadow-2xl dark:shadow-black/70 border border-slate-200/80 dark:border-slate-800 animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+                        <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-3xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 overflow-hidden">
 
                             {/* header */}
-                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 p-5">
+                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/[0.06] p-5">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400 border border-blue-100 dark:border-blue-900/30">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] text-blue-500 dark:text-blue-400 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]">
                                         <i className="fas fa-box text-base"></i>
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                                             Parcel Details
                                         </h3>
                                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -1823,85 +2042,85 @@ export default function SortingPanel() {
                 setShowViewModal(false);
                 setViewParcel(null);
             }} aria-label="Close modal">
-                                    <i className="fas fa-times text-xs"></i>
-                                </AppButton>
+                                        <i className="fas fa-times text-xs"></i>
+                                    </AppButton>
                             </div>{/* content */}
                             <div className="flex-1 overflow-y-auto p-6 space-y-5">{/* main info */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Barcode</label>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Barcode</label>
                                         <p className="text-sm font-bold text-slate-900 dark:text-white mt-1 font-mono">{viewParcel.barcode}</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tracking Number</label>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tracking Number</label>
                                         <p className="text-sm font-bold text-slate-900 dark:text-white mt-1 font-mono">{viewParcel.tracking_number}</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Sender</label>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.sender_name || 'N/A'}</p>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Sender</label>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.sender_name || 'N/A'}</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Courier</label>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.courier || 'N/A'}</p>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Courier</label>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.courier || 'N/A'}</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Destination</label>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.destination || 'N/A'}</p>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Destination</label>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.destination || 'N/A'}</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">City</label>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.city || 'N/A'}</p>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">City</label>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.city || 'N/A'}</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Region</label>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.region || 'N/A'}</p>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Region</label>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">{viewParcel.region || 'N/A'}</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Status</label>
+                                    <div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Status</label>
                                         <p className="mt-1">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(viewParcel.status)}`}>
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadge(viewParcel.status)}`}>
                                                 {getStatusLabel(viewParcel.status)}
                                             </span>
                                         </p>
                                     </div>
                                 </div>{/* customer */}
-                                {(viewParcel.customer_name || viewParcel.customer_number) && (<div className="bg-blue-50 dark:bg-blue-950/20 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
-                                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">Customer Information</h4>
+                                {(viewParcel.customer_name || viewParcel.customer_number) && (<div className="bg-[#ebf0f7]/80 dark:bg-[#12131b]/70 rounded-2xl p-4 border border-blue-200/60 dark:border-blue-900/40 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">Customer Information</h4>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {viewParcel.customer_name && (<div>
-                                                    <label className="text-[10px] font-medium text-blue-500 dark:text-blue-400">Name</label>
-                                                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{viewParcel.customer_name}</p>
+                                                    <label className="text-[10px] font-bold text-blue-500 dark:text-blue-400">Name</label>
+                                                    <p className="text-sm font-bold text-blue-900 dark:text-blue-100">{viewParcel.customer_name}</p>
                                                 </div>)}
                                             {viewParcel.customer_number && (<div>
-                                                    <label className="text-[10px] font-medium text-blue-500 dark:text-blue-400">Contact Number</label>
-                                                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{viewParcel.customer_number}</p>
+                                                    <label className="text-[10px] font-bold text-blue-500 dark:text-blue-400">Contact Number</label>
+                                                    <p className="text-sm font-bold text-blue-900 dark:text-blue-100">{viewParcel.customer_number}</p>
                                                 </div>)}
                                         </div>
                                     </div>)}{/* qr codes */}
-                                {(viewParcel.bulk_qr_code || viewParcel.bulk_qr_city || viewParcel.bulk_qr_courier) && (<div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
-                                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">QR Codes</h4>
+                                {(viewParcel.bulk_qr_code || viewParcel.bulk_qr_city || viewParcel.bulk_qr_courier) && (<div className="bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">QR Codes</h4>
                                         <div className="space-y-2">
-                                            {viewParcel.bulk_qr_code && (<div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-lg px-3 py-2 border border-slate-200 dark:border-slate-800">
-                                                    <span className="text-xs font-mono text-slate-600 dark:text-slate-400">Global: {viewParcel.bulk_qr_code}</span>
-                                                    <button type="button" onClick={() => copyToClipboard(viewParcel.bulk_qr_code!)} className="group/modalglobalqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-semibold bg-[#e6f8ef] hover:bg-[#d5f3e4] text-emerald-800 border border-emerald-300/90 shadow-[0_2px_6px_rgba(16,185,129,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0f2c1f] dark:hover:bg-[#153a29] dark:text-emerald-200 dark:border-[#1d573c] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Global QR">
+                                            {viewParcel.bulk_qr_code && (<div className="flex items-center justify-between bg-[#f0f3f8] dark:bg-[#161722] rounded-xl px-3 py-2 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                                    <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">Global: {viewParcel.bulk_qr_code}</span>
+                                                    <button type="button" onClick={() => copyToClipboard(viewParcel.bulk_qr_code!)} className="group/modalglobalqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-bold bg-[#e6f8ef] hover:bg-[#d5f3e4] text-emerald-800 border border-emerald-300/90 shadow-[0_2px_6px_rgba(16,185,129,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0f2c1f] dark:hover:bg-[#153a29] dark:text-emerald-200 dark:border-[#1d573c] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Global QR">
                                                         <Clipboard className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"/>
                                                         <span className="max-w-0 overflow-hidden opacity-0 group-hover/modalglobalqr:max-w-[120px] group-hover/modalglobalqr:opacity-100 group-hover/modalglobalqr:ml-1.5 transition-all duration-300 ease-in-out whitespace-nowrap font-bold">
                                                             Copy QR
                                                         </span>
                                                     </button>
                                                 </div>)}
-                                            {viewParcel.bulk_qr_city && (<div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-lg px-3 py-2 border border-slate-200 dark:border-slate-800">
-                                                    <span className="text-xs font-mono text-slate-600 dark:text-slate-400">City: {viewParcel.bulk_qr_city}</span>
-                                                    <button type="button" onClick={() => copyToClipboard(viewParcel.bulk_qr_city!)} className="group/modalcityqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-semibold bg-[#e0f2fe] hover:bg-[#bae6fd] text-sky-900 border border-sky-300/90 shadow-[0_2px_6px_rgba(14,165,233,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0c2a3a] dark:hover:bg-[#13374b] dark:text-sky-200 dark:border-[#1b4e68] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy City QR">
+                                            {viewParcel.bulk_qr_city && (<div className="flex items-center justify-between bg-[#f0f3f8] dark:bg-[#161722] rounded-xl px-3 py-2 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                                    <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">City: {viewParcel.bulk_qr_city}</span>
+                                                    <button type="button" onClick={() => copyToClipboard(viewParcel.bulk_qr_city!)} className="group/modalcityqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-bold bg-[#e0f2fe] hover:bg-[#bae6fd] text-sky-900 border border-sky-300/90 shadow-[0_2px_6px_rgba(14,165,233,0.16),inset_0_1px_0_#ffffff] dark:bg-[#0c2a3a] dark:hover:bg-[#13374b] dark:text-sky-200 dark:border-[#1b4e68] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy City QR">
                                                         <Clipboard className="w-3.5 h-3.5 shrink-0 text-sky-600 dark:text-sky-400"/>
                                                         <span className="max-w-0 overflow-hidden opacity-0 group-hover/modalcityqr:max-w-[120px] group-hover/modalcityqr:opacity-100 group-hover/modalcityqr:ml-1.5 transition-all duration-300 ease-in-out whitespace-nowrap font-bold">
                                                             Copy QR
                                                         </span>
                                                     </button>
                                                 </div>)}
-                                            {viewParcel.bulk_qr_courier && (<div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-lg px-3 py-2 border border-slate-200 dark:border-slate-800">
-                                                    <span className="text-xs font-mono text-slate-600 dark:text-slate-400">Courier: {viewParcel.bulk_qr_courier}</span>
-                                                    <button type="button" onClick={() => copyToClipboard(viewParcel.bulk_qr_courier!)} className="group/modalcourierqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-semibold bg-[#f3e8ff] hover:bg-[#e9d5ff] text-purple-900 border border-purple-300/90 shadow-[0_2px_6px_rgba(168,85,247,0.16),inset_0_1px_0_#ffffff] dark:bg-[#2e1065] dark:hover:bg-[#3b0764] dark:text-purple-200 dark:border-[#581c87] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Courier QR">
+                                            {viewParcel.bulk_qr_courier && (<div className="flex items-center justify-between bg-[#f0f3f8] dark:bg-[#161722] rounded-xl px-3 py-2 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                                    <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">Courier: {viewParcel.bulk_qr_courier}</span>
+                                                    <button type="button" onClick={() => copyToClipboard(viewParcel.bulk_qr_courier!)} className="group/modalcourierqr inline-flex items-center rounded-full p-1.5 text-[10px] font-mono font-bold bg-[#f3e8ff] hover:bg-[#e9d5ff] text-purple-900 border border-purple-300/90 shadow-[0_2px_6px_rgba(168,85,247,0.16),inset_0_1px_0_#ffffff] dark:bg-[#2e1065] dark:hover:bg-[#3b0764] dark:text-purple-200 dark:border-[#581c87] transition-all duration-300 ease-in-out cursor-pointer active:scale-95" title="Copy Courier QR">
                                                         <Clipboard className="w-3.5 h-3.5 shrink-0 text-purple-600 dark:text-purple-400"/>
                                                         <span className="max-w-0 overflow-hidden opacity-0 group-hover/modalcourierqr:max-w-[120px] group-hover/modalcourierqr:opacity-100 group-hover/modalcourierqr:ml-1.5 transition-all duration-300 ease-in-out whitespace-nowrap font-bold">
                                                             Copy QR
@@ -1910,21 +2129,21 @@ export default function SortingPanel() {
                                                 </div>)}
                                         </div>
                                     </div>)}{/* time */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-500 dark:text-slate-400 bg-[#ebf0f7]/70 dark:bg-[#12131b]/60 rounded-2xl p-4 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                     <div>
-                                        <span className="font-medium text-slate-400 dark:text-slate-500">Created:</span>
-                                        <span className="ml-2 font-mono">{new Date(viewParcel.created_at).toLocaleString()}</span>
+                                        <span className="font-bold text-slate-400 dark:text-slate-500">Created:</span>
+                                        <span className="ml-2 font-mono font-bold">{new Date(viewParcel.created_at).toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* footer */}
-                            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-4">
+                            <div className="flex items-center justify-between border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/40 dark:bg-[#12131b]/30 p-4 px-6">
                                 <div className="flex items-center gap-2">
-                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(viewParcel.status)}`}>
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadge(viewParcel.status)}`}>
                                         {getStatusLabel(viewParcel.status)}
                                     </span>
-                                    <span className="text-xs text-slate-400 dark:text-slate-500">
+                                    <span className="text-xs font-bold font-mono text-slate-400 dark:text-slate-500">
                                         ID: {viewParcel.id}
                                     </span>
                                 </div>
@@ -1937,7 +2156,6 @@ export default function SortingPanel() {
                                     </AppButton>
                                 </div>
                             </div>
-
                         </div>
                     </div>)}
             </Portal>

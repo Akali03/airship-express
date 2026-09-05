@@ -1,6 +1,7 @@
 "use server";
 
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
+import { ftmSupabase } from '@/app/(supplyChain)/lib/services/client/ftmSupabase';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { sanitizeBarcode, sanitizeSearch } from '@/app/(supplyChain)/components/global/sanitize';
@@ -759,7 +760,7 @@ export async function addManualParcel(data: {
         // get courier name
         let courierName = data.courier;
         if (data.courier_id) {
-            const { data: courier, error: courierError } = await supabase
+            const { data: courier, error: courierError } = await ftmSupabase
                 .from('couriers')
                 .select('name')
                 .eq('id', data.courier_id)

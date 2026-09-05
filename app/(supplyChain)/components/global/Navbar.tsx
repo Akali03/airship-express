@@ -219,7 +219,7 @@ export function AceternityNavbar() {
         }
     };
     return (<>
-            <Navbar className="top-0 dark:border-slate-700/60 bg-white/10 dark:bg-[#1c1b1f]/10 backdrop-blur-sm">
+            <Navbar className="top-0">
                 <NavBody visible={false}>
                 <button onClick={() => router.back()} className="flex items-center gap-2.5 group shrink-0 focus:outline-none">
                     <Image src="/images/logo-remove-bg.png" alt="Airship" width={40} height={40} priority className="dark:ring-slate-700/60 group-hover:ring-pink-500/30 transition-all duration-300 object-contain dark:brightness-0 dark:invert"/>
@@ -228,26 +228,25 @@ export function AceternityNavbar() {
                     </span>
                 </button>
 
-                <div ref={navRef} className="hidden lg:flex items-center justify-center gap-1 xl:gap-2 shrink-0">
+                <div ref={navRef} className="hidden lg:flex items-center justify-center gap-1 xl:gap-1.5 p-1 rounded-full bg-[#ebf0f7]/90 dark:bg-[#14151c]/90 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] border border-slate-200/50 dark:border-slate-800/60 shrink-0">
                     {filteredNav.map((group: any) => {
             const isSectionCurrent = isSectionActive(group);
-            const accent = getSectionAccent(group.section);
             const isDropdownOpen = openDropdown === group.section;
             return (<div key={group.section} className="relative group">
-                                <button className={cn("flex items-center gap-1.5 px-3 py-1.5 text-xs xl:text-sm font-semibold transition-all duration-200 rounded-full border whitespace-nowrap cursor-pointer", isDropdownOpen || isSectionCurrent
-                    ? "text-pink-700 dark:text-pink-200 bg-[#ffe6f0] dark:bg-[#341427] border-pink-300 dark:border-[#67224c] shadow-[0_2px_8px_rgba(244,63,94,0.16),inset_0_1px_0_#ffffff] dark:shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.1)]"
-                    : "text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-[#1c1d25]/80 border-slate-200/80 dark:border-[#353746] hover:bg-slate-50 dark:hover:bg-[#252630] shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] active:scale-96")} onClick={() => setOpenDropdown(isDropdownOpen ? null : group.section)}>
-                                    <i className={cn(getSectionIcon(group.section), "text-xs", (isDropdownOpen || isSectionCurrent) ? "text-pink-600 dark:text-pink-400" : "text-slate-400 dark:text-slate-400")}/>
+                                <button className={cn("flex items-center gap-1.5 px-3.5 py-1.5 text-xs xl:text-sm font-semibold transition-all duration-200 rounded-full border whitespace-nowrap cursor-pointer active:scale-95", (isDropdownOpen || isSectionCurrent)
+                    ? "text-white bg-gradient-to-b from-pink-500 to-pink-600 border-pink-400/80 dark:border-pink-500/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] font-bold"
+                    : "text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1d1e28] border-white/70 dark:border-[#2a2b38] hover:bg-[#e8edf5] dark:hover:bg-[#232533] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)]")} onClick={() => setOpenDropdown(isDropdownOpen ? null : group.section)}>
+                                    <i className={cn(getSectionIcon(group.section), "text-xs", (isDropdownOpen || isSectionCurrent) ? "text-white" : "text-slate-400 dark:text-slate-400")}/>
                                     <span>{group.section}</span>
-                                    <IconChevronDown className={cn("h-3.5 w-3.5 opacity-70 transition-transform duration-200 ml-0.5", isDropdownOpen && "rotate-180 opacity-100")}/>
+                                    <IconChevronDown className={cn("h-3.5 w-3.5 opacity-80 transition-transform duration-200 ml-0.5", (isDropdownOpen || isSectionCurrent) && "text-white", isDropdownOpen && "rotate-180 opacity-100")}/>
                                 </button>
 
                                 {isDropdownOpen && (<div className="absolute left-0 top-full mt-2 w-64 rounded-2xl 
-                                                bg-white dark:bg-[#1c1d25] 
-                                                p-2 shadow-[0_16px_45px_rgba(0,0,0,0.14),inset_0_1px_0_#ffffff] dark:shadow-[0_20px_50px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] 
-                                                border border-slate-200/90 dark:border-[#353746] 
-                                                z-50 animate-in fade-in-0 zoom-in-95 duration-200">
-                                        <div className="px-3 py-1.5 mb-1 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+                                                bg-[#f2f5fa] dark:bg-[#191a24] 
+                                                p-2 shadow-[8px_8px_24px_rgba(166,175,195,0.45),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] 
+                                                border border-white/80 dark:border-[#2c2d3c] 
+                                                z-10 animate-in fade-in-0 zoom-in-95 duration-200">
+                                        <div className="px-3 py-1.5 mb-1 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800">
                                             <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
                                                 <i className={cn(getSectionIcon(group.section), "text-xs text-pink-500 dark:text-pink-400")}/>
                                                 {group.section}
@@ -266,12 +265,12 @@ export function AceternityNavbar() {
                                     return;
                                 }
                                 setOpenDropdown(null);
-                            }} className={cn("flex items-center gap-3 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium transition-all duration-200 relative", active && isAuthorized
-                                ? "text-pink-700 bg-[#ffe6f0] border border-pink-300 dark:bg-[#341427] dark:text-pink-200 dark:border-[#67224c] shadow-[0_2px_6px_rgba(244,63,94,0.12),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                            }} className={cn("flex items-center gap-3 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium transition-all duration-200 relative cursor-pointer", active && isAuthorized
+                                ? "text-white bg-gradient-to-r from-pink-500 to-pink-600 border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.45)] font-semibold"
                                 : !isAuthorized
                                     ? "text-slate-400 cursor-not-allowed hover:bg-transparent dark:text-slate-600"
-                                    : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/60")}>
-                                                    <i className={cn(item.icon, !isAuthorized && "opacity-50", active && isAuthorized ? "text-pink-600 dark:text-pink-400" : "text-slate-500 dark:text-slate-400")}></i>
+                                    : "text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white hover:bg-[#e4eaf3] dark:hover:bg-[#222432] hover:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.25),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] dark:hover:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.45),inset_-1px_-1px_3px_rgba(255,255,255,0.04)]")}>
+                                                    <i className={cn(item.icon, !isAuthorized && "opacity-50", active && isAuthorized ? "text-white" : "text-slate-500 dark:text-slate-400")}></i>
                                                     <span className={!isAuthorized ? "line-through" : ""}>
                                                         {isAuthorized ? item.label : "Unauthorized"}
                                                     </span>
@@ -290,15 +289,21 @@ export function AceternityNavbar() {
 
                     <ThemeToggle />
 
-                    <AppButton type="button" variant="danger" size="xs" pill onClick={handleLogout} disabled={isLoggingOut} title="Logout">
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                        title="Logout"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 border border-pink-400/80 dark:border-pink-500/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-50"
+                    >
                         {isLoggingOut ? (<>
-                                <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-rose-600 dark:border-rose-400 border-t-transparent"></span>
+                                <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                                 <span className="hidden xl:inline">Logging out...</span>
                             </>) : (<>
                                 <IconLogout className="h-3.5 w-3.5 shrink-0"/>
                                 <span className="hidden xl:inline">Logout</span>
                             </>)}
-                    </AppButton>
+                    </button>
                 </div>
             </NavBody>
 
@@ -319,12 +324,12 @@ export function AceternityNavbar() {
                 </MobileNavHeader>
 
                 <MobileNavMenu isOpen={isOpen} onClose={() => setIsOpen(false)}>
-                    <div className="flex flex-col h-full bg-white dark:bg-[#181920]">
-                        <div className="flex-shrink-0 px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex flex-col h-full bg-[#f0f3f8] dark:bg-[#191a24]">
+                        <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200/60 dark:border-slate-800">
                             <button type="button" onClick={() => {
             setIsOpen(false);
             setIsChangePasswordOpen(true);
-        }} title="Click to Change Password" className="w-full flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-[#353746] shadow-[0_2px_8px_rgba(0,0,0,0.04),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_8px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-pink-300 dark:hover:border-pink-500/50 hover:bg-pink-50/50 dark:hover:bg-pink-950/20 transition-all text-left cursor-pointer group">
+        }} title="Click to Change Password" className="w-full flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-white/80 dark:border-[#2c2d3c] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] hover:border-pink-300 dark:hover:border-pink-500/50 transition-all text-left cursor-pointer group">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className="flex items-center justify-center h-10 w-10 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 text-white text-sm font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] select-none shrink-0 group-hover:scale-105 transition-transform">
                                         {getInitials(userName)}
@@ -345,7 +350,6 @@ export function AceternityNavbar() {
                         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
                             {filteredNav.map((group: any) => {
             const isSectionCurrent = isSectionActive(group);
-            const accent = getSectionAccent(group.section);
             return (<div key={group.section} className="w-full">
                                         <div className="px-2 py-1.5 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
@@ -360,7 +364,7 @@ export function AceternityNavbar() {
                                                     {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
                                                 </StatusBadge>)}
                                         </div>
-                                        <div className="space-y-1 mt-1">
+                                        <div className="space-y-1.5 mt-1">
                                             {group.items.map((item: any) => {
                     const active = isActive(item.href);
                     const isAuthorized = item.isAuthorized !== false;
@@ -371,12 +375,12 @@ export function AceternityNavbar() {
                                 return;
                             }
                             setIsOpen(false);
-                        }} className={cn("flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 relative", active && isAuthorized
-                            ? "text-pink-700 bg-[#ffe6f0] border border-pink-300 dark:bg-[#341427] dark:text-pink-200 dark:border-[#67224c] shadow-[0_2px_6px_rgba(244,63,94,0.12),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                        }} className={cn("flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 relative cursor-pointer active:scale-98", active && isAuthorized
+                            ? "text-white bg-gradient-to-r from-pink-500 to-pink-600 border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.45)] font-semibold"
                             : !isAuthorized
                                 ? "text-slate-400 cursor-not-allowed hover:bg-transparent dark:text-slate-600"
-                                : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50")}>
-                                                <i className={cn(item.icon, !isAuthorized && "opacity-50", active && isAuthorized ? "text-pink-600 dark:text-pink-400" : "text-slate-500 dark:text-slate-400")}></i>
+                                : "text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-[#f0f3f8]/70 dark:bg-[#1d1e28]/70 border border-white/60 dark:border-[#2a2b38]/60 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.03)] hover:shadow-[inset_2px_2px_4px_rgba(166,175,195,0.25)] dark:hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.4)]")}>
+                                                <i className={cn(item.icon, !isAuthorized && "opacity-50", active && isAuthorized ? "text-white" : "text-slate-500 dark:text-slate-400")}></i>
 
                                                 <span className={cn(!isAuthorized && "line-through")}>
                                                     {isAuthorized ? item.label : "Unauthorized"}
@@ -390,11 +394,16 @@ export function AceternityNavbar() {
         })}
                         </div>
 
-                        <div className="flex-shrink-0 p-4 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-[#181920]/90 backdrop-blur-sm">
-                            <AppButton type="button" variant="danger" size="md" pill onClick={handleLogout} disabled={isLoggingOut} className="w-full justify-center">
+                        <div className="flex-shrink-0 p-4 border-t border-slate-200/60 dark:border-slate-800 bg-[#f0f3f8]/95 dark:bg-[#191a24]/95 backdrop-blur-sm">
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                disabled={isLoggingOut}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-xs sm:text-sm font-bold text-white bg-pink-500 hover:bg-pink-600 active:bg-pink-700 border border-pink-400/80 dark:border-pink-500/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-50"
+                            >
                                 <IconLogout className="h-4 w-4 shrink-0"/>
                                 <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
-                            </AppButton>
+                            </button>
                         </div>
                     </div>
                 </MobileNavMenu>
@@ -444,10 +453,9 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
             clearTimeout(timeout);
         };
     }, [isHovering]);
-    if (isAIOpen) {
-        return null;
-    }
-    return (<div className="fixed bottom-8 right-3 z-[9999] flex items-end gap-3 cursor-pointer">
+
+    return (
+        <div className="flex items-end gap-3 pointer-events-auto">
             <AnimatePresence>
                 {isOpen && (<motion.div key="dock-panel" initial={{ x: 50, opacity: 0, scale: 0.95 }} animate={{ x: 0, opacity: 1, scale: 1 }} exit={{ x: 50, opacity: 0, scale: 0.95 }} transition={{
                 type: "spring",
@@ -543,8 +551,8 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                                                 {currentGreeting}
                                             </motion.div>
                                             <div className="w-0 h-0 mx-auto 
-                                                    border-x-8 border-x-transparent 
-                                                    border-t-8 border-t-white dark:border-t-[#1c1d25]"/>
+                                                     border-x-8 border-x-transparent 
+                                                     border-t-8 border-t-white dark:border-t-[#1c1d25]"/>
                                         </motion.div>)}
                                 </AnimatePresence>
                             </div>
@@ -552,7 +560,25 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                     </motion.div>)}
             </AnimatePresence>
 
-            <motion.button onClick={() => setIsOpen((prev) => !prev)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} transition={{ type: "spring", stiffness: 400, damping: 20 }} aria-label={isOpen ? "Hide navigation" : "Show navigation"} aria-expanded={isOpen} className={cn("relative flex h-11 w-6 items-center justify-center rounded-full", "border border-pink-400/60 dark:border-[#832b61] bg-gradient-to-tr from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 text-white", "shadow-[0_4px_16px_rgba(244,63,94,0.35),inset_0_1px_0_rgba(255,255,255,0.4)] cursor-pointer", "transition-all duration-150", "focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 dark:focus:ring-offset-[#1c1b1f]")}>
+            <motion.button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen((prev) => !prev);
+                }}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                aria-label={isOpen ? "Hide navigation" : "Show navigation"}
+                aria-expanded={isOpen}
+                className={cn(
+                    "relative z-50 flex h-12 w-8 items-center justify-center rounded-full pointer-events-auto select-none touch-manipulation",
+                    "border border-pink-400/60 dark:border-[#832b61] bg-gradient-to-tr from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 text-white",
+                    "shadow-[0_4px_16px_rgba(244,63,94,0.35),inset_0_1px_0_rgba(255,255,255,0.4)] cursor-pointer",
+                    "transition-all duration-150",
+                    "focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 dark:focus:ring-offset-[#1c1b1f]"
+                )}
+            >
                 <AnimatePresence mode="wait" initial={false}>
                     {isOpen ? (<motion.span key="chevron-right" initial={{ opacity: 0, rotate: -90 }} animate={{ opacity: 1, rotate: 0 }} exit={{ opacity: 0, rotate: 90 }} transition={{ duration: 0.2 }} className="flex items-center justify-center">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-white drop-shadow-sm">
@@ -565,6 +591,8 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                         </motion.span>)}
                 </AnimatePresence>
             </motion.button>
-        </div>);
+        </div>
+    );
 }
+
 export default AceternityNavbar;

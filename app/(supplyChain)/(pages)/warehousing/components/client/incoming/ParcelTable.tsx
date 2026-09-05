@@ -414,13 +414,13 @@ export function IncomingTable({
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs text-slate-700 dark:text-slate-300">
                         {initialParcels.length === 0 ? (
                             <tr>
-                                <td colSpan={12} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                                    <div className="flex flex-col items-center justify-center gap-2">
-                                        <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
+                                <td colSpan={12} className="py-14 text-center">
+                                    <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
+                                        <div className="w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] flex items-center justify-center text-slate-400 dark:text-slate-500 mb-1">
                                             <i className="fas fa-box-open text-xl"></i>
                                         </div>
-                                        <p className="font-semibold text-slate-700 dark:text-slate-300">No parcels found</p>
-                                        <p className="text-xs text-slate-400 dark:text-slate-500">Try adjusting your filters or search terms</p>
+                                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">No parcels found</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Try adjusting your search query or active filter parameters</p>
                                     </div>
                                 </td>
                             </tr>

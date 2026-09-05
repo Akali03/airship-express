@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { InventoryItem } from '../../types';
 import { sanitizeSearch } from '@/app/(supplyChain)/components/global/sanitize';
 import { Pagination } from '@/app/(supplyChain)/components/global/pagination';
@@ -12,6 +12,7 @@ import { CrudActionButton } from '@/app/(supplyChain)/components/ui/CrudActionBu
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { ShoppingCart, ArrowDown, ArrowUp } from 'lucide-react';
+import Portal from '@/app/(supplyChain)/components/client/Portal';
 
 interface InventoryTabProps {
     items: InventoryItem[];
@@ -39,7 +40,7 @@ interface InventoryTabProps {
     onOrderPO?: (item: InventoryItem) => void;
 }
 
-export function InventoryTab({
+export const InventoryTab = memo(function InventoryTab({
     items,
     totalItems,
     currentPage,
@@ -82,23 +83,25 @@ export function InventoryTab({
     const endIndex = Math.min(currentPage * itemsPerPage, totalItems);
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm dark:shadow-slate-950/50 overflow-hidden transition-colors flex flex-col">
+        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] overflow-hidden transition-colors flex flex-col">
             {/* filter bar */}
-            <div className="flex-shrink-0 p-4 border-b border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-3 bg-slate-50/60 dark:bg-slate-900/40 backdrop-blur-md">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-200/60 dark:border-white/[0.06] flex flex-wrap items-center gap-3 bg-[#ebf0f7]/70 dark:bg-[#14151e]/60 backdrop-blur-md">
+                {/* Search Bar */}
                 <div className="relative flex-1 min-w-[220px] max-w-xs group">
                     <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                     <input
-                        className="w-full bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 pl-9 text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500/80 focus:ring-2 focus:ring-pink-500/20 transition-all shadow-2xs"
+                        className="w-full bg-[#ebf0f7] dark:bg-[#12131b] border border-white/80 dark:border-white/[0.06] rounded-2xl px-3.5 py-2.5 pl-9 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6),inset_-1px_-1px_3px_rgba(255,255,255,0.04)] focus:outline-none focus:border-pink-500/80 dark:focus:border-pink-500/80 focus:ring-2 focus:ring-pink-500/20 transition-all"
                         placeholder="Search by item name or code..."
                         value={searchTerm}
                         onChange={(e) => onSearchChange(sanitizeSearch(e.target.value))}
                     />
                 </div>
 
-                <div className="relative min-w-[160px] group">
+                {/* Category Filter */}
+                <div className="relative min-w-[170px] group">
                     <i className="fas fa-filter absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                     <select
-                        className="w-full bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 pl-9 pr-8 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500/80 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer shadow-2xs appearance-none"
+                        className="w-full appearance-none bg-[#ebf0f7] dark:bg-[#12131b] border border-white/80 dark:border-white/[0.06] rounded-2xl px-3.5 py-2.5 pl-9 pr-8 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6),inset_-1px_-1px_3px_rgba(255,255,255,0.04)] focus:outline-none focus:border-pink-500/80 dark:focus:border-pink-500/80 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer"
                         value={categoryFilter}
                         onChange={(e) => onCategoryChange(e.target.value)}
                     >
@@ -108,13 +111,14 @@ export function InventoryTab({
                         <option value="Equipment" className="dark:bg-slate-900">Equipment</option>
                         <option value="Warehouse Equipment" className="dark:bg-slate-900">Warehouse Equipment</option>
                     </select>
-                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none"></i>
+                    <i className="fas fa-chevron-down absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none"></i>
                 </div>
 
+                {/* Status Filter */}
                 <div className="relative min-w-[150px] group">
                     <i className="fas fa-tag absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                     <select
-                        className="w-full bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 pl-9 pr-8 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500/80 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer shadow-2xs appearance-none"
+                        className="w-full appearance-none bg-[#ebf0f7] dark:bg-[#12131b] border border-white/80 dark:border-white/[0.06] rounded-2xl px-3.5 py-2.5 pl-9 pr-8 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6),inset_-1px_-1px_3px_rgba(255,255,255,0.04)] focus:outline-none focus:border-pink-500/80 dark:focus:border-pink-500/80 focus:ring-2 focus:ring-pink-500/20 transition-all cursor-pointer"
                         value={statusFilter}
                         onChange={(e) => onStatusChange(e.target.value)}
                     >
@@ -123,18 +127,19 @@ export function InventoryTab({
                         <option value="low-stock" className="dark:bg-slate-900">Low Stock</option>
                         <option value="out-of-stock" className="dark:bg-slate-900">Out of Stock</option>
                     </select>
-                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none"></i>
+                    <i className="fas fa-chevron-down absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none"></i>
                 </div>
 
+                {/* Select All Button */}
                 <button
                     type="button"
                     onClick={onSelectAll}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-2xs ${
+                    className={`inline-flex items-center gap-2.5 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer active:scale-95 border ${
                         allSelected
-                            ? 'bg-pink-500 text-white border-pink-500 hover:bg-pink-600'
+                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400/80 shadow-[0_4px_12px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)]'
                             : someSelected
-                                ? 'bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-300 border-pink-300 dark:border-pink-800'
-                                : 'bg-white dark:bg-slate-950/60 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-pink-600 dark:text-pink-400 border-pink-300/80 dark:border-pink-500/30 shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_6px_rgba(0,0,0,0.6)]'
+                                : 'bg-[#ebf0f7] dark:bg-[#14151e] text-slate-700 dark:text-slate-200 border-white/80 dark:border-white/[0.06] hover:bg-[#e4ebf5] dark:hover:bg-[#1a1b26] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_6px_rgba(0,0,0,0.6),-2px_-2px_4px_rgba(255,255,255,0.03)]'
                     }`}
                     title={allSelected ? "Deselect all items" : "Select all items"}
                 >
@@ -152,6 +157,7 @@ export function InventoryTab({
                     <span>{allSelected ? 'Deselect All' : 'Select All'}</span>
                 </button>
 
+                {/* Reset Filters Button */}
                 <AppButton
                     type="button"
                     variant="neutral"
@@ -164,7 +170,7 @@ export function InventoryTab({
                 </AppButton>
 
                 {selectedIds.size > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-pink-50 dark:bg-pink-950/40 border border-pink-200/80 dark:border-pink-800/50 text-xs font-semibold text-pink-700 dark:text-pink-300 shadow-2xs animate-in fade-in duration-150">
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-pink-300/80 dark:border-pink-500/40 text-xs font-bold text-pink-600 dark:text-pink-400 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25),0_2px_8px_rgba(236,72,153,0.15)] animate-in fade-in duration-150">
                         <i className="fas fa-check-circle text-pink-500"></i>
                         <span>{selectedIds.size} selected</span>
                     </div>
@@ -176,9 +182,9 @@ export function InventoryTab({
                 {isLoading && <TableContentLoader />}
 
                 <table className="w-full table-pro border-collapse text-left">
-                    <thead className="sticky top-0 z-10 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-300/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px] select-none">
+                    <thead className="sticky top-0 z-10 bg-[#ebf0f7]/95 dark:bg-[#14151e]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-white/[0.08] text-slate-700 dark:text-slate-200 font-extrabold uppercase tracking-wider text-[11px] select-none shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
                         <tr>
-                            <th className="w-10 px-3.5 py-3 text-center">
+                            <th className="w-10 px-3.5 py-3.5 text-center">
                                 <input
                                     type="checkbox"
                                     checked={allSelected}
@@ -192,16 +198,16 @@ export function InventoryTab({
                                     className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 transition-colors"
                                 />
                             </th>
-                            <th className="w-10 px-2 py-3">#</th>
-                            <th className="px-4 py-3 min-w-[220px]">Item Information</th>
-                            <th className="px-3.5 py-3 min-w-[130px]">Category</th>
-                            <th className="px-4 py-3 min-w-[160px]">Stock & Status</th>
-                            <th className="px-4 py-3 min-w-[170px]">Latest PO / Activity</th>
-                            <th className="px-4 py-3 min-w-[190px]">Remarks & Audit</th>
-                            <th className="px-4 py-3 text-right min-w-[190px] w-[190px]">Actions</th>
+                            <th className="w-10 px-2 py-3.5">#</th>
+                            <th className="px-4 py-3.5 min-w-[220px]">Item Information</th>
+                            <th className="px-3.5 py-3.5 min-w-[130px]">Category</th>
+                            <th className="px-4 py-3.5 min-w-[160px]">Stock & Status</th>
+                            <th className="px-4 py-3.5 min-w-[170px]">Latest PO / Activity</th>
+                            <th className="px-4 py-3.5 min-w-[190px]">Remarks & Audit</th>
+                            <th className="px-4 py-3.5 text-right min-w-[190px] w-[190px]">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+                    <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04] text-xs">
                         {isLoading ? (
                             <TableRowsSkeleton
                                 rows={8}
@@ -244,13 +250,14 @@ export function InventoryTab({
                                 return (
                                     <tr
                                         key={item.id}
-                                        className={`transition-colors duration-150 group ${isSelected
+                                        onClick={() => onEdit(item)}
+                                        className={`transition-colors duration-150 group cursor-pointer ${isSelected
                                             ? 'bg-pink-50/40 dark:bg-pink-950/20'
                                             : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/30'
                                             }`}
                                     >
                                         {/* checkbox */}
-                                        <td data-label="Select" className="px-3.5 py-3 text-center">
+                                        <td data-label="Select" className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
@@ -283,11 +290,11 @@ export function InventoryTab({
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[10px]">
-                                                    <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50">
+                                                    <span className="font-mono bg-[#ebf0f7] dark:bg-[#12131b] px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-400 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                         {item.item_code}
                                                     </span>
                                                     {item.storage_location && (
-                                                        <span className="text-slate-400 flex items-center gap-1">
+                                                        <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1 font-medium">
                                                             <i className="fas fa-location-dot text-[8px]"></i>
                                                             {item.storage_location}
                                                         </span>
@@ -376,7 +383,7 @@ export function InventoryTab({
                                         </td>
 
                                         {/* remarks */}
-                                        <td data-label="Remarks & Audit" className="px-4 py-3 min-w-[190px]">
+                                        <td data-label="Remarks & Audit" className="px-4 py-3 min-w-[190px]" onClick={(e) => e.stopPropagation()}>
                                             {item.description || item.force_reason ? (
                                                 <div className="flex flex-wrap items-center gap-1.5">
                                                     {item.description && (
@@ -389,7 +396,7 @@ export function InventoryTab({
                                                                 content: item.description || '',
                                                                 type: 'description'
                                                             })}
-                                                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-[11px] text-slate-700 dark:text-slate-300 hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer group/msg max-w-[170px] truncate"
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer group/msg max-w-[170px] truncate"
                                                             title="Click to view full description"
                                                         >
                                                             <i className="fas fa-comment-alt text-pink-500 dark:text-pink-400 text-[10px] shrink-0"></i>
@@ -408,7 +415,7 @@ export function InventoryTab({
                                                                 timestamp: item.force_updated_at ? new Date(item.force_updated_at).toLocaleString() : undefined,
                                                                 type: 'override_reason'
                                                             })}
-                                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-[10px] font-medium text-amber-800 dark:text-amber-300 hover:border-amber-400 transition-all cursor-pointer max-w-[170px] truncate"
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-amber-300/70 dark:border-amber-500/30 shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:border-amber-400 transition-all cursor-pointer max-w-[170px] truncate"
                                                             title="Click to view override audit details"
                                                         >
                                                             <i className="fas fa-shield-alt text-amber-600 dark:text-amber-400 text-[9px] shrink-0"></i>
@@ -422,7 +429,7 @@ export function InventoryTab({
                                         </td>
 
                                         {/* actions */}
-                                        <td data-label="Actions" className="px-4 py-3 text-right whitespace-nowrap min-w-[190px] w-[190px]">
+                                        <td data-label="Actions" className="px-4 py-3 text-right whitespace-nowrap min-w-[190px] w-[190px]" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-1.5">
                                                 {/* po button */}
                                                 <CrudActionButton
@@ -480,11 +487,11 @@ export function InventoryTab({
             </div>
 
             {/* pagination */}
-            <div className="flex-shrink-0 p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Showing <span className="font-bold text-slate-800 dark:text-slate-200">{startIndex}</span> to{' '}
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{endIndex}</span> of{' '}
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{totalItems}</span> items
+            <div className="flex-shrink-0 p-4 border-t border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/70 dark:bg-[#14151e]/60 backdrop-blur-md flex flex-wrap items-center justify-between gap-3">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Showing <span className="font-extrabold text-slate-900 dark:text-slate-100">{startIndex}</span> to{' '}
+                    <span className="font-extrabold text-slate-900 dark:text-slate-100">{endIndex}</span> of{' '}
+                    <span className="font-extrabold text-slate-900 dark:text-slate-100">{totalItems}</span> items
                 </span>
                 <Pagination
                     currentPage={currentPage}
@@ -495,74 +502,79 @@ export function InventoryTab({
 
             {/* message modal */}
             {activeMessageModal && (
-                <div
-                    className="fixed inset-0 bg-slate-950/70 dark:bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
-                    onClick={() => setActiveMessageModal(null)}
-                >
+                <Portal>
                     <div
-                        className="bg-white dark:bg-[#2a2a2e] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-150 space-y-4"
-                        onClick={(e) => e.stopPropagation()}
+                        className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200"
+                        onClick={() => setActiveMessageModal(null)}
                     >
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center text-sm shadow-2xs ${
-                                    activeMessageModal.type === 'override_reason'
-                                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
-                                        : 'bg-pink-100 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 border border-pink-200 dark:border-pink-800/40'
-                                }`}>
-                                    <i className={`fas ${activeMessageModal.type === 'override_reason' ? 'fa-shield-alt' : 'fa-comment-alt'}`}></i>
+                        <div
+                            className="bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08] rounded-3xl max-w-md w-full p-6  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in zoom-in-95 duration-200 space-y-4"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-white/[0.06]">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] ${
+                                        activeMessageModal.type === 'override_reason'
+                                            ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-amber-600 dark:text-amber-400'
+                                            : 'bg-[#ebf0f7] dark:bg-[#14151e] text-pink-600 dark:text-pink-400'
+                                    }`}>
+                                        <i className={`fas ${activeMessageModal.type === 'override_reason' ? 'fa-shield-alt' : 'fa-comment-alt'}`}></i>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                                            {activeMessageModal.title}
+                                        </h3>
+                                        {activeMessageModal.itemName && (
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                                                {activeMessageModal.itemName} <span className="font-mono text-pink-600 dark:text-pink-400">({activeMessageModal.itemCode})</span>
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                                        {activeMessageModal.title}
-                                    </h3>
-                                    {activeMessageModal.itemName && (
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            {activeMessageModal.itemName} <span className="font-mono text-pink-600 dark:text-pink-400">({activeMessageModal.itemCode})</span>
-                                        </p>
-                                    )}
-                                </div>
+                                <AppButton
+                                    type="button"
+                                    variant="neutral"
+                                    size="icon-sm"
+                                    onClick={() => setActiveMessageModal(null)}
+                                    aria-label="Close modal"
+                                >
+                                    <i className="fas fa-times text-xs"></i>
+                                </AppButton>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setActiveMessageModal(null)}
-                                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
-                            >
-                                <i className="fas fa-times text-xs"></i>
-                            </button>
-                        </div>
 
-                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80 space-y-3">
-                            {activeMessageModal.author && (
-                                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
-                                    <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1">
-                                        <i className="fas fa-user-shield text-amber-500"></i>
-                                        {activeMessageModal.author}
-                                    </span>
-                                    {activeMessageModal.timestamp && (
-                                        <span className="font-mono text-[10px] text-slate-400">
-                                            {activeMessageModal.timestamp}
+                            <div className="p-4 rounded-2xl bg-[#ebf0f7] dark:bg-[#12131b] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] space-y-3">
+                                {activeMessageModal.author && (
+                                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-b border-slate-200/60 dark:border-slate-800/80 pb-2">
+                                        <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                            <i className="fas fa-user-shield text-amber-500"></i>
+                                            {activeMessageModal.author}
                                         </span>
-                                    )}
-                                </div>
-                            )}
-                            <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                                {activeMessageModal.content}
-                            </p>
-                        </div>
+                                        {activeMessageModal.timestamp && (
+                                            <span className="font-mono text-[10px] text-slate-400">
+                                                {activeMessageModal.timestamp}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap font-medium">
+                                    {activeMessageModal.content}
+                                </p>
+                            </div>
 
-                        <div className="flex justify-end pt-1">
-                            <button
-                                type="button"
-                                onClick={() => setActiveMessageModal(null)}
-                                className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold text-xs hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors cursor-pointer"
-                            >
-                                Close
-                            </button>
+                            <div className="flex justify-end pt-1">
+                                <AppButton
+                                    type="button"
+                                    variant="neutral"
+                                    size="md"
+                                    onClick={() => setActiveMessageModal(null)}
+                                >
+                                    Close
+                                </AppButton>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
         </div>
     );
-}
+});
