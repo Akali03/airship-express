@@ -40,7 +40,7 @@ export const GET = handle(async () => {
     query = query.eq("employee_id", user.employeeId);
   }
 
-  const { data, error } = await query.order("created_at", { ascending: false });
+  const { data, error } = await query;
 
   if (error) {
     return internalError(error);

@@ -12,14 +12,9 @@ import {
 } from "react";
 import { isAdminRole, type AuthenticatedHrUser } from "./types";
 import { clearDirectoryCache } from "./directory";
-import {
-  DEV_PREVIEW_PROFILES,
-  getSelectedDevPreviewProfileId,
-  isHrDevPreviewEnabled,
-  subscribeToDevPreviewProfile,
-} from "./dev-preview";
+import { createClient } from "@/app/(hr-dashboard)/supabase/client";
 
-export type HrAuthStatus =
+type HrAuthStatus =
   | "loading"
   | "authenticated"
   | "unauthenticated"
@@ -71,29 +66,21 @@ function applySession(
 }
 
 export function HrAuthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<HrAuthStatus>(() =>
-    isHrDevPreviewEnabled() ? "authenticated" : "loading"
-  );
-  const [user, setUser] = useState<AuthenticatedHrUser | null>(() =>
-    isHrDevPreviewEnabled()
-      ? DEV_PREVIEW_PROFILES[getSelectedDevPreviewProfileId()]
-      : null
-  );
+  const [status, setStatus] = useState<HrAuthStatus>("loading");
+  const [user, setUser] = useState<AuthenticatedHrUser | null>(null);
   const wasAuthenticated = useRef(false);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
-    if (isHrDevPreviewEnabled()) return true;
     const nextUser = await fetchSession();
     return applySession(nextUser, wasAuthenticated, setUser, setStatus);
   }, []);
 
   const logout = useCallback(async () => {
-    if (isHrDevPreviewEnabled()) {
-      clearDirectoryCache();
-      wasAuthenticated.current = false;
-      setUser(null);
-      setStatus("unauthenticated");
-      return;
+    const browserSupabase = createClient();
+    try {
+      await browserSupabase.auth.signOut();
+    } catch {
+      // best-effort: continue with server-side cleanup
     }
     try {
       await fetch(LOGOUT_ENDPOINT, { method: "POST" });
@@ -107,12 +94,6 @@ export function HrAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isHrDevPreviewEnabled()) {
-      return subscribeToDevPreviewProfile(() => {
-        setUser(DEV_PREVIEW_PROFILES[getSelectedDevPreviewProfileId()]);
-        setStatus("authenticated");
-      });
-    }
     let cancelled = false;
     void (async () => {
       const nextUser = await fetchSession();

@@ -197,7 +197,48 @@ export function validationResponse(errors: FieldError[]): NextResponse {
 
 export function internalError(cause: unknown): NextResponse {
   const requestId = crypto.randomUUID();
-  console.error(`[performance-development] request ${requestId} failed:`, cause);
+  const pg =
+    cause && typeof cause === "object"
+      ? (cause as { code?: string; message?: string; details?: string; hint?: string })
+      : null;
+  // #region agent log
+  fetch("http://127.0.0.1:7412/ingest/0eaccd84-c262-43ee-a949-541d824d3d38", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "994ee8",
+    },
+    body: JSON.stringify({
+      sessionId: "994ee8",
+      runId: "pre-fix",
+      hypothesisId: "G",
+      location: "api/lib/validate.ts:internalError",
+      message: "P&D 500 internalError",
+      data: {
+        requestId,
+        name: cause instanceof Error ? cause.name : typeof cause,
+        message: cause instanceof Error ? cause.message : pg?.message ?? null,
+        pgCode: pg?.code ?? null,
+        pgDetails: pg?.details ?? null,
+        pgHint: pg?.hint ?? null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+  if (cause instanceof Error) {
+    const diagnostic = JSON.stringify({
+      name: cause.name,
+      message: cause.message,
+      stack: cause.stack,
+      cause: cause.cause instanceof Error
+        ? { name: cause.cause.name, message: cause.cause.message, stack: cause.cause.stack }
+        : cause.cause ?? null,
+    });
+    console.error(`[performance-development] request ${requestId} failed: ${diagnostic}`);
+  } else {
+    console.error(`[performance-development] request ${requestId} failed: ${JSON.stringify(cause)}`);
+  }
   return errorResponse(
     ERROR_CODES.INTERNAL_ERROR,
     "An unexpected server error occurred.",
@@ -220,7 +261,7 @@ export function handle<Args extends unknown[]>(
 
 export type ValidatedJson =
   | { ok: true; value: Record<string, unknown> }
-  | { ok: false; response: NextResponse };
+  | { ok: false; response: NextResponse; errors: FieldError[] };
 
 export async function validateJson(
   request: Request,
@@ -232,13 +273,14 @@ export async function validateJson(
   } catch {
     return {
       ok: false,
+      errors: [{ field: "body", message: "Invalid JSON body" }],
       response: errorResponse(ERROR_CODES.INVALID_JSON, "Invalid JSON body"),
     };
   }
 
   const errors = validate(body, schema);
   if (errors.length > 0) {
-    return { ok: false, response: validationResponse(errors) };
+    return { ok: false, errors, response: validationResponse(errors) };
   }
 
   return { ok: true, value: body as Record<string, unknown> };

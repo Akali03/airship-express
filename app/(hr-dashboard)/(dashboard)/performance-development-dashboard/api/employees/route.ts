@@ -18,6 +18,29 @@ export const GET = handle(async () => {
     .order("first_name");
 
   if (error) {
+    // #region agent log
+    fetch("http://127.0.0.1:7412/ingest/0eaccd84-c262-43ee-a949-541d824d3d38", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "994ee8",
+      },
+      body: JSON.stringify({
+        sessionId: "994ee8",
+        runId: "pre-fix",
+        hypothesisId: "F",
+        location: "api/employees/route.ts:GET-error",
+        message: "employees directory query failed",
+        data: {
+          pgCode: error.code,
+          pgMessage: error.message,
+          pgDetails: error.details,
+          pgHint: error.hint,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return internalError(error);
   }
 
@@ -52,6 +75,39 @@ export const GET = handle(async () => {
       status: row.status,
     };
   });
+
+  // #region agent log
+  fetch("http://127.0.0.1:7412/ingest/0eaccd84-c262-43ee-a949-541d824d3d38", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "994ee8",
+    },
+    body: JSON.stringify({
+      sessionId: "994ee8",
+      runId: "pre-fix",
+      hypothesisId: "F",
+      location: "api/employees/route.ts:GET",
+      message: "directory job title sourced from hr1_job_positions join",
+      data: {
+        employeeCount: employees.length,
+        withJobTitle: employees.filter((e) => Boolean(e.job_title)).length,
+        firstJoinShape: (data ?? [])[0]
+          ? {
+              hasJobPositionKey: Object.prototype.hasOwnProperty.call(
+                (data ?? [])[0] as object,
+                "job_position"
+              ),
+              jobPositionIsArray: Array.isArray(
+                ((data ?? [])[0] as { job_position?: unknown }).job_position
+              ),
+            }
+          : null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   return NextResponse.json({ employees });
 });

@@ -46,8 +46,8 @@ export const GET = handle(async () => {
   const user = auth.user;
 
   let query = supabaseAdmin
-    .from("hr3_training_enrollments")
-    .select("*, hr3_training_sessions(title, schedule_date, session_type)");
+     .from("hr3_training_enrollments")
+     .select("*, hr3_training_sessions(title, schedule_date, session_type, trainer_name, mode, venue)");
   if (!user.isAdmin) {
     if (!user.employeeId) {
       return NextResponse.json({ enrollments: [] });
@@ -55,7 +55,10 @@ export const GET = handle(async () => {
     query = query.eq("employee_id", user.employeeId);
   }
 
-  const { data, error } = await query.order("created_at", { ascending: false });
+  const { data, error } = await query.order("schedule_date", {
+    foreignTable: "hr3_training_sessions",
+    ascending: false,
+  });
 
   if (error) {
     return internalError(error);

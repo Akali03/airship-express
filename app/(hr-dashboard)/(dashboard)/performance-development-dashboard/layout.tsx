@@ -1,9 +1,9 @@
 import { MotionConfig } from "framer-motion";
 import Navbar from "./components/Navbar";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { SidebarProvider } from "./components/Sidebar";
 import AuthGate from "./components/AuthGate";
 import { HrAuthProvider } from "./lib/hr-auth";
-import { DevPreviewPanel } from "./lib/dev-preview";
+import "./hrPerdev.css";
 
 export default function PerformanceDevelopmentLayout({
   children,
@@ -14,18 +14,22 @@ export default function PerformanceDevelopmentLayout({
     <MotionConfig reducedMotion="user">
       <HrAuthProvider>
         <AuthGate>
-          <div className="h-dvh w-full overflow-y-auto bg-paper font-rethink text-ink dark:bg-ink dark:text-paper">
-            <Navbar />
-            {process.env.NODE_ENV === "development" && <DevPreviewPanel />}
-
-            <div className="mx-auto flex max-w-7xl flex-col sm:flex-row">
+          <SidebarProvider>
+            <div className="hr-perdev flex h-dvh w-full overflow-hidden bg-paper font-rethink text-ink dark:bg-ink dark:text-paper">
               <Sidebar />
 
-              <main className="flex-1 px-6 py-10 sm:px-10 sm:py-14">
-                {children}
-              </main>
+              <div className="flex h-full min-w-0 flex-1 flex-col">
+                <Navbar />
+
+                <main
+                  id="hr-main"
+                  className="w-full min-w-0 flex-1 overflow-y-auto px-6 py-10 sm:px-10 sm:py-14"
+                >
+                  <div className="mx-auto w-full max-w-7xl">{children}</div>
+                </main>
+              </div>
             </div>
-          </div>
+          </SidebarProvider>
         </AuthGate>
       </HrAuthProvider>
     </MotionConfig>

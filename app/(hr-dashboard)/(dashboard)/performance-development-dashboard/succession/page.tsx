@@ -1,41 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import Card from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Card";
-import Badge from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Badge";
-import Button from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Button";
-import PageHeader from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/PageHeader";
-import EmptyState from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/EmptyState";
-import StatCard from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/StatCard";
+import { useState } from "react";
 import {
+  Badge,
+  Button,
+  DataTable,
+  DataTableRow,
+  DetailRow,
+  EmptyState,
+  Modal,
+  PageHeader,
   SkeletonCards,
   SkeletonRegion,
   SkeletonStats,
-} from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Skeleton";
-import {
-  staggerContainer,
-  staggerItem,
-} from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/motion";
-import {
-  inputClass,
-  listRowClass,
-  quietDangerClass,
-  selectClass,
-  textareaClass,
+  StatCard,
+  TableActions,
+  TableCell,
+  controlSmallClass,
   errorTextClass,
-} from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/formStyles";
+  inputClass,
+  selectClass,
+  sectionTitleClass,
+  textareaClass,
+} from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/ui";
 import { useHrAuth } from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/lib/hr-auth";
 import { useDirectory } from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/lib/directory";
-import { readApiError } from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/lib/api-error";
-import { Lock, UserCog } from "lucide-react";
+import { useApiResource, useApiMutation } from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/lib/use-api";
+import { useCandidateEvidence, CandidateEvidence } from "./evidence-data";
+import { Eye, Lock, Pencil, Trash2, UserCog } from "lucide-react";
 import { toast } from "sonner";
+
+type Hr1JobPosition = {
+  id: string;
+  title: string;
+  department: string | null;
+  is_active: boolean | null;
+};
 
 type CriticalPosition = {
   id: string;
   position_id: string;
   risk_level: string;
   reason: string | null;
+  hr1_job_positions: Hr1JobPosition | Hr1JobPosition[] | null;
 };
 
 type Candidate = {
@@ -45,8 +52,20 @@ type Candidate = {
   potential_rating: number | null;
   performance_rating: number | null;
   development_notes: string | null;
-  hr3_critical_positions: CriticalPosition | null;
+  hr3_critical_positions:
+    | (CriticalPosition & {
+        hr1_job_positions: Hr1JobPosition | Hr1JobPosition[] | null;
+      })
+    | null;
 };
+
+function pickJobPosition(
+  raw: Hr1JobPosition | Hr1JobPosition[] | null | undefined
+): Hr1JobPosition | null {
+  if (!raw) return null;
+  if (Array.isArray(raw)) return raw[0] ?? null;
+  return raw;
+}
 
 function readinessLabel(level: string) {
   if (level === "ready_now") return "Ready Now";
@@ -104,11 +123,6 @@ function coverageVariant(
 export default function SuccessionPage() {
   const { isAdmin } = useHrAuth();
   const { directory, getDirectoryUser } = useDirectory();
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [positions, setPositions] = useState<CriticalPosition[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const [candidateEmployeeId, setCandidateEmployeeId] = useState("");
   const [candidatePositionId, setCandidatePositionId] = useState("");
@@ -116,227 +130,213 @@ export default function SuccessionPage() {
   const [potentialRating, setPotentialRating] = useState("");
   const [performanceRating, setPerformanceRating] = useState("");
   const [developmentNotes, setDevelopmentNotes] = useState("");
-  const [submittingCandidate, setSubmittingCandidate] = useState(false);
 
   const [newPositionId, setNewPositionId] = useState("");
   const [newRiskLevel, setNewRiskLevel] = useState("medium");
   const [newReason, setNewReason] = useState("");
-  const [submittingPosition, setSubmittingPosition] = useState(false);
 
-  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(
-    null
-  );
-  const [editDrafts, setEditDrafts] = useState<
-    Record<
-      string,
-      {
-        readiness_level: string;
-        potential_rating: string;
-        performance_rating: string;
-        development_notes: string;
-      }
-    >
-  >({});
+  const [confirmingCandidate, setConfirmingCandidate] = useState<Candidate | null>(null);
+  const [confirmingPosition, setConfirmingPosition] = useState<CriticalPosition | null>(null);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    let cancelled = false;
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    readiness_level: string;
+    potential_rating: string;
+    performance_rating: string;
+    development_notes: string;
+  } | null>(null);
 
-    async function load() {
-      try {
-        const [candRes, posRes] = await Promise.all([
-          fetch("/performance-development-dashboard/api/succession-candidates"),
-          fetch("/performance-development-dashboard/api/critical-positions"),
-        ]);
-        if (!candRes.ok || !posRes.ok) {
-          throw new Error("Failed to load succession data");
-        }
-        const candJson = await candRes.json();
-        const posJson = await posRes.json();
-        if (cancelled) return;
-        setCandidates(candJson.candidates || []);
-        setPositions(posJson.positions || []);
-      } catch {
-        if (!cancelled) setError("Could not load succession data. Please try again.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
+  const [viewingCandidate, setViewingCandidate] = useState<Candidate | null>(null);
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAdmin, refreshKey]);
+  const [search, setSearch] = useState("");
+
+  const [isAddCandidateModalOpen, setIsAddCandidateModalOpen] =
+    useState(false);
+  const [isFlagPositionModalOpen, setIsFlagPositionModalOpen] =
+    useState(false);
+
+  const ADD_CANDIDATE_TITLE_ID = "add-candidate-title";
+  const FLAG_POSITION_TITLE_ID = "flag-position-title";
+
+  const {
+    data: candidates,
+    loading: candidatesLoading,
+    error: candidatesError,
+    refetch: refetchCandidates,
+  } = useApiResource<Candidate>({
+    path: "succession-candidates",
+    listKey: "candidates",
+    disabled: !isAdmin,
+    errorMessage: "Could not load succession data. Please try again.",
+  });
+
+  const {
+    data: positions,
+    loading: positionsLoading,
+    error: positionsError,
+    refetch: refetchPositions,
+  } = useApiResource<CriticalPosition>({
+    path: "critical-positions",
+    listKey: "positions",
+    disabled: !isAdmin,
+    errorMessage: "Could not load succession data. Please try again.",
+  });
+
+  const candidateEvidence = useCandidateEvidence(!isAdmin);
+
+  const {
+    data: jobPositions,
+    loading: jobPositionsLoading,
+    error: jobPositionsError,
+  } = useApiResource<Hr1JobPosition>({
+    path: "job-positions",
+    listKey: "job_positions",
+    disabled: !isAdmin,
+    errorMessage: "Could not load job positions. Please try again.",
+  });
+
+  const loading = candidatesLoading || positionsLoading;
+
+  const error = candidatesError || positionsError;
 
   function refetch() {
-    setRefreshKey((k) => k + 1);
+    refetchCandidates();
+    refetchPositions();
   }
 
-  async function addCandidate(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmittingCandidate(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        "/performance-development-dashboard/api/succession-candidates",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            position_id: candidatePositionId,
-            employee_id: candidateEmployeeId,
-            readiness_level: readiness,
-            potential_rating: potentialRating
-              ? parseInt(potentialRating)
-              : null,
-            performance_rating: performanceRating
-              ? parseInt(performanceRating)
-              : null,
-            development_notes: developmentNotes,
-          }),
-        }
-      );
-      if (!res.ok) {
-        throw await readApiError(res, "Failed to add candidate");
-      }
+  const addCandidateMutation = useApiMutation({
+    path: "succession-candidates",
+    method: "POST",
+    onSuccess: () => {
       setCandidateEmployeeId("");
       setCandidatePositionId("");
       setReadiness("ready_now");
       setPotentialRating("");
       setPerformanceRating("");
       setDevelopmentNotes("");
+      setIsAddCandidateModalOpen(false);
       refetch();
       toast.success("Candidate added successfully.");
-    } catch {
+    },
+  });
+
+  const addPositionMutation = useApiMutation({
+    path: "critical-positions",
+    method: "POST",
+    onSuccess: () => {
+      setNewPositionId("");
+      setNewRiskLevel("medium");
+      setNewReason("");
+      setIsFlagPositionModalOpen(false);
+      refetch();
+      toast.success("Position flagged successfully.");
+    },
+  });
+
+  const updateCandidateMutation = useApiMutation({
+    path: "succession-candidates",
+    method: "PUT",
+    onSuccess: () => {
+      setEditingCandidate(null);
+      setEditDraft(null);
+      refetch();
+      toast.success("Candidate updated successfully.");
+    },
+  });
+
+  const removeCandidateMutation = useApiMutation({
+    path: "succession-candidates",
+    method: "DELETE",
+    onSuccess: () => {
+      setConfirmingCandidate(null);
+      refetch();
+    },
+  });
+
+  const removePositionMutation = useApiMutation({
+    path: "critical-positions",
+    method: "DELETE",
+    onSuccess: () => {
+      setConfirmingPosition(null);
+      refetch();
+    },
+  });
+
+  async function addCandidate(e: React.FormEvent) {
+    e.preventDefault();
+    const { error: submitError } = await addCandidateMutation.submit({
+      position_id: candidatePositionId,
+      employee_id: candidateEmployeeId,
+      readiness_level: readiness,
+      potential_rating: potentialRating ? parseInt(potentialRating) : null,
+      performance_rating: performanceRating
+        ? parseInt(performanceRating)
+        : null,
+      development_notes: developmentNotes,
+    });
+    if (submitError) {
       toast.error("Failed to add candidate. Please try again.");
-    } finally {
-      setSubmittingCandidate(false);
     }
   }
 
   async function addPosition(e: React.FormEvent) {
     e.preventDefault();
-    setSubmittingPosition(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        "/performance-development-dashboard/api/critical-positions",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            position_id: newPositionId,
-            risk_level: newRiskLevel,
-            reason: newReason,
-          }),
-        }
-      );
-      if (!res.ok) {
-        throw await readApiError(res, "Failed to flag position");
-      }
-      setNewPositionId("");
-      setNewRiskLevel("medium");
-      setNewReason("");
-      refetch();
-      toast.success("Position flagged successfully.");
-    } catch {
+    const { error: submitError } = await addPositionMutation.submit({
+      position_id: newPositionId,
+      risk_level: newRiskLevel,
+      reason: newReason,
+    });
+    if (submitError) {
       toast.error("Failed to flag position. Please try again.");
-    } finally {
-      setSubmittingPosition(false);
     }
   }
 
   function startEdit(candidate: Candidate) {
-    setEditingCandidateId(candidate.id);
-    setEditDrafts((prev) => ({
-      ...prev,
-      [candidate.id]: {
-        readiness_level: candidate.readiness_level,
-        potential_rating: candidate.potential_rating?.toString() ?? "",
-        performance_rating: candidate.performance_rating?.toString() ?? "",
-        development_notes: candidate.development_notes ?? "",
-      },
-    }));
+    setEditingCandidate(candidate);
+    setEditDraft({
+      readiness_level: candidate.readiness_level,
+      potential_rating: candidate.potential_rating?.toString() ?? "",
+      performance_rating: candidate.performance_rating?.toString() ?? "",
+      development_notes: candidate.development_notes ?? "",
+    });
   }
 
-  async function saveEdit(candidate: Candidate) {
-    const draft = editDrafts[candidate.id];
-    if (!draft) return;
-    setError(null);
-    try {
-      const res = await fetch(
-        "/performance-development-dashboard/api/succession-candidates",
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: candidate.id,
-            readiness_level: draft.readiness_level,
-            potential_rating: draft.potential_rating
-              ? parseInt(draft.potential_rating)
-              : null,
-            performance_rating: draft.performance_rating
-              ? parseInt(draft.performance_rating)
-              : null,
-            development_notes: draft.development_notes,
-          }),
-        }
-      );
-      if (!res.ok) {
-        throw await readApiError(res, "Failed to update candidate");
-      }
-      setEditingCandidateId(null);
-      refetch();
-      toast.success("Candidate updated successfully.");
-    } catch {
+  async function saveEdit() {
+    if (!editingCandidate || !editDraft) return;
+    const { error: submitError } = await updateCandidateMutation.submit({
+      id: editingCandidate.id,
+      readiness_level: editDraft.readiness_level,
+      potential_rating: editDraft.potential_rating
+        ? parseInt(editDraft.potential_rating)
+        : null,
+      performance_rating: editDraft.performance_rating
+        ? parseInt(editDraft.performance_rating)
+        : null,
+      development_notes: editDraft.development_notes,
+    });
+    if (submitError) {
       toast.error("Failed to update candidate. Please try again.");
     }
   }
 
   async function removeCandidate(candidate: Candidate) {
-    const name = getDirectoryUser(candidate.employee_id)?.name;
-    if (
-      !window.confirm(
-        `Remove ${name ?? "this employee"} as a succession candidate?`
-      )
-    )
-      return;
-    setError(null);
-    try {
-      const res = await fetch(
-        `/performance-development-dashboard/api/succession-candidates?id=${candidate.id}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        throw await readApiError(res, "Failed to remove candidate");
-      }
-      refetch();
+    const { error: submitError } = await removeCandidateMutation.submit(null, {
+      id: candidate.id,
+    });
+    if (!submitError) {
       toast.success("Candidate removed successfully.");
-    } catch {
+    } else {
       toast.error("Failed to remove candidate. Please try again.");
     }
   }
 
   async function removePosition(position: CriticalPosition) {
-    if (
-      !window.confirm(
-        `Remove "${position.position_id}" from critical positions?`
-      )
-    )
-      return;
-    setError(null);
-    try {
-      const res = await fetch(
-        `/performance-development-dashboard/api/critical-positions?id=${position.id}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        throw await readApiError(res, "Failed to remove position");
-      }
-      refetch();
+    const { error: submitError } = await removePositionMutation.submit(null, {
+      id: position.id,
+    });
+    if (!submitError) {
       toast.success("Position removed successfully.");
-    } catch {
+    } else {
       toast.error("Failed to remove position. Please try again.");
     }
   }
@@ -367,6 +367,17 @@ export default function SuccessionPage() {
     else candidatesByPosition.set(pid, [c]);
   }
 
+  const query = search.trim().toLowerCase();
+  const visibleCandidates = query
+    ? candidates.filter((c) => {
+        const employeeName = getDirectoryUser(c.employee_id)?.name?.toLowerCase() ?? "";
+        const positionName = (
+          pickJobPosition(c.hr3_critical_positions?.hr1_job_positions)?.title ?? ""
+        ).toLowerCase();
+        return employeeName.includes(query) || positionName.includes(query);
+      })
+    : candidates;
+
   const covered = positions.filter(
     (p) => (candidatesByPosition.get(p.id)?.length ?? 0) > 0
   );
@@ -390,6 +401,16 @@ export default function SuccessionPage() {
         eyebrow="Succession Planning"
         title="Succession Planning"
         subtitle="Track readiness for critical roles so the company is never caught short."
+        actions={
+          <div className="flex gap-2">
+            <Button onClick={() => setIsAddCandidateModalOpen(true)}>
+              Add Candidate
+            </Button>
+            <Button onClick={() => setIsFlagPositionModalOpen(true)}>
+              Flag Position
+            </Button>
+          </div>
+        }
       />
 
       {error && (
@@ -413,90 +434,103 @@ export default function SuccessionPage() {
         </div>
       )}
 
-      {isAdmin && (
-        <form
-          onSubmit={addCandidate}
-          className="mb-8 flex max-w-md flex-col gap-3"
-        >
-          <h2 className="text-lg font-semibold font-bricolage">
-            Add Succession Candidate
-          </h2>
-          <select
-            value={candidatePositionId}
-            onChange={(e) => setCandidatePositionId(e.target.value)}
-            required
-            aria-label="Select position"
-            className={selectClass}
-          >
-            <option value="" disabled>
-              Select position
-            </option>
-            {positions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.position_id}
-              </option>
-            ))}
-          </select>
-          <select
-            value={candidateEmployeeId}
-            onChange={(e) => setCandidateEmployeeId(e.target.value)}
-            required
-            aria-label="Select employee"
-            className={selectClass}
-          >
-            <option value="" disabled>
-              Select employee
-            </option>
-            {directory.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} — {u.jobTitle}
-              </option>
-            ))}
-          </select>
-          <select
-            value={readiness}
-            onChange={(e) => setReadiness(e.target.value)}
-            aria-label="Readiness level"
-            className={selectClass}
-          >
-            <option value="ready_now">Ready Now</option>
-            <option value="1-2_years">Ready in 1-2 Years</option>
-            <option value="3+_years">Ready in 3+ Years</option>
-          </select>
-          <div className="flex gap-3">
-            <input
-              type="number"
-              min="1"
-              max="5"
-              placeholder="Potential (1-5)"
-              aria-label="Potential rating"
-              value={potentialRating}
-              onChange={(e) => setPotentialRating(e.target.value)}
-              className={`${inputClass} min-w-0 flex-1`}
-            />
-            <input
-              type="number"
-              min="1"
-              max="5"
-              placeholder="Performance (1-5)"
-              aria-label="Performance rating"
-              value={performanceRating}
-              onChange={(e) => setPerformanceRating(e.target.value)}
-              className={`${inputClass} min-w-0 flex-1`}
-            />
-          </div>
-          <textarea
-            placeholder="Development notes (optional)"
-            aria-label="Development notes"
-            value={developmentNotes}
-            onChange={(e) => setDevelopmentNotes(e.target.value)}
-            className={textareaClass}
-          />
-          <Button type="submit" loading={submittingCandidate}>
-            {submittingCandidate ? "Saving…" : "Add Candidate"}
-          </Button>
-        </form>
-      )}
+      <Modal
+        open={isAddCandidateModalOpen}
+        onClose={() => setIsAddCandidateModalOpen(false)}
+        title="Add Candidate"
+        titleId={ADD_CANDIDATE_TITLE_ID}
+      >
+        <form onSubmit={addCandidate} className="flex flex-col gap-3">
+              <select
+                value={candidatePositionId}
+                onChange={(e) => setCandidatePositionId(e.target.value)}
+                required
+                aria-label="Select position"
+                className={selectClass}
+              >
+                <option value="" disabled>
+                  Select position
+                </option>
+                {positions.map((p) => {
+                  const jp = pickJobPosition(p.hr1_job_positions);
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {jp?.title ?? "Unknown position"}
+                    </option>
+                  );
+                })}
+              </select>
+              <select
+                value={candidateEmployeeId}
+                onChange={(e) => setCandidateEmployeeId(e.target.value)}
+                required
+                aria-label="Select employee"
+                className={selectClass}
+              >
+                <option value="" disabled>
+                  Select employee
+                </option>
+                {directory.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} — {u.jobTitle}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={readiness}
+                onChange={(e) => setReadiness(e.target.value)}
+                aria-label="Readiness level"
+                className={selectClass}
+              >
+                <option value="ready_now">Ready Now</option>
+                <option value="1-2_years">Ready in 1-2 Years</option>
+                <option value="3+_years">Ready in 3+ Years</option>
+              </select>
+              <div className="flex gap-3">
+                <input
+                  type="number"
+                  min="1"
+                  max="5"
+                  placeholder="Potential (1-5)"
+                  aria-label="Potential rating"
+                  value={potentialRating}
+                  onChange={(e) => setPotentialRating(e.target.value)}
+                  className={`${inputClass} min-w-0 flex-1`}
+                />
+                <input
+                  type="number"
+                  min="1"
+                  max="5"
+                  placeholder="Performance (1-5)"
+                  aria-label="Performance rating"
+                  value={performanceRating}
+                  onChange={(e) => setPerformanceRating(e.target.value)}
+                  className={`${inputClass} min-w-0 flex-1`}
+                />
+              </div>
+              <textarea
+                placeholder="Development notes (optional)"
+                aria-label="Development notes"
+                value={developmentNotes}
+                onChange={(e) => setDevelopmentNotes(e.target.value)}
+                className={textareaClass}
+              />
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsAddCandidateModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" loading={addCandidateMutation.submitting}>
+                  {addCandidateMutation.submitting
+                    ? "Saving…"
+                    : "Add Candidate"}
+                </Button>
+              </div>
+            </form>
+        </Modal>
 
       {isAdmin && positions.length === 0 && (
         <p className="mb-6 text-xs text-muted">
@@ -505,173 +539,90 @@ export default function SuccessionPage() {
         </p>
       )}
 
-      <h2 className="mb-3 text-lg font-semibold font-bricolage">
-        Candidates
-      </h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className={sectionTitleClass}>Candidates</h2>
+        <input
+          type="search"
+          placeholder="Search by employee or position..."
+          aria-label="Search candidates"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={`${controlSmallClass} min-w-[200px]`}
+        />
+      </div>
+
+      {!loading && candidates.length > 0 && visibleCandidates.length === 0 && (
+        <p className="mb-6 text-sm text-muted">No candidates match your search.</p>
+      )}
 
       {!loading && candidates.length > 0 && (
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="shown"
-          className="mb-8 flex max-w-md flex-col gap-4"
+        <DataTable
+          columns={["Employee", "Position", "Readiness", "Potential", "Performance", ""]}
+          className="mb-8"
         >
-          {candidates.map((c) => {
+          {visibleCandidates.map((c) => {
             const employee = getDirectoryUser(c.employee_id);
-            const draft = editDrafts[c.id];
             return (
-              <motion.div key={c.id} variants={staggerItem}>
-                <Card>
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <h3 className="font-semibold font-bricolage">
+              <DataTableRow key={c.id}>
+                <TableCell>
+                  <div>
+                    <p className="font-medium text-ink dark:text-paper">
                       {employee?.name ?? "Unknown employee"}
-                      {employee?.jobTitle && (
-                        <span className="block text-xs font-normal text-muted">
-                          {employee.jobTitle}
-                        </span>
-                      )}
-                    </h3>
-                    <Badge variant={readinessVariant(c.readiness_level)}>
-                      {readinessLabel(c.readiness_level)}
-                    </Badge>
+                    </p>
+                    {employee?.jobTitle && (
+                      <p className="text-xs capitalize text-muted">
+                        {employee.jobTitle}
+                      </p>
+                    )}
                   </div>
-                  {editingCandidateId === c.id ? (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        saveEdit(c);
-                      }}
-                      className="mt-4 flex flex-col gap-3 border-t border-line pt-4"
-                    >
-                      <select
-                        value={draft?.readiness_level ?? c.readiness_level}
-                        onChange={(e) =>
-                          setEditDrafts((prev) => ({
-                            ...prev,
-                            [c.id]: {
-                              ...prev[c.id],
-                              readiness_level: e.target.value,
-                            },
-                          }))
-                        }
-                        aria-label="Readiness level"
-                        className={selectClass}
-                      >
-                        <option value="ready_now">Ready Now</option>
-                        <option value="1-2_years">Ready in 1-2 Years</option>
-                        <option value="3+_years">Ready in 3+ Years</option>
-                      </select>
-                      <div className="flex gap-3">
-                        <input
-                          type="number"
-                          min="1"
-                          max="5"
-                          placeholder="Potential (1-5)"
-                          aria-label="Potential rating"
-                          value={draft?.potential_rating ?? ""}
-                          onChange={(e) =>
-                            setEditDrafts((prev) => ({
-                              ...prev,
-                              [c.id]: {
-                                ...prev[c.id],
-                                potential_rating: e.target.value,
-                              },
-                            }))
-                          }
-                          className={`${inputClass} min-w-0 flex-1`}
-                        />
-                        <input
-                          type="number"
-                          min="1"
-                          max="5"
-                          placeholder="Performance (1-5)"
-                          aria-label="Performance rating"
-                          value={draft?.performance_rating ?? ""}
-                          onChange={(e) =>
-                            setEditDrafts((prev) => ({
-                              ...prev,
-                              [c.id]: {
-                                ...prev[c.id],
-                                performance_rating: e.target.value,
-                              },
-                            }))
-                          }
-                          className={`${inputClass} min-w-0 flex-1`}
-                        />
-                      </div>
-                      <textarea
-                        placeholder="Development notes (optional)"
-                        aria-label="Development notes"
-                        value={draft?.development_notes ?? ""}
-                        onChange={(e) =>
-                          setEditDrafts((prev) => ({
-                            ...prev,
-                            [c.id]: {
-                              ...prev[c.id],
-                              development_notes: e.target.value,
-                            },
-                          }))
-                        }
-                        className={textareaClass}
-                      />
-                      <div className="flex gap-2">
-                        <Button type="submit" loading={false}>
-                          Save Changes
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => setEditingCandidateId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <p className="mb-2 text-sm text-muted">
-                        <span className="font-medium">Position:</span>{" "}
-                        {c.hr3_critical_positions?.position_id ?? "—"}
-                        {c.hr3_critical_positions && (
-                          <Badge
-                            variant={riskVariant(
-                              c.hr3_critical_positions.risk_level
-                            )}
-                          >
-                            {riskLabel(c.hr3_critical_positions.risk_level)}
-                          </Badge>
-                        )}
-                      </p>
-                      <p className="mb-1 text-sm text-muted">
-                        Potential: {c.potential_rating ?? "—"}/5 · Performance:{" "}
-                        {c.performance_rating ?? "—"}/5
-                      </p>
-                      {c.development_notes && (
-                        <p className="mt-2 text-sm">{c.development_notes}</p>
-                      )}
-                      {isAdmin && (
-                        <div className="mt-3 flex gap-2">
-                          <Button
-                            variant="secondary"
-                            onClick={() => startEdit(c)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="danger"
-                            onClick={() => removeCandidate(c)}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      )}
-                    </>
+                </TableCell>
+                <TableCell>
+                  <span className="text-ink dark:text-paper">
+                    {pickJobPosition(c.hr3_critical_positions?.hr1_job_positions)?.title ?? "Unknown position"}
+                  </span>
+                  {c.hr3_critical_positions && (
+                    <Badge variant={riskVariant(c.hr3_critical_positions.risk_level)}>
+                      {riskLabel(c.hr3_critical_positions.risk_level)}
+                    </Badge>
                   )}
-                </Card>
-              </motion.div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={readinessVariant(c.readiness_level)}>
+                    {readinessLabel(c.readiness_level)}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <span className="text-muted">{c.potential_rating ?? "—"}/5</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-muted">{c.performance_rating ?? "—"}/5</span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <TableActions
+                    actions={[
+                      {
+                        label: "View",
+                        icon: <Eye size={14} />,
+                        onClick: () => setViewingCandidate(c),
+                      },
+                      {
+                        label: "Edit",
+                        icon: <Pencil size={14} />,
+                        onClick: () => startEdit(c),
+                      },
+                      {
+                        label: "Delete",
+                        icon: <Trash2 size={14} />,
+                        danger: true,
+                        onClick: () => setConfirmingCandidate(c),
+                      },
+                    ]}
+                  />
+                </TableCell>
+              </DataTableRow>
             );
           })}
-        </motion.div>
+        </DataTable>
       )}
 
       {!loading && candidates.length === 0 && (
@@ -680,88 +631,305 @@ export default function SuccessionPage() {
           title="No candidates yet"
           description={
             isAdmin
-              ? "Add a candidate above to get started."
+              ? 'Click "Add Candidate" above to get started.'
               : "HR has not added succession candidates yet."
           }
         />
       )}
 
-      <h2 className="mb-3 text-lg font-semibold font-bricolage">
-        Critical Positions
-      </h2>
-      {isAdmin && (
-        <form
-          onSubmit={addPosition}
-          className="mb-6 flex max-w-md flex-col gap-3"
-        >
-          <h3 className="text-sm font-medium">Flag a Critical Position</h3>
-          <input
-            type="text"
-            placeholder="Position (e.g. Dispatcher)"
-            aria-label="Position name"
-            value={newPositionId}
-            onChange={(e) => setNewPositionId(e.target.value)}
-            required
-            className={inputClass}
-          />
-          <div className="flex gap-3">
+      {/* View candidate details */}
+      <Modal
+        open={!!viewingCandidate}
+        onClose={() => setViewingCandidate(null)}
+        title="Candidate Details"
+        size="lg"
+      >
+        {viewingCandidate && (
+          <div>
+            <dl>
+              <DetailRow
+                label="Employee"
+                value={getDirectoryUser(viewingCandidate.employee_id)?.name ?? "Unknown"}
+              />
+              {getDirectoryUser(viewingCandidate.employee_id)?.jobTitle && (
+                <DetailRow
+                  label="Title"
+                  value={getDirectoryUser(viewingCandidate.employee_id)!.jobTitle}
+                />
+              )}
+              <DetailRow
+                label="Position"
+                value={
+                  pickJobPosition(viewingCandidate.hr3_critical_positions?.hr1_job_positions)?.title ?? "Unknown position"
+                }
+              />
+              {viewingCandidate.hr3_critical_positions && (
+                <DetailRow
+                  label="Risk Level"
+                  value={
+                    <Badge variant={riskVariant(viewingCandidate.hr3_critical_positions.risk_level)}>
+                      {riskLabel(viewingCandidate.hr3_critical_positions.risk_level)}
+                    </Badge>
+                  }
+                />
+              )}
+              <DetailRow
+                label="Readiness"
+                value={
+                  <Badge variant={readinessVariant(viewingCandidate.readiness_level)}>
+                    {readinessLabel(viewingCandidate.readiness_level)}
+                  </Badge>
+                }
+              />
+              <DetailRow
+                label="Potential"
+                value={`${viewingCandidate.potential_rating ?? "—"}/5`}
+              />
+              <DetailRow
+                label="Performance"
+                value={`${viewingCandidate.performance_rating ?? "—"}/5`}
+              />
+              {viewingCandidate.development_notes && (
+                <DetailRow
+                  label="Development Notes"
+                  value={viewingCandidate.development_notes}
+                />
+              )}
+            </dl>
+            <CandidateEvidence
+              employeeId={viewingCandidate.employee_id}
+              evidence={candidateEvidence}
+            />
+            <div className="mt-5 flex justify-end">
+              <Button variant="secondary" onClick={() => setViewingCandidate(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit candidate */}
+      <Modal
+        open={!!editingCandidate}
+        onClose={() => { setEditingCandidate(null); setEditDraft(null); }}
+        title="Edit Candidate"
+        size="md"
+      >
+        {editingCandidate && editDraft && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveEdit();
+            }}
+            className="flex flex-col gap-3"
+          >
             <select
-              value={newRiskLevel}
-              onChange={(e) => setNewRiskLevel(e.target.value)}
-              aria-label="Risk level"
+              value={editDraft.readiness_level}
+              onChange={(e) =>
+                setEditDraft((prev) =>
+                  prev ? { ...prev, readiness_level: e.target.value } : prev
+                )
+              }
+              aria-label="Readiness level"
               className={selectClass}
             >
-              <option value="low">Low risk</option>
-              <option value="medium">Medium risk</option>
-              <option value="high">High risk</option>
+              <option value="ready_now">Ready Now</option>
+              <option value="1-2_years">Ready in 1-2 Years</option>
+              <option value="3+_years">Ready in 3+ Years</option>
             </select>
-            <input
-              type="text"
-              placeholder="Reason (optional)"
-              aria-label="Reason"
-              value={newReason}
-              onChange={(e) => setNewReason(e.target.value)}
-              className={`${inputClass} min-w-0 flex-1`}
+            <div className="flex gap-3">
+              <input
+                type="number"
+                min="1"
+                max="5"
+                placeholder="Potential (1-5)"
+                aria-label="Potential rating"
+                value={editDraft.potential_rating}
+                onChange={(e) =>
+                  setEditDraft((prev) =>
+                    prev ? { ...prev, potential_rating: e.target.value } : prev
+                  )
+                }
+                className={`${inputClass} min-w-0 flex-1`}
+              />
+              <input
+                type="number"
+                min="1"
+                max="5"
+                placeholder="Performance (1-5)"
+                aria-label="Performance rating"
+                value={editDraft.performance_rating}
+                onChange={(e) =>
+                  setEditDraft((prev) =>
+                    prev ? { ...prev, performance_rating: e.target.value } : prev
+                  )
+                }
+                className={`${inputClass} min-w-0 flex-1`}
+              />
+            </div>
+            <textarea
+              placeholder="Development notes (optional)"
+              aria-label="Development notes"
+              value={editDraft.development_notes}
+              onChange={(e) =>
+                setEditDraft((prev) =>
+                  prev ? { ...prev, development_notes: e.target.value } : prev
+                )
+              }
+              className={textareaClass}
             />
-          </div>
-          <Button type="submit" loading={submittingPosition}>
-            {submittingPosition ? "Saving…" : "Add Position"}
-          </Button>
-        </form>
-      )}
-      {!loading && positions.length === 0 && (
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => { setEditingCandidate(null); setEditDraft(null); }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={updateCandidateMutation.submitting}>
+                {updateCandidateMutation.submitting ? "Saving…" : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Delete candidate */}
+      <Modal
+        open={!!confirmingCandidate}
+        onClose={() => setConfirmingCandidate(null)}
+        title="Delete Candidate"
+        size="sm"
+      >
         <p className="text-sm text-muted">
-          No critical positions flagged.
+          {confirmingCandidate &&
+            (getDirectoryUser(confirmingCandidate.employee_id)?.name
+              ? `Remove ${getDirectoryUser(confirmingCandidate.employee_id)?.name} as a succession candidate? This cannot be undone.`
+              : "Remove this succession candidate? This cannot be undone.")}
         </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button
+            variant="danger"
+            onClick={() => confirmingCandidate && removeCandidate(confirmingCandidate)}
+            loading={removeCandidateMutation.submitting}
+          >
+            {removeCandidateMutation.submitting ? "Removing…" : "Confirm Remove"}
+          </Button>
+          <Button variant="secondary" onClick={() => setConfirmingCandidate(null)}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
+
+      <h2 className={`mb-3 ${sectionTitleClass}`}>Critical Positions</h2>
+      <Modal
+        open={isFlagPositionModalOpen}
+        onClose={() => setIsFlagPositionModalOpen(false)}
+        title="Flag Position"
+        titleId={FLAG_POSITION_TITLE_ID}
+      >
+          <form onSubmit={addPosition} className="flex flex-col gap-3">
+            <select
+                value={newPositionId}
+                onChange={(e) => setNewPositionId(e.target.value)}
+                required
+                aria-label="Select job position"
+                disabled={jobPositionsLoading}
+                className={selectClass}
+              >
+                <option value="" disabled>
+                  {jobPositionsLoading
+                    ? "Loading positions…"
+                    : jobPositionsError
+                      ? "Could not load positions"
+                      : "Select job position"}
+                </option>
+                {!jobPositionsLoading && !jobPositionsError && jobPositions.length === 0 && (
+                  <option value="" disabled>
+                    No active job positions available
+                  </option>
+                )}
+                {jobPositions.map((jp) => (
+                  <option key={jp.id} value={jp.id}>
+                    {jp.title}
+                    {jp.department ? ` — ${jp.department}` : ""}
+                  </option>
+                ))}
+              </select>
+              {jobPositionsError && (
+                <p className={`${errorTextClass} text-xs`} role="alert">
+                  {jobPositionsError}
+                </p>
+              )}
+              <div className="flex gap-3">
+                <select
+                  value={newRiskLevel}
+                  onChange={(e) => setNewRiskLevel(e.target.value)}
+                  aria-label="Risk level"
+                  className={selectClass}
+                >
+                  <option value="low">Low risk</option>
+                  <option value="medium">Medium risk</option>
+                  <option value="high">High risk</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Reason (optional)"
+                  aria-label="Reason"
+                  value={newReason}
+                  onChange={(e) => setNewReason(e.target.value)}
+                  className={`${inputClass} min-w-0 flex-1`}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsFlagPositionModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" loading={addPositionMutation.submitting}>
+                  {addPositionMutation.submitting
+                    ? "Saving…"
+                    : "Flag Position"}
+                </Button>
+              </div>
+            </form>
+        </Modal>
+      {!loading && positions.length === 0 && (
+        <EmptyState
+          icon={UserCog}
+          title="No critical positions"
+          description="No critical positions flagged."
+        />
       )}
       {!loading && positions.length > 0 && (
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="shown"
-          className="flex max-w-md flex-col gap-2"
-        >
+        <DataTable columns={["Position", "Successors", "Coverage", "Risk", ""]}>
           {positions.map((p) => {
             const successors = candidatesByPosition.get(p.id) ?? [];
             const best = bestReadiness(successors);
             return (
-              <motion.div
-                key={p.id}
-                variants={staggerItem}
-                className={`flex items-center justify-between gap-3 px-4 py-2 ${listRowClass}`}
-              >
-                <div>
-                  <span className="text-sm font-medium">{p.position_id}</span>
-                  {p.reason && (
-                    <p className="text-xs text-muted">{p.reason}</p>
-                  )}
-                  <p className="text-xs text-muted">
+              <DataTableRow key={p.id}>
+                <TableCell>
+                  <div>
+                    <span className="font-medium text-ink dark:text-paper">
+                      {pickJobPosition(p.hr1_job_positions)?.title ?? "Unknown position"}
+                    </span>
+                    {p.reason && (
+                      <p className="text-xs text-muted">{p.reason}</p>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted">
                     {successors.length > 0 && best
                       ? `${successors.length} successor${successors.length > 1 ? "s" : ""} · Best: ${readinessLabel(best.readiness_level)}`
                       : "No successor flagged"}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
+                  </span>
+                </TableCell>
+                <TableCell>
                   {successors.length > 0 && best ? (
                     <Badge variant={coverageVariant(best.readiness_level)}>
                       Covered
@@ -769,24 +937,53 @@ export default function SuccessionPage() {
                   ) : (
                     <Badge variant="danger">No Successor</Badge>
                   )}
+                </TableCell>
+                <TableCell>
                   <Badge variant={riskVariant(p.risk_level)}>
                     {riskLabel(p.risk_level)}
                   </Badge>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => removePosition(p)}
-                      className={quietDangerClass}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </motion.div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <TableActions
+                    actions={[
+                      {
+                        label: "Delete",
+                        icon: <Trash2 size={14} />,
+                        danger: true,
+                        onClick: () => setConfirmingPosition(p),
+                      },
+                    ]}
+                  />
+                </TableCell>
+              </DataTableRow>
             );
           })}
-        </motion.div>
+        </DataTable>
       )}
+
+      {/* Delete position */}
+      <Modal
+        open={!!confirmingPosition}
+        onClose={() => setConfirmingPosition(null)}
+        title="Delete Position"
+        size="sm"
+      >
+        <p className="text-sm text-muted">
+          Remove this critical position? This cannot be undone.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button
+            variant="danger"
+            onClick={() => confirmingPosition && removePosition(confirmingPosition)}
+            loading={removePositionMutation.submitting}
+          >
+            {removePositionMutation.submitting ? "Removing…" : "Confirm Remove"}
+          </Button>
+          <Button variant="secondary" onClick={() => setConfirmingPosition(null)}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

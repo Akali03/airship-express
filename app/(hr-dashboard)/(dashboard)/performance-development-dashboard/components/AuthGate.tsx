@@ -18,7 +18,7 @@ export default function AuthGate({
     }
   }, [status, router]);
 
-  if (status !== "authenticated") {
+  if (status === "unauthenticated" || status === "expired") {
     return (
       <div
         role="status"

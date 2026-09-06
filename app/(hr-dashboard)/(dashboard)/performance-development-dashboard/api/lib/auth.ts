@@ -1,11 +1,15 @@
 import "server-only";
-import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/(hr-dashboard)/supabase/admin-client";
+import { createServerSupabaseClient } from "@/app/(hr-dashboard)/supabase/server";
 import { ERROR_CODES } from "./errors";
 import { errorResponse } from "./validate";
 
-export const ADMIN_ROLES = ["super_admin", "hr_payroll_admin"] as const;
+export const ADMIN_ROLES = [
+  "super_admin",
+  "hr_payroll_admin",
+  "hr_performance_admin",
+] as const;
 
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
@@ -30,10 +34,12 @@ export type AuthResult =
   | { ok: false; response: NextResponse };
 
 async function resolveAuthenticatedHrUser(): Promise<AuthResult> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("hr_access_token")?.value;
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (!token) {
+  if (!session?.user?.id) {
     return {
       ok: false,
       response: errorResponse(
@@ -43,23 +49,10 @@ async function resolveAuthenticatedHrUser(): Promise<AuthResult> {
     };
   }
 
-  const { data: userData, error: userError } =
-    await supabaseAdmin.auth.getUser(token);
-
-  if (userError || !userData?.user) {
-    return {
-      ok: false,
-      response: errorResponse(
-        ERROR_CODES.UNAUTHENTICATED,
-        "Your session is invalid or has expired. Please sign in again."
-      ),
-    };
-  }
-
   const { data: admin, error: adminError } = await supabaseAdmin
     .from("hr_admin")
     .select("id, email, full_name, role, employee_id")
-    .eq("id", userData.user.id)
+    .eq("id", session.user.id)
     .maybeSingle();
 
   if (adminError) {

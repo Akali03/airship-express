@@ -1,37 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import Card from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Card";
-import Badge from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Badge";
-import Button from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Button";
-import GoalForm from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/GoalForm";
-import GoalEditForm from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/GoalEditForm";
-import PageHeader from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/PageHeader";
-import EmptyState from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/EmptyState";
-import Chip from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Chip";
-import ProgressBar from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/ProgressBar";
-import StatCard from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/StatCard";
+import { useMemo, useState } from "react";
 import {
+  Badge,
+  Button,
+  Chip,
+  DataTable,
+  DataTableRow,
+  DetailRow,
+  EmptyState,
+  Modal,
+  PageHeader,
+  ProgressBar,
   SkeletonCards,
   SkeletonRegion,
   SkeletonStats,
-} from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/Skeleton";
-import {
-  staggerContainer,
-  staggerItem,
-} from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/motion";
-import {
+  StatCard,
+  TableActions,
+  TableCell,
   controlSmallClass,
   errorTextClass,
-  iconEditClass,
-} from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/components/formStyles";
-import { readApiError } from "@/app/(hr-dashboard)/(dashboard)/performance-development-dashboard/lib/api-error";
-import { Pencil, Target } from "lucide-react";
+  inputClass,
+  selectClass,
+  textareaClass,
+} from "../components/ui";
+import { ApiError } from "../lib/api-error";
+import { useApiResource, useApiMutation } from "../lib/use-api";
+import { formatDate, todayManila } from "../lib/datetime";
+import { CalendarClock, Eye, Pencil, Target, Trash2 } from "lucide-react";
+import { useHrAuth } from "../lib/hr-auth";
+import { useDirectory } from "../lib/directory";
 import { toast } from "sonner";
+import type { DirectoryUser } from "../lib/types";
 
 type Goal = {
   id: string;
+  employee_id: string | null;
+  assigned_by: string | null;
   title: string;
   description: string | null;
   category: string | null;
@@ -40,6 +45,22 @@ type Goal = {
   due_date: string | null;
   progress_percent: number | null;
   status: string;
+};
+
+type Competency = {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+};
+
+type GoalCompetencyLink = {
+  id: string;
+  goal_id: string;
+  competency_id: string;
+  created_at: string;
+  created_by: string | null;
+  hr3_competencies: { name: string; category: string | null } | null;
 };
 
 const GOAL_STATUSES = [
@@ -90,12 +111,6 @@ function priorityRank(priority: string | null) {
   return 2;
 }
 
-function todayManila() {
-  return new Date().toLocaleDateString("en-CA", {
-    timeZone: "Asia/Manila",
-  });
-}
-
 function isOverdue(goal: Goal) {
   return (
     !!goal.due_date &&
@@ -104,105 +119,568 @@ function isOverdue(goal: Goal) {
   );
 }
 
+type GoalFormProps = {
+  isAdmin: boolean;
+  directory: DirectoryUser[];
+  competencies: Competency[];
+  selectedCompetencyIds: string[];
+  onCompetencyIdsChange: (ids: string[]) => void;
+  onSaveCompetencyLinks: (goalId: string, competencyIds: string[]) => Promise<void>;
+  onGoalCreated: () => void;
+  onCancel: () => void;
+};
+
+function GoalForm({
+  isAdmin,
+  directory,
+  competencies,
+  selectedCompetencyIds,
+  onCompetencyIdsChange,
+  onSaveCompetencyLinks,
+  onGoalCreated,
+  onCancel,
+}: GoalFormProps) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("individual");
+  const [priority, setPriority] = useState("medium");
+  const [target, setTarget] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const createGoal = useApiMutation({
+    path: "goals",
+    method: "POST",
+    onSuccess: () => {
+      setFieldErrors({});
+    },
+  });
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFieldErrors({});
+    const payload: Record<string, unknown> = {
+      title,
+      description,
+      category,
+      priority,
+      target,
+      due_date: dueDate || null,
+    };
+    if (isAdmin && employeeId) {
+      payload.employee_id = employeeId;
+    }
+    const result = await createGoal.submit(payload);
+    const submitError = result.error;
+    if (submitError) {
+      if (submitError instanceof ApiError) {
+        setFieldErrors(
+          Object.fromEntries(
+            submitError.fieldErrors.map((f) => [f.field, f.message])
+          )
+        );
+        toast.error(
+          submitError.fieldErrors.length > 0
+            ? "Failed to create goal. Please check the form and try again."
+            : "Failed to create goal. Please try again."
+        );
+      } else {
+        toast.error("Failed to create goal. Please try again.");
+      }
+      return;
+    }
+
+    const goalData = (result.data ?? null) as { goal?: { id?: string } } | null;
+    if (goalData?.goal?.id && selectedCompetencyIds.length > 0) {
+      await onSaveCompetencyLinks(goalData.goal.id, selectedCompetencyIds);
+      onCompetencyIdsChange([]);
+    }
+
+    setTitle("");
+    setDescription("");
+    setTarget("");
+    setDueDate("");
+    setEmployeeId("");
+    onGoalCreated();
+    onCancel();
+    toast.success("Goal created successfully.");
+  }
+
+  function toggleCompetency(id: string) {
+    if (selectedCompetencyIds.includes(id)) {
+      onCompetencyIdsChange(
+        selectedCompetencyIds.filter((c) => c !== id)
+      );
+    } else {
+      onCompetencyIdsChange([...selectedCompetencyIds, id]);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {isAdmin && directory.length > 0 && (
+        <select
+          value={employeeId}
+          onChange={(e) => setEmployeeId(e.target.value)}
+          aria-label="Assign goal to employee"
+          className={selectClass}
+        >
+          <option value="">Myself</option>
+          {directory.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} — {u.jobTitle}
+            </option>
+          ))}
+        </select>
+      )}
+      <input
+        type="text"
+        placeholder="Goal title"
+        aria-label="Goal title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        required
+        className={inputClass}
+      />
+      {fieldErrors.title && (
+        <p className={errorTextClass} role="alert">
+          {fieldErrors.title}
+        </p>
+      )}
+      <textarea
+        placeholder="Description (optional)"
+        aria-label="Goal description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        className={textareaClass}
+      />
+      {fieldErrors.description && (
+        <p className={errorTextClass} role="alert">
+          {fieldErrors.description}
+        </p>
+      )}
+      <select
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+        aria-label="Goal category"
+        className={selectClass}
+      >
+        <option value="individual">Individual</option>
+        <option value="department">Department</option>
+        <option value="company">Company</option>
+      </select>
+      <div className="flex gap-3">
+        <input
+          type="date"
+          aria-label="Due date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className={`${inputClass} min-w-0 flex-1`}
+        />
+        {fieldErrors.due_date && (
+          <p className={errorTextClass} role="alert">
+            {fieldErrors.due_date}
+          </p>
+        )}
+        <select
+          value={priority}
+          onChange={(e) => setPriority(e.target.value)}
+          aria-label="Priority"
+          className={`${selectClass} min-w-0 flex-1`}
+        >
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      <input
+        type="text"
+        placeholder="Target (e.g. 25 packages/day)"
+        aria-label="Goal target"
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className={inputClass}
+      />
+      {fieldErrors.target && (
+        <p className={errorTextClass} role="alert">
+          {fieldErrors.target}
+        </p>
+      )}
+      {isAdmin && competencies.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+            Competencies
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {competencies.map((c) => {
+              const active = selectedCompetencyIds.includes(c.id);
+              return (
+                <Chip
+                  key={c.id}
+                  active={active}
+                  onClick={() => toggleCompetency(c.id)}
+                >
+                  {c.name}
+                </Chip>
+              );
+            })}
+          </div>
+          {selectedCompetencyIds.length === 0 && (
+            <p className="text-xs text-muted">No competencies linked</p>
+          )}
+        </div>
+      )}
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" loading={createGoal.submitting}>
+          {createGoal.submitting ? "Saving…" : "Create Goal"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+type GoalEditFormProps = {
+  goal: Goal;
+  isAdmin: boolean;
+  directory: DirectoryUser[];
+  competencies: Competency[];
+  selectedCompetencyIds: string[];
+  onCompetencyIdsChange: (ids: string[]) => void;
+  onSaveCompetencyLinks: (goalId: string, competencyIds: string[]) => Promise<void>;
+  onSaved: () => void;
+  onCancel: () => void;
+};
+
+function GoalEditForm({
+  goal,
+  isAdmin,
+  directory,
+  competencies,
+  selectedCompetencyIds,
+  onCompetencyIdsChange,
+  onSaveCompetencyLinks,
+  onSaved,
+  onCancel,
+}: GoalEditFormProps) {
+  const [title, setTitle] = useState(goal.title);
+  const [description, setDescription] = useState(goal.description ?? "");
+  const [category, setCategory] = useState(goal.category ?? "individual");
+  const [priority, setPriority] = useState(goal.priority ?? "medium");
+  const [target, setTarget] = useState(goal.target ?? "");
+  const [dueDate, setDueDate] = useState(goal.due_date ?? "");
+  const [employeeId, setEmployeeId] = useState(goal.employee_id ?? "");
+  const [status, setStatus] = useState(goal.status);
+  const [progress, setProgress] = useState(goal.progress_percent ?? 0);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const updateGoal = useApiMutation({
+    path: "goals",
+    method: "PUT",
+    onSuccess: () => {
+      setFieldErrors({});
+    },
+  });
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFieldErrors({});
+    const payload: Record<string, unknown> = {
+      id: goal.id,
+      title,
+      description,
+      category,
+      priority,
+      target,
+      due_date: dueDate || null,
+      status,
+      progress_percent: progress,
+    };
+    if (isAdmin) {
+      payload.employee_id = employeeId || null;
+    }
+    const result = await updateGoal.submit(payload);
+    const submitError = result.error;
+    if (submitError) {
+      if (submitError instanceof ApiError) {
+        setFieldErrors(
+          Object.fromEntries(
+            submitError.fieldErrors.map((f) => [f.field, f.message])
+          )
+        );
+        toast.error(
+          submitError.fieldErrors.length > 0
+            ? "Failed to update goal. Please check the form and try again."
+            : "Failed to update goal. Please try again."
+        );
+      } else {
+        toast.error("Failed to update goal. Please try again.");
+      }
+      return;
+    }
+
+    if (selectedCompetencyIds) {
+      await onSaveCompetencyLinks(goal.id, selectedCompetencyIds);
+    }
+
+    onSaved();
+    toast.success("Goal updated successfully.");
+  }
+
+  function toggleCompetency(id: string) {
+    if (selectedCompetencyIds.includes(id)) {
+      onCompetencyIdsChange(
+        selectedCompetencyIds.filter((c) => c !== id)
+      );
+    } else {
+      onCompetencyIdsChange([...selectedCompetencyIds, id]);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {isAdmin && directory.length > 0 && (
+        <select
+          value={employeeId}
+          onChange={(e) => setEmployeeId(e.target.value)}
+          aria-label="Assign goal to employee"
+          className={selectClass}
+        >
+          <option value="">Myself</option>
+          {directory.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} — {u.jobTitle}
+            </option>
+          ))}
+        </select>
+      )}
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        required
+        aria-label="Goal title"
+        className={inputClass}
+      />
+      {fieldErrors.title && (
+        <p className={errorTextClass} role="alert">
+          {fieldErrors.title}
+        </p>
+      )}
+      <textarea
+        placeholder="Description (optional)"
+        aria-label="Goal description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        className={textareaClass}
+      />
+      {fieldErrors.description && (
+        <p className={errorTextClass} role="alert">
+          {fieldErrors.description}
+        </p>
+      )}
+      <select
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+        aria-label="Goal category"
+        className={selectClass}
+      >
+        <option value="individual">Individual</option>
+        <option value="department">Department</option>
+        <option value="company">Company</option>
+      </select>
+      <div className="flex gap-3">
+        <input
+          type="date"
+          aria-label="Due date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className={`${inputClass} min-w-0 flex-1`}
+        />
+        <select
+          value={priority}
+          onChange={(e) => setPriority(e.target.value)}
+          aria-label="Priority"
+          className={`${selectClass} min-w-0 flex-1`}
+        >
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      {fieldErrors.due_date && (
+        <p className={errorTextClass} role="alert">
+          {fieldErrors.due_date}
+        </p>
+      )}
+      <input
+        type="text"
+        placeholder="Target (e.g. 25 packages/day)"
+        aria-label="Goal target"
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className={inputClass}
+      />
+      {fieldErrors.target && (
+        <p className={errorTextClass} role="alert">
+          {fieldErrors.target}
+        </p>
+      )}
+      {isAdmin && competencies.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+            Competencies
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {competencies.map((c) => {
+              const active = selectedCompetencyIds.includes(c.id);
+              return (
+                <Chip
+                  key={c.id}
+                  active={active}
+                  onClick={() => toggleCompetency(c.id)}
+                >
+                  {c.name}
+                </Chip>
+              );
+            })}
+          </div>
+          {selectedCompetencyIds.length === 0 && (
+            <p className="text-xs text-muted">No competencies linked</p>
+          )}
+        </div>
+      )}
+      <div className="flex gap-3">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          aria-label="Status"
+          className={selectClass}
+        >
+          {GOAL_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {statusLabel(status)}
+            </option>
+          ))}
+        </select>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={progress}
+            onChange={(e) => setProgress(Number(e.target.value))}
+            aria-label="Progress percent"
+            className="min-w-0 flex-1 accent-accent"
+          />
+          <span className="w-10 shrink-0 text-right text-xs text-muted">
+            {progress}%
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <Button type="submit" loading={updateGoal.submitting}>
+          {updateGoal.submitting ? "Saving…" : "Save Changes"}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export default function GoalsPage() {
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { isAdmin } = useHrAuth();
+  const { directory, getDirectoryUser } = useDirectory();
+  const [isCreateGoalModalOpen, setIsCreateGoalModalOpen] = useState(false);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [sortBy, setSortBy] = useState<"due_date" | "priority" | "title">(
     "due_date"
   );
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [progressDrafts, setProgressDrafts] = useState<Record<string, number>>(
-    {}
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [viewingGoal, setViewingGoal] = useState<Goal | null>(null);
+  const [confirmingDeleteGoal, setConfirmingDeleteGoal] = useState<Goal | null>(
+    null
+  );
+  const [selectedCompetencyIds, setSelectedCompetencyIds] = useState<string[]>(
+    []
   );
 
-  useEffect(() => {
-    let cancelled = false;
+  const CREATE_GOAL_TITLE_ID = "create-goal-title";
 
-    async function load() {
-      try {
-        const res = await fetch("/performance-development-dashboard/api/goals");
-        if (!res.ok) throw new Error("Failed to load goals");
-        const json = await res.json();
-        if (cancelled) return;
-        setGoals(json.goals || []);
-      } catch {
-        if (!cancelled) setError("Could not load goals. Please try again.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const {
+    data: goals,
+    loading,
+    error,
+    refetch,
+  } = useApiResource<Goal>({
+    path: "goals",
+    listKey: "goals",
+    errorMessage: "Could not load goals. Please try again.",
+  });
+
+  const { data: competencies } = useApiResource<Competency>({
+    path: "competency",
+    listKey: "competencies",
+  });
+
+  const {
+    data: goalCompetencyLinks,
+    refetch: refetchGoalCompetencies,
+  } = useApiResource<GoalCompetencyLink>({
+    path: "goal-competencies",
+    listKey: "goal_competencies",
+  });
+
+  const goalCompetencyMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const link of goalCompetencyLinks) {
+      const list = map.get(link.goal_id) ?? [];
+      list.push(link.competency_id);
+      map.set(link.goal_id, list);
     }
+    return map;
+  }, [goalCompetencyLinks]);
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshKey]);
+  const saveCompetencyMutation = useApiMutation({
+    path: "goal-competencies",
+    method: "PUT",
+    onSuccess: () => {
+      refetchGoalCompetencies();
+    },
+  });
 
-  function refetch() {
-    setRefreshKey((k) => k + 1);
-  }
-
-  async function updateGoal(id: string, patch: Record<string, unknown>) {
-    try {
-      const res = await fetch("/performance-development-dashboard/api/goals", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...patch }),
-      });
-      if (!res.ok) {
-        throw await readApiError(res, "Failed to update goal");
-      }
-      refetch();
-      toast.success("Goal updated successfully.");
-    } catch {
-      toast.error("Failed to update goal. Please try again.");
-    }
-  }
-
-  function updateStatus(id: string, status: string) {
-    updateGoal(id, { status });
-  }
-
-  function commitProgress(goal: Goal) {
-    const draft = progressDrafts[goal.id];
-    if (draft === undefined || draft === (goal.progress_percent ?? 0)) return;
-    const nextStatus =
-      draft >= 100
-        ? "completed"
-        : goal.status === "not_started" && draft > 0
-          ? "in_progress"
-          : goal.status;
-    updateGoal(goal.id, {
-      progress_percent: draft,
-      status: nextStatus,
+  async function saveCompetencyLinks(goalId: string, competencyIds: string[]) {
+    await saveCompetencyMutation.submit({
+      goal_id: goalId,
+      competency_ids: competencyIds,
     });
   }
 
-  async function deleteGoal(id: string) {
-    if (!window.confirm("Delete this goal?")) return;
-    try {
-      const res = await fetch(
-        `/performance-development-dashboard/api/goals?id=${id}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        throw await readApiError(res, "Failed to delete goal");
-      }
+  const deleteGoalMutation = useApiMutation({
+    path: "goals",
+    method: "DELETE",
+    onSuccess: () => {
+      setConfirmingDeleteGoal(null);
       refetch();
+    },
+  });
+
+  async function confirmDeleteGoal(id: string) {
+    const { error: submitError } = await deleteGoalMutation.submit(null, {
+      id,
+    });
+    if (!submitError) {
       toast.success("Goal deleted successfully.");
-    } catch {
+      setConfirmingDeleteGoal(null);
+    } else {
       toast.error("Failed to delete goal. Please try again.");
     }
-  }
-
-  function formatDate(date: string | null) {
-    if (!date) return null;
-    return new Date(date).toLocaleDateString("en-PH", {
-      timeZone: "Asia/Manila",
-    });
   }
 
   const filteredGoals = goals
@@ -213,7 +691,8 @@ export default function GoalsPage() {
     })
     .sort((a, b) => {
       if (sortBy === "title") return a.title.localeCompare(b.title);
-      if (sortBy === "priority") return priorityRank(a.priority) - priorityRank(b.priority);
+      if (sortBy === "priority")
+        return priorityRank(a.priority) - priorityRank(b.priority);
       const aDate = a.due_date ?? "9999-12-31";
       const bDate = b.due_date ?? "9999-12-31";
       return aDate.localeCompare(bDate);
@@ -232,15 +711,40 @@ export default function GoalsPage() {
     { label: "Overdue", value: overdue },
   ];
 
+  function getLinkedCompetencies(goalId: string): GoalCompetencyLink[] {
+    return goalCompetencyLinks.filter((l) => l.goal_id === goalId);
+  }
+
   return (
     <div>
       <PageHeader
         eyebrow="Performance Management"
         title="Goals"
         subtitle="Track your objectives, update progress, and keep your manager in the loop."
+        actions={
+          <Button onClick={() => setIsCreateGoalModalOpen(true)}>
+            New Goal
+          </Button>
+        }
       />
 
-      <GoalForm onGoalCreated={refetch} />
+      <Modal
+        open={isCreateGoalModalOpen}
+        onClose={() => setIsCreateGoalModalOpen(false)}
+        title="Create Goal"
+        titleId={CREATE_GOAL_TITLE_ID}
+      >
+        <GoalForm
+          isAdmin={isAdmin}
+          directory={directory}
+          competencies={competencies}
+          selectedCompetencyIds={selectedCompetencyIds}
+          onCompetencyIdsChange={setSelectedCompetencyIds}
+          onSaveCompetencyLinks={saveCompetencyLinks}
+          onGoalCreated={refetch}
+          onCancel={() => setIsCreateGoalModalOpen(false)}
+        />
+      </Modal>
 
       {error && (
         <p className={`mb-6 ${errorTextClass}`} role="alert">
@@ -264,32 +768,37 @@ export default function GoalsPage() {
       )}
 
       {!loading && goals.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          {FILTERS.map((value) => (
-            <Chip
-              key={value}
-              active={filter === value}
-              onClick={() => setFilter(value)}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTERS.map((value) => (
+              <Chip
+                key={value}
+                active={filter === value}
+                onClick={() => setFilter(value)}
+              >
+                {value === "all"
+                  ? "All"
+                  : value === "overdue"
+                    ? "Overdue"
+                    : statusLabel(value)}
+              </Chip>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value as "due_date" | "priority" | "title")
+              }
+              aria-label="Sort goals"
+              className={controlSmallClass}
             >
-              {value === "all"
-                ? "All"
-                : value === "overdue"
-                  ? "Overdue"
-                  : statusLabel(value)}
-            </Chip>
-          ))}
-          <select
-            value={sortBy}
-            onChange={(e) =>
-              setSortBy(e.target.value as "due_date" | "priority" | "title")
-            }
-            aria-label="Sort goals"
-            className={`ml-auto ${controlSmallClass}`}
-          >
-            <option value="due_date">Sort by due date</option>
-            <option value="priority">Sort by priority</option>
-            <option value="title">Sort by title</option>
-          </select>
+              <option value="due_date">Due date</option>
+              <option value="priority">Priority</option>
+              <option value="title">Title</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -297,7 +806,7 @@ export default function GoalsPage() {
         <EmptyState
           icon={Target}
           title="No goals yet"
-          description="Create your first goal above to get started."
+          description={'Click "New Goal" above to create your first goal.'}
         />
       )}
 
@@ -310,138 +819,277 @@ export default function GoalsPage() {
       )}
 
       {!loading && filteredGoals.length > 0 && (
-        <motion.div
-          key={`${refreshKey}-${filter}-${sortBy}`}
-          variants={staggerContainer}
-          initial="hidden"
-          animate="shown"
-          className="flex max-w-md flex-col gap-4"
-        >
-          {filteredGoals.map((goal) => (
-            <motion.div key={goal.id} variants={staggerItem}>
-              <Card>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold font-bricolage">
-                    {goal.title}
-                  </h2>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {isOverdue(goal) && (
-                      <Badge variant="danger">Overdue</Badge>
+        <DataTable columns={["Goal", "Priority", "Status", "Due", "Progress", ""]}>
+          {filteredGoals.map((goal) => {
+            const displayProgress = goal.progress_percent ?? 0;
+            const linked = getLinkedCompetencies(goal.id);
+            return (
+              <DataTableRow key={goal.id}>
+                <TableCell>
+                  <div className="max-w-xs">
+                    <p className="truncate font-medium text-ink dark:text-paper">
+                      {goal.title}
+                    </p>
+                    {(() => {
+                      const owner = getDirectoryUser(goal.employee_id);
+                      if (!owner) return null;
+                      return (
+                        <p className="truncate text-xs text-muted">
+                          {owner.name}
+                          {owner.jobTitle && ` · ${owner.jobTitle}`}
+                        </p>
+                      );
+                    })()}
+                    {linked.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {linked.map((l) => (
+                          <Badge key={l.id} variant="neutral">
+                            {l.hr3_competencies?.name ?? "Unknown"}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {isOverdue(goal) && <Badge variant="danger">Overdue</Badge>}
                     {goal.priority && (
                       <Badge variant={priorityVariant(goal.priority)}>
                         {priorityLabel(goal.priority)}
                       </Badge>
                     )}
-                    <Badge variant={statusVariant(goal.status)}>
-                      {statusLabel(goal.status)}
-                    </Badge>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditingId(editingId === goal.id ? null : goal.id)
-                      }
-                      aria-label={
-                        editingId === goal.id ? "Close goal editor" : "Edit goal"
-                      }
-                      aria-expanded={editingId === goal.id}
-                      className={iconEditClass}
-                    >
-                      <Pencil size={14} />
-                    </button>
                   </div>
-                </div>
-
-                {editingId === goal.id ? (
-                  <GoalEditForm
-                    goal={goal}
-                    onSaved={() => {
-                      refetch();
-                      setEditingId(null);
-                    }}
-                    onCancel={() => setEditingId(null)}
-                  />
-                ) : (
-                  <>
-                    {goal.description && (
-                      <p className="mb-2 text-sm text-muted">
-                        {goal.description}
-                      </p>
-                    )}
-                    {goal.target && (
-                      <p className="mb-2 text-sm text-muted">
-                        <span className="font-medium text-ink dark:text-paper">
-                          Target:
-                        </span>{" "}
-                        {goal.target}
-                      </p>
-                    )}
-                    <div className="mb-3 flex items-center gap-3">
-                      <ProgressBar
-                        value={
-                          progressDrafts[goal.id] ?? goal.progress_percent ?? 0
-                        }
-                        label={`Progress for ${goal.title}`}
-                        className="flex-1"
-                      />
-                      <span className="w-10 shrink-0 text-right text-xs text-muted">
-                        {progressDrafts[goal.id] ?? goal.progress_percent ?? 0}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={progressDrafts[goal.id] ?? goal.progress_percent ?? 0}
-                      onChange={(e) =>
-                        setProgressDrafts((drafts) => ({
-                          ...drafts,
-                          [goal.id]: Number(e.target.value),
-                        }))
-                      }
-                      onPointerUp={() => commitProgress(goal)}
-                      onBlur={() => commitProgress(goal)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitProgress(goal);
-                      }}
-                      aria-label={`Progress for ${goal.title}`}
-                      className="mb-3 w-full accent-accent"
+                </TableCell>
+                <TableCell>
+                  <Badge variant={statusVariant(goal.status)}>
+                    {statusLabel(goal.status)}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {goal.due_date ? (
+                    <span
+                      className={`flex items-center gap-1 text-sm ${
+                        isOverdue(goal)
+                          ? "font-medium text-red-600 dark:text-red-400"
+                          : "text-muted"
+                      }`}
+                    >
+                      <CalendarClock size={12} />
+                      {formatDate(goal.due_date)}
+                    </span>
+                  ) : (
+                    <span className="text-muted">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="min-w-[120px]">
+                  <div className="flex items-center gap-2">
+                    <ProgressBar
+                      value={displayProgress}
+                      label={`Progress for ${goal.title}`}
+                      className="flex-1"
                     />
-                    <p className="mb-3 text-xs text-muted">
-                      {goal.category && (
-                        <span className="capitalize">{goal.category}</span>
-                      )}
-                      {goal.due_date && (
-                        <>
-                          {goal.category && " · "}Due {formatDate(goal.due_date)}
-                        </>
-                      )}
-                    </p>
-                    <div className="flex items-center justify-between gap-2">
-                      <select
-                        value={goal.status}
-                        onChange={(e) => updateStatus(goal.id, e.target.value)}
-                        aria-label={`Status for ${goal.title}`}
-                        className={controlSmallClass}
-                      >
-                        {GOAL_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {statusLabel(status)}
-                          </option>
-                        ))}
-                      </select>
-                      <Button variant="danger" onClick={() => deleteGoal(goal.id)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </Card>
-            </motion.div>
-          ))}
-        </motion.div>
+                    <span className="w-9 shrink-0 text-right text-xs text-muted">
+                      {displayProgress}%
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <TableActions
+                    actions={[
+                      {
+                        label: "View",
+                        icon: <Eye size={14} />,
+                        onClick: () => setViewingGoal(goal),
+                      },
+                      {
+                        label: "Edit",
+                        icon: <Pencil size={14} />,
+                        onClick: () => {
+                          setEditingGoal(goal);
+                          setSelectedCompetencyIds(
+                            goalCompetencyMap.get(goal.id) ?? []
+                          );
+                        },
+                      },
+                      {
+                        label: "Delete",
+                        icon: <Trash2 size={14} />,
+                        danger: true,
+                        onClick: () => setConfirmingDeleteGoal(goal),
+                      },
+                    ]}
+                  />
+                </TableCell>
+              </DataTableRow>
+            );
+          })}
+        </DataTable>
       )}
+
+      {/* View details */}
+      <Modal
+        open={!!viewingGoal}
+        onClose={() => setViewingGoal(null)}
+        title="Goal Details"
+        size="lg"
+      >
+        {viewingGoal && (
+          <dl className="divide-y divide-line dark:divide-paper/15">
+            <div className="pb-4">
+              <p className="font-bricolage text-lg font-semibold text-ink dark:text-paper">
+                {viewingGoal.title}
+              </p>
+              {(() => {
+                const owner = getDirectoryUser(viewingGoal.employee_id);
+                if (!owner) return null;
+                return (
+                  <p className="mt-0.5 text-xs text-muted">
+                    {owner.name}
+                    {owner.jobTitle && ` · ${owner.jobTitle}`}
+                  </p>
+                );
+              })()}
+            </div>
+            <DetailRow
+              label="Status"
+              value={
+                <Badge variant={statusVariant(viewingGoal.status)}>
+                  {statusLabel(viewingGoal.status)}
+                </Badge>
+              }
+            />
+            <DetailRow
+              label="Priority"
+              value={
+                viewingGoal.priority ? (
+                  <Badge variant={priorityVariant(viewingGoal.priority)}>
+                    {priorityLabel(viewingGoal.priority)}
+                  </Badge>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <DetailRow
+              label="Category"
+              value={
+                viewingGoal.category ? (
+                  <span className="capitalize">{viewingGoal.category}</span>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <DetailRow
+              label="Due date"
+              value={
+                viewingGoal.due_date
+                  ? `${formatDate(viewingGoal.due_date)}${
+                      isOverdue(viewingGoal) ? " (overdue)" : ""
+                    }`
+                  : "—"
+              }
+            />
+            <DetailRow
+              label="Target"
+              value={viewingGoal.target ?? "—"}
+            />
+            <DetailRow
+              label="Competencies"
+              value={
+                <div className="flex flex-wrap gap-1.5">
+                  {getLinkedCompetencies(viewingGoal.id).map((l) => (
+                    <Badge key={l.id} variant="neutral">
+                      {l.hr3_competencies?.name ?? "Unknown"}
+                    </Badge>
+                  ))}
+                  {getLinkedCompetencies(viewingGoal.id).length === 0 && (
+                    <span className="text-muted">None</span>
+                  )}
+                </div>
+              }
+            />
+            <div className="pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                Progress
+              </p>
+              <div className="flex items-center gap-3">
+                <ProgressBar
+                  value={viewingGoal.progress_percent ?? 0}
+                  label={`Progress for ${viewingGoal.title}`}
+                  className="flex-1"
+                />
+                <span className="w-10 shrink-0 text-right text-xs text-muted">
+                  {viewingGoal.progress_percent ?? 0}%
+                </span>
+              </div>
+            </div>
+            {viewingGoal.description && (
+              <div className="pt-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                  Description
+                </p>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink dark:text-paper">
+                  {viewingGoal.description}
+                </p>
+              </div>
+            )}
+          </dl>
+        )}
+      </Modal>
+
+      {/* Edit */}
+      <Modal
+        open={!!editingGoal}
+        onClose={() => setEditingGoal(null)}
+        title="Edit Goal"
+        size="md"
+      >
+        {editingGoal && (
+          <GoalEditForm
+            goal={editingGoal}
+            isAdmin={isAdmin}
+            directory={directory}
+            competencies={competencies}
+            selectedCompetencyIds={selectedCompetencyIds}
+            onCompetencyIdsChange={setSelectedCompetencyIds}
+            onSaveCompetencyLinks={saveCompetencyLinks}
+            onSaved={() => {
+              refetch();
+              refetchGoalCompetencies();
+              setEditingGoal(null);
+            }}
+            onCancel={() => setEditingGoal(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Delete confirmation */}
+      <Modal
+        open={!!confirmingDeleteGoal}
+        onClose={() => setConfirmingDeleteGoal(null)}
+        title="Delete Goal"
+        size="sm"
+      >
+        <p className="text-sm text-muted">
+          Delete this goal? This cannot be undone.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button
+            variant="danger"
+            onClick={() =>
+              confirmingDeleteGoal && confirmDeleteGoal(confirmingDeleteGoal.id)
+            }
+            loading={deleteGoalMutation.submitting}
+          >
+            {deleteGoalMutation.submitting ? "Deleting…" : "Confirm Delete"}
+          </Button>
+          <Button variant="secondary" onClick={() => setConfirmingDeleteGoal(null)}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
