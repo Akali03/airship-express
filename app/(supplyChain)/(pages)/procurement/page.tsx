@@ -881,19 +881,33 @@ export default function Procurement() {
                     </div>
                 </div>
 
-                {canCreateRequest && (
-                    <AppButton type="button" variant="primary" size="md" onClick={() => {
-                        setIsEditMode(false);
-                        setIsReadOnly(false);
-                        setEditData(null);
-                        setSelectedIds(new Set());
-                        setIsSelectAll(false);
-                        setIsPurchaseRequestModalOpen(true);
-                    }}>
-                        <i className="fas fa-plus text-xs" />
-                        <span>New Purchase Request</span>
-                    </AppButton>
-                )}
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 mt-2 sm:mt-0">
+                    {selectedIds.size > 0 && (
+                        <AppButton
+                            type="button"
+                            variant="danger"
+                            size="md"
+                            onClick={handleBulkDelete}
+                            disabled={pendingRowId === "bulk"}
+                        >
+                            {pendingRowId === "bulk" ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-trash-alt text-xs" />}
+                            <span>Delete Selected ({selectedIds.size})</span>
+                        </AppButton>
+                    )}
+                    {canCreateRequest && (
+                        <AppButton type="button" variant="primary" size="md" onClick={() => {
+                            setIsEditMode(false);
+                            setIsReadOnly(false);
+                            setEditData(null);
+                            setSelectedIds(new Set());
+                            setIsSelectAll(false);
+                            setIsPurchaseRequestModalOpen(true);
+                        }}>
+                            <i className="fas fa-plus text-xs" />
+                            <span>New Purchase Request</span>
+                        </AppButton>
+                    )}
+                </div>
             </div>
 
             {/* ai questions */}
@@ -1059,13 +1073,26 @@ export default function Procurement() {
                                 })}
                             </div>
 
-                            {/* po action */}
-                            <Link href="/purchase-orders">
-                                <AppButton type="button" variant="primary" size="sm" aria-label="Go to Purchase Orders" className="shrink-0">
-                                    <i className="fas fa-file-invoice-dollar text-xs" />
-                                    <span className="hidden sm:inline">Purchase Orders</span>
-                                </AppButton>
-                            </Link>
+                            {/* po action & bulk delete */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {selectedIds.size > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleBulkDelete}
+                                        disabled={pendingRowId === "bulk"}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200/70 dark:border-rose-800/50 rounded-2xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95 disabled:opacity-50 shrink-0"
+                                    >
+                                        {pendingRowId === "bulk" ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-trash-alt text-[10px]" />}
+                                        <span>Delete Selected ({selectedIds.size})</span>
+                                    </button>
+                                )}
+                                <Link href="/purchase-orders">
+                                    <AppButton type="button" variant="primary" size="sm" aria-label="Go to Purchase Orders" className="shrink-0">
+                                        <i className="fas fa-file-invoice-dollar text-xs" />
+                                        <span className="hidden sm:inline">Purchase Orders</span>
+                                    </AppButton>
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1094,7 +1121,7 @@ export default function Procurement() {
                                 <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Date</th>
                                 <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Status</th>
                                 <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">PO Status</th>
-                                <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-right! w-[170px] min-w-[170px]">Actions</th>
+                                <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-right! sm:w-[170px] sm:min-w-[170px]">Actions</th>
                             </tr>
                         </thead>
 
@@ -1120,27 +1147,35 @@ export default function Procurement() {
                                 const isSelected = selectedIds.has(req.id);
                                 const isPending = req.status === "Pending";
                                 return (<tr key={req.id} onClick={() => handleEditRequest(req.id)} className={`group transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer ${rowBusy ? "opacity-50 pointer-events-none" : ""} ${isSelected ? "bg-pink-50/50 dark:bg-pink-950/20" : "bg-transparent"}`}>
-                                    <td data-label="" className="py-3.5 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                        <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600 disabled:opacity-30 disabled:cursor-not-allowed" checked={isSelected} onChange={() => handleSelectOne(req.id)} disabled={(!isPending && req.status !== "Rejected") || rowBusy} title={!isPending && req.status !== "Rejected" ? "Only pending or rejected requests can be selected" : ""} />
+                                    <td data-label="Select" className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center justify-between md:justify-center w-full">
+                                            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600 disabled:opacity-30 disabled:cursor-not-allowed" checked={isSelected} onChange={() => handleSelectOne(req.id)} disabled={(!isPending && req.status !== "Rejected") || rowBusy} title={!isPending && req.status !== "Rejected" ? "Only pending or rejected requests can be selected" : ""} />
+                                                <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select</span>
+                                            </label>
+                                            <span className="md:hidden font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+                                                {req.request_number}
+                                            </span>
+                                        </div>
                                     </td>
-                                    <td data-label="PR #" className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                                    <td data-label="PR #" className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap text-right sm:text-left">
                                         {req.request_number}
                                     </td>
-                                    <td data-label="Type" className="py-3.5 px-4 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                    <td data-label="Type" className="py-3.5 px-4 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap text-right sm:text-left">
                                         {req.type}
                                     </td>
                                     <td data-label="Description" className="py-3.5 px-4">
-                                        <span className="text-slate-600 dark:text-slate-400 truncate max-w-[180px] block" title={req.description}>
+                                        <span className="text-slate-600 dark:text-slate-400 truncate max-w-[180px] sm:max-w-none block text-right sm:text-left ml-auto sm:ml-0" title={req.description}>
                                             {req.description}
                                         </span>
                                     </td>
-                                    <td data-label="Requested By" className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                    <td data-label="Requested By" className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap text-right sm:text-left">
                                         {req.requested_by}
                                     </td>
-                                    <td data-label="Dept" className="py-3.5 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                    <td data-label="Dept" className="py-3.5 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap text-right sm:text-left">
                                         {req.department}
                                     </td>
-                                    <td data-label="Supplier" className="py-3.5 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap max-w-[140px] truncate" title={req.supplier_name}>
+                                    <td data-label="Supplier" className="py-3.5 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap max-w-[140px] truncate text-right sm:text-left ml-auto sm:ml-0" title={req.supplier_name}>
                                         {req.supplier_name}
                                     </td>
                                     <td data-label="Amount" className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
@@ -1152,25 +1187,31 @@ export default function Procurement() {
                                         })()}
                                     </td>
                                     <td data-label="Priority" className="py-3.5 px-4 whitespace-nowrap">
-                                        <StatusBadge tone={req.priority === 'Critical' ? 'rose' : req.priority === 'Urgent' ? 'amber' : 'indigo'} size="xs">
-                                            {req.priority}
-                                        </StatusBadge>
+                                        <div className="flex justify-end sm:justify-start">
+                                            <StatusBadge tone={req.priority === 'Critical' ? 'rose' : req.priority === 'Urgent' ? 'amber' : 'indigo'} size="xs">
+                                                {req.priority}
+                                            </StatusBadge>
+                                        </div>
                                     </td>
-                                    <td data-label="Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                    <td data-label="Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap text-right sm:text-left">
                                         {req.date}
                                     </td>
                                     <td data-label="Status" className="py-3.5 px-4 whitespace-nowrap">
-                                        <StatusBadge tone={req.status === 'Pending' ? 'amber' : req.status === 'Approved' ? 'purple' : req.status === 'Rejected' ? 'rose' : req.status === 'Completed' ? 'pink' : 'neutral'} dot size="xs">
-                                            {req.status}
-                                        </StatusBadge>
+                                        <div className="flex justify-end sm:justify-start">
+                                            <StatusBadge tone={req.status === 'Pending' ? 'amber' : req.status === 'Approved' ? 'purple' : req.status === 'Rejected' ? 'rose' : req.status === 'Completed' ? 'pink' : 'neutral'} dot size="xs">
+                                                {req.status}
+                                            </StatusBadge>
+                                        </div>
                                     </td>
                                     <td data-label="PO Status" className="py-3.5 px-4 whitespace-nowrap">
-                                        {hasPO && poStatus ? (<StatusBadge tone={getPOStatusTone(poStatus)} size="xs" title={`PO Status: ${poStatus} ${poNumber ? `(#${poNumber})` : ''}`}>
-                                            {poStatus} {poNumber && `#${poNumber}`}
-                                        </StatusBadge>) : (<span className="text-[10px] text-slate-400 dark:text-slate-500 italic">No PO</span>)}
+                                        <div className="flex justify-end sm:justify-start">
+                                            {hasPO && poStatus ? (<StatusBadge tone={getPOStatusTone(poStatus)} size="xs" title={`PO Status: ${poStatus} ${poNumber ? `(#${poNumber})` : ''}`}>
+                                                {poStatus} {poNumber && `#${poNumber}`}
+                                            </StatusBadge>) : (<span className="text-[10px] text-slate-400 dark:text-slate-500 italic">No PO</span>)}
+                                        </div>
                                     </td>
-                                    <td data-label="Actions" className="py-3.5 px-4 text-right whitespace-nowrap w-[170px] min-w-[170px]" onClick={(e) => e.stopPropagation()}>
-                                        <div className="flex items-center justify-end gap-2.5">
+                                    <td data-label="Actions" className="py-3.5 px-4 text-right sm:w-[170px] sm:min-w-[170px] w-full" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center justify-end gap-2.5 flex-wrap w-full sm:w-auto">
                                             {rowBusy && (<svg className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />

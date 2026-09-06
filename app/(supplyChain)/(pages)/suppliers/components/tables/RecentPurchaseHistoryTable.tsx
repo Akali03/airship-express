@@ -53,7 +53,7 @@ export function RecentPurchaseHistoryTable({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto max-h-[300px]">
+            <div className="flex-1 overflow-y-auto md:max-h-[300px]">
                 {isLoading ? (
                     <PurchaseHistorySkeleton rows={5} />
                 ) : (
@@ -67,7 +67,7 @@ export function RecentPurchaseHistoryTable({
                                     <th className="py-3.5 px-4">Date</th>
                                     <th className="py-3.5 px-4">Status</th>
                                     <th className="py-3.5 px-4">Payment</th>
-                                    <th className="py-3.5 px-4 text-right! w-[80px] min-w-[80px]">Actions</th>
+                                    <th className="py-3.5 px-4 text-right! sm:w-[80px] sm:min-w-[80px]">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60">
@@ -91,32 +91,44 @@ export function RecentPurchaseHistoryTable({
                                             className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer"
                                         >
                                             <td data-label="Order #" className="py-3.5 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                                                {order.po_number}
+                                                <div className="text-right sm:text-left font-mono font-bold">
+                                                    {order.po_number}
+                                                </div>
                                             </td>
-                                            <td data-label="Supplier" className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200">
-                                                {order.supplier_name}
+                                            <td data-label="Supplier" className="py-3.5 px-4">
+                                                <div className="text-right sm:text-left font-medium text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-none ml-auto sm:ml-0">
+                                                    {order.supplier_name}
+                                                </div>
                                             </td>
-                                            <td data-label="Total" className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
-                                                {order.total_amount?.toLocaleString(undefined, {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2,
-                                                }) || '0.00'}
+                                            <td data-label="Total" className="py-3.5 px-4">
+                                                <div className="text-right sm:text-left font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                                                    {order.total_amount?.toLocaleString(undefined, {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2,
+                                                    }) || '0.00'}
+                                                </div>
                                             </td>
-                                            <td data-label="Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
-                                                {new Date(order.created_at).toLocaleDateString(undefined, {
-                                                    year: 'numeric',
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                })}
+                                            <td data-label="Date" className="py-3.5 px-4">
+                                                <div className="text-right sm:text-left text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                                    {new Date(order.created_at).toLocaleDateString(undefined, {
+                                                        year: 'numeric',
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                    })}
+                                                </div>
                                             </td>
                                             <td data-label="Status" className="py-3.5 px-4">
-                                                {getStatusBadge(order.status)}
+                                                <div className="flex justify-end sm:justify-start">
+                                                    {getStatusBadge(order.status)}
+                                                </div>
                                             </td>
                                             <td data-label="Payment" className="py-3.5 px-4">
-                                                {getPaidBadge(order.paid || false)}
+                                                <div className="flex justify-end sm:justify-start">
+                                                    {getPaidBadge(order.paid || false)}
+                                                </div>
                                             </td>
-                                            <td data-label="Actions" className="py-3.5 px-4 text-right w-[80px] min-w-[80px]" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex items-center justify-end">
+                                            <td data-label="Actions" className="py-3.5 px-4 text-right sm:w-[80px] sm:min-w-[80px] w-full" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end w-full sm:w-auto">
                                                     <CrudActionButton
                                                         action="view"
                                                         ariaLabel={`View purchase order ${order.po_number}`}

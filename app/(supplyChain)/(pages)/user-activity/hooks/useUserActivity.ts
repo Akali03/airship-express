@@ -29,7 +29,7 @@ export function useUserActivity() {
     const [userRole, setUserRole] = useState<string>('');
     const [currentUserId, setCurrentUserId] = useState<string>('');
 
-    // Pagination states
+    // pagination states
     const [sessionPage, setSessionPage] = useState(1);
     const [blockedPage, setBlockedPage] = useState(1);
     const [appealPage, setAppealPage] = useState(1);
@@ -66,7 +66,7 @@ export function useUserActivity() {
             const blockedData = blockedResult.data || [];
             const sessionsData = sessionsResult.data || [];
 
-            // Fetch AI Chatbot Moderation strike and lockout states
+            // fetch ai chatbot moderation strike and lockout states
             const moderationMap = new Map();
             try {
                 const modRes = await fetch('/ai/api/moderation-status?all=true');
@@ -204,7 +204,7 @@ export function useUserActivity() {
         setCurrentUserId(userData?.email || '');
         fetchAllData();
 
-        // Optimized Realtime Postgres Subscriptions with Debouncing
+        // optimized realtime postgres subscriptions with debouncing
         let timer: NodeJS.Timeout | null = null;
         const debouncedFetch = (callback: () => void) => {
             if (timer) clearTimeout(timer);
@@ -247,7 +247,7 @@ export function useUserActivity() {
             )
             .subscribe();
 
-        // Optimized interval: updates active countdowns dynamically when any strike exists
+        // optimized interval: updates active countdowns dynamically when any strike exists
         const pollInterval = setInterval(() => {
             setSessions(prev => {
                 const hasStrikes = prev.some(s => (s.strikes || 0) > 0 || s.is_locked_out);
@@ -279,7 +279,7 @@ export function useUserActivity() {
         }
     };
 
-    // Filter helpers
+    // filter helpers
     const filterSessions = useCallback((term: string) => {
         if (!term.trim()) {
             setFilteredSessions(sessions);
@@ -323,7 +323,7 @@ export function useUserActivity() {
         setActivityPage(1);
     }, [activities]);
 
-    // Actions
+    // actions
     const handleBlockDevice = async (sessionId: string, userAgent: string, ipAddress?: string, userName?: string, email?: string) => {
         const session = sessions.find(s => s.id === sessionId);
         if (session?.user_id) {
@@ -599,7 +599,7 @@ export function useUserActivity() {
         }
     };
 
-    // Bulk actions
+    // bulk actions
     const handleBulkBlock = async () => {
         if (selectedSessions.size === 0) {
             toast.warning('Please select at least one device');
@@ -985,7 +985,7 @@ export function useUserActivity() {
     };
 
     return {
-        // State
+        // state
         sessions,
         filteredSessions,
         blockedDevices,
@@ -996,7 +996,7 @@ export function useUserActivity() {
         userRole,
         currentUserId,
 
-        // Selections
+        // selections
         selectedSessions,
         setSelectedSessions,
         selectedBlockedDevices,
@@ -1006,7 +1006,7 @@ export function useUserActivity() {
         selectedActivities,
         setSelectedActivities,
 
-        // Pagination
+        // pagination
         sessionPage,
         setSessionPage,
         blockedPage,
@@ -1021,16 +1021,16 @@ export function useUserActivity() {
         appealTotalPages,
         activityTotalPages,
 
-        // Data helpers
+        // data helpers
         getPaginatedData,
         filterSessions,
         filterActivities,
         fetchAllData,
 
-        // Moderation
+        // moderation
         handleResetStrikes,
 
-        // Operations
+        // operations
         handleBlockDevice,
         handleUnblockDevice,
         handleDeleteDevice,
@@ -1039,7 +1039,7 @@ export function useUserActivity() {
         handleDeleteAppeal,
         handleSendResponse,
 
-        // Bulk operations
+        // bulk operations
         handleBulkBlock,
         handleBulkUnblock,
         handleBulkDeleteBlocked,

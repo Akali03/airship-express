@@ -229,20 +229,20 @@ export function DocumentsTable({
             )}
 
             {/* scrollable table container */}
-            <div className="flex-1 overflow-y-auto max-h-[500px] relative rounded-2xl bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.2)]">
-                <div className="md:hidden flex items-center justify-between p-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-line rounded-t-xl">
-                    <div className="flex items-center gap-2">
+            <div className="flex-1 overflow-y-auto md:max-h-[500px] relative rounded-2xl bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.2)]">
+                <div className="md:hidden flex items-center justify-between p-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200/60 dark:border-slate-800 rounded-t-xl">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                             type="checkbox"
                             checked={documents.length > 0 && selectedDocIds.size === documents.length}
                             onChange={onToggleSelectAll}
-                            className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-600 bg-transparent"
                         />
-                        <span className="text-xs text-ink font-medium">
+                        <span className="text-xs text-slate-800 dark:text-slate-200 font-semibold">
                             Select All ({documents.length})
                         </span>
-                    </div>
-                    <span className="text-xs text-muted">
+                    </label>
+                    <span className="text-xs font-bold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40 px-2 py-0.5 rounded-full border border-pink-200 dark:border-pink-800">
                         {selectedDocIds.size} selected
                     </span>
                 </div>
@@ -257,7 +257,7 @@ export function DocumentsTable({
                                         type="checkbox"
                                         checked={documents.length > 0 && selectedDocIds.size === documents.length}
                                         onChange={onToggleSelectAll}
-                                        className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
+                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-600 bg-transparent"
                                     />
                                 </th>
                                 <th className="w-12 text-center! py-3 px-3">Format</th>
@@ -307,61 +307,79 @@ export function DocumentsTable({
                                             className={`hover:bg-white/60 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer ${isSelected ? 'bg-pink-500/10 dark:bg-pink-500/20' : ''}`}
                                         >
                                             <td data-label="Select" className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => onToggleSelectDoc(doc.id)}
-                                                    className="w-4 h-4 rounded border-line text-accent focus:ring-accent/20 cursor-pointer accent-accent"
-                                                />
+                                                <div className="flex items-center justify-between md:justify-center w-full">
+                                                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => onToggleSelectDoc(doc.id)}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-600 bg-transparent"
+                                                        />
+                                                        <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select File</span>
+                                                    </label>
+                                                    <span className="md:hidden font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+                                                        DOC-{doc.id.substring(0, 8)}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td data-label="Format" className="py-3 px-3">
-                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm border mx-auto ${getFileColor(doc.file_type)}`}>
-                                                    <i className={`fas ${getFileIcon(doc.file_type)}`}></i>
+                                                <div className="flex justify-end md:justify-center w-full">
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm border ${getFileColor(doc.file_type)}`}>
+                                                        <i className={`fas ${getFileIcon(doc.file_type)}`}></i>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td data-label="Document Title" className="py-3 px-4">
-                                                <div className="font-semibold text-slate-900 dark:text-white truncate max-w-[240px]" title={doc.title}>
-                                                    {doc.title}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400 font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
+                                                <div className="text-right sm:text-left min-w-0 max-w-[220px] sm:max-w-none ml-auto sm:ml-0">
+                                                    <div className="font-semibold text-slate-900 dark:text-white truncate" title={doc.title}>
+                                                        {doc.title}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
 
-                                                {/* po link inline display */}
-                                                {(doc.purchase_orders || doc.purchase_id || doc.po_number) && (
-                                                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                                                        <StatusBadge tone="pink" icon="fas fa-file-invoice" size="xs">
-                                                            <span>PO #{doc.purchase_orders?.po_number || doc.po_number}</span>
-                                                        </StatusBadge>
-                                                        {doc.purchase_orders?.status && (
-                                                            <StatusBadge tone="neutral" size="xs">
-                                                                {doc.purchase_orders.status}
+                                                    {/* po link inline display */}
+                                                    {(doc.purchase_orders || doc.purchase_id || doc.po_number) && (
+                                                        <div className="flex items-center justify-end sm:justify-start gap-1.5 flex-wrap mt-1">
+                                                            <StatusBadge tone="pink" icon="fas fa-file-invoice" size="xs">
+                                                                <span>PO #{doc.purchase_orders?.po_number || doc.po_number}</span>
                                                             </StatusBadge>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                            {doc.purchase_orders?.status && (
+                                                                <StatusBadge tone="neutral" size="xs">
+                                                                    {doc.purchase_orders.status}
+                                                                </StatusBadge>
+                                                            )}
+                                                        </div>
+                                                    )}
 
-                                                {/* force insert audit flag */}
-                                                {doc.force_inserted_by && (
-                                                    <div className="mt-1">
-                                                        <StatusBadge tone="amber" icon="fas fa-triangle-exclamation" size="xs">
-                                                            <span>⚠ Forced by {doc.force_user_name || 'Admin'}</span>
-                                                        </StatusBadge>
-                                                    </div>
-                                                )}
+                                                    {/* force insert audit flag */}
+                                                    {doc.force_inserted_by && (
+                                                        <div className="mt-1 flex justify-end sm:justify-start">
+                                                            <StatusBadge tone="amber" icon="fas fa-triangle-exclamation" size="xs">
+                                                                <span>⚠ Forced by {doc.force_user_name || 'Admin'}</span>
+                                                            </StatusBadge>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td data-label="Category" className="py-3 px-4">
-                                                <StatusBadge tone="pink" size="xs">
-                                                    {doc.document_type}
-                                                </StatusBadge>
+                                                <div className="flex justify-end sm:justify-start">
+                                                    <StatusBadge tone="pink" size="xs">
+                                                        {doc.document_type}
+                                                    </StatusBadge>
+                                                </div>
                                             </td>
-                                            <td data-label="Size" className="py-3 px-4 text-slate-900 dark:text-white font-medium">{formatFileSize(doc.file_size)}</td>
-                                            <td data-label="Supplier" className="py-3 px-4 text-slate-900 dark:text-white">
-                                                {doc.supplier || doc.purchase_orders?.supplier_name || <span className="text-slate-400">—</span>}
+                                            <td data-label="Size" className="py-3 px-4 text-slate-900 dark:text-white font-medium text-right sm:text-left">
+                                                {formatFileSize(doc.file_size)}
                                             </td>
-                                            <td data-label="Date Uploaded" className="py-3 px-4 text-slate-400 whitespace-nowrap">
+                                            <td data-label="Supplier" className="py-3 px-4 text-slate-900 dark:text-white text-right sm:text-left">
+                                                <span className="truncate max-w-[180px] sm:max-w-none inline-block" title={doc.supplier || doc.purchase_orders?.supplier_name || ''}>
+                                                    {doc.supplier || doc.purchase_orders?.supplier_name || <span className="text-slate-400">—</span>}
+                                                </span>
+                                            </td>
+                                            <td data-label="Date Uploaded" className="py-3 px-4 text-slate-400 whitespace-nowrap text-right sm:text-left">
                                                 {new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                             </td>
-                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap w-[170px] min-w-[170px]" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex items-center justify-end gap-2.5">
+                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap sm:w-[170px] sm:min-w-[170px] w-full" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-2.5 flex-wrap sm:flex-nowrap w-full sm:w-auto">
                                                     <CrudActionButton
                                                         action="view"
                                                         ariaLabel={`View ${doc.title}`}

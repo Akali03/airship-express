@@ -15,6 +15,7 @@ import { CrudActionButton } from '@/app/(supplyChain)/components/ui/CrudActionBu
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 import { trashCache } from '../utils/trashCache';
+import { TrashRetentionBadge } from './TrashRetentionBadge';
 
 interface ArchivedPurchaseOrder {
     id: string;
@@ -558,7 +559,7 @@ export function PurchaseOrdersTab() {
                                 <th className="py-3 px-4">Total Amount</th>
                                 <th className="py-3 px-4">Status</th>
                                 <th className="py-3 px-4">Deleted By</th>
-                                <th className="py-3 px-4">Deleted At</th>
+                                <th className="py-3 px-4">Deleted At & Auto-Purge</th>
                                 <th className="text-right! py-3 px-4 w-[130px] min-w-[130px]">Actions</th>
                             </tr>
                         </thead>
@@ -598,38 +599,47 @@ export function PurchaseOrdersTab() {
                                             className={`transition-all duration-150 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''
                                                 }`}
                                         >
-                                            <td className="py-3 px-4 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => {
-                                                        const newSelected = new Set(selectedPoIds);
-                                                        if (newSelected.has(po.id)) newSelected.delete(po.id);
-                                                        else newSelected.add(po.id);
-                                                        setSelectedPoIds(newSelected);
-                                                    }}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
-                                                />
+                                            <td data-label="Select" className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-start md:justify-center w-full">
+                                                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                const newSelected = new Set(selectedPoIds);
+                                                                if (newSelected.has(po.id)) newSelected.delete(po.id);
+                                                                else newSelected.add(po.id);
+                                                                setSelectedPoIds(newSelected);
+                                                            }}
+                                                            aria-label={`Select ${po.po_number}`}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
+                                                        />
+                                                        <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select</span>
+                                                    </label>
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
-                                                {po.po_number}
+                                            <td data-label="PO Number" className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                                <span className="truncate max-w-[140px] inline-block" title={po.po_number}>{po.po_number}</span>
                                             </td>
-                                            <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
-                                                {po.supplier_name}
+                                            <td data-label="Supplier" className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
+                                                <span className="truncate max-w-[180px] inline-block" title={po.supplier_name}>{po.supplier_name}</span>
                                             </td>
-                                            <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
-                                                {formatCurrency(po.total_amount)}
+                                            <td data-label="Total Amount" className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                <span className="truncate max-w-[140px] inline-block">{formatCurrency(po.total_amount)}</span>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td data-label="Status" className="py-3 px-4">
                                                 {getStatusBadge(po.status)}
                                             </td>
-                                            <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
-                                                {po.deleted_by}
+                                            <td data-label="Deleted By" className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                                                <span className="truncate max-w-[130px] inline-block" title={po.deleted_by}>{po.deleted_by}</span>
                                             </td>
-                                            <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap font-mono">
-                                                {formatDate(po.deleted_at)}
+                                            <td data-label="Deleted At & Auto-Purge" className="py-3 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300">{formatDate(po.deleted_at)}</span>
+                                                    <TrashRetentionBadge deletedAt={po.deleted_at} />
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]">
+                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]">
                                                 <div className="flex items-center justify-end gap-2.5">
                                                     <CrudActionButton
                                                         action="restore"

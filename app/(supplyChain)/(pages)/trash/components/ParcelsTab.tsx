@@ -15,6 +15,7 @@ import { CrudActionButton } from '@/app/(supplyChain)/components/ui/CrudActionBu
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 import { trashCache } from '../utils/trashCache';
+import { TrashRetentionBadge } from './TrashRetentionBadge';
 
 interface ArchivedParcel {
     id: number;
@@ -593,7 +594,7 @@ export function ParcelsTab() {
                                 <th className="py-3 px-4">Courier</th>
                                 <th className="py-3 px-4">Status</th>
                                 <th className="py-3 px-4">Deleted By</th>
-                                <th className="py-3 px-4">Deleted At</th>
+                                <th className="py-3 px-4">Deleted At & Auto-Purge</th>
                                 <th className="text-right! py-3 px-4 w-[130px] min-w-[130px]">Actions</th>
                             </tr>
                         </thead>
@@ -636,47 +637,61 @@ export function ParcelsTab() {
                                             className={`transition-all duration-150 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''
                                                 }`}
                                         >
-                                            <td className="py-3 px-4 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => {
-                                                        const newSelected = new Set(selectedParcelIds);
-                                                        if (newSelected.has(parcel.id)) newSelected.delete(parcel.id);
-                                                        else newSelected.add(parcel.id);
-                                                        setSelectedParcelIds(newSelected);
-                                                    }}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
-                                                />
+                                            <td data-label="Select" className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-between md:justify-center w-full">
+                                                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                const newSelected = new Set(selectedParcelIds);
+                                                                if (newSelected.has(parcel.id)) newSelected.delete(parcel.id);
+                                                                else newSelected.add(parcel.id);
+                                                                setSelectedParcelIds(newSelected);
+                                                            }}
+                                                            aria-label={`Select ${parcel.barcode}`}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
+                                                        />
+                                                        <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select</span>
+                                                    </label>
+                                                    <span className="md:hidden font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                        {parcel.barcode}
+                                                    </span>
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                                                {parcel.barcode}
+                                            <td data-label="Barcode" className="py-3 px-4 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 text-right sm:text-left">
+                                                <span className="truncate inline-block text-right" title={parcel.barcode}>{parcel.barcode}</span>
                                             </td>
-                                            <td className="py-3 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                                {parcel.tracking_number}
+                                            <td data-label="Tracking" className="py-3 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400 text-right sm:text-left">
+                                                <span className="truncate inline-block text-right" title={parcel.tracking_number}>{parcel.tracking_number}</span>
                                             </td>
-                                            <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
-                                                {parcel.sender_name}
+                                            <td data-label="Sender" className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300 text-right sm:text-left">
+                                                <span className="truncate inline-block text-right" title={parcel.sender_name}>{parcel.sender_name}</span>
                                             </td>
-                                            <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
-                                                {parcel.destination}
+                                            <td data-label="Destination" className="py-3 px-4 text-slate-700 dark:text-slate-300 text-right sm:text-left">
+                                                <span className="truncate inline-block text-right" title={parcel.destination}>{parcel.destination}</span>
                                             </td>
-                                            <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                                                {parcel.city || '—'}
+                                            <td data-label="City" className="py-3 px-4 text-slate-600 dark:text-slate-400 text-right sm:text-left">
+                                                <span className="truncate inline-block text-right" title={parcel.city || '—'}>{parcel.city || '—'}</span>
                                             </td>
-                                            <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-semibold">
-                                                {parcel.courier}
+                                            <td data-label="Courier" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-semibold text-right sm:text-left">
+                                                <span className="truncate inline-block text-right" title={parcel.courier}>{parcel.courier}</span>
                                             </td>
-                                            <td className="py-3 px-4">
-                                                {getStatusBadge(parcel.status)}
+                                            <td data-label="Status" className="py-3 px-4">
+                                                <div className="flex justify-end sm:justify-start">
+                                                    {getStatusBadge(parcel.status)}
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
-                                                {parcel.deleted_by}
+                                            <td data-label="Deleted By" className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium text-right sm:text-left">
+                                                <span className="truncate inline-block text-right" title={parcel.deleted_by}>{parcel.deleted_by}</span>
                                             </td>
-                                            <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap font-mono">
-                                                {formatDate(parcel.deleted_at)}
+                                            <td data-label="Deleted At & Auto-Purge" className="py-3 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                                <div className="flex flex-col items-end sm:items-start gap-1">
+                                                    <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300">{formatDate(parcel.deleted_at)}</span>
+                                                    <TrashRetentionBadge deletedAt={parcel.deleted_at} />
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]">
+                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap sm:w-[130px] sm:min-w-[130px] w-full">
                                                 <div className="flex items-center justify-end gap-2.5">
                                                     <CrudActionButton
                                                         action="restore"

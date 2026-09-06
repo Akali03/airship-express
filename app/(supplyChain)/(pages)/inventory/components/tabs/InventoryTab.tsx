@@ -34,6 +34,7 @@ interface InventoryTabProps {
     onClearFilters: () => void;
     onEdit: (item: InventoryItem) => void;
     onDelete: (id: string, name: string) => void;
+    onDeleteMultiple?: () => void;
     onStockIn: (itemName: string, item?: InventoryItem) => void;
     onStockOut: (itemName: string) => void;
     onAddItem: () => void;
@@ -61,6 +62,7 @@ export const InventoryTab = memo(function InventoryTab({
     onClearFilters,
     onEdit,
     onDelete,
+    onDeleteMultiple,
     onStockIn,
     onStockOut,
     onAddItem,
@@ -88,7 +90,7 @@ export const InventoryTab = memo(function InventoryTab({
         <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] overflow-hidden transition-colors flex flex-col">
             {/* filter bar */}
             <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-200/60 dark:border-white/[0.06] flex flex-wrap items-center gap-3 bg-[#ebf0f7]/70 dark:bg-[#14151e]/60 backdrop-blur-md">
-                {/* Search Bar */}
+                {/* search bar */}
                 <div className="relative flex-1 min-w-[220px] max-w-xs group">
                     <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                     <input
@@ -99,7 +101,7 @@ export const InventoryTab = memo(function InventoryTab({
                     />
                 </div>
 
-                {/* Category Filter */}
+                {/* category filter */}
                 <div className="relative min-w-[170px] group">
                     <i className="fas fa-filter absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                     <select
@@ -116,7 +118,7 @@ export const InventoryTab = memo(function InventoryTab({
                     <i className="fas fa-chevron-down absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none"></i>
                 </div>
 
-                {/* Status Filter */}
+                {/* status filter */}
                 <div className="relative min-w-[150px] group">
                     <i className="fas fa-tag absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                     <select
@@ -132,7 +134,7 @@ export const InventoryTab = memo(function InventoryTab({
                     <i className="fas fa-chevron-down absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none"></i>
                 </div>
 
-                {/* Select All Button */}
+                {/* select all button */}
                 <button
                     type="button"
                     onClick={onSelectAll}
@@ -159,7 +161,7 @@ export const InventoryTab = memo(function InventoryTab({
                     <span>{allSelected ? 'Deselect All' : 'Select All'}</span>
                 </button>
 
-                {/* Reset Filters Button */}
+                {/* reset filters button */}
                 <AppButton
                     type="button"
                     variant="neutral"
@@ -172,15 +174,28 @@ export const InventoryTab = memo(function InventoryTab({
                 </AppButton>
 
                 {selectedIds.size > 0 && (
-                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-pink-300/80 dark:border-pink-500/40 text-xs font-bold text-pink-600 dark:text-pink-400 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25),0_2px_8px_rgba(236,72,153,0.15)] animate-in fade-in duration-150">
-                        <i className="fas fa-check-circle text-pink-500"></i>
-                        <span>{selectedIds.size} selected</span>
+                    <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-pink-300/80 dark:border-pink-500/40 text-xs font-bold text-pink-600 dark:text-pink-400 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25),0_2px_8px_rgba(236,72,153,0.15)]">
+                            <i className="fas fa-check-circle text-pink-500"></i>
+                            <span>{selectedIds.size} selected</span>
+                        </div>
+                        {onDeleteMultiple && (
+                            <button
+                                type="button"
+                                onClick={onDeleteMultiple}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 text-xs font-bold transition-colors cursor-pointer shadow-xs active:scale-95"
+                                title={`Delete ${selectedIds.size} selected item(s)`}
+                            >
+                                <i className="fas fa-trash-can text-xs" />
+                                <span>Delete Selected</span>
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
 
             {/* table container */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[620px] relative">
+            <div className="flex-1 overflow-x-auto overflow-y-auto md:max-h-[620px] relative">
                 {isLoading && <TableContentLoader />}
 
                 <table className="w-full table-pro border-collapse text-left">
@@ -200,13 +215,13 @@ export const InventoryTab = memo(function InventoryTab({
                                     className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 transition-colors"
                                 />
                             </th>
-                            <th className="w-10 px-2 py-3.5">#</th>
-                            <th className="px-4 py-3.5 min-w-[220px]">Item Information</th>
+                            <th className="hidden md:table-cell w-10 px-2 py-3.5">#</th>
+                            <th className="px-4 py-3.5 sm:min-w-[220px]">Item Information</th>
                             <th className="px-3.5 py-3.5 min-w-[130px]">Category</th>
-                            <th className="px-4 py-3.5 min-w-[160px]">Stock & Status</th>
-                            <th className="px-4 py-3.5 min-w-[170px]">Latest PO / Activity</th>
-                            <th className="px-4 py-3.5 min-w-[190px]">Remarks & Audit</th>
-                            <th className="px-4 py-3.5 text-right min-w-[190px] w-[190px]">Actions</th>
+                            <th className="px-4 py-3.5 sm:min-w-[160px]">Stock & Status</th>
+                            <th className="px-4 py-3.5 sm:min-w-[170px]">Latest PO / Activity</th>
+                            <th className="px-4 py-3.5 sm:min-w-[190px]">Remarks & Audit</th>
+                            <th className="px-4 py-3.5 text-right sm:min-w-[190px] sm:w-[190px]">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04] text-xs">
@@ -260,24 +275,32 @@ export const InventoryTab = memo(function InventoryTab({
                                     >
                                         {/* checkbox */}
                                         <td data-label="Select" className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={() => onSelect(item.id)}
-                                                aria-label={`Select ${item.item_name}`}
-                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 transition-colors"
-                                            />
+                                            <div className="flex items-center justify-between md:justify-center w-full">
+                                                <label className="inline-flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => onSelect(item.id)}
+                                                        aria-label={`Select ${item.item_name}`}
+                                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 transition-colors"
+                                                    />
+                                                    <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select Item</span>
+                                                </label>
+                                                <span className="md:hidden px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+                                                    #{(currentPage - 1) * itemsPerPage + index + 1}
+                                                </span>
+                                            </div>
                                         </td>
 
                                         {/* row index */}
-                                        <td data-label="#" className="px-2 py-3 text-slate-400 dark:text-slate-500 font-mono text-[11px]">
+                                        <td data-label="#" className="hidden md:table-cell px-2 py-3 text-slate-400 dark:text-slate-500 font-mono text-[11px]">
                                             {(currentPage - 1) * itemsPerPage + index + 1}
                                         </td>
 
                                         {/* item name */}
-                                        <td data-label="Item Information" className="px-4 py-3 whitespace-nowrap">
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
+                                        <td data-label="Item Information" className="px-4 py-3 sm:whitespace-nowrap">
+                                            <div className="space-y-1 flex flex-col items-end sm:items-start text-right sm:text-left">
+                                                <div className="flex flex-wrap items-center justify-end sm:justify-start gap-1.5">
                                                     <span className="font-bold text-slate-900 dark:text-slate-100 hover:text-pink-600 transition-colors">
                                                         {item.item_name}
                                                     </span>
@@ -291,7 +314,7 @@ export const InventoryTab = memo(function InventoryTab({
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center gap-2 text-[10px]">
+                                                <div className="flex flex-wrap items-center justify-end sm:justify-start gap-2 text-[10px]">
                                                     <span className="font-mono bg-[#ebf0f7] dark:bg-[#12131b] px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-400 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                         {item.item_code}
                                                     </span>
@@ -306,15 +329,17 @@ export const InventoryTab = memo(function InventoryTab({
                                         </td>
 
                                         {/* category */}
-                                        <td data-label="Category" className="px-3.5 py-3 whitespace-nowrap">
-                                            <StatusBadge tone="neutral" size="xs">
-                                                {item.category}
-                                            </StatusBadge>
+                                        <td data-label="Category" className="px-3.5 py-3 sm:whitespace-nowrap">
+                                            <div className="flex justify-end sm:justify-start">
+                                                <StatusBadge tone="neutral" size="xs">
+                                                    {item.category}
+                                                </StatusBadge>
+                                            </div>
                                         </td>
 
                                         {/* stock */}
-                                        <td data-label="Stock & Status" className="px-4 py-3 whitespace-nowrap">
-                                            <div className="space-y-1">
+                                        <td data-label="Stock & Status" className="px-4 py-3 sm:whitespace-nowrap">
+                                            <div className="space-y-1 flex flex-col items-end sm:items-start text-right sm:text-left">
                                                 <div className="flex items-center gap-2">
                                                     <StatusBadge
                                                         tone={
@@ -352,78 +377,80 @@ export const InventoryTab = memo(function InventoryTab({
                                         </td>
 
                                         {/* po */}
-                                        <td data-label="Latest PO / Activity" className="px-4 py-3 whitespace-nowrap">
-                                            {po ? (
-                                                po.is_request ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (po.request_id && onViewPurchaseRequest) {
-                                                                onViewPurchaseRequest(po.request_id, po.request_number);
-                                                            }
-                                                        }}
-                                                        className="text-left group/pr cursor-pointer focus:outline-none"
-                                                        title="Click to view purchase request details"
-                                                    >
-                                                        <StatusBadge
-                                                            tone={po.status === 'Approved' ? 'emerald' : po.status === 'Rejected' ? 'rose' : 'amber'}
-                                                            icon={po.status === 'Approved' ? 'fas fa-check-circle' : 'fas fa-clock'}
-                                                            size="xs"
+                                        <td data-label="Latest PO / Activity" className="px-4 py-3 sm:whitespace-nowrap">
+                                            <div className="flex flex-col items-end sm:items-start text-right sm:text-left">
+                                                {po ? (
+                                                    po.is_request ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (po.request_id && onViewPurchaseRequest) {
+                                                                    onViewPurchaseRequest(po.request_id, po.request_number);
+                                                                }
+                                                            }}
+                                                            className="text-right sm:text-left group/pr cursor-pointer focus:outline-none"
+                                                            title="Click to view purchase request details"
                                                         >
-                                                            <span className="font-mono">{po.request_number}</span>
-                                                            <span className="opacity-85">({po.status})</span>
-                                                            <i className="fas fa-external-link-alt text-[8px] ml-1 opacity-60 group-hover/pr:opacity-100 transition-opacity"></i>
-                                                        </StatusBadge>
-                                                    </button>
-                                                ) : (
-                                                    <div className="flex flex-col space-y-1">
-                                                        <StatusBadge
-                                                            tone={isDelivered ? 'pink' : po.status === 'Confirmed' ? 'purple' : 'indigo'}
-                                                            icon={`fas ${isDelivered ? 'fa-truck-ramp-box' : 'fa-file-invoice'}`}
-                                                            size="xs"
-                                                        >
-                                                            <span className="font-mono">{po.po_number}</span>
-                                                            <span>• {po.status}</span>
-                                                        </StatusBadge>
-                                                        {po.has_pending_pr && po.pending_pr_id && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    if (po.pending_pr_id && onViewPurchaseRequest) {
-                                                                        onViewPurchaseRequest(po.pending_pr_id, po.pending_pr_number);
-                                                                    }
-                                                                }}
-                                                                className="text-left group/pr cursor-pointer focus:outline-none block"
-                                                                title="Pending PR exists! Click to view"
+                                                            <StatusBadge
+                                                                tone={po.status === 'Approved' ? 'emerald' : po.status === 'Rejected' ? 'rose' : 'amber'}
+                                                                icon={po.status === 'Approved' ? 'fas fa-check-circle' : 'fas fa-clock'}
+                                                                size="xs"
                                                             >
-                                                                <StatusBadge tone="amber" icon="fas fa-clock" size="xs">
-                                                                    <span className="font-mono">{po.pending_pr_number || 'Pending PR'}</span>
-                                                                    <span className="opacity-85">(Pending)</span>
-                                                                    <i className="fas fa-external-link-alt text-[8px] ml-1 opacity-60 group-hover/pr:opacity-100 transition-opacity"></i>
-                                                                </StatusBadge>
-                                                            </button>
-                                                        )}
-                                                        {po.quantity_ordered && po.quantity_ordered > 0 && (
-                                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                                                                <span className="font-bold text-slate-700 dark:text-slate-300">
-                                                                    {po.quantity_received || 0} / {po.quantity_ordered}
-                                                                </span>
-                                                                <span className="text-[9px] text-slate-400">received</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )
-                                            ) : (
-                                                <span className="text-slate-400 dark:text-slate-500 text-xs italic">No PO</span>
-                                            )}
+                                                                <span className="font-mono">{po.request_number}</span>
+                                                                <span className="opacity-85">({po.status})</span>
+                                                                <i className="fas fa-external-link-alt text-[8px] ml-1 opacity-60 group-hover/pr:opacity-100 transition-opacity"></i>
+                                                            </StatusBadge>
+                                                        </button>
+                                                    ) : (
+                                                        <div className="flex flex-col items-end sm:items-start space-y-1">
+                                                            <StatusBadge
+                                                                tone={isDelivered ? 'pink' : po.status === 'Confirmed' ? 'purple' : 'indigo'}
+                                                                icon={`fas ${isDelivered ? 'fa-truck-ramp-box' : 'fa-file-invoice'}`}
+                                                                size="xs"
+                                                            >
+                                                                <span className="font-mono">{po.po_number}</span>
+                                                                <span>• {po.status}</span>
+                                                            </StatusBadge>
+                                                            {po.has_pending_pr && po.pending_pr_id && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (po.pending_pr_id && onViewPurchaseRequest) {
+                                                                            onViewPurchaseRequest(po.pending_pr_id, po.pending_pr_number);
+                                                                        }
+                                                                    }}
+                                                                    className="text-right sm:text-left group/pr cursor-pointer focus:outline-none block"
+                                                                    title="Pending PR exists! Click to view"
+                                                                >
+                                                                    <StatusBadge tone="amber" icon="fas fa-clock" size="xs">
+                                                                        <span className="font-mono">{po.pending_pr_number || 'Pending PR'}</span>
+                                                                        <span className="opacity-85">(Pending)</span>
+                                                                        <i className="fas fa-external-link-alt text-[8px] ml-1 opacity-60 group-hover/pr:opacity-100 transition-opacity"></i>
+                                                                    </StatusBadge>
+                                                                </button>
+                                                            )}
+                                                            {po.quantity_ordered && po.quantity_ordered > 0 && (
+                                                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                                                                    <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                                        {po.quantity_received || 0} / {po.quantity_ordered}
+                                                                    </span>
+                                                                    <span className="text-[9px] text-slate-400">received</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    <span className="text-slate-400 dark:text-slate-500 text-xs italic">No PO</span>
+                                                )}
+                                            </div>
                                         </td>
 
                                         {/* remarks */}
-                                        <td data-label="Remarks & Audit" className="px-4 py-3 min-w-[190px]" onClick={(e) => e.stopPropagation()}>
+                                        <td data-label="Remarks & Audit" className="px-4 py-3 sm:min-w-[190px]" onClick={(e) => e.stopPropagation()}>
                                             {item.description || item.force_reason ? (
-                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                <div className="flex flex-wrap items-center justify-end sm:justify-start gap-1.5">
                                                     {item.description && (
                                                         <button
                                                             type="button"
@@ -434,7 +461,7 @@ export const InventoryTab = memo(function InventoryTab({
                                                                 content: item.description || '',
                                                                 type: 'description'
                                                             })}
-                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer group/msg max-w-[170px] truncate"
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer group/msg max-w-[140px] xs:max-w-[170px] truncate"
                                                             title="Click to view full description"
                                                         >
                                                             <i className="fas fa-comment-alt text-pink-500 dark:text-pink-400 text-[10px] shrink-0"></i>
@@ -453,7 +480,7 @@ export const InventoryTab = memo(function InventoryTab({
                                                                 timestamp: item.force_updated_at ? new Date(item.force_updated_at).toLocaleString() : undefined,
                                                                 type: 'override_reason'
                                                             })}
-                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-amber-300/70 dark:border-amber-500/30 shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:border-amber-400 transition-all cursor-pointer max-w-[170px] truncate"
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-amber-300/70 dark:border-amber-500/30 shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:border-amber-400 transition-all cursor-pointer max-w-[140px] xs:max-w-[170px] truncate"
                                                             title="Click to view override audit details"
                                                         >
                                                             <i className="fas fa-shield-alt text-amber-600 dark:text-amber-400 text-[9px] shrink-0"></i>
@@ -467,7 +494,7 @@ export const InventoryTab = memo(function InventoryTab({
                                         </td>
 
                                         {/* actions */}
-                                        <td data-label="Actions" className="px-4 py-3 text-right whitespace-nowrap min-w-[190px] w-[190px]" onClick={(e) => e.stopPropagation()}>
+                                        <td data-label="Actions" className="px-4 py-3 text-right sm:whitespace-nowrap sm:min-w-[190px] sm:w-[190px] w-full" onClick={(e) => e.stopPropagation()}>
                                             {(() => {
                                                 const hasPendingPR = Boolean(
                                                     po?.has_pending_pr || (po?.is_request && po?.status === 'Pending')
@@ -475,7 +502,7 @@ export const InventoryTab = memo(function InventoryTab({
                                                 const pendingPRNumber = po?.pending_pr_number || (po?.is_request && po?.status === 'Pending' ? po?.request_number || po?.po_number : undefined);
 
                                                 return (
-                                                    <div className="flex items-center justify-end gap-1.5">
+                                                    <div className="flex items-center flex-wrap justify-end gap-1.5 w-full">
                                                         {/* po button */}
                                                         <div
                                                             className="inline-block"

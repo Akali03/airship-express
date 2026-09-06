@@ -16,6 +16,7 @@ import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 
 import { trashCache } from '../utils/trashCache';
+import { TrashRetentionBadge } from './TrashRetentionBadge';
 
 interface ArchivedDocument {
     id: string;
@@ -71,7 +72,7 @@ export function DocumentsTab() {
             return;
         }
 
-        // Only show skeleton if we have no data at all to display
+        // only show skeleton if we have no data at all to display
         if (!cached || cached.length === 0) {
             setDocsLoading(true);
         }
@@ -620,7 +621,7 @@ export function DocumentsTab() {
                                 <th className="py-3 px-4">PO Number</th>
                                 <th className="py-3 px-4">Role</th>
                                 <th className="py-3 px-4">Deleted By</th>
-                                <th className="py-3 px-4">Deleted At</th>
+                                <th className="py-3 px-4">Deleted At & Auto-Purge</th>
                                 <th className="text-right! py-3 px-4 w-[130px] min-w-[130px]">Actions</th>
                             </tr>
                         </thead>
@@ -664,73 +665,95 @@ export function DocumentsTab() {
                                                 : ''
                                                 }`}
                                         >
-                                            <td data-label="Select" className="py-3 px-4 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => {
-                                                        const newSelected = new Set(selectedDocIds);
-                                                        if (newSelected.has(doc.id)) newSelected.delete(doc.id);
-                                                        else newSelected.add(doc.id);
-                                                        setSelectedDocIds(newSelected);
-                                                    }}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
-                                                />
+                                            <td data-label="Select" className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-between md:justify-center w-full">
+                                                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                const newSelected = new Set(selectedDocIds);
+                                                                if (newSelected.has(doc.id)) newSelected.delete(doc.id);
+                                                                else newSelected.add(doc.id);
+                                                                setSelectedDocIds(newSelected);
+                                                            }}
+                                                            aria-label={`Select ${doc.title}`}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
+                                                        />
+                                                        <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select</span>
+                                                    </label>
+                                                    <span className="md:hidden font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+                                                        DOC-{doc.id.substring(0, 8)}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td data-label="Title / File" className="py-3 px-4">
-                                                <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{doc.title}</div>
-                                                <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{doc.file_name}</div>
-                                                {doc.notes && (
-                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 italic mt-0.5 max-w-[200px] truncate" title={doc.notes}>
-                                                        "{doc.notes}"
-                                                    </div>
-                                                )}
+                                                <div className="text-right sm:text-left min-w-0 max-w-[220px] sm:max-w-none ml-auto sm:ml-0">
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-200 leading-snug truncate" title={doc.title}>{doc.title}</div>
+                                                    <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 truncate" title={doc.file_name}>{doc.file_name}</div>
+                                                    {doc.notes && (
+                                                        <div className="text-[10px] text-slate-400 dark:text-slate-500 italic mt-0.5 truncate" title={doc.notes}>
+                                                            "{doc.notes}"
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td data-label="Type" className="py-3 px-4 whitespace-nowrap">
-                                                <StatusBadge tone="pink" size="xs">
-                                                    {doc.document_type}
-                                                </StatusBadge>
+                                                <div className="flex justify-end sm:justify-start">
+                                                    <StatusBadge tone="pink" size="xs">
+                                                        {doc.document_type}
+                                                    </StatusBadge>
+                                                </div>
                                             </td>
-                                            <td data-label="Size" className="py-3 px-4 text-slate-600 dark:text-slate-300 whitespace-nowrap font-medium">
+                                            <td data-label="Size" className="py-3 px-4 text-slate-600 dark:text-slate-300 whitespace-nowrap font-medium text-right sm:text-left">
                                                 {formatFileSize(doc.file_size)}
                                             </td>
-                                            <td data-label="Supplier" className="py-3 px-4 text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                                {doc.supplier || <span className="text-slate-300 dark:text-slate-700">—</span>}
+                                            <td data-label="Supplier" className="py-3 px-4 text-slate-600 dark:text-slate-300 whitespace-nowrap text-right sm:text-left">
+                                                <span className="truncate max-w-[150px] inline-block ml-auto sm:ml-0" title={doc.supplier || ''}>
+                                                    {doc.supplier || <span className="text-slate-300 dark:text-slate-700">—</span>}
+                                                </span>
                                             </td>
                                             <td data-label="PO Number" className="py-3 px-4 text-slate-600 dark:text-slate-300 font-mono text-[11px] whitespace-nowrap">
-                                                {doc.po_number ? (
-                                                    <StatusBadge tone="pink" size="xs">
-                                                        <span className="font-mono">{doc.po_number}</span>
-                                                    </StatusBadge>
-                                                ) : (
-                                                    <span className="text-slate-300 dark:text-slate-700">—</span>
-                                                )}
+                                                <div className="flex justify-end sm:justify-start">
+                                                    {doc.po_number ? (
+                                                        <StatusBadge tone="pink" size="xs">
+                                                            <span className="font-mono">{doc.po_number}</span>
+                                                        </StatusBadge>
+                                                    ) : (
+                                                        <span className="text-slate-300 dark:text-slate-700">—</span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td data-label="Role" className="py-3 px-4 whitespace-nowrap">
-                                                {doc.role ? (
-                                                    <StatusBadge
-                                                        tone={
-                                                            doc.role === 'Admin'
-                                                                ? 'purple'
-                                                                : doc.role === 'Manager'
-                                                                    ? 'indigo'
-                                                                    : 'neutral'
-                                                        }
-                                                        size="xs"
-                                                    >
-                                                        {doc.role}
-                                                    </StatusBadge>
-                                                ) : (
-                                                    <span className="text-slate-300 dark:text-slate-700">—</span>
-                                                )}
+                                                <div className="flex justify-end sm:justify-start">
+                                                    {doc.role ? (
+                                                        <StatusBadge
+                                                            tone={
+                                                                doc.role === 'Admin'
+                                                                    ? 'purple'
+                                                                    : doc.role === 'Manager'
+                                                                        ? 'indigo'
+                                                                        : 'neutral'
+                                                            }
+                                                            size="xs"
+                                                        >
+                                                            {doc.role}
+                                                        </StatusBadge>
+                                                    ) : (
+                                                        <span className="text-slate-300 dark:text-slate-700">—</span>
+                                                    )}
+                                                </div>
                                             </td>
-                                            <td data-label="Deleted By" className="py-3 px-4 text-slate-700 dark:text-slate-300 whitespace-nowrap font-medium">
-                                                {doc.deleted_by}
+                                            <td data-label="Deleted By" className="py-3 px-4 text-slate-700 dark:text-slate-300 whitespace-nowrap font-medium text-right sm:text-left">
+                                                <span className="truncate max-w-[120px] inline-block ml-auto sm:ml-0" title={doc.deleted_by}>{doc.deleted_by}</span>
                                             </td>
-                                            <td data-label="Deleted At" className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
-                                                {formatDate(doc.deleted_at)}
+                                            <td data-label="Deleted At & Auto-Purge" className="py-3 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                                <div className="flex flex-col gap-1 items-end sm:items-start text-right sm:text-left">
+                                                    <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300">{formatDate(doc.deleted_at)}</span>
+                                                    <TrashRetentionBadge deletedAt={doc.deleted_at} />
+                                                </div>
                                             </td>
-                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]">
+                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap sm:w-[130px] sm:min-w-[130px] w-full">
                                                 <div className="flex items-center justify-end gap-2.5">
                                                     <CrudActionButton
                                                         action="restore"

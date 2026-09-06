@@ -1661,30 +1661,33 @@ export default function PurchaseOrders() {
                             <input className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2 pl-9 pr-8 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Search by PO # or supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
 
-                        <div className="flex gap-1 bg-[#ebf0f7] dark:bg-[#14151c] p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)]">
-                            {[
-                                { key: "all", label: "All", count: totalOrders },
-                                { key: "Draft", label: "Draft", count: allOrders.filter(o => o.status === 'Draft').length },
-                                { key: "Sent", label: "Sent", count: allOrders.filter(o => o.status === 'Sent').length },
-                                { key: "Confirmed", label: "Confirmed", count: allOrders.filter(o => o.status === 'Confirmed').length },
-                                { key: "Delivered", label: "Delivered", count: allOrders.filter(o => o.status === 'Delivered').length },
-                                { key: "Cancelled", label: "Cancelled", count: allOrders.filter(o => o.status === 'Cancelled').length },
-                            ].map((tab) => {
-                                const isActive = activeStatusFilter === tab.key;
-                                return (<button key={tab.key} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 active:scale-95 ${isActive
-                                    ? "bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-900 dark:text-white border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)]"
-                                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`} onClick={() => {
-                                        setActiveStatusFilter(tab.key);
-                                        setCurrentPage(1);
-                                    }}>
-                                    <span>{tab.label}</span>
-                                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${isActive
-                                        ? "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40"
-                                        : "bg-slate-300/50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
-                                        {tab.count}
-                                    </span>
-                                </button>);
-                            })}
+                        {/* status filter tabs */}
+                        <div className="w-full xl:w-auto max-w-full overflow-x-auto pb-1 xl:pb-0 scroll-smooth touch-pan-x">
+                            <div className="inline-flex items-center gap-1 bg-[#ebf0f7] dark:bg-[#14151c] p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] min-w-max">
+                                {[
+                                    { key: "all", label: "All", count: totalOrders },
+                                    { key: "Draft", label: "Draft", count: allOrders.filter(o => o.status === 'Draft').length },
+                                    { key: "Sent", label: "Sent", count: allOrders.filter(o => o.status === 'Sent').length },
+                                    { key: "Confirmed", label: "Confirmed", count: allOrders.filter(o => o.status === 'Confirmed').length },
+                                    { key: "Delivered", label: "Delivered", count: allOrders.filter(o => o.status === 'Delivered').length },
+                                    { key: "Cancelled", label: "Cancelled", count: allOrders.filter(o => o.status === 'Cancelled').length },
+                                ].map((tab) => {
+                                    const isActive = activeStatusFilter === tab.key;
+                                    return (<button key={tab.key} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 active:scale-95 ${isActive
+                                        ? "bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-900 dark:text-white border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)]"
+                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`} onClick={() => {
+                                            setActiveStatusFilter(tab.key);
+                                            setCurrentPage(1);
+                                        }}>
+                                        <span>{tab.label}</span>
+                                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${isActive
+                                            ? "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40"
+                                            : "bg-slate-300/50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
+                                            {tab.count}
+                                        </span>
+                                    </button>);
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>

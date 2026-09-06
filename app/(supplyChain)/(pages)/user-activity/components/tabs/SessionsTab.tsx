@@ -49,9 +49,9 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
 
     return (
         <div className="rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75)] overflow-hidden">
-            {/* Search Header */}
+            {/* search header */}
             <div className="p-4 border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40">
-                <div className="relative max-w-md">
+                <div className="relative w-full sm:max-w-md">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 h-4 w-4 pointer-events-none" />
                     <input
                         type="text"
@@ -63,7 +63,7 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
                 </div>
             </div>
 
-            {/* Bulk Actions Banner */}
+            {/* bulk actions banner */}
             {selectedSessions.size > 0 && (
                 <div className="p-3 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -92,9 +92,9 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
                 </div>
             )}
 
-            {/* Table Content */}
+            {/* table content */}
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="table-pro w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
                             <th className="py-3 px-4 w-10 text-center">
@@ -168,104 +168,123 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
                                             isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''
                                         } ${isBlocked ? 'opacity-60 bg-red-50/20 dark:bg-red-950/10' : ''}`}
                                     >
-                                        <td className="py-3 px-4 text-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                disabled={isDisabled}
-                                                onChange={() => onToggleSelectSession(session.id, isDisabled)}
-                                                className={`w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 accent-pink-500 bg-transparent ${
-                                                    isDisabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
-                                                }`}
-                                            />
+                                        <td data-label="Select" className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center justify-between md:justify-center w-full">
+                                                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        disabled={isDisabled}
+                                                        onChange={() => onToggleSelectSession(session.id, isDisabled)}
+                                                        aria-label="Select session"
+                                                        className={`w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 accent-pink-500 bg-transparent ${
+                                                            isDisabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+                                                        }`}
+                                                    />
+                                                    <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select Session</span>
+                                                </label>
+                                                <span className="md:hidden font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                    {isBlocked ? 'BLOCKED' : session.is_active ? 'ACTIVE' : 'INACTIVE'}
+                                                </span>
+                                            </div>
                                         </td>
 
-                                        <td className="py-3 px-4">
-                                            <div className="flex items-center gap-2">
+                                        <td data-label="User" className="py-3 px-4">
+                                            <div className="flex items-center justify-end sm:justify-start gap-2 min-w-0 max-w-[62%] sm:max-w-none ml-auto sm:ml-0">
                                                 <div className="w-7 h-7 rounded-full bg-pink-50 dark:bg-pink-950/40 border border-pink-200/80 dark:border-pink-800/50 text-pink-600 dark:text-pink-400 flex items-center justify-center font-bold text-xs shadow-[inset_0_1px_0_#ffffff,0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.4)] shrink-0 uppercase">
                                                     {userName.charAt(0)}
                                                 </div>
-                                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate" title={userName}>
                                                     {userName}
                                                 </span>
                                             </div>
                                         </td>
 
-                                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                                            {session.email || session.users?.email || 'N/A'}
+                                        <td data-label="Email" className="py-3 px-4 text-right sm:text-left">
+                                            <span className="text-slate-600 dark:text-slate-400 truncate inline-block max-w-[200px] sm:max-w-[180px]" title={session.email || session.users?.email || 'N/A'}>
+                                                {session.email || session.users?.email || 'N/A'}
+                                            </span>
                                         </td>
 
-                                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[200px] truncate" title={session.user_agent}>
-                                            {session.user_agent}
+                                        <td data-label="Device / User Agent" className="py-3 px-4 text-right sm:text-left">
+                                            <span className="text-slate-600 dark:text-slate-400 max-w-[200px] truncate inline-block" title={session.user_agent}>
+                                                {session.user_agent}
+                                            </span>
                                         </td>
 
-                                        <td className="py-3 px-4">
-                                            <StatusBadge tone="neutral" size="xs">
-                                                <span className="font-mono">{session.ip_address || 'Unknown'}</span>
-                                            </StatusBadge>
+                                        <td data-label="IP Address" className="py-3 px-4">
+                                            <div className="flex justify-end sm:justify-start">
+                                                <StatusBadge tone="neutral" size="xs">
+                                                    <span className="font-mono">{session.ip_address || 'Unknown'}</span>
+                                                </StatusBadge>
+                                            </div>
                                         </td>
 
-                                        {/* AI Moderation / Strike Status */}
-                                        <td className="py-3 px-4">
-                                            {isLockedOut ? (
-                                                <div className="flex items-center gap-1.5">
-                                                    <StatusBadge tone="rose" size="xs" icon={<ShieldAlert className="w-3 h-3 text-rose-500" />}>
-                                                        <span>5/5 Lockout ({session.lockout_remaining_seconds || 300}s)</span>
-                                                    </StatusBadge>
-                                                    {onResetStrikes && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onResetStrikes(userIdentifier)}
-                                                            title="Reset moderation strikes"
-                                                            className="p-1 rounded-md text-slate-400 hover:text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/40 transition-colors cursor-pointer"
-                                                        >
-                                                            <RotateCcw className="w-3 h-3" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ) : strikeCount > 0 ? (
-                                                <div className="flex items-center gap-1.5">
-                                                    <StatusBadge tone="amber" size="xs" icon={<AlertTriangle className="w-3 h-3 text-amber-500" />}>
-                                                        <span>{strikeCount}/5 Strikes</span>
-                                                    </StatusBadge>
-                                                    {onResetStrikes && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onResetStrikes(userIdentifier)}
-                                                            title="Reset moderation strikes"
-                                                            className="p-1 rounded-md text-slate-400 hover:text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/40 transition-colors cursor-pointer"
-                                                        >
-                                                            <RotateCcw className="w-3 h-3" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1">
-                                                    <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                                                    <span>Clean</span>
-                                                </span>
-                                            )}
+                                        {/* ai moderation / strike status */}
+                                        <td data-label="AI Moderation" className="py-3 px-4">
+                                            <div className="flex items-center justify-end sm:justify-start gap-1.5">
+                                                {isLockedOut ? (
+                                                    <>
+                                                        <StatusBadge tone="rose" size="xs" icon={<ShieldAlert className="w-3 h-3 text-rose-500" />}>
+                                                            <span>5/5 Lockout ({session.lockout_remaining_seconds || 300}s)</span>
+                                                        </StatusBadge>
+                                                        {onResetStrikes && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onResetStrikes(userIdentifier)}
+                                                                title="Reset moderation strikes"
+                                                                className="p-1 rounded-md text-slate-400 hover:text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/40 transition-colors cursor-pointer"
+                                                            >
+                                                                <RotateCcw className="w-3 h-3" />
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                ) : strikeCount > 0 ? (
+                                                    <>
+                                                        <StatusBadge tone="amber" size="xs" icon={<AlertTriangle className="w-3 h-3 text-amber-500" />}>
+                                                            <span>{strikeCount}/5 Strikes</span>
+                                                        </StatusBadge>
+                                                        {onResetStrikes && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onResetStrikes(userIdentifier)}
+                                                                title="Reset moderation strikes"
+                                                                className="p-1 rounded-md text-slate-400 hover:text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/40 transition-colors cursor-pointer"
+                                                            >
+                                                                <RotateCcw className="w-3 h-3" />
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1">
+                                                        <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                                                        <span>Clean</span>
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
 
-                                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                        <td data-label="Created At" className="py-3 px-4 text-right sm:text-left text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                             {formatDate(session.created_at)}
                                         </td>
 
-                                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                        <td data-label="Expires At" className="py-3 px-4 text-right sm:text-left text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                             {formatDate(session.expires_at)}
                                         </td>
 
-                                        <td className="py-3 px-4">
-                                            <StatusBadge
-                                                tone={isBlocked ? 'rose' : session.is_active ? 'emerald' : 'neutral'}
-                                                dot
-                                                size="xs"
-                                            >
-                                                {isBlocked ? 'Blocked' : session.is_active ? 'Active' : 'Inactive'}
-                                            </StatusBadge>
+                                        <td data-label="Status" className="py-3 px-4">
+                                            <div className="flex justify-end sm:justify-start">
+                                                <StatusBadge
+                                                    tone={isBlocked ? 'rose' : session.is_active ? 'emerald' : 'neutral'}
+                                                    dot
+                                                    size="xs"
+                                                >
+                                                    {isBlocked ? 'Blocked' : session.is_active ? 'Active' : 'Inactive'}
+                                                </StatusBadge>
+                                            </div>
                                         </td>
 
-                                        <td className="py-3 px-4 text-right whitespace-nowrap w-[80px] min-w-[80px]">
+                                        <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap sm:w-[80px] sm:min-w-[80px] w-full">
                                             <div className="flex items-center justify-end gap-2.5">
                                                 {isBlocked ? (
                                                     <span
@@ -302,7 +321,7 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
                 </table>
             </div>
 
-            {/* Pagination Footer */}
+            {/* pagination footer */}
             <div className="p-4 border-t border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/60 flex items-center justify-between flex-wrap gap-3">
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                     Showing {sessions.length} sessions

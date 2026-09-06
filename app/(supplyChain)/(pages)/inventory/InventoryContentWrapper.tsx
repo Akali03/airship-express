@@ -418,6 +418,38 @@ export default function InventoryClient() {
         }
     }, [selectedIds, confirm, deleteMultipleItems, fetchDashboardData, fetchInventoryData]);
 
+    const handleDeleteMultipleParcels = useCallback(async (parcelIds: (string | number)[]) => {
+        if (parcelIds.length === 0) {
+            toast.warning('Please select at least one parcel');
+            return;
+        }
+        const confirmed = await confirm({
+            title: `Delete ${parcelIds.length} Parcels`,
+            message: `Are you sure you want to delete ${parcelIds.length} parcel(s)?`,
+            confirmText: `Delete ${parcelIds.length}`,
+            confirmVariant: 'danger'
+        });
+        if (confirmed) {
+            const toastId = toast.loading(`Deleting ${parcelIds.length} parcels...`);
+            try {
+                const { error } = await supabase
+                    .from('parcels')
+                    .delete()
+                    .in('id', parcelIds);
+                if (error) throw error;
+                toast.success(`Successfully deleted ${parcelIds.length} parcels!`, { id: toastId });
+                inventoryCache.invalidateAll();
+                await Promise.all([
+                    fetchDashboardData(true),
+                    fetchInventoryData(true, true)
+                ]);
+            } catch (error) {
+                console.error('error deleting parcels:', error);
+                toast.error('Failed to delete parcels', { id: toastId });
+            }
+        }
+    }, [confirm, fetchDashboardData, fetchInventoryData]);
+
     const handleStockIn = useCallback(async (itemName: string, quantity: number, supplier?: string, reference?: string, remarks?: string) => {
         await stockIn(itemName, quantity, supplier, reference, remarks);
         setShowStockInModal(false);
@@ -657,6 +689,7 @@ export default function InventoryClient() {
                             onClearFilters={handleClearInventoryFilters}
                             onEdit={openEditModal}
                             onDelete={handleDeleteItem}
+                            onDeleteMultiple={handleDeleteMultiple}
                             onStockIn={openStockInModal}
                             onOrderPO={openScopedPOModal}
                             onViewPurchaseRequest={(requestId) => {
@@ -686,6 +719,7 @@ export default function InventoryClient() {
                         onDateToChange={setParcelDateTo}
                         onClearFilters={handleClearParcelFilters}
                         onPageChange={handleParcelPageChange}
+                        onDeleteMultiple={handleDeleteMultipleParcels}
                     />
                 </div>
             </div>

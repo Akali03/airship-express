@@ -502,16 +502,34 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
 
-    /* First cell / Checkbox header row */
+    /* first cell / checkbox header row */
+    .table-pro tbody td:first-child:not([data-label]),
     .table-pro tbody td[data-label="Select"] {
-      @apply justify-start pb-2.5 mb-1;
+      @apply justify-start items-center pb-2.5 mb-1 w-full text-left;
+      justify-content: flex-start !important;
+      text-align: left !important;
     }
 
-    .table-pro tbody td[data-label="Select"]::before {
+    .table-pro tbody td[data-label="Select"]::before,
+    .table-pro tbody td:first-child:not([data-label])::before {
       display: none !important;
     }
 
-    /* Last row item border reset */
+    .table-pro tbody td[data-label="Select"] input[type="checkbox"],
+    .table-pro tbody td:first-child input[type="checkbox"] {
+      width: 1rem !important;
+      max-width: 1rem !important;
+      min-width: 1rem !important;
+      margin: 0 !important;
+    }
+
+    /* ensure hidden cells and row indices are suppressed on mobile cards */
+    .table-pro tbody td.hidden,
+    .table-pro tbody td[data-label="#"] {
+      display: none !important;
+    }
+
+    /* last row item border reset */
     .table-pro tbody td:last-child {
       @apply border-b-0 pb-0 pt-3.5 mt-1.5;
       border-top: 1px solid rgba(166, 175, 195, 0.25) !important;
@@ -522,7 +540,7 @@
       border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
     }
 
-    /* Mobile Label (data-label attribute) */
+    /* mobile label (data-label attribute) */
     .table-pro tbody td[data-label]::before {
       content: attr(data-label);
       letter-spacing: 0.06em;
@@ -541,17 +559,19 @@
       color: #94a3b8 !important;
     }
 
-    /* Content truncation & wrapping */
+    /* content truncation & wrapping */
     .table-pro tbody td > * {
       @apply min-w-0 max-w-[62%];
     }
 
+    .table-pro tbody td[data-label="Select"] > div,
     .table-pro tbody td[data-label="Actions"] > *,
+    .table-pro tbody td[data-label="Action"] > *,
     .table-pro tbody td[colSpan] > * {
-      @apply max-w-full;
+      @apply max-w-full w-full;
     }
 
-    /* Actions Footer / Row in Mobile Card */
+    /* actions footer / row in mobile card */
     .table-pro tbody td[data-label="Actions"],
     .table-pro tbody td[data-label="Action"] {
       @apply flex justify-between items-center pt-3.5 pb-0;
@@ -649,6 +669,23 @@
 
     .table-pro tbody td[data-label]::before {
       font-size: 9.5px !important;
+    }
+
+    /* action buttons spacing on narrow mobile devices */
+    .table-pro tbody td[data-label="Actions"],
+    .table-pro tbody td[data-label="Action"] {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 8px !important;
+      padding-top: 12px !important;
+    }
+
+    .table-pro tbody td[data-label="Actions"] > div,
+    .table-pro tbody td[data-label="Action"] > div {
+      width: 100% !important;
+      justify-content: flex-start !important;
+      gap: 6px !important;
+      flex-wrap: wrap !important;
     }
   }
 

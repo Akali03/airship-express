@@ -108,29 +108,52 @@ export default function ArchivePage() {
                     </div>
                 </div>
 
+                {/* 10-day auto-purge retention notice banner */}
+                <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-300/40 dark:border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/30 dark:border-amber-500/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                            <i className="fa-solid fa-clock-rotate-left text-sm" />
+                        </span>
+                        <div>
+                            <p className="font-bold text-slate-900 dark:text-white">
+                                10-Day Auto-Purge Policy Active
+                            </p>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                                Archived items in trash are automatically and permanently deleted 10 days after deletion.
+                            </p>
+                        </div>
+                    </div>
+                    <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 text-[11px] font-bold border border-amber-300/80 dark:border-amber-700/60 shrink-0">
+                        <i className="fa-solid fa-clock text-[10px]" />
+                        Auto-deletes after 10 days
+                    </span>
+                </div>
+
                 {/* tabs */}
-                <div className="flex items-center gap-1.5 bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 p-1.5 rounded-full border border-slate-200/50 dark:border-slate-800/60 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] overflow-x-auto no-scrollbar w-fit">
-                    {tabs.map((tab) => {
-                        const isActive = activeTab === tab.key;
-                        return (
-                            <button
-                                key={tab.key}
-                                onClick={() => updateTab(tab.key)}
-                                className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
-                                    isActive
-                                        ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border border-pink-400/80 dark:border-pink-500/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] font-bold'
-                                        : 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-700 dark:text-slate-200 border border-white/70 dark:border-[#2a2b38] hover:bg-[#e8edf5] dark:hover:bg-[#232533] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)]'
-                                }`}
-                            >
-                                <i
-                                    className={`fas ${tab.icon} text-xs transition-colors duration-200 ${
-                                        isActive ? 'text-white' : 'text-slate-400 dark:text-slate-500'
+                <div className="w-full max-w-full overflow-x-auto pb-1 scroll-smooth touch-pan-x">
+                    <div className="inline-flex items-center gap-1.5 bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 p-1.5 rounded-full border border-slate-200/50 dark:border-slate-800/60 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] min-w-max">
+                        {tabs.map((tab) => {
+                            const isActive = activeTab === tab.key;
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => updateTab(tab.key)}
+                                    className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
+                                        isActive
+                                            ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border border-pink-400/80 dark:border-pink-500/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] font-bold'
+                                            : 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-700 dark:text-slate-200 border border-white/70 dark:border-[#2a2b38] hover:bg-[#e8edf5] dark:hover:bg-[#232533] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)]'
                                     }`}
-                                ></i>
-                                <span>{tab.label}</span>
-                            </button>
-                        );
-                    })}
+                                >
+                                    <i
+                                        className={`fas ${tab.icon} text-xs transition-colors duration-200 ${
+                                            isActive ? 'text-white' : 'text-slate-400 dark:text-slate-500'
+                                        }`}
+                                    ></i>
+                                    <span>{tab.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* content with keep-alive and smooth fade-in */}

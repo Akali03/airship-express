@@ -31,6 +31,7 @@ interface ParcelsTabProps {
     onClearFilters: () => void;
     onPageChange: (page: number) => void;
     itemsPerPage?: number;
+    onDeleteMultiple?: (ids: (string | number)[]) => void | Promise<void>;
 }
 
 const STATUS_FLOW = [
@@ -71,12 +72,13 @@ export const ParcelsTab = memo(function ParcelsTab({
     onClearFilters,
     onPageChange,
     itemsPerPage = 30,
+    onDeleteMultiple,
 }: ParcelsTabProps) {
     const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [selectedParcelIds, setSelectedParcelIds] = useState<Set<string | number>>(new Set());
 
-    // All parcels currently present across all date groups
+    // all parcels currently present across all date groups
     const allParcelsInGroups = useMemo(() => groupedParcels.flatMap(g => g.parcels), [groupedParcels]);
     const allSelected = allParcelsInGroups.length > 0 && allParcelsInGroups.every(p => selectedParcelIds.has(p.id));
     const someSelected = selectedParcelIds.size > 0 && !allSelected;
@@ -215,16 +217,16 @@ export const ParcelsTab = memo(function ParcelsTab({
     return (<>
             <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] overflow-hidden transition-colors flex flex-col">
                 {/* header */}
-                <div className="flex-shrink-0 p-4 border-b border-slate-200/60 dark:border-slate-800/80 bg-[#ebf0f7]/70 dark:bg-[#14151c]/70 backdrop-blur-md flex flex-wrap items-center gap-3 justify-between">
-                    <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+                <div className="flex-shrink-0 p-4 border-b border-slate-200/60 dark:border-slate-800/80 bg-[#ebf0f7]/70 dark:bg-[#14151c]/70 backdrop-blur-md flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 justify-between">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 flex-1 min-w-0">
                         {/* search */}
-                        <div className="relative flex-1 min-w-[200px] max-w-xs group">
+                        <div className="relative flex-1 min-w-0 sm:min-w-[200px] sm:max-w-xs group">
                             <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                             <input type="search" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl px-3 py-2 pl-9 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.35),inset_-1px_-1px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] focus:outline-none focus:border-pink-500 dark:focus:border-pink-500/80 transition-all" placeholder="Search barcode, tracking, sender..." value={searchTerm} onChange={(e) => onSearchChange(sanitizeSearch(e.target.value))}/>
                         </div>
 
                         {/* status filter */}
-                        <div className="relative min-w-[140px] group">
+                        <div className="relative min-w-0 sm:min-w-[140px] group">
                             <i className="fas fa-filter absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-pink-500 text-xs pointer-events-none transition-colors"></i>
                             <select className="w-full appearance-none bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl px-3 py-2 pl-9 pr-8 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:outline-none focus:border-pink-500 dark:focus:border-pink-500/80 transition-all cursor-pointer" value={statusFilter} onChange={(e) => onStatusChange(e.target.value)}>
                                 <option value="" className="dark:bg-slate-900">All Statuses</option>
@@ -240,20 +242,20 @@ export const ParcelsTab = memo(function ParcelsTab({
                         </div>
 
                         {/* date filter */}
-                        <div className="flex items-center gap-1.5 bg-[#ebf0f7] dark:bg-[#14151c] p-1.5 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)]">
-                            <div className="relative flex items-center">
-                                <input type="date" className="py-0.5 px-2 text-xs font-medium border-0 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer scheme-light dark:scheme-dark" value={dateFrom} onChange={(e) => onDateFromChange(e.target.value)} title="Date From"/>
+                        <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-[#ebf0f7] dark:bg-[#14151c] p-1.5 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)]">
+                            <div className="relative flex items-center flex-1 sm:flex-none">
+                                <input type="date" className="w-full sm:w-auto py-0.5 px-2 text-xs font-medium border-0 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer scheme-light dark:scheme-dark" value={dateFrom} onChange={(e) => onDateFromChange(e.target.value)} title="Date From"/>
                             </div>
                             <span className="text-slate-400 dark:text-slate-500 text-[10px] font-medium uppercase">—</span>
-                            <div className="relative flex items-center">
-                                <input type="date" className="py-0.5 px-2 text-xs font-medium border-0 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer scheme-light dark:scheme-dark" value={dateTo} onChange={(e) => onDateToChange(e.target.value)} title="Date To"/>
+                            <div className="relative flex items-center flex-1 sm:flex-none">
+                                <input type="date" className="w-full sm:w-auto py-0.5 px-2 text-xs font-medium border-0 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer scheme-light dark:scheme-dark" value={dateTo} onChange={(e) => onDateToChange(e.target.value)} title="Date To"/>
                             </div>
                         </div>
                     </div>
 
                     {/* counter & bulk actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                        {/* Bulk Checkbox Button that checks all across all dates */}
+                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-between sm:justify-start w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800">
+                        {/* bulk checkbox button that checks all across all dates */}
                         <AppButton
                             type="button"
                             variant={allSelected ? "primary" : "neutral"}
@@ -282,12 +284,27 @@ export const ParcelsTab = memo(function ParcelsTab({
                             <i className="fas fa-rotate-left text-[11px]"></i>
                             <span>Clear</span>
                         </button>
+
+                        {selectedParcelIds.size > 0 && onDeleteMultiple && (
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    await onDeleteMultiple(Array.from(selectedParcelIds));
+                                    setSelectedParcelIds(new Set());
+                                }}
+                                className="px-3.5 py-2 text-xs font-bold text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 animate-in fade-in duration-150"
+                                title={`Delete ${selectedParcelIds.size} selected parcels`}
+                            >
+                                <i className="fas fa-trash-can text-[11px]"></i>
+                                <span>Delete Selected ({selectedParcelIds.size})</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* content */}
-                <div className="flex-1 overflow-y-auto max-h-[600px] p-4 space-y-5 bg-[#f0f3f8] dark:bg-[#191a24]">
-                    {/* Global Bulk Select-All Banner */}
+                <div className="flex-1 overflow-y-auto md:max-h-[600px] p-4 space-y-5 bg-[#f0f3f8] dark:bg-[#191a24]">
+                    {/* global bulk select-all banner */}
                     {allParcelsInGroups.length > 0 && (
                         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#ebf0f7]/90 dark:bg-[#14151e]/90 border border-white/80 dark:border-white/[0.06] shadow-xs">
                             <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -307,7 +324,7 @@ export const ParcelsTab = memo(function ParcelsTab({
                                 </span>
                             </label>
                             {selectedParcelIds.size > 0 && (
-                                <div className="flex items-center gap-2.5 text-xs">
+                                <div className="flex items-center gap-2.5 text-xs flex-wrap">
                                     <span className="font-bold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40 px-2.5 py-0.5 rounded-full border border-pink-200 dark:border-pink-800 text-[11px]">
                                         {selectedParcelIds.size} of {allParcelsInGroups.length} selected
                                     </span>
@@ -324,6 +341,20 @@ export const ParcelsTab = memo(function ParcelsTab({
                                     >
                                         Copy Tracking Numbers
                                     </button>
+                                    {onDeleteMultiple && (
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                await onDeleteMultiple(Array.from(selectedParcelIds));
+                                                setSelectedParcelIds(new Set());
+                                            }}
+                                            className="text-[11px] font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 underline cursor-pointer flex items-center gap-1"
+                                            title={`Delete ${selectedParcelIds.size} selected parcels`}
+                                        >
+                                            <i className="fas fa-trash-can text-[10px]" />
+                                            <span>Delete Selected</span>
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => setSelectedParcelIds(new Set())}
@@ -369,10 +400,10 @@ export const ParcelsTab = memo(function ParcelsTab({
 
                                 {/* table */}
                                 <div className="overflow-x-auto">
-                                    <table className="table-pro p-1">
+                                    <table className="table-pro w-full border-collapse text-left">
                                         <thead>
                                             <tr>
-                                                <th className="w-10 text-center">
+                                                <th className="w-10 text-center px-2 py-3.5">
                                                     <input
                                                         type="checkbox"
                                                         checked={group.parcels.length > 0 && group.parcels.every(p => selectedParcelIds.has(p.id))}
@@ -380,7 +411,7 @@ export const ParcelsTab = memo(function ParcelsTab({
                                                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
                                                     />
                                                 </th>
-                                                <th className="w-10 text-center">#</th>
+                                                <th className="hidden md:table-cell w-10 text-center px-2 py-3.5">#</th>
                                                 <th>Barcode</th>
                                                 <th>Tracking</th>
                                                 <th>Sender</th>
@@ -390,7 +421,7 @@ export const ParcelsTab = memo(function ParcelsTab({
                                                 <th>Courier</th>
                                                 <th>Status</th>
                                                 <th>Time</th>
-                                                <th className="text-right! w-[80px] min-w-[80px]">Action</th>
+                                                <th className="text-right! sm:w-[80px] sm:min-w-[80px]">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -401,50 +432,80 @@ export const ParcelsTab = memo(function ParcelsTab({
                                                     onClick={() => handleViewParcel(parcel)}
                                                     className={`hover:bg-[#e8edf5]/80 dark:hover:bg-[#20212f]/40 transition-colors duration-150 group cursor-pointer ${isSelected ? 'bg-pink-50/50 dark:bg-pink-950/30' : ''}`}
                                                 >
-                                                    <td className="text-center w-10" onClick={(e) => e.stopPropagation()}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={(e) => handleSelectParcel(parcel.id, e.target.checked)}
-                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
-                                                        />
+                                                    <td data-label="Select" className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-between md:justify-center w-full">
+                                                            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={(e) => handleSelectParcel(parcel.id, e.target.checked)}
+                                                                    aria-label={`Select parcel ${parcel.barcode}`}
+                                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
+                                                                />
+                                                                <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select Parcel</span>
+                                                            </label>
+                                                            <div className="md:hidden flex items-center gap-1.5">
+                                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#ebf0f7] dark:bg-[#14151c] text-pink-600 dark:text-pink-400 border border-slate-200/60 dark:border-slate-800">
+                                                                    {parcel.barcode}
+                                                                </span>
+                                                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+                                                                    #{index + 1}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </td>
-                                                    <td data-label="#" className="text-center text-slate-400 dark:text-slate-500 font-mono text-[11px]">
+                                                    <td data-label="#" className="hidden md:table-cell text-center text-slate-400 dark:text-slate-500 font-mono text-[11px]">
                                                         {index + 1}
                                                     </td>
-                                                    <td data-label="Barcode" className="whitespace-nowrap">
-                                                        <span className="font-mono text-[11px] text-slate-800 dark:text-slate-200 font-bold bg-[#ebf0f7] dark:bg-[#14151c] px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/50 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
-                                                            {parcel.barcode}
+                                                    <td data-label="Barcode" className="sm:whitespace-nowrap">
+                                                        <div className="flex justify-end sm:justify-start">
+                                                            <span className="font-mono text-[11px] text-slate-800 dark:text-slate-200 font-bold bg-[#ebf0f7] dark:bg-[#14151c] px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/50 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
+                                                                {parcel.barcode}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td data-label="Tracking" className="font-mono text-[11px] text-slate-600 dark:text-slate-300 sm:whitespace-nowrap text-right sm:text-left">
+                                                        <span className="truncate inline-block text-right" title={parcel.tracking_number}>
+                                                            {parcel.tracking_number}
                                                         </span>
                                                     </td>
-                                                    <td data-label="Tracking" className="font-mono text-[11px] text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                                        {parcel.tracking_number}
+                                                    <td data-label="Sender" className="text-slate-800 dark:text-slate-200 font-semibold sm:whitespace-nowrap text-right sm:text-left">
+                                                        <span className="truncate inline-block text-right" title={parcel.sender_name || 'N/A'}>
+                                                            {parcel.sender_name || 'N/A'}
+                                                        </span>
                                                     </td>
-                                                    <td data-label="Sender" className="text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
-                                                        {parcel.sender_name || 'N/A'}
+                                                    <td data-label="Customer" className="text-slate-800 dark:text-slate-200 font-semibold sm:whitespace-nowrap text-right sm:text-left">
+                                                        <span className="truncate inline-block text-right" title={parcel.customer_name || 'N/A'}>
+                                                            {parcel.customer_name || 'N/A'}
+                                                        </span>
                                                     </td>
-                                                    <td data-label="Customer" className="text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
-                                                        {parcel.customer_name || 'N/A'}
+                                                    <td data-label="Customer Number" className="text-slate-800 dark:text-slate-200 font-semibold sm:whitespace-nowrap text-right sm:text-left">
+                                                        <span className="truncate inline-block text-right" title={parcel.customer_number || 'N/A'}>
+                                                            {parcel.customer_number || 'N/A'}
+                                                        </span>
                                                     </td>
-                                                    <td data-label="Customer Number" className="text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
-                                                        {parcel.customer_number || 'N/A'}
+                                                    <td data-label="Destination" className="text-slate-600 dark:text-slate-300 sm:whitespace-nowrap text-right sm:text-left">
+                                                        <span className="truncate inline-block text-right" title={parcel.destination || 'N/A'}>
+                                                            {parcel.destination || 'N/A'}
+                                                        </span>
                                                     </td>
-                                                    <td data-label="Destination" className="text-slate-600 dark:text-slate-300 whitespace-nowrap truncate max-w-3">
-                                                        {parcel.destination || 'N/A'}
+                                                    <td data-label="Courier" className="text-slate-700 dark:text-slate-300 font-medium sm:whitespace-nowrap text-right sm:text-left">
+                                                        <span className="truncate inline-block text-right" title={parcel.courier || 'N/A'}>
+                                                            {parcel.courier || 'N/A'}
+                                                        </span>
                                                     </td>
-                                                    <td data-label="Courier" className="text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
-                                                        {parcel.courier || 'N/A'}
+                                                    <td data-label="Status" className="sm:whitespace-nowrap">
+                                                        <div className="flex justify-end sm:justify-start">
+                                                            <StatusBadge tone={getStatusTone(parcel.status)} size="xs" dot>
+                                                                {getStatusLabel(parcel.status)}
+                                                            </StatusBadge>
+                                                        </div>
                                                     </td>
-                                                    <td data-label="Status" className="whitespace-nowrap">
-                                                        <StatusBadge tone={getStatusTone(parcel.status)} size="xs" dot>
-                                                            {getStatusLabel(parcel.status)}
-                                                        </StatusBadge>
-                                                    </td>
-                                                    <td data-label="Time" className="text-slate-400 dark:text-slate-500 text-[11px] font-mono whitespace-nowrap">
+                                                    <td data-label="Time" className="text-slate-400 dark:text-slate-500 text-[11px] font-mono sm:whitespace-nowrap text-right sm:text-left">
                                                         {new Date(parcel.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </td>
-                                                    <td data-label="Action" className="text-right whitespace-nowrap w-[80px] min-w-[80px]" onClick={(e) => e.stopPropagation()}>
-                                                        <div className="flex items-center justify-end">
+                                                    <td data-label="Action" className="text-right sm:whitespace-nowrap sm:w-[80px] sm:min-w-[80px] w-full" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-end w-full">
                                                             <CrudActionButton action="view" ariaLabel={`View parcel ${parcel.barcode}`} title="View Parcel" onClick={() => handleViewParcel(parcel)}/>
                                                         </div>
                                                     </td>
@@ -454,7 +515,7 @@ export const ParcelsTab = memo(function ParcelsTab({
                                     </table>
                                 </div>
                             </div>))) : (
-        /* Empty State */
+        /* empty state */
         <div className="text-center py-16">
             <div className="w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] flex items-center justify-center text-slate-400 dark:text-slate-500 mx-auto mb-3">
                 <i className="fas fa-box-open text-xl"></i>

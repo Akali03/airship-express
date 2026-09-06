@@ -27,7 +27,7 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
     const someBlockedSelected = selectedDevices.size > 0 && selectedDevices.size < devices.length;
     return (
         <div className="rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75)] overflow-hidden">
-            {/* Bulk Actions Banner */}
+            {/* bulk actions banner */}
             {selectedDevices.size > 0 && (
                 <div className="p-3 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -46,9 +46,9 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
                 </div>
             )}
 
-            {/* Table Content */}
+            {/* table content */}
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="table-pro w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase select-none">
                             <th className="py-3 px-4 w-10 text-center">
@@ -112,40 +112,46 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
                                             isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''
                                         }`}
                                     >
-                                        <td className="py-3 px-4 text-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={() => onToggleSelectDevice(device.id)}
-                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
-                                            />
+                                        <td data-label="Select" className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center justify-start md:justify-center w-full">
+                                                <label className="inline-flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => onToggleSelectDevice(device.id)}
+                                                        aria-label="Select blocked device"
+                                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
+                                                    />
+                                                    <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select</span>
+                                                </label>
+                                            </div>
                                         </td>
-                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">
+                                        <td data-label="Device Name" className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]" title={device.device_name || 'Unknown Device'}>
                                             {device.device_name || 'Unknown Device'}
                                         </td>
-                                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[200px] truncate" title={device.user_agent}>
+                                        <td data-label="User Agent" className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[200px] truncate" title={device.user_agent}>
                                             {device.user_agent}
                                         </td>
-                                        <td className="py-3 px-4">
+                                        <td data-label="IP Address" className="py-3 px-4">
                                             <StatusBadge tone="neutral" size="xs">
                                                 <span className="font-mono">{device.ip_address || 'Unknown'}</span>
                                             </StatusBadge>
                                         </td>
-                                        <td className="py-3 px-4 text-center">
+                                        <td data-label="Blocked Count" className="py-3 px-4 text-center">
                                             <span className="font-bold text-slate-700 dark:text-slate-300">{device.blocked_count || 0}</span>
                                         </td>
-                                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                        <td data-label="Blocked At" className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                             {formatDate(device.blocked_at)}
                                         </td>
-                                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[150px] truncate font-medium">
+                                        <td data-label="Reason" className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-[150px] truncate font-medium">
                                             {device.reason || 'No reason provided'}
                                         </td>
-                                        <td className="py-3 px-4">
+                                        <td data-label="Status" className="py-3 px-4">
                                             <StatusBadge tone={device.status === 'blocked' ? 'rose' : 'emerald'} dot size="xs">
                                                 {device.status === 'blocked' ? 'Blocked' : 'Unblocked'}
                                             </StatusBadge>
                                         </td>
-                                        <td className="py-3 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]">
+                                        <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]">
                                             <div className="flex items-center justify-end gap-2.5">
                                                 {device.status === 'blocked' && (
                                                     <CrudActionButton action="restore" label="Unblock" title="Unblock Device" onClick={() => onUnblockDevice(device.id, device.email)} />
@@ -161,7 +167,7 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
                 </table>
             </div>
 
-            {/* Pagination Footer */}
+            {/* pagination footer */}
             <div className="p-4 border-t border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/60 flex items-center justify-between flex-wrap gap-3">
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                     Showing {devices.length} blocked devices

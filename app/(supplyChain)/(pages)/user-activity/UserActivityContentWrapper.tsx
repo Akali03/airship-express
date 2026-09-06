@@ -21,14 +21,14 @@ export default function UserActivityContentWrapper() {
     const initialTab = (searchParams.get('tab') as ActivityTab) || 'sessions';
     const [activeTab, setActiveTab] = useState<ActivityTab>(initialTab);
 
-    // Search and filters
+    // search and filters
     const [searchTerm, setSearchTerm] = useState('');
     const [activitySearchTerm, setActivitySearchTerm] = useState('');
     const [activityFilter, setActivityFilter] = useState<string>('all');
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
     const debouncedActivitySearchTerm = useDebounce(activitySearchTerm, 300);
 
-    // Appeal response modal
+    // appeal response modal
     const [showResponseModal, setShowResponseModal] = useState(false);
     const [selectedAppeal, setSelectedAppeal] = useState<Appeal | null>(null);
     const [responseMessage, setResponseMessage] = useState('');
@@ -89,7 +89,7 @@ export default function UserActivityContentWrapper() {
         handleBulkRejectAppeals,
     } = useUserActivity();
 
-    // Unique action types for activity log filter
+    // unique action types for activity log filter
     const uniqueActions = Array.from(new Set(activities.map(a => a.action)));
 
     const handleTabChange = (tab: ActivityTab) => {
@@ -103,24 +103,25 @@ export default function UserActivityContentWrapper() {
         setSelectedBlockedDevices(new Set());
         setSelectedAppeals(new Set());
         setSelectedActivities(new Set());
-        router.push(`?tab=${tab}`, { scroll: false });
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('tab', tab);
+        router.replace(`?${params.toString()}`, { scroll: false });
     };
 
-    // Filter sessions on debounced search
+    // filter sessions on debounced search
     useEffect(() => {
-        if (activeTab === 'sessions') {
-            filterSessions(debouncedSearchTerm);
-        }
-    }, [debouncedSearchTerm, activeTab, filterSessions]);
+        filterSessions(debouncedSearchTerm);
+        setSessionPage(1);
+    }, [debouncedSearchTerm, filterSessions, setSessionPage]);
 
-    // Filter activity logs on debounced search or filter
+    // filter activity logs on debounced search or filter
     useEffect(() => {
-        if (activeTab === 'activity') {
-            filterActivities(debouncedActivitySearchTerm, activityFilter);
-        }
-    }, [debouncedActivitySearchTerm, activityFilter, activeTab, filterActivities]);
+        filterActivities(debouncedActivitySearchTerm, activityFilter);
+        setActivityPage(1);
+    }, [debouncedActivitySearchTerm, activityFilter, filterActivities, setActivityPage]);
 
-    // Selection handlers
+    // selection handlers
     const handleToggleSelectSession = (id: string, isDisabled: boolean) => {
         if (isDisabled) return;
         const next = new Set(selectedSessions);
@@ -221,14 +222,14 @@ export default function UserActivityContentWrapper() {
 
     return (
         <div className="p-6 space-y-6  animate-in fade-in duration-300 bgCard">
-            {/* Header & Quick Stat Badges */}
+            {/* header & quick stat badges */}
             <HeaderStats
                 blockedDevices={blockedDevices}
                 appeals={appeals}
                 activities={activities}
             />
 
-            {/* Navigation Tabs */}
+            {/* navigation tabs */}
             <TabNav
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
@@ -238,7 +239,7 @@ export default function UserActivityContentWrapper() {
                 activitiesCount={activities.length}
             />
 
-            {/* Active Tab View */}
+            {/* active tab view */}
             {activeTab === 'sessions' && (
                 <SessionsTab
                     sessions={paginatedSessions}
@@ -314,7 +315,7 @@ export default function UserActivityContentWrapper() {
                 />
             )}
 
-            {/* Appeal Response Modal */}
+            {/* appeal response modal */}
             <AppealResponseModal
                 isOpen={showResponseModal}
                 appeal={selectedAppeal}

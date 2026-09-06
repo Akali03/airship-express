@@ -474,18 +474,24 @@ export function InventoryTab() {
                                             className={`transition-all duration-150 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${isSelected ? 'bg-pink-50/30 dark:bg-pink-950/20' : ''
                                                 }`}
                                         >
-                                            <td className="py-3 px-4 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => {
-                                                        const newSelected = new Set(selectedItemIds);
-                                                        if (newSelected.has(item.id)) newSelected.delete(item.id);
-                                                        else newSelected.add(item.id);
-                                                        setSelectedItemIds(newSelected);
-                                                    }}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
-                                                />
+                                            <td data-label="Select" className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-start md:justify-center w-full">
+                                                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                const newSelected = new Set(selectedItemIds);
+                                                                if (newSelected.has(item.id)) newSelected.delete(item.id);
+                                                                else newSelected.add(item.id);
+                                                                setSelectedItemIds(newSelected);
+                                                            }}
+                                                            aria-label={`Select ${item.item_name}`}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-500 bg-transparent"
+                                                        />
+                                                        <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select</span>
+                                                    </label>
+                                                </div>
                                             </td>
                                             <td className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
                                                 {item.item_code}
