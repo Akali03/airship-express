@@ -15,7 +15,7 @@ export const GET = handle(async () => {
   let employeeId = authUser.employeeId;
   let employeeNumber = authUser.employeeNumber;
   let email = authUser.email;
-  let fullName: string | null = null;
+  const fullName = authUser.fullName;
   let department: string | null = null;
   let jobTitle: string | null = null;
 
@@ -56,11 +56,6 @@ export const GET = handle(async () => {
           | { title: string | null }[]
           | null;
       };
-      fullName =
-        [row.first_name, row.last_name]
-          .filter((part): part is string => Boolean(part))
-          .join(" ")
-          .trim() || null;
       email = row.email ?? email;
       department = row.department ?? null;
       jobTitle = Array.isArray(row.job_position)

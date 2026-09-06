@@ -32,6 +32,7 @@ const GOAL_BODY_SCHEMA: Schema = {
 
 const GOAL_UPDATE_SCHEMA: Schema = {
   id: { type: "uuid" },
+  employee_id: { type: "uuid", optional: true },
   title: { type: "string", optional: true, max: 200 },
   description: { type: "string", optional: true, max: 2000 },
   category: { type: "string", optional: true, enum: GOAL_CATEGORIES },
@@ -89,6 +90,18 @@ export const POST = handle(async (request: Request) => {
       ERROR_CODES.EMPLOYEE_PROFILE_REQUIRED,
       "Your account is not linked to an employee profile yet. Contact HR."
     );
+  }
+
+  if (user.isAdmin && typeof body.employee_id === "string" && body.employee_id) {
+    const { data: employee } = await supabaseAdmin
+      .from("hr1_employees")
+      .select("id")
+      .eq("id", body.employee_id)
+      .maybeSingle();
+
+    if (!employee) {
+      return errorResponse(ERROR_CODES.NOT_FOUND, "Employee not found");
+    }
   }
 
   const { data, error } = await supabaseAdmin
@@ -151,19 +164,35 @@ export const PUT = handle(async (request: Request) => {
     return errorResponse(ERROR_CODES.FORBIDDEN, "You can only update your own goals.");
   }
 
+  const updatePayload: Record<string, unknown> = {
+    title: body.title,
+    description: body.description,
+    category: body.category,
+    status: body.status,
+    priority: body.priority,
+    progress_percent: body.progress_percent,
+    target: body.target,
+    due_date: body.due_date,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (user.isAdmin && typeof body.employee_id === "string" && body.employee_id) {
+    const { data: employee } = await supabaseAdmin
+      .from("hr1_employees")
+      .select("id")
+      .eq("id", body.employee_id)
+      .maybeSingle();
+
+    if (!employee) {
+      return errorResponse(ERROR_CODES.NOT_FOUND, "Employee not found");
+    }
+
+    updatePayload.employee_id = body.employee_id;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("hr3_performance_goals")
-    .update({
-      title: body.title,
-      description: body.description,
-      category: body.category,
-      status: body.status,
-      priority: body.priority,
-      progress_percent: body.progress_percent,
-      target: body.target,
-      due_date: body.due_date,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", body.id)
     .select();
 

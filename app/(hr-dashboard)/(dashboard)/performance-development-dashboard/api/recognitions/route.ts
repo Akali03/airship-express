@@ -24,7 +24,7 @@ const VISIBILITIES = ["public", "private"] as const;
 
 const RECOGNITION_BODY_SCHEMA: Schema = {
   recipient_id: { type: "uuid" },
-  message: { type: "string", min: 1, max: 1000 },
+  message: { type: "string", max: 1000 },
   badge_id: { type: "uuid", optional: true },
   reason_category: { type: "string", enum: REASON_CATEGORIES },
   points: { type: "number", optional: true, min: 0, max: 1000 },
@@ -34,12 +34,22 @@ const RECOGNITION_BODY_SCHEMA: Schema = {
 export const GET = handle(async () => {
   const auth = await getAuthenticatedHrUser();
   if (!auth.ok) return auth.response;
+  const user = auth.user;
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("hr3_recognitions")
     .select("*, hr3_badges(name, icon_url)")
-    .eq("visibility", "public")
     .order("created_at", { ascending: false });
+
+  if (user.employeeId) {
+    query = query.or(
+      `visibility.eq.public,sender_id.eq.${user.employeeId},recipient_id.eq.${user.employeeId}`
+    );
+  } else {
+    query = query.eq("visibility", "public");
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return internalError(error);
@@ -58,6 +68,16 @@ export const POST = handle(async (request: Request) => {
       ERROR_CODES.EMPLOYEE_PROFILE_REQUIRED,
       "Your account is not linked to an employee profile yet. Contact HR."
     );
+  }
+
+  const { data: sender } = await supabaseAdmin
+    .from("hr1_employees")
+    .select("id")
+    .eq("id", user.employeeId)
+    .maybeSingle();
+
+  if (!sender) {
+    return errorResponse(ERROR_CODES.NOT_FOUND, "Sender not found");
   }
 
   const parsed = await validateJson(request, RECOGNITION_BODY_SCHEMA);

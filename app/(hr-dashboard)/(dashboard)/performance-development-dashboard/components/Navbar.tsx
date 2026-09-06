@@ -1,66 +1,88 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { NAV, useSidebar } from "./Sidebar";
 import { useHrAuth } from "../lib/hr-auth";
 
-function roleLabel(role: string): string {
-  switch (role) {
-    case "super_admin":
-      return "Super Admin";
-    case "hr_payroll_admin":
-      return "HR Admin";
-    default:
-      return "Employee";
-  }
-}
-
 export default function Navbar() {
-  const { user, logout } = useHrAuth();
+  const { logout } = useHrAuth();
+  const { toggle, isCollapsed, toggleCollapsed } = useSidebar();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const breadcrumb = (() => {
+    for (const group of NAV) {
+      for (const item of group.items) {
+        if (pathname === item.href) {
+          return { section: group.section, label: item.label };
+        }
+      }
+    }
+    return null;
+  })();
 
   async function handleSignOut() {
     await logout();
     router.replace("/hrAuth");
   }
 
-  const initials = user?.fullName
-    ? user.fullName
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase())
-        .join("")
-    : "";
-
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-paper dark:border-paper/15 dark:bg-ink">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-10">
-        <Image
-          src="/images/logo-remove-bg.png"
-          alt="Airship Express"
-          width={140}
-          height={38}
-          className="h-8 w-auto"
-          priority
-        />
-        <div className="flex items-center gap-4">
-          <div className="hidden items-center gap-2 text-[12.5px] text-muted sm:flex">
-            <span className="h-2 w-2 rounded-full bg-accent" />
-            Performance &amp; Development
-          </div>
-          {user && (
-            <div className="flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1.5 font-rethink text-xs dark:border-paper/15 dark:bg-ink">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-[10px] font-bold text-accent">
-                {initials || "?"}
-              </span>
-              <span className="hidden max-w-[140px] truncate font-semibold text-ink md:inline dark:text-paper">
-                {user.fullName}
-              </span>
-              <span className="text-muted">· {roleLabel(user.role)}</span>
+    <header className="z-30 w-full border-b border-line bg-paper/95 backdrop-blur dark:border-paper/15 dark:bg-ink/95">
+      <div className="flex h-16 w-full items-center justify-between gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={toggle}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 sm:hidden dark:border-paper/15"
+            aria-label="Toggle menu"
+          >
+            <Menu size={18} strokeWidth={1.75} />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-ink/[0.04] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 dark:hover:bg-paper/[0.06] dark:hover:text-paper sm:flex"
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isCollapsed ? (
+              <PanelLeftOpen size={19} strokeWidth={1.75} />
+            ) : (
+              <PanelLeftClose size={19} strokeWidth={1.75} />
+            )}
+          </button>
+
+          <Image
+            src="/images/logo-remove-bg.png"
+            alt="Airship Express"
+            width={140}
+            height={38}
+            className="h-8 w-auto shrink-0 dark:brightness-0 dark:invert"
+          />
+
+          {breadcrumb && (
+            <div className="hidden min-w-0 items-center gap-2.5 pl-2.5 sm:flex">
+              <span className="h-5 w-px shrink-0 bg-line dark:bg-paper/15" aria-hidden />
+              <div className="flex min-w-0 items-baseline gap-2">
+                <span className="shrink-0 text-[13px] font-medium uppercase tracking-[0.2em] text-accent">
+                  {breadcrumb.section}
+                </span>
+                <span
+                  className="h-3 w-px shrink-0 bg-line dark:bg-paper/15"
+                  aria-hidden
+                />
+                <span className="truncate text-sm font-semibold text-ink dark:text-paper">
+                  {breadcrumb.label}
+                </span>
+              </div>
             </div>
           )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2.5 sm:gap-4">
           <button
             type="button"
             onClick={handleSignOut}
