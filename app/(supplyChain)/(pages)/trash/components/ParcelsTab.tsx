@@ -14,6 +14,7 @@ import { CardsSkeleton, TableRowsSkeleton } from '@/app/(supplyChain)/components
 import { CrudActionButton } from '@/app/(supplyChain)/components/ui/CrudActionButton';
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
+import { trashCache } from '../utils/trashCache';
 
 interface ArchivedParcel {
     id: number;
@@ -48,8 +49,12 @@ const ITEMS_PER_PAGE = 10;
 export function ParcelsTab() {
     const { confirm } = useConfirm();
 
-    const [archivedParcels, setArchivedParcels] = useState<ArchivedParcel[]>([]);
-    const [parcelLoading, setParcelLoading] = useState(false);
+    const [archivedParcels, setArchivedParcels] = useState<ArchivedParcel[]>(() => {
+        return trashCache.get<ArchivedParcel>('parcels') || [];
+    });
+    const [parcelLoading, setParcelLoading] = useState<boolean>(() => {
+        return !trashCache.get('parcels');
+    });
     const [parcelSearchTerm, setParcelSearchTerm] = useState('');
     const [parcelStatusFilter, setParcelStatusFilter] = useState('all');
     const [selectedParcelIds, setSelectedParcelIds] = useState<Set<number>>(new Set());
@@ -59,8 +64,19 @@ export function ParcelsTab() {
 
     const debouncedParcelSearchTerm = useDebounce(parcelSearchTerm, 300);
 
-    const fetchArchivedParcels = useCallback(async () => {
-        setParcelLoading(true);
+    const fetchArchivedParcels = useCallback(async (force = false) => {
+        const cached = trashCache.get<ArchivedParcel>('parcels');
+        if (cached && !force && !trashCache.isStale('parcels')) {
+            setArchivedParcels(cached);
+            setParcelTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+            setParcelLoading(false);
+            return;
+        }
+
+        if (!cached || cached.length === 0) {
+            setParcelLoading(true);
+        }
+
         try {
             const { data, error } = await supabase
                 .from('parcels_archive')
@@ -97,6 +113,7 @@ export function ParcelsTab() {
                 original_id: parcel.original_id || parcel.id,
             }));
 
+            trashCache.set('parcels', transformedData);
             setArchivedParcels(transformedData);
             setParcelTotalPages(Math.ceil(transformedData.length / ITEMS_PER_PAGE));
         } catch (error) {
@@ -152,6 +169,7 @@ export function ParcelsTab() {
 
                 if (deleteError) throw deleteError;
 
+                trashCache.removeItem('parcels', parcel.id);
                 setArchivedParcels(prev => prev.filter(p => p.id !== parcel.id));
                 setParcelTotalPages(Math.ceil((archivedParcels.length - 1) / ITEMS_PER_PAGE));
                 setSelectedParcelIds(prev => {
@@ -187,6 +205,7 @@ export function ParcelsTab() {
 
                 if (error) throw error;
 
+                trashCache.removeItem('parcels', parcel.id);
                 setArchivedParcels(prev => prev.filter(p => p.id !== parcel.id));
                 setParcelTotalPages(Math.ceil((archivedParcels.length - 1) / ITEMS_PER_PAGE));
                 setSelectedParcelIds(prev => {
@@ -252,6 +271,7 @@ export function ParcelsTab() {
                         .eq('id', parcel.id);
                 }
 
+                trashCache.removeItems('parcels', selectedParcelIds);
                 setArchivedParcels(prev => prev.filter(p => !selectedParcelIds.has(p.id)));
                 setParcelTotalPages(Math.ceil((archivedParcels.length - selectedParcelIds.size) / ITEMS_PER_PAGE));
                 toast.success(`${selectedParcelIds.size} parcel(s) restored successfully!`);
@@ -285,6 +305,7 @@ export function ParcelsTab() {
                         .eq('id', parcelId);
                 }
 
+                trashCache.removeItems('parcels', selectedParcelIds);
                 setArchivedParcels(prev => prev.filter(p => !selectedParcelIds.has(p.id)));
                 setParcelTotalPages(Math.ceil((archivedParcels.length - selectedParcelIds.size) / ITEMS_PER_PAGE));
                 toast.success(`${selectedParcelIds.size} parcel(s) permanently deleted.`);
@@ -343,13 +364,11 @@ export function ParcelsTab() {
         });
     }, [archivedParcels, debouncedParcelSearchTerm, parcelStatusFilter]);
 
-    const getPaginatedData = <T,>(data: T[], page: number): T[] => {
-        const startIndex = (page - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return data.slice(startIndex, endIndex);
-    };
+    const paginatedParcels = useMemo(() => {
+        const startIndex = (parcelPage - 1) * ITEMS_PER_PAGE;
+        return filteredParcels.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredParcels, parcelPage]);
 
-    const paginatedParcels = getPaginatedData(filteredParcels, parcelPage);
     const parcelStatuses = useMemo(() => ['all', ...Array.from(new Set(archivedParcels.map(p => p.status)))], [archivedParcels]);
     const isAllParcelsSelected = filteredParcels.length > 0 && selectedParcelIds.size === filteredParcels.length;
 
@@ -363,7 +382,23 @@ export function ParcelsTab() {
     useEffect(() => {
         setIsMounted(true);
         fetchArchivedParcels();
-    }, []);
+
+        const unsubscribe = trashCache.subscribe((key, action) => {
+            if (!key || key === 'parcels') {
+                if (action === 'force-refresh' || action === 'invalidate') {
+                    fetchArchivedParcels(true);
+                } else {
+                    const cached = trashCache.get<ArchivedParcel>('parcels');
+                    if (cached) {
+                        setArchivedParcels(cached);
+                        setParcelTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+                    }
+                }
+            }
+        });
+
+        return unsubscribe;
+    }, [fetchArchivedParcels]);
 
     return (
         <div className="space-y-4 text-slate-900 dark:text-slate-100 animate-in slide-in-from-bottom-4 duration-300">

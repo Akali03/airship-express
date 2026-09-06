@@ -174,7 +174,7 @@ export default function DocumentViewerModal({ isOpen, onClose, data }: DocumentV
                                     {data.title || `Receipt - PO #${data.poNumber || 'Document'}`}
                                 </h3>
                                 {data.verifiedStatus === 'matched' && (
-                                    <StatusBadge tone="pink" icon="fas fa-check-circle" size="xs">
+                                    <StatusBadge tone="emerald" icon="fas fa-check-circle" size="xs">
                                         Matched ✓
                                     </StatusBadge>
                                 )}
@@ -184,7 +184,7 @@ export default function DocumentViewerModal({ isOpen, onClose, data }: DocumentV
                                     </StatusBadge>
                                 )}
                                 {data.verifiedStatus === 'forced' && (
-                                    <StatusBadge tone="indigo" icon="fas fa-shield-alt" size="xs">
+                                    <StatusBadge tone="blue" icon="fas fa-shield-alt" size="xs">
                                         Admin Forced ✓
                                     </StatusBadge>
                                 )}

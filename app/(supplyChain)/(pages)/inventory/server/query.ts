@@ -18,6 +18,10 @@ export interface LatestPOInfo {
     is_request?: boolean;
     request_number?: string;
     request_id?: string;
+    created_at?: string;
+    has_pending_pr?: boolean;
+    pending_pr_number?: string;
+    pending_pr_id?: string;
 }
 // types
 export interface InventoryItem {
@@ -87,6 +91,7 @@ async function attachLatestPOToItems(items: any[]) {
                 quantity_received,
                 unit_price,
                 stocked_in_at,
+                created_at,
                 purchase_orders (
                     id,
                     po_number,
@@ -100,14 +105,15 @@ async function attachLatestPOToItems(items: any[]) {
             `)
             .in('inventory_item_id', itemIds)
             .order('created_at', { ascending: false });
+
         // Map PO by item id (first occurrence is latest due to ordering)
-        const latestPoMap = new Map<string, LatestPOInfo>();
+        const poMap = new Map<string, LatestPOInfo>();
         if (poiData) {
             for (const poi of poiData) {
                 const key = String(poi.inventory_item_id);
-                if (!latestPoMap.has(key)) {
+                if (!poMap.has(key)) {
                     const po = (poi as any).purchase_orders;
-                    latestPoMap.set(key, {
+                    poMap.set(key, {
                         poi_id: poi.id,
                         purchase_order_id: poi.purchase_order_id,
                         po_number: po?.po_number,
@@ -120,48 +126,146 @@ async function attachLatestPOToItems(items: any[]) {
                         supplier_name: po?.supplier_name,
                         delivery_date: po?.delivery_date,
                         is_request: false,
+                        created_at: po?.created_at || poi.created_at,
                     });
                 }
             }
         }
-        // 2. For items with no PO yet, check pending purchase_requests
-        const itemsWithoutPo = items.filter(item => !latestPoMap.has(String(item.id)));
-        if (itemsWithoutPo.length > 0) {
-            const { data: prData } = await supabase
-                .from('purchase_requests')
-                .select('id, request_number, status, supplier_name, items, created_at')
-                .in('status', ['Pending', 'Approved'])
-                .order('created_at', { ascending: false });
-            if (prData && prData.length > 0) {
-                for (const item of itemsWithoutPo) {
-                    const key = String(item.id);
-                    if (latestPoMap.has(key))
-                        continue;
-                    for (const pr of prData) {
-                        const prItems = Array.isArray(pr.items) ? pr.items : [];
-                        const matchingItem = prItems.find((pi: any) => String(pi.inventory_item_id) === String(item.id) ||
-                            (pi.name && pi.name.toLowerCase() === item.item_name?.toLowerCase()) ||
-                            (pi.item_name && pi.item_name.toLowerCase() === item.item_name?.toLowerCase()));
-                        if (matchingItem) {
-                            latestPoMap.set(key, {
+
+        // 2. fetch purchase requests for active pipeline (pending and approved) or recent window (last 60 days)
+        const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: prData } = await supabase
+            .from('purchase_requests')
+            .select('id, request_number, status, supplier_name, items, created_at')
+            .or(`status.in.(Pending,Approved),created_at.gte.${sixtyDaysAgo}`)
+            .order('created_at', { ascending: false })
+            .limit(300);
+
+        // index prs by inventory item id and lowercased item name for o(1) matching
+        const prsByItemId = new Map<string, { pr: any; item: any }[]>();
+        const prsByItemName = new Map<string, { pr: any; item: any }[]>();
+
+        for (const pr of prData || []) {
+            const prItems = Array.isArray(pr.items) ? pr.items : [];
+            for (const pi of prItems) {
+                if (pi.inventory_item_id != null) {
+                    const idKey = String(pi.inventory_item_id);
+                    if (!prsByItemId.has(idKey)) prsByItemId.set(idKey, []);
+                    prsByItemId.get(idKey)!.push({ pr, item: pi });
+                }
+                const nameKey = (pi.name || pi.item_name || '').toLowerCase().trim();
+                if (nameKey) {
+                    if (!prsByItemName.has(nameKey)) prsByItemName.set(nameKey, []);
+                    prsByItemName.get(nameKey)!.push({ pr, item: pi });
+                }
+            }
+        }
+
+        const latestActivityMap = new Map<string, LatestPOInfo>();
+
+        for (const item of items) {
+            const key = String(item.id);
+            const nameKey = (item.item_name || '').toLowerCase().trim();
+            const existingPO = poMap.get(key);
+
+            // fast indexed lookup for matching purchase requests
+            const candidates = [
+                ...(prsByItemId.get(key) || []),
+                ...(prsByItemName.get(nameKey) || [])
+            ];
+            const seenPrIds = new Set<string>();
+            const matchingEntries: { pr: any; item: any }[] = [];
+            for (const c of candidates) {
+                if (!seenPrIds.has(c.pr.id)) {
+                    seenPrIds.add(c.pr.id);
+                    matchingEntries.push(c);
+                }
+            }
+
+            const pendingEntry = matchingEntries.find(e => (e.pr.status || '').toLowerCase() === 'pending');
+            const hasPendingPR = Boolean(pendingEntry);
+            const latestEntry = matchingEntries[0];
+
+            let chosenActivity: LatestPOInfo | null = null;
+
+            if (latestEntry) {
+                const latestPR = latestEntry.pr;
+                const matchingItem = latestEntry.item;
+
+                const prInfo: LatestPOInfo = {
+                    is_request: true,
+                    request_id: latestPR.id,
+                    request_number: latestPR.request_number,
+                    status: latestPR.status,
+                    supplier_name: latestPR.supplier_name,
+                    quantity_ordered: matchingItem?.quantity || 0,
+                    quantity_received: 0,
+                    unit_price: matchingItem?.unit_price || matchingItem?.price || 0,
+                    created_at: latestPR.created_at,
+                    has_pending_pr: hasPendingPR,
+                    pending_pr_number: pendingEntry?.pr.request_number,
+                    pending_pr_id: pendingEntry?.pr.id,
+                };
+
+                if (!existingPO) {
+                    chosenActivity = prInfo;
+                } else {
+                    const poDate = existingPO.created_at ? new Date(existingPO.created_at).getTime() : 0;
+                    const prDate = latestPR.created_at ? new Date(latestPR.created_at).getTime() : 0;
+                    const isPOFinished = ['delivered', 'cancelled', 'completed'].includes((existingPO.status || '').toLowerCase());
+
+                    if (hasPendingPR) {
+                        // if there is an active pending pr, that takes precedence over any completed/previous po
+                        if (pendingEntry && pendingEntry.pr.id !== latestPR.id) {
+                            const pendingMatch = pendingEntry.item;
+                            chosenActivity = {
                                 is_request: true,
-                                request_id: pr.id,
-                                request_number: pr.request_number,
-                                status: pr.status,
-                                supplier_name: pr.supplier_name,
-                                quantity_ordered: matchingItem.quantity || 0,
+                                request_id: pendingEntry.pr.id,
+                                request_number: pendingEntry.pr.request_number,
+                                status: pendingEntry.pr.status,
+                                supplier_name: pendingEntry.pr.supplier_name,
+                                quantity_ordered: pendingMatch?.quantity || 0,
                                 quantity_received: 0,
-                                unit_price: matchingItem.unit_price || 0,
-                            });
-                            break;
+                                unit_price: pendingMatch?.unit_price || pendingMatch?.price || 0,
+                                created_at: pendingEntry.pr.created_at,
+                                has_pending_pr: true,
+                                pending_pr_number: pendingEntry.pr.request_number,
+                                pending_pr_id: pendingEntry.pr.id,
+                            };
+                        } else {
+                            chosenActivity = prInfo;
                         }
+                    } else if (isPOFinished && (prDate > poDate || ['approved'].includes((latestPR.status || '').toLowerCase()))) {
+                        // previous po is finished and there is a newer or approved pr waiting
+                        chosenActivity = prInfo;
+                    } else if (prDate > poDate && !isPOFinished && (existingPO.status || '').toLowerCase() === 'draft') {
+                        // pr created after draft po
+                        chosenActivity = prInfo;
+                    } else {
+                        // po is the active/latest activity
+                        chosenActivity = {
+                            ...existingPO,
+                            has_pending_pr: hasPendingPR,
+                            pending_pr_number: pendingEntry?.pr.request_number,
+                            pending_pr_id: pendingEntry?.pr.id,
+                        };
                     }
                 }
-            } 
+            } else if (existingPO) {
+                chosenActivity = {
+                    ...existingPO,
+                    has_pending_pr: false,
+                };
+            }
+
+            if (chosenActivity) {
+                latestActivityMap.set(key, chosenActivity);
+            }
         }
+
         return items.map(item => ({
             ...item,
-            latest_po: latestPoMap.get(String(item.id)) || null,
+            latest_po: latestActivityMap.get(String(item.id)) || null,
         }));
     }
     catch (err) {
@@ -236,15 +340,12 @@ export async function fetchInventoryItems(params: {
         if (status !== 'all') {
             query = query.eq('status', status);
         }
-        const { count: totalCount, error: countError } = await query;
-        if (countError)
-            throw countError;
-        const { data, error } = await query
+        const { data, count: totalCount, error } = await query
             .order('item_name')
             .range(from, to);
         if (error)
             throw error;
-        // Enrich items with latest PO / POI and PR tracking
+        // enrich items with latest po / poi and pr tracking
         const itemsWithPo = await attachLatestPOToItems(data || []);
         const enrichedItems = await attachForceUpdateDetails(itemsWithPo);
         return {
@@ -308,10 +409,7 @@ export async function fetchParcels(params: {
         if (dateTo) {
             query = query.lte('created_at', dateTo + 'T23:59:59');
         }
-        const { count: totalCount, error: countError } = await query;
-        if (countError)
-            throw countError;
-        const { data, error } = await query
+        const { data, count: totalCount, error } = await query
             .order('created_at', { ascending: false })
             .range(from, to);
         if (error)

@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
             const notifMsg = `Stock replenishment PR for ${item.item_name} (Qty: ${qty}, ₱${totalAmount.toLocaleString()}) created by ${user_name}. Pending review & approval.`;
             const notifLink = `/procurement?search=${encodeURIComponent(reqNumber)}`;
 
-            // Send notification targeted for Admin role
+            // Send notification targeted for Admin & Executive roles
             notificationRecords.push({
                 creator_name: user_name || "AI Assistant",
                 creator_email: user_email || "system@airshipexpress.ph",
@@ -123,19 +123,6 @@ export async function POST(request: NextRequest) {
                 type: "purchase_request",
                 link: notifLink,
                 role: "Admin",
-                is_read: false,
-                po_request_id: savedPR.id || reqNumber,
-            });
-
-            // Send notification targeted for Executive role
-            notificationRecords.push({
-                creator_name: user_name || "AI Assistant",
-                creator_email: user_email || "system@airshipexpress.ph",
-                title: notifTitle,
-                message: notifMsg,
-                type: "purchase_request",
-                link: notifLink,
-                role: "Executive",
                 is_read: false,
                 po_request_id: savedPR.id || reqNumber,
             });

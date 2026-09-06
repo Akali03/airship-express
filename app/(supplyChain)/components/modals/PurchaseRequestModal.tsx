@@ -5,6 +5,7 @@ import { sanitizeText, sanitizeNumber } from "@/app/(supplyChain)/components/glo
 import { AppButton } from "@/app/(supplyChain)/components/ui/AppButton";
 import { PurchaseRequestItem, PurchaseRequestModalProps } from "@/app/(supplyChain)/(pages)/procurement/types/index";
 import Portal from "@/app/(supplyChain)/components/client/Portal";
+import { user } from "@/app/(supplyChain)/lib/services/Class/user";
 
 export function PurchaseRequestModal({
     isOpen,
@@ -13,6 +14,7 @@ export function PurchaseRequestModal({
     onRequestSubmitted,
     editData,
     isEdit = false,
+    readOnly = false,
 }: PurchaseRequestModalProps) {
     const defaultFormState = {
         requested_by: "",
@@ -29,7 +31,11 @@ export function PurchaseRequestModal({
 
     useEffect(() => {
         if (isOpen) {
-            if (isEdit && editData) {
+            const currentUserName = typeof window !== 'undefined'
+                ? (localStorage.getItem('user_name') || user.getName() || '')
+                : '';
+
+            if ((isEdit || readOnly) && editData) {
                 const loadedItems = editData.items?.length
                     ? editData.items.map((i: any) => ({
                         name: i.name || i.item_name || "",
@@ -41,7 +47,7 @@ export function PurchaseRequestModal({
                 const computedAmount = loadedItems.reduce((sum: number, item: any) => sum + (item.quantity * (item.unit_price || 0)), 0);
 
                 setFormData({
-                    requested_by: editData.requested_by || "",
+                    requested_by: editData.requested_by || currentUserName,
                     supplier_id: editData.supplier_id || "",
                     items: loadedItems,
                     reason: editData.reason || "",
@@ -50,10 +56,13 @@ export function PurchaseRequestModal({
                     amount: editData.amount || computedAmount || 0,
                 });
             } else {
-                setFormData(defaultFormState);
+                setFormData({
+                    ...defaultFormState,
+                    requested_by: currentUserName,
+                });
             }
         }
-    }, [isOpen, editData, isEdit]);
+    }, [isOpen, editData, isEdit, readOnly]);
 
     // Computed total from all item rows
     const calculatedItemsTotal = useMemo(() => {
@@ -66,6 +75,10 @@ export function PurchaseRequestModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (readOnly) {
+            onClose();
+            return;
+        }
         if (submitting) return;
 
         const sanitizedRequestedBy = sanitizeText(formData.requested_by);
@@ -195,10 +208,14 @@ export function PurchaseRequestModal({
                         </span>
                         <div>
                             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                                {isEdit ? "Edit Purchase Request" : "Create Purchase Request"}
+                                {readOnly ? "View Purchase Request" : isEdit ? "Edit Purchase Request" : "Create Purchase Request"}
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {isEdit ? `Editing request #${editData?.request_number || editData?.id}` : "Request new inventory items from suppliers with pricing"}
+                                {readOnly
+                                    ? `Viewing request #${editData?.request_number || editData?.id || ''}`
+                                    : isEdit
+                                        ? `Editing request #${editData?.request_number || editData?.id || ''}`
+                                        : "Request new inventory items from suppliers with pricing"}
                             </p>
                         </div>
                     </div>
@@ -216,10 +233,10 @@ export function PurchaseRequestModal({
                         </label>
                         <input
                             type="text"
-                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all"
+                            readOnly
+                            className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none cursor-not-allowed opacity-90 transition-all"
                             placeholder="Your full name"
                             value={formData.requested_by}
-                            onChange={(e) => setFormData({ ...formData, requested_by: e.target.value })}
                             required
                             maxLength={150}
                         />
@@ -230,10 +247,11 @@ export function PurchaseRequestModal({
                             Supplier <span className="text-pink-500 dark:text-pink-400">*</span>
                         </label>
                         <select
-                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer disabled:opacity-85 disabled:cursor-not-allowed"
                             value={formData.supplier_id}
                             onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
                             required
+                            disabled={readOnly || submitting}
                         >
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-500">
                                 Select a supplier...
@@ -252,9 +270,10 @@ export function PurchaseRequestModal({
                                 Department
                             </label>
                             <select
-                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer disabled:opacity-85 disabled:cursor-not-allowed"
                                 value={formData.department}
                                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                                disabled={readOnly || submitting}
                             >
                                 <option value="Fleet" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Fleet</option>
                                 <option value="Warehouse" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Warehouse</option>
@@ -267,9 +286,10 @@ export function PurchaseRequestModal({
                                 Priority
                             </label>
                             <select
-                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer"
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer disabled:opacity-85 disabled:cursor-not-allowed"
                                 value={formData.priority}
                                 onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                                disabled={readOnly || submitting}
                             >
                                 <option value="Normal" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Normal</option>
                                 <option value="Urgent" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Urgent</option>
@@ -297,23 +317,26 @@ export function PurchaseRequestModal({
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="text"
-                                                className="flex-1 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500"
+                                                className="flex-1 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 disabled:opacity-85 disabled:cursor-not-allowed"
                                                 placeholder="Item name (e.g. Oil Filter, Brake Pad)"
                                                 value={item.name}
                                                 onChange={(e) => updateItem(index, "name", e.target.value)}
                                                 required
                                                 maxLength={100}
+                                                disabled={readOnly || submitting}
                                             />
-                                            <button
-                                                type="button"
-                                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors shrink-0 cursor-pointer"
-                                                onClick={() => removeItem(index)}
-                                                title="Remove item"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
-                                            </button>
+                                            {!readOnly && (
+                                                <button
+                                                    type="button"
+                                                    className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors shrink-0 cursor-pointer"
+                                                    onClick={() => removeItem(index)}
+                                                    title="Remove item"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                         </div>
 
                                         <div className="flex items-center gap-2 text-xs">
@@ -322,11 +345,12 @@ export function PurchaseRequestModal({
                                                 <input
                                                     type="number"
                                                     min="1"
-                                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-center"
+                                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-center disabled:opacity-85 disabled:cursor-not-allowed"
                                                     placeholder="Qty"
                                                     value={item.quantity || ""}
                                                     onChange={(e) => updateItem(index, "quantity", parseInt(e.target.value) || 0)}
                                                     required
+                                                    disabled={readOnly || submitting}
                                                 />
                                             </div>
 
@@ -338,10 +362,11 @@ export function PurchaseRequestModal({
                                                         type="number"
                                                         step="0.01"
                                                         min="0"
-                                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl pl-6 pr-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-right"
+                                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl pl-6 pr-2 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-right disabled:opacity-85 disabled:cursor-not-allowed"
                                                         placeholder="0.00"
                                                         value={item.unit_price || ""}
                                                         onChange={(e) => updateItem(index, "unit_price", e.target.value)}
+                                                        disabled={readOnly || submitting}
                                                     />
                                                 </div>
                                             </div>
@@ -354,9 +379,11 @@ export function PurchaseRequestModal({
                                 );
                             })}
 
-                            <AppButton type="button" variant="pink" size="xs" onClick={addItem} className="flex">
-                                <span>+ Add more items</span>
-                            </AppButton>
+                            {!readOnly && (
+                                <AppButton type="button" variant="pink" size="xs" onClick={addItem} className="flex">
+                                    <span>+ Add more items</span>
+                                </AppButton>
+                            )}
                         </div>
                     </div>
 
@@ -370,10 +397,11 @@ export function PurchaseRequestModal({
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-8 pr-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all"
+                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-8 pr-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-85 disabled:cursor-not-allowed"
                                 placeholder="0.00"
                                 value={formData.amount || calculatedItemsTotal || ""}
                                 onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                                disabled={readOnly || submitting}
                             />
                         </div>
                     </div>
@@ -383,25 +411,34 @@ export function PurchaseRequestModal({
                             Reason <span className="text-pink-500 dark:text-pink-400">*</span>
                         </label>
                         <textarea
-                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none"
+                            className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none disabled:opacity-85 disabled:cursor-not-allowed"
                             rows={3}
                             placeholder="Provide a brief reason for this request..."
                             value={formData.reason}
                             onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                             required
                             maxLength={500}
+                            disabled={readOnly || submitting}
                         />
                     </div>
 
-                    <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
-                        <AppButton type="button" variant="neutral" size="md" onClick={onClose} disabled={submitting}>
-                            Cancel
-                        </AppButton>
-                        <AppButton type="submit" variant="primary" size="md" disabled={submitting} loading={submitting}>
-                            {!submitting}
-                            <span>{isEdit ? "Update Request" : "Submit Request"}</span>
-                        </AppButton>
-                    </div>
+                    {readOnly ? (
+                        <div className="flex justify-end pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
+                            <AppButton type="button" variant="primary" size="md" onClick={onClose}>
+                                Close
+                            </AppButton>
+                        </div>
+                    ) : (
+                        <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
+                            <AppButton type="button" variant="neutral" size="md" onClick={onClose} disabled={submitting}>
+                                Cancel
+                            </AppButton>
+                            <AppButton type="submit" variant="primary" size="md" disabled={submitting} loading={submitting}>
+                                {!submitting}
+                                <span>{isEdit ? "Update Request" : "Submit Request"}</span>
+                            </AppButton>
+                        </div>
+                    )}
                 </form>
             </div>
         </div>

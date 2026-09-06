@@ -3,7 +3,18 @@
 'use server';
 
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI } from '@google/genai';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || '';
+const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_ANON_KEY || '';
+
+const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+    },
+});
 
 interface VerifyReceiptInput {
     po_id: string;
@@ -104,7 +115,7 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
         }
 
         // fetch po
-        const { data: po, error: poError } = await supabase
+        const { data: po, error: poError } = await supabaseAdmin
             .from('purchase_orders')
             .select('*')
             .eq('id', po_id)
@@ -118,17 +129,17 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
         let validUserUUID: string | null = null;
 
         if (userEmail) {
-            const { data: uByEmail } = await supabase.from('users').select('id').eq('email', userEmail).maybeSingle();
+            const { data: uByEmail } = await supabaseAdmin.from('users').select('id').eq('email', userEmail).maybeSingle();
             if (uByEmail?.id) validUserUUID = uByEmail.id;
         }
 
         if (!validUserUUID && userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
-            const { data: uById } = await supabase.from('users').select('id').eq('id', userId).maybeSingle();
+            const { data: uById } = await supabaseAdmin.from('users').select('id').eq('id', userId).maybeSingle();
             if (uById?.id) validUserUUID = uById.id;
         }
 
         if (!validUserUUID) {
-            const { data: fallbackUser } = await supabase.from('users').select('id').limit(1).maybeSingle();
+            const { data: fallbackUser } = await supabaseAdmin.from('users').select('id').limit(1).maybeSingle();
             if (fallbackUser?.id) validUserUUID = fallbackUser.id;
         }
 
@@ -140,7 +151,7 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
         const pureBase64 = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
         const fileBuffer = Buffer.from(pureBase64, 'base64');
 
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabaseAdmin.storage
             .from('documents')
             .upload(storagePath, fileBuffer, {
                 contentType: fileType || 'image/png',
@@ -151,7 +162,7 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
             console.warn('Storage upload warning:', uploadError);
         }
 
-        const { data: publicUrlData } = supabase.storage
+        const { data: publicUrlData } = supabaseAdmin.storage
             .from('documents')
             .getPublicUrl(storagePath);
         const uploadedFileUrl = publicUrlData?.publicUrl || storagePath;
@@ -160,7 +171,7 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
         let dvRecord: any = null;
         let dvInsertError: any = null;
 
-        const { data: firstTry, error: err1 } = await supabase
+        const { data: firstTry, error: err1 } = await supabaseAdmin
             .from('document_verifications')
             .insert({
                 purchase_order_id: po_id,
@@ -179,9 +190,9 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
             dvInsertError = err1;
 
             // fallback user
-            const { data: altUser } = await supabase.from('users').select('id').limit(1).maybeSingle();
+            const { data: altUser } = await supabaseAdmin.from('users').select('id').limit(1).maybeSingle();
             if (altUser?.id && altUser.id !== validUserUUID) {
-                const { data: secondTry, error: err2 } = await supabase
+                const { data: secondTry, error: err2 } = await supabaseAdmin
                     .from('document_verifications')
                     .insert({
                         purchase_order_id: po_id,
@@ -213,7 +224,23 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
 
         const dvId = dvRecord.id;
 
-        // insert document
+        // Clean up any stale mismatched document records for this PO from previous failed attempts
+        try {
+            await supabaseAdmin
+                .from('documents')
+                .delete()
+                .eq('purchase_id', po.id)
+                .ilike('notes', '%Mismatch%');
+        } catch (cleanupErr) {
+            console.warn('Initial cleanup check warning:', cleanupErr);
+        }
+
+        // Prepare document payload:
+        // IMPORTANT: We do NOT insert into documents here!
+        // Documents table insertion must strictly occur ONLY when:
+        // 1. Matched by Gemini OCR verification (allMatched === true)
+        // 2. Forced by Admin/Manager override (forceInsertVerificationAction)
+        // Mismatches must NEVER create records in the documents table.
         const sanitizedFileName = (fileName || `receipt_${po.po_number || 'po'}.png`).slice(0, 250);
         const sanitizedTitle = `Receipt - ${po.po_number || po.supplier_name}`.slice(0, 250);
         const sanitizedType = (fileType || fileExt || 'image/png').slice(0, 48);
@@ -232,55 +259,11 @@ export async function uploadReceiptAndVerifyAction(input: VerifyReceiptInput) {
             document_verification_id: dvId,
             user_id: validUserUUID || null,
             uploaded_by: userName ? String(userName).slice(0, 95) : 'Procurement',
-            notes: 'Uploaded for OCR receipt verification',
+            notes: 'Verified via Gemini OCR (Matched)',
             role: userRole || null,
         };
 
         let newDocId: string | null = null;
-        const { data: newDoc, error: docError } = await supabase
-            .from('documents')
-            .insert(docPayload)
-            .select('id')
-            .single();
-
-        if (!docError && newDoc?.id) {
-            newDocId = newDoc.id;
-        } else {
-            console.error('First document insert attempt failed:', docError);
-            const { data: retryDoc, error: retryErr } = await supabase
-                .from('documents')
-                .insert({
-                    title: sanitizedTitle,
-                    file_name: sanitizedFileName,
-                    file_size: Number(fileSize) || 1024,
-                    file_type: sanitizedType,
-                    storage_path: storagePath,
-                    category: 'documents',
-                    document_type: 'Official Receipt',
-                    supplier: po.supplier_name ? String(po.supplier_name).slice(0, 190) : null,
-                    po_number: po.po_number ? String(po.po_number).slice(0, 48) : null,
-                    purchase_id: po.id,
-                    document_verification_id: dvId,
-                    uploaded_by: userName ? String(userName).slice(0, 95) : 'Procurement',
-                    notes: 'Uploaded for OCR receipt verification',
-                })
-                .select('id')
-                .single();
-
-            if (retryDoc?.id) {
-                newDocId = retryDoc.id;
-            } else {
-                console.error('Retry document insert failed:', retryErr);
-            }
-        }
-
-        // link document
-        if (newDocId) {
-            await supabase
-                .from('document_verifications')
-                .update({ document_id: newDocId })
-                .eq('id', dvId);
-        }
 
         // ocr gemini
         let extracted: ExtractedReceiptJSON = {
@@ -347,7 +330,8 @@ Return ONLY a valid JSON object matching the following structure without any mar
                     .replace(/```/g, '')
                     .trim();
 
-                const parsed = JSON.parse(cleanJsonStr);
+                const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
+                const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleanJsonStr);
                 extracted = {
                     vendor_name: String(parsed.vendor_name || ''),
                     total_amount: Number(parsed.total_amount || 0),
@@ -368,7 +352,7 @@ Return ONLY a valid JSON object matching the following structure without any mar
         }
 
         // store json
-        await supabase
+        await supabaseAdmin
             .from('document_verifications')
             .update({ extracted_json: extracted })
             .eq('id', dvId);
@@ -415,17 +399,47 @@ Return ONLY a valid JSON object matching the following structure without any mar
 
         // outcomes
         if (allMatched) {
-            // on match
-            // update notes
-            if (newDocId) {
-                await supabase
+            // on match: insert record into documents table
+            const { data: insertedMatchedDoc, error: docError } = await supabaseAdmin
+                .from('documents')
+                .insert(docPayload)
+                .select('id')
+                .single();
+
+            if (!docError && insertedMatchedDoc?.id) {
+                newDocId = insertedMatchedDoc.id;
+            } else {
+                console.error('First matched document insert attempt failed:', docError);
+                // Fallback attempt with minimal schema if table columns differ
+                const { data: retryDoc, error: retryErr } = await supabaseAdmin
                     .from('documents')
-                    .update({ notes: 'Verified via Gemini OCR (Matched)' })
-                    .eq('id', newDocId);
+                    .insert({
+                        title: sanitizedTitle,
+                        file_name: sanitizedFileName,
+                        file_size: Number(fileSize) || 1024,
+                        file_type: sanitizedType,
+                        storage_path: storagePath,
+                        category: 'documents',
+                        document_type: 'Official Receipt',
+                        supplier: po.supplier_name ? String(po.supplier_name).slice(0, 190) : null,
+                        po_number: po.po_number ? String(po.po_number).slice(0, 48) : null,
+                        purchase_id: po.id,
+                        document_verification_id: dvId,
+                        uploaded_by: userName ? String(userName).slice(0, 95) : 'Procurement',
+                        notes: 'Verified via Gemini OCR (Matched)',
+                    })
+                    .select('id')
+                    .single();
+
+                if (retryDoc?.id) {
+                    newDocId = retryDoc.id;
+                } else {
+                    console.error('Retry matched document insert failed:', retryErr);
+                }
             }
 
             // update verifications
-            await supabase
+            await supabaseAdmin
                 .from('document_verifications')
                 .update({
                     compared_fields: comparedFields,
@@ -437,7 +451,7 @@ Return ONLY a valid JSON object matching the following structure without any mar
                 .eq('id', dvId);
 
             // update po
-            await supabase
+            const { error: poUpdateErr } = await supabaseAdmin
                 .from('purchase_orders')
                 .update({
                     paid: true,
@@ -447,9 +461,17 @@ Return ONLY a valid JSON object matching the following structure without any mar
                 })
                 .eq('id', po.id);
 
+            if (poUpdateErr) {
+                console.error('Error updating purchase order to paid in uploadReceiptAndVerifyAction:', poUpdateErr);
+                await supabaseAdmin
+                    .from('purchase_orders')
+                    .update({ paid: true, updated_at: new Date().toISOString() })
+                    .eq('id', po.id);
+            }
+
             // emit notification
             try {
-                await supabase.from('activity_history').insert({
+                await supabaseAdmin.from('activity_history').insert({
                     action_type: 'upload',
                     action_name: 'Uploaded Verified Receipt',
                     document_id: newDocId,
@@ -467,7 +489,7 @@ Return ONLY a valid JSON object matching the following structure without any mar
             }
 
             try {
-                await supabase.from('notifications').insert({
+                await supabaseAdmin.from('notifications').insert({
                     creator_name: 'OCR Verification System',
                     creator_email: 'ocr@airshipexpress.com',
                     title: 'Receipt Verified',
@@ -492,27 +514,29 @@ Return ONLY a valid JSON object matching the following structure without any mar
                 comparedFields,
             };
         } else {
-            // on mismatch
-            // update verifications and notes
-            if (newDocId) {
-                await supabase
+            // on mismatch: STRICTLY DO NOT INSERT INTO DOCUMENTS TABLE
+            // Ensure any document row accidentally linked to this verification is removed
+            try {
+                await supabaseAdmin
                     .from('documents')
-                    .update({ notes: 'OCR Verification Mismatch - Pending Admin Review' })
-                    .eq('id', newDocId);
+                    .delete()
+                    .eq('document_verification_id', dvId);
+            } catch (cleanupErr) {
+                console.warn('Could not delete mismatch document if any existed:', cleanupErr);
             }
 
-            await supabase
+            await supabaseAdmin
                 .from('document_verifications')
                 .update({
                     compared_fields: comparedFields,
                     match_result: 'mismatched',
-                    document_id: newDocId,
+                    document_id: null,
                 })
                 .eq('id', dvId);
 
             // emit notification
             try {
-                await supabase.from('notifications').insert({
+                await supabaseAdmin.from('notifications').insert({
                     creator_name: 'OCR Verification System',
                     creator_email: 'ocr@airshipexpress.com',
                     title: 'Receipt OCR Mismatch',
@@ -570,7 +594,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
         }
 
         // fetch records
-        const { data: dv, error: dvErr } = await supabase
+        const { data: dv, error: dvErr } = await supabaseAdmin
             .from('document_verifications')
             .select('*')
             .eq('id', verification_id)
@@ -581,7 +605,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
         }
 
         const targetPoId = po_id || dv.purchase_order_id;
-        const { data: po, error: poErr } = await supabase
+        const { data: po, error: poErr } = await supabaseAdmin
             .from('purchase_orders')
             .select('*')
             .eq('id', targetPoId)
@@ -595,80 +619,118 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
         let validUserUUID: string | null = null;
 
         if (userEmail) {
-            const { data: uByEmail } = await supabase.from('users').select('id').eq('email', userEmail).maybeSingle();
+            const { data: uByEmail } = await supabaseAdmin.from('users').select('id').eq('email', userEmail).maybeSingle();
             if (uByEmail?.id) validUserUUID = uByEmail.id;
         }
 
         if (!validUserUUID && userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
-            const { data: uById } = await supabase.from('users').select('id').eq('id', userId).maybeSingle();
+            const { data: uById } = await supabaseAdmin.from('users').select('id').eq('id', userId).maybeSingle();
             if (uById?.id) validUserUUID = uById.id;
         }
 
         if (!validUserUUID) {
-            const { data: anyUser } = await supabase.from('users').select('id').limit(1).maybeSingle();
+            const { data: anyUser } = await supabaseAdmin.from('users').select('id').limit(1).maybeSingle();
             if (anyUser?.id) validUserUUID = anyUser.id;
         }
 
-        // insert document
+        // insert or update document in documents table
         const fileName = `Receipt_${po.po_number || 'PO'}.png`;
         let newDocId: string | null = null;
 
-        const { data: newDoc, error: docErr } = await supabase
-            .from('documents')
-            .insert({
-                title: `Receipt (Forced) - ${po.po_number || po.supplier_name}`.slice(0, 250),
-                file_name: fileName.slice(0, 250),
-                file_size: 1024,
-                file_type: 'image/png',
-                storage_path: dv.uploaded_file_url || 'documents/forced.png',
-                category: 'documents',
-                document_type: 'Official Receipt',
-                supplier: po.supplier_name ? String(po.supplier_name).slice(0, 190) : null,
-                po_number: po.po_number ? String(po.po_number).slice(0, 48) : null,
-                purchase_id: po.id,
-                document_verification_id: dv.id,
-                user_id: validUserUUID || null,
-                force_inserted_by: validUserUUID || null,
-                uploaded_by: userName ? String(userName).slice(0, 95) : 'Administrator',
-                notes: `Forced override by ${userName}: ${reason}`,
-                role: userRole || null,
-            })
-            .select('id')
-            .single();
+        // If dv already has a linked document_id, update it
+        if (dv.document_id) {
+            const { data: updatedDoc } = await supabaseAdmin
+                .from('documents')
+                .update({
+                    title: `Receipt (Forced) - ${po.po_number || po.supplier_name}`.slice(0, 250),
+                    force_inserted_by: validUserUUID || null,
+                    notes: `Forced override by ${userName}: ${reason}`.slice(0, 250),
+                    category: 'documents',
+                    document_type: 'Official Receipt',
+                    supplier: po.supplier_name ? String(po.supplier_name).slice(0, 190) : null,
+                    po_number: po.po_number ? String(po.po_number).slice(0, 48) : null,
+                    purchase_id: po.id,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', dv.document_id)
+                .select('id')
+                .maybeSingle();
 
-        if (!docErr && newDoc?.id) {
-            newDocId = newDoc.id;
-        } else {
-            console.error('First forced document insert failed:', docErr);
-            const { data: retryDoc, error: retryErr } = await supabase
+            if (updatedDoc?.id) {
+                newDocId = updatedDoc.id;
+            }
+        }
+
+        // If no existing document row was updated, insert a new record
+        if (!newDocId) {
+            let resolvedStoragePath = dv.uploaded_file_url || 'documents/forced.png';
+            if (resolvedStoragePath.includes('/storage/v1/object/public/documents/')) {
+                resolvedStoragePath = resolvedStoragePath.split('/storage/v1/object/public/documents/')[1];
+            }
+
+            let resolvedFileName = fileName;
+            if (resolvedStoragePath && resolvedStoragePath.includes('/')) {
+                const parts = resolvedStoragePath.split('/');
+                resolvedFileName = parts[parts.length - 1] || fileName;
+            }
+
+            const { data: newDoc, error: docErr } = await supabaseAdmin
                 .from('documents')
                 .insert({
                     title: `Receipt (Forced) - ${po.po_number || po.supplier_name}`.slice(0, 250),
-                    file_name: fileName.slice(0, 250),
+                    file_name: resolvedFileName.slice(0, 250),
                     file_size: 1024,
                     file_type: 'image/png',
-                    storage_path: dv.uploaded_file_url || 'documents/forced.png',
+                    storage_path: resolvedStoragePath,
                     category: 'documents',
                     document_type: 'Official Receipt',
                     supplier: po.supplier_name ? String(po.supplier_name).slice(0, 190) : null,
                     po_number: po.po_number ? String(po.po_number).slice(0, 48) : null,
                     purchase_id: po.id,
                     document_verification_id: dv.id,
+                    user_id: validUserUUID || null,
+                    force_inserted_by: validUserUUID || null,
                     uploaded_by: userName ? String(userName).slice(0, 95) : 'Administrator',
                     notes: `Forced override by ${userName}: ${reason}`,
+                    role: userRole || null,
                 })
                 .select('id')
                 .single();
 
-            if (retryDoc?.id) {
-                newDocId = retryDoc.id;
+            if (!docErr && newDoc?.id) {
+                newDocId = newDoc.id;
             } else {
-                console.error('Retry forced document insert failed:', retryErr);
+                console.error('First forced document insert failed:', docErr);
+                const { data: retryDoc, error: retryErr } = await supabaseAdmin
+                    .from('documents')
+                    .insert({
+                        title: `Receipt (Forced) - ${po.po_number || po.supplier_name}`.slice(0, 250),
+                        file_name: resolvedFileName.slice(0, 250),
+                        file_size: 1024,
+                        file_type: 'image/png',
+                        storage_path: resolvedStoragePath,
+                        category: 'documents',
+                        document_type: 'Official Receipt',
+                        supplier: po.supplier_name ? String(po.supplier_name).slice(0, 190) : null,
+                        po_number: po.po_number ? String(po.po_number).slice(0, 48) : null,
+                        purchase_id: po.id,
+                        document_verification_id: dv.id,
+                        uploaded_by: userName ? String(userName).slice(0, 95) : 'Administrator',
+                        notes: `Forced override by ${userName}: ${reason}`,
+                    })
+                    .select('id')
+                    .single();
+
+                if (retryDoc?.id) {
+                    newDocId = retryDoc.id;
+                } else {
+                    console.error('Retry forced document insert failed:', retryErr);
+                }
             }
         }
 
         // update verifications
-        await supabase
+        await supabaseAdmin
             .from('document_verifications')
             .update({
                 match_result: 'forced',
@@ -679,19 +741,30 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
             .eq('id', dv.id);
 
         // update po
-        await supabase
+        const { error: poForceErr } = await supabaseAdmin
             .from('purchase_orders')
             .update({
                 paid: true,
                 paid_verified_at: new Date().toISOString(),
                 paid_verified_by: validUserUUID,
+                force_updated_by: validUserUUID,
+                force_updated_at: new Date().toISOString(),
+                force_reason: reason,
                 updated_at: new Date().toISOString(),
             })
             .eq('id', po.id);
 
+        if (poForceErr) {
+            console.error('Error updating purchase order to paid in forceInsertVerificationAction:', poForceErr);
+            await supabaseAdmin
+                .from('purchase_orders')
+                .update({ paid: true, updated_at: new Date().toISOString() })
+                .eq('id', po.id);
+        }
+
         // emit notification
         try {
-            await supabase.from('activity_history').insert({
+            await supabaseAdmin.from('activity_history').insert({
                 action_type: 'upload',
                 action_name: 'Force Inserted Receipt (Admin Override)',
                 document_id: newDocId,
@@ -709,7 +782,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
         }
 
         try {
-            await supabase.from('notifications').insert({
+            await supabaseAdmin.from('notifications').insert({
                 creator_name: userName,
                 creator_email: userEmail,
                 title: 'Receipt Force-Approved',
@@ -728,7 +801,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
         // Log administrative force insert to user_activity
         if (validUserUUID) {
             try {
-                await supabase.from('user_activity').insert({
+                await supabaseAdmin.from('user_activity').insert({
                     user_id: validUserUUID,
                     action: 'FORCE_INSERT_RECEIPT',
                     module: 'Procurement',
@@ -757,7 +830,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
  */
 export async function getVerificationDetailsAction(verification_id: string) {
     try {
-        const { data: dv, error } = await supabase
+        const { data: dv, error } = await supabaseAdmin
             .from('document_verifications')
             .select(`
                 *,

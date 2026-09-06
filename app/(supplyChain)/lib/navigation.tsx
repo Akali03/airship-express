@@ -66,7 +66,7 @@ export const NAV = [
                 label: "Forecast",
                 href: "/forecast",
                 icon: "fa-solid fa-chart-line",
-                roles: ["Executive", "Admin", "Manager"],
+                roles: ["Executive", "Admin"],
             },
         ],
     },

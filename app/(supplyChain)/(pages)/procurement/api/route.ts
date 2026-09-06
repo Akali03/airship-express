@@ -106,19 +106,14 @@ export async function GET(request: NextRequest) {
             query = query.in('status', ['Approved', 'Completed']);
         }
 
-        // get total
-        const { count: totalCount, error: countError } = await query;
-        if (countError) throw countError;
-
         // pagination
         const from = (page - 1) * limit;
         const to = from + limit - 1;
 
-        if (totalCount && from < totalCount) {
-            query = query.range(from, to);
-        }
-
-        const { data: requests, error: requestsError } = await query.order('created_at', { ascending: false });
+        // single roundtrip query with exact count
+        const { data: requests, count: totalCount, error: requestsError } = await query
+            .order('created_at', { ascending: false })
+            .range(from, to);
 
         if (requestsError) {
             if (requestsError.code === 'PGRST103') {
@@ -240,6 +235,15 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json();
 
+        // Check permissions: only managers, admins, and executives can create purchase requests
+        const callerRole = (headersList.get('x-user-role') || body.user_role || body.role || '').toLowerCase().trim();
+        if (callerRole && !['admin', 'manager', 'executive'].includes(callerRole)) {
+            return NextResponse.json(
+                { success: false, error: 'Only Managers and Admins can create purchase requests' },
+                { status: 403 }
+            );
+        }
+
         // validate
         const {
             type,
@@ -356,30 +360,17 @@ export async function POST(request: NextRequest) {
             const notifMsg = `Manual PR for ${data.description || 'items'} (₱${(amount || 0).toLocaleString()}) created by ${sanitizedRequestedBy || 'Procurement Officer'}. Pending review & approval.`;
             const notifLink = `/procurement?search=${encodeURIComponent(requestNumber)}`;
 
-            await supabase.from('notifications').insert([
-                {
-                    creator_name: sanitizedRequestedBy || 'Procurement Team',
-                    creator_email: 'procurement@airshipexpress.ph',
-                    title: notifTitle,
-                    message: notifMsg,
-                    type: 'purchase_request',
-                    link: notifLink,
-                    role: 'Admin',
-                    is_read: false,
-                    po_request_id: data.id || requestNumber,
-                },
-                {
-                    creator_name: sanitizedRequestedBy || 'Procurement Team',
-                    creator_email: 'procurement@airshipexpress.ph',
-                    title: notifTitle,
-                    message: notifMsg,
-                    type: 'purchase_request',
-                    link: notifLink,
-                    role: 'Executive',
-                    is_read: false,
-                    po_request_id: data.id || requestNumber,
-                },
-            ]);
+            await supabase.from('notifications').insert({
+                creator_name: sanitizedRequestedBy || 'Procurement Team',
+                creator_email: 'procurement@airshipexpress.ph',
+                title: notifTitle,
+                message: notifMsg,
+                type: 'purchase_request',
+                link: notifLink,
+                role: 'Admin',
+                is_read: false,
+                po_request_id: data.id || requestNumber,
+            });
         } catch (notifErr) {
             console.error('Error dispatching notifications for manual PR:', notifErr);
         }
@@ -431,12 +422,58 @@ export async function PUT(request: NextRequest) {
             );
         }
 
-        // pending only
-        if (existing.status !== 'Pending') {
+        // Check if status allows editing: cannot edit if sent, confirmed, delivered, completed
+        const statusLower = (existing.status || '').toLowerCase();
+        if (['sent', 'confirmed', 'delivered', 'completed'].includes(statusLower)) {
             return NextResponse.json(
-                { success: false, error: 'Only pending requests can be edited' },
+                { success: false, error: 'Purchase requests that are sent, confirmed, or delivered cannot be edited' },
                 { status: 400 }
             );
+        }
+
+        if (statusLower !== 'pending' && statusLower !== 'approved') {
+            return NextResponse.json(
+                { success: false, error: 'Only pending and approved requests can be edited' },
+                { status: 400 }
+            );
+        }
+
+        // Check if there is an associated purchase order that has already been sent, confirmed, or delivered
+        const { data: linkedPO } = await supabase
+            .from('purchase_orders')
+            .select('id, status')
+            .eq('request_id', id)
+            .maybeSingle();
+
+        if (linkedPO) {
+            const poStatus = (linkedPO.status || '').toLowerCase();
+            if (['sent', 'confirmed', 'delivered', 'completed'].includes(poStatus)) {
+                return NextResponse.json(
+                    { success: false, error: 'This request has a sent, confirmed, or delivered purchase order and can no longer be edited' },
+                    { status: 400 }
+                );
+            }
+        }
+
+        // Role verification:
+        // When approved: only admin and executive can edit
+        // When pending: managers, admins, executives can edit
+        const callerRole = (headersList.get('x-user-role') || updateData.role || '').trim().toLowerCase();
+
+        if (statusLower === 'approved') {
+            if (!['admin', 'executive'].includes(callerRole)) {
+                return NextResponse.json(
+                    { success: false, error: 'When approved, only Admin and Executive can edit this request' },
+                    { status: 403 }
+                );
+            }
+        } else if (statusLower === 'pending') {
+            if (!['admin', 'executive', 'manager'].includes(callerRole)) {
+                return NextResponse.json(
+                    { success: false, error: 'Only managers, admins, and executives can edit pending requests' },
+                    { status: 403 }
+                );
+            }
         }
 
         // sanitize
@@ -539,6 +576,17 @@ export async function DELETE(request: NextRequest) {
         const id = searchParams.get('id');
         const ids = searchParams.get('ids');
 
+        const callerRole = (headersList.get('x-user-role') || '').trim().toLowerCase();
+        const isAdminOrExec = ['admin', 'executive'].includes(callerRole);
+        const isManager = callerRole === 'manager';
+
+        if (!isAdminOrExec && !isManager) {
+            return NextResponse.json(
+                { success: false, error: 'Only managers, admins, and executives can delete purchase requests' },
+                { status: 403 }
+            );
+        }
+
         // single delete
         if (id) {
             // verify request
@@ -555,9 +603,37 @@ export async function DELETE(request: NextRequest) {
                 );
             }
 
-            if (existing.status !== 'Pending') {
+            const existingStatusLower = (existing.status || '').toLowerCase();
+
+            if (['sent', 'confirmed', 'delivered', 'completed'].includes(existingStatusLower)) {
                 return NextResponse.json(
-                    { success: false, error: 'Only pending requests can be deleted' },
+                    { success: false, error: 'Requests that are sent, confirmed, or delivered cannot be deleted' },
+                    { status: 400 }
+                );
+            }
+
+            // Check linked PO status
+            const { data: linkedPO } = await supabase
+                .from('purchase_orders')
+                .select('id, status')
+                .eq('request_id', id)
+                .maybeSingle();
+
+            if (linkedPO) {
+                const poStatus = (linkedPO.status || '').toLowerCase();
+                if (['sent', 'confirmed', 'delivered', 'completed'].includes(poStatus)) {
+                    return NextResponse.json(
+                        { success: false, error: 'This request has an active/delivered purchase order and cannot be deleted' },
+                        { status: 400 }
+                    );
+                }
+            }
+
+            const allowedStatuses = isAdminOrExec ? ['pending', 'rejected'] : ['pending'];
+
+            if (!allowedStatuses.includes(existingStatusLower)) {
+                return NextResponse.json(
+                    { success: false, error: isAdminOrExec ? 'Only pending or rejected requests can be deleted' : 'Only pending requests can be deleted by managers' },
                     { status: 400 }
                 );
             }
@@ -611,12 +687,17 @@ export async function DELETE(request: NextRequest) {
                 );
             }
 
-            const pendingIds = existing?.filter(r => r.status === 'Pending').map(r => r.id) || [];
-            const nonPending = existing?.filter(r => r.status !== 'Pending').map(r => r.id) || [];
+            const eligibleRequests = existing?.filter(r => {
+                const s = (r.status || '').toLowerCase();
+                return isAdminOrExec ? (s === 'pending' || s === 'rejected') : s === 'pending';
+            }) || [];
 
-            if (pendingIds.length === 0) {
+            const eligibleIds = eligibleRequests.map(r => r.id);
+            const nonEligible = existing?.filter(r => !eligibleIds.includes(r.id)).map(r => r.id) || [];
+
+            if (eligibleIds.length === 0) {
                 return NextResponse.json(
-                    { success: false, error: 'No pending requests found to delete' },
+                    { success: false, error: isAdminOrExec ? 'No pending or rejected requests found to delete' : 'No pending requests found to delete' },
                     { status: 400 }
                 );
             }
@@ -624,7 +705,7 @@ export async function DELETE(request: NextRequest) {
             const { error: deleteError } = await supabase
                 .from('purchase_requests')
                 .delete()
-                .in('id', pendingIds);
+                .in('id', eligibleIds);
 
             if (deleteError) {
                 console.error('Error deleting purchase requests:', deleteError);
@@ -637,11 +718,11 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({
                 success: true,
                 data: {
-                    deleted: pendingIds.length,
-                    skipped: nonPending.length,
-                    skippedIds: nonPending,
+                    deleted: eligibleIds.length,
+                    skipped: nonEligible.length,
+                    skippedIds: nonEligible,
                 },
-                message: `Successfully deleted ${pendingIds.length} request(s)`
+                message: `Successfully deleted ${eligibleIds.length} request(s)`
             });
         }
 
@@ -681,6 +762,15 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json(
                 { success: false, error: 'Invalid action. Must be "approve" or "reject"' },
                 { status: 400 }
+            );
+        }
+
+        // Role check: Only Admin or Executive can approve or reject
+        const callerRole = (headersList.get('x-user-role') || body.role || '').trim().toLowerCase();
+        if (!['admin', 'executive'].includes(callerRole)) {
+            return NextResponse.json(
+                { success: false, error: 'Approval and rejection are only enabled for Admin or Executive roles' },
+                { status: 403 }
             );
         }
 

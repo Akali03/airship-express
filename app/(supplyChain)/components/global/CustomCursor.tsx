@@ -9,7 +9,7 @@ interface CustomCursorProps {
 }
 
 const INTERACTIVE_SELECTOR =
-    'a, button, [role="button"], input, select, textarea, label, [tabindex], .cursor-pointer, .cursor-hover, .card, .kpi, table tbody tr, .table-pro tbody tr, th[onclick], th:has(button), th:has(input), td:has(button), td:has(input), td:has(a), [data-interactive="true"]';
+    'a, button, [role="button"], input, select, textarea, label, [tabindex], .cursor-pointer, .cursor-hover, .card, .kpi, table tbody tr, .table-pro tbody tr, th[onclick], [data-interactive="true"]';
 
 const MODAL_SELECTOR =
     '[role="dialog"], [aria-modal="true"], .fixed.inset-0.backdrop-blur-md, .fixed.inset-0.backdrop-blur-sm, .fixed.inset-0.backdrop-blur-lg, .fixed.inset-0[class*="z-"], [class*="modal"], [id*="modal"]';
@@ -20,19 +20,19 @@ export default function CustomCursor({ containerRef }: CustomCursorProps) {
     const [hoveringInteractive, setHoveringInteractive] = useState(false);
     const isModalOpenRef = useRef(false);
 
+    // direct 1:1 hardware motion coordinates for zero input latency
     const cursorX = useMotionValue(-100);
     const cursorY = useMotionValue(-100);
 
-    const arrowX = useSpring(cursorX, { stiffness: 600, damping: 42, mass: 0.4 });
-    const arrowY = useSpring(cursorY, { stiffness: 600, damping: 42, mass: 0.4 });
-    const trailX = useSpring(cursorX, { stiffness: 220, damping: 26, mass: 0.6 });
-    const trailY = useSpring(cursorY, { stiffness: 220, damping: 26, mass: 0.6 });
+    // smooth subtle spring physics for the ambient glow trail dot only
+    const trailX = useSpring(cursorX, { stiffness: 350, damping: 28, mass: 0.5 });
+    const trailY = useSpring(cursorY, { stiffness: 350, damping: 28, mass: 0.5 });
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    // Monitor for any open modals in the DOM so cursor automatically locks to pointer
+    // monitor for any open modals in the dom so cursor automatically locks to pointer
     useEffect(() => {
         if (!mounted) return;
 
@@ -62,24 +62,25 @@ export default function CustomCursor({ containerRef }: CustomCursorProps) {
             return !!target?.closest(MODAL_SELECTOR);
         };
 
+        // ultra-lightweight move handler: purely updates coordinates with zero dom queries
         const handleMove = (e: MouseEvent) => {
             cursorX.set(e.clientX);
             cursorY.set(e.clientY);
-            setVisible(true);
-
-            const target = e.target as HTMLElement | null;
-            if (isInsideModal(target)) {
-                setHoveringInteractive(true);
-            }
+            if (!visible) setVisible(true);
         };
 
-        const handleEnter = () => setVisible(true);
+        const handleEnter = (e: MouseEvent) => {
+            cursorX.set(e.clientX);
+            cursorY.set(e.clientY);
+            setVisible(true);
+        };
 
         const handleLeave = () => {
             setVisible(false);
             setHoveringInteractive(false);
         };
 
+        // element hover state only updates when crossing element boundaries
         const handleOver = (e: MouseEvent) => {
             const target = e.target as HTMLElement | null;
             if (isInsideModal(target)) {
@@ -100,13 +101,13 @@ export default function CustomCursor({ containerRef }: CustomCursorProps) {
             window.removeEventListener("mouseleave", handleLeave);
             window.removeEventListener("mouseover", handleOver);
         };
-    }, [mounted, cursorX, cursorY]);
+    }, [mounted, visible, cursorX, cursorY]);
 
     if (!mounted) return null;
 
     return createPortal(
         <>
-            {/* Trail Ambient Glow Dot */}
+            {/* ambient glow trail dot */}
             <motion.div
                 aria-hidden
                 className="hidden md:block pointer-events-none fixed left-0 top-0 custom-cursor"
@@ -115,6 +116,7 @@ export default function CustomCursor({ containerRef }: CustomCursorProps) {
                     y: trailY,
                     translateX: "-50%",
                     translateY: "-50%",
+                    willChange: "transform",
                     zIndex: 2147483647,
                 }}
             >
@@ -123,23 +125,24 @@ export default function CustomCursor({ containerRef }: CustomCursorProps) {
                         scale: visible ? (hoveringInteractive ? 4.5 : 1) : 0,
                         opacity: visible ? (hoveringInteractive ? 0.16 : 0.55) : 0,
                     }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
                     className="block h-2 w-2 rounded-full bg-accent"
                 />
             </motion.div>
 
-            {/* Main Cursor Element - Maximum Z-Index so it appears in front of offline toasters */}
+            {/* main cursor element with instant 0ms tracking and gpu acceleration */}
             <motion.div
                 aria-hidden
                 className="hidden md:block pointer-events-none fixed left-0 top-0 custom-cursor"
                 style={{
-                    x: arrowX,
-                    y: arrowY,
+                    x: cursorX,
+                    y: cursorY,
+                    willChange: "transform",
                     zIndex: 2147483647,
                 }}
             >
                 <div className="relative w-7 h-7">
-                    {/* Pointing hand cursor for interactive elements & open modals */}
+                    {/* pointing hand cursor for interactive elements & open modals */}
                     <svg
                         width="28"
                         height="28"
@@ -160,7 +163,7 @@ export default function CustomCursor({ containerRef }: CustomCursorProps) {
                         />
                     </svg>
 
-                    {/* Default stylish arrow cursor */}
+                    {/* default stylish arrow cursor */}
                     <svg
                         width="28"
                         height="28"

@@ -15,6 +15,8 @@ import { CrudActionButton } from '@/app/(supplyChain)/components/ui/CrudActionBu
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 
+import { trashCache } from '../utils/trashCache';
+
 interface ArchivedDocument {
     id: string;
     title: string;
@@ -44,8 +46,12 @@ const ITEMS_PER_PAGE = 10;
 export function DocumentsTab() {
     const { confirm } = useConfirm();
 
-    const [archivedDocuments, setArchivedDocuments] = useState<ArchivedDocument[]>([]);
-    const [docsLoading, setDocsLoading] = useState(false);
+    const [archivedDocuments, setArchivedDocuments] = useState<ArchivedDocument[]>(() => {
+        return trashCache.get<ArchivedDocument>('documents') || [];
+    });
+    const [docsLoading, setDocsLoading] = useState<boolean>(() => {
+        return !trashCache.get('documents');
+    });
     const [docSearchTerm, setDocSearchTerm] = useState('');
     const [docTypeFilter, setDocTypeFilter] = useState('all');
     const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
@@ -56,8 +62,20 @@ export function DocumentsTab() {
     const debouncedDocSearchTerm = useDebounce(docSearchTerm, 300);
 
     // fetch docs
-    const fetchArchivedDocuments = useCallback(async () => {
-        setDocsLoading(true);
+    const fetchArchivedDocuments = useCallback(async (force = false) => {
+        const cached = trashCache.get<ArchivedDocument>('documents');
+        if (cached && !force && !trashCache.isStale('documents')) {
+            setArchivedDocuments(cached);
+            setDocTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+            setDocsLoading(false);
+            return;
+        }
+
+        // Only show skeleton if we have no data at all to display
+        if (!cached || cached.length === 0) {
+            setDocsLoading(true);
+        }
+
         try {
             const { data, error } = await supabase
                 .from('documents_archive')
@@ -90,6 +108,7 @@ export function DocumentsTab() {
                 session_id: doc.session_id ? sanitizeText(doc.session_id) : null,
             }));
 
+            trashCache.set('documents', transformedData);
             setArchivedDocuments(transformedData);
             setDocTotalPages(Math.ceil(transformedData.length / ITEMS_PER_PAGE));
         } catch (error) {
@@ -144,6 +163,7 @@ export function DocumentsTab() {
 
                 if (deleteError) throw deleteError;
 
+                trashCache.removeItem('documents', doc.id);
                 setArchivedDocuments(prev => prev.filter(d => d.id !== doc.id));
                 setDocTotalPages(Math.ceil((archivedDocuments.length - 1) / ITEMS_PER_PAGE));
                 setSelectedDocIds(prev => {
@@ -191,6 +211,7 @@ export function DocumentsTab() {
                     }
                 }
 
+                trashCache.removeItem('documents', doc.id);
                 setArchivedDocuments(prev => prev.filter(d => d.id !== doc.id));
                 setDocTotalPages(Math.ceil((archivedDocuments.length - 1) / ITEMS_PER_PAGE));
                 setSelectedDocIds(prev => {
@@ -200,7 +221,7 @@ export function DocumentsTab() {
                 });
                 toast.success(`"${sanitizeText(doc.title)}" permanently deleted`);
 
-                await fetchArchivedDocuments();
+                await fetchArchivedDocuments(true);
             } catch (error) {
                 console.error('Delete error:', error);
                 toast.error('Failed to delete document');
@@ -257,6 +278,7 @@ export function DocumentsTab() {
                         .eq('id', doc.id);
                 }
 
+                trashCache.removeItems('documents', selectedDocIds);
                 setArchivedDocuments(prev => prev.filter(d => !selectedDocIds.has(d.id)));
                 setDocTotalPages(Math.ceil((archivedDocuments.length - selectedDocIds.size) / ITEMS_PER_PAGE));
                 toast.success(`${selectedDocIds.size} document(s) restored successfully!`);
@@ -306,6 +328,7 @@ export function DocumentsTab() {
                     }
                 }
 
+                trashCache.removeItems('documents', selectedDocIds);
                 setArchivedDocuments(prev => prev.filter(d => !selectedDocIds.has(d.id)));
                 setDocTotalPages(Math.ceil((archivedDocuments.length - selectedDocIds.size) / ITEMS_PER_PAGE));
                 setSelectedDocIds(new Set());
@@ -316,7 +339,7 @@ export function DocumentsTab() {
                     toast.success(`${selectedDocIds.size} document(s) permanently deleted.`);
                 }
 
-                await fetchArchivedDocuments();
+                await fetchArchivedDocuments(true);
             } catch (error) {
                 toast.error('Failed to delete documents');
                 console.error(error);
@@ -358,21 +381,19 @@ export function DocumentsTab() {
                 doc.file_name.toLowerCase().includes(search.toLowerCase()) ||
                 (doc.supplier && doc.supplier.toLowerCase().includes(search.toLowerCase())) ||
                 (doc.po_number && doc.po_number.toLowerCase().includes(search.toLowerCase()));
+
             const matchesType = docTypeFilter === 'all' || doc.document_type === docTypeFilter;
+
             return matchesSearch && matchesType;
         });
     }, [archivedDocuments, debouncedDocSearchTerm, docTypeFilter]);
 
     // paginated
-    const getPaginatedData = <T,>(data: T[], page: number): T[] => {
-        const startIndex = (page - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return data.slice(startIndex, endIndex);
-    };
+    const paginatedDocuments = useMemo(() => {
+        const startIndex = (docPage - 1) * ITEMS_PER_PAGE;
+        return filteredDocuments.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredDocuments, docPage]);
 
-    const paginatedDocuments = getPaginatedData(filteredDocuments, docPage);
-
-    // doc types
     const docTypes = useMemo(() => ['all', ...Array.from(new Set(archivedDocuments.map(doc => doc.document_type)))], [archivedDocuments]);
 
     // selection
@@ -389,7 +410,23 @@ export function DocumentsTab() {
     useEffect(() => {
         setIsMounted(true);
         fetchArchivedDocuments();
-    }, []);
+
+        const unsubscribe = trashCache.subscribe((key, action) => {
+            if (!key || key === 'documents') {
+                if (action === 'force-refresh' || action === 'invalidate') {
+                    fetchArchivedDocuments(true);
+                } else {
+                    const cached = trashCache.get<ArchivedDocument>('documents');
+                    if (cached) {
+                        setArchivedDocuments(cached);
+                        setDocTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+                    }
+                }
+            }
+        });
+
+        return unsubscribe;
+    }, [fetchArchivedDocuments]);
 
     return (
         <div className="space-y-4 text-slate-900 dark:text-slate-100 animate-in slide-in-from-bottom-4 duration-300">

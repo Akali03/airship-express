@@ -26,7 +26,66 @@ export interface VerificationJob {
     timestamp: number;
 }
 
-interface UploadReceiptModalProps {
+export interface ReceiptQueueItem {
+    id: string;
+    poId: string;
+    poNumber: string;
+    supplierName: string;
+    totalAmount: number;
+    file: File;
+    fileName: string;
+    fileBase64: string;
+    fileType: string;
+    fileSize: number;
+    status: 'queued' | 'processing' | 'matched' | 'mismatched' | 'error';
+    error?: string;
+    verificationId?: string;
+    comparedFields?: ComparedFields | null;
+    extractedJson?: ExtractedReceiptJSON | null;
+    addedAt: number;
+}
+
+export const RATE_LIMIT_PREFIX = 'ocr_mismatch_rate_';
+export const MAX_MISMATCH_ATTEMPTS = 3;
+export const COOLDOWN_DURATION_SECONDS = 120; // 2 minutes
+
+export interface RateLimitInfo {
+    count: number;
+    lockedUntil: number | null; // epoch timestamp ms
+}
+
+export function getPoRateLimit(poId: string): RateLimitInfo {
+    if (typeof window === 'undefined') return { count: 0, lockedUntil: null };
+    try {
+        const stored = localStorage.getItem(`${RATE_LIMIT_PREFIX}${poId}`);
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch (e) {
+        console.error('Failed to get rate limit:', e);
+    }
+    return { count: 0, lockedUntil: null };
+}
+
+export function setPoRateLimit(poId: string, info: RateLimitInfo) {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(`${RATE_LIMIT_PREFIX}${poId}`, JSON.stringify(info));
+    } catch (e) {
+        console.error('Failed to set rate limit:', e);
+    }
+}
+
+export function clearPoRateLimit(poId: string) {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.removeItem(`${RATE_LIMIT_PREFIX}${poId}`);
+    } catch (e) {
+        console.error('Failed to clear rate limit:', e);
+    }
+}
+
+export interface UploadReceiptModalProps {
     isOpen: boolean;
     onClose: () => void;
     po: {
@@ -41,8 +100,16 @@ interface UploadReceiptModalProps {
         document?: any;
     } | null;
     initialVerificationId?: string | null;
+    isQueuedOrVerifying?: boolean;
     onMinimize?: (job: VerificationJob | null) => void;
     onSuccess?: () => void;
+    onStartVerification?: (poId: string, poNumber: string) => void;
+    onEndVerification?: (poId: string) => void;
+    onQueueVerification?: (job: {
+        po: any;
+        file: File;
+        base64Data: string;
+    }) => void;
 }
 
 export function UploadReceiptModal({
@@ -50,8 +117,12 @@ export function UploadReceiptModal({
     onClose,
     po,
     initialVerificationId,
+    isQueuedOrVerifying,
     onMinimize,
     onSuccess,
+    onStartVerification,
+    onEndVerification,
+    onQueueVerification,
 }: UploadReceiptModalProps) {
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -65,15 +136,65 @@ export function UploadReceiptModal({
     const [forceReason, setForceReason] = useState<string>('');
     const [sameNameWarning, setSameNameWarning] = useState<boolean>(false);
 
+    // Rate limiting state (3 mismatched attempts -> 2 mins cooldown)
+    const [mismatchCount, setMismatchCount] = useState<number>(0);
+    const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const currentUserRole = user.getRole();
     const isAdminOrManager = currentUserRole === 'Admin' || currentUserRole === 'Manager';
 
     const existingDbFileName = po?.document?.file_name || null;
 
+    // Check rate limit state when opened
+    useEffect(() => {
+        if (!isOpen || !po?.id) return;
+
+        const rateData = getPoRateLimit(po.id);
+        const now = Date.now();
+
+        if (rateData.lockedUntil && rateData.lockedUntil > now) {
+            const remaining = Math.ceil((rateData.lockedUntil - now) / 1000);
+            setSecondsRemaining(remaining);
+            setMismatchCount(rateData.count || MAX_MISMATCH_ATTEMPTS);
+        } else {
+            if (rateData.lockedUntil && rateData.lockedUntil <= now) {
+                clearPoRateLimit(po.id);
+                setMismatchCount(0);
+            } else {
+                setMismatchCount(rateData.count || 0);
+            }
+            setSecondsRemaining(0);
+        }
+    }, [isOpen, po?.id]);
+
+    // Active 1s countdown timer effect
+    useEffect(() => {
+        if (secondsRemaining <= 0) return;
+
+        const timer = setInterval(() => {
+            setSecondsRemaining((prev) => {
+                if (prev <= 1) {
+                    if (po?.id) {
+                        clearPoRateLimit(po.id);
+                        setMismatchCount(0);
+                    }
+                    toast.success('Upload cooldown expired. You can now try uploading a receipt again.');
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [secondsRemaining, po?.id]);
+
     useEffect(() => {
         if (isOpen) {
-            if (initialVerificationId) {
+            if (isQueuedOrVerifying) {
+                setIsUploading(true);
+                setVerificationState('verifying');
+            } else if (initialVerificationId) {
                 loadVerificationDetails(initialVerificationId);
             } else if (po?.verification?.id) {
                 loadVerificationDetails(po.verification.id);
@@ -89,7 +210,15 @@ export function UploadReceiptModal({
                 setSameNameWarning(false);
             }
         }
-    }, [isOpen, initialVerificationId, po]);
+    }, [isOpen, initialVerificationId, po, isQueuedOrVerifying]);
+
+    useEffect(() => {
+        return () => {
+            if (previewUrl && previewUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(previewUrl);
+            }
+        };
+    }, [previewUrl]);
 
     const loadVerificationDetails = async (id: string) => {
         if (!id || id.startsWith('temp_')) {
@@ -137,6 +266,10 @@ export function UploadReceiptModal({
             toast.warning(`Note: Selected file '${selected.name}' has the same name as the existing document in DB.`);
         }
 
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(previewUrl);
+        }
+
         setFile(selected);
         const url = URL.createObjectURL(selected);
         setPreviewUrl(url);
@@ -152,6 +285,10 @@ export function UploadReceiptModal({
             return;
         }
 
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(previewUrl);
+        }
+
         setFile(dropped);
         const url = URL.createObjectURL(dropped);
         setPreviewUrl(url);
@@ -163,14 +300,30 @@ export function UploadReceiptModal({
             return;
         }
 
+        if (secondsRemaining > 0) {
+            toast.error(`Upload is locked due to 3 mismatched attempts. Please wait ${Math.floor(secondsRemaining / 60)}m ${secondsRemaining % 60}s before uploading again.`);
+            return;
+        }
+
         setIsUploading(true);
         setVerificationState('verifying');
+        onStartVerification?.(po.id, po.po_number);
 
         // Convert file to Base64
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = async () => {
             const base64Data = reader.result as string;
+
+            if (onQueueVerification) {
+                onQueueVerification({
+                    po,
+                    file,
+                    base64Data,
+                });
+                onClose();
+                return;
+            }
 
             // Notify minimizer if user chooses to minimize early
             const tempJob: VerificationJob = {
@@ -202,6 +355,11 @@ export function UploadReceiptModal({
                     setVerificationState((res.matchResult as 'matched' | 'mismatched') || 'mismatched');
 
                     if (res.matchResult === 'matched') {
+                        clearPoRateLimit(po.id);
+                        setMismatchCount(0);
+                        setSecondsRemaining(0);
+                        onEndVerification?.(po.id);
+
                         toast.success(`Receipt document inserted into Documents & PO #${po.po_number} marked as Paid!`);
                         onMinimize?.({
                             verificationId: res.verificationId!,
@@ -217,7 +375,20 @@ export function UploadReceiptModal({
                             onClose();
                         }, 500);
                     } else {
-                        toast.success(`Receipt document successfully saved into Documents table.`);
+                        onEndVerification?.(po.id);
+                        const newCount = (mismatchCount || 0) + 1;
+                        if (newCount >= MAX_MISMATCH_ATTEMPTS) {
+                            const lockedUntil = Date.now() + COOLDOWN_DURATION_SECONDS * 1000;
+                            setPoRateLimit(po.id, { count: newCount, lockedUntil });
+                            setMismatchCount(newCount);
+                            setSecondsRemaining(COOLDOWN_DURATION_SECONDS);
+                            toast.error('Upload locked: 3 mismatched receipt attempts reached. Upload is disabled for 2 minutes.');
+                        } else {
+                            setPoRateLimit(po.id, { count: newCount, lockedUntil: null });
+                            setMismatchCount(newCount);
+                            toast.warning(`Receipt mismatch (${newCount}/${MAX_MISMATCH_ATTEMPTS}). 3 mismatches will lock uploads for 2 minutes.`);
+                        }
+
                         toast.warning(`Receipt details did not match PO #${po.po_number}. Review fields below.`);
                         onMinimize?.({
                             verificationId: res.verificationId!,
@@ -230,11 +401,13 @@ export function UploadReceiptModal({
                         });
                     }
                 } else {
+                    onEndVerification?.(po.id);
                     toast.error(res.error || 'Verification process failed');
                     setVerificationState('upload');
                     onMinimize?.(null);
                 }
             } catch (err: any) {
+                onEndVerification?.(po.id);
                 console.error('Error during OCR verification:', err);
                 toast.error(err?.message || 'Verification failed');
                 setVerificationState('upload');
@@ -271,6 +444,11 @@ export function UploadReceiptModal({
             });
 
             if (res.success) {
+                clearPoRateLimit(po.id);
+                setMismatchCount(0);
+                setSecondsRemaining(0);
+                onEndVerification?.(po.id);
+
                 toast.success(`Receipt recorded in Documents & PO #${po.po_number} marked as Paid!`, { id: toastId });
                 setVerificationState('forced');
                 onMinimize?.({
@@ -311,16 +489,20 @@ export function UploadReceiptModal({
                         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] ${
                             verificationState === 'matched'
                                 ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-emerald-600'
-                                : verificationState === 'mismatched'
-                                    ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-amber-600'
-                                    : 'bg-[#ebf0f7] dark:bg-[#14151e] text-pink-600'
+                                : verificationState === 'forced'
+                                    ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-blue-600'
+                                    : verificationState === 'mismatched'
+                                        ? 'bg-[#ebf0f7] dark:bg-[#14151e] text-amber-600'
+                                        : 'bg-[#ebf0f7] dark:bg-[#14151e] text-pink-600'
                         }`}>
                             <i className={`fas ${
                                 verificationState === 'matched'
                                     ? 'fa-check'
-                                    : verificationState === 'mismatched'
-                                        ? 'fa-triangle-exclamation'
-                                        : 'fa-receipt'
+                                    : verificationState === 'forced'
+                                        ? 'fa-shield-alt'
+                                        : verificationState === 'mismatched'
+                                            ? 'fa-triangle-exclamation'
+                                            : 'fa-receipt'
                             } text-sm`}></i>
                         </div>
                         <div>
@@ -389,18 +571,62 @@ export function UploadReceiptModal({
                                 </div>
                             </div>
 
+                            {/* Rate limit lockout warning */}
+                            {secondsRemaining > 0 ? (
+                                <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 flex items-center justify-between text-xs text-rose-900 dark:text-rose-200">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                                            <i className="fas fa-lock text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold">Upload Temporarily Locked ({mismatchCount}/3 Attempts)</p>
+                                            <p className="text-[11px] text-rose-700 dark:text-rose-300">
+                                                3 mismatched receipts detected. Upload is disabled for 2 minutes.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="px-3 py-1.5 rounded-xl bg-rose-100 dark:bg-rose-900/50 border border-rose-200 dark:border-rose-800 font-mono font-bold text-rose-700 dark:text-rose-200 text-xs">
+                                        {Math.floor(secondsRemaining / 60)}m {secondsRemaining % 60}s
+                                    </div>
+                                </div>
+                            ) : mismatchCount > 0 ? (
+                                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 flex items-center justify-between text-[11px] text-amber-800 dark:text-amber-300">
+                                    <span className="flex items-center gap-1.5">
+                                        <i className="fas fa-triangle-exclamation text-amber-500" />
+                                        Previous receipt mismatched.
+                                    </span>
+                                    <span className="font-bold font-mono px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-[10px]">
+                                        {mismatchCount} / {MAX_MISMATCH_ATTEMPTS} Attempts
+                                    </span>
+                                </div>
+                            ) : null}
+
                             {/* Dropzone */}
                             <div
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={handleDrop}
-                                onClick={() => fileInputRef.current?.click()}
-                                className="border-2 border-dashed border-slate-300/80 dark:border-slate-700/80 hover:border-pink-500 dark:hover:border-pink-500 rounded-3xl p-8 text-center cursor-pointer bg-[#ebf0f7]/60 dark:bg-[#14151e]/60 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] hover:bg-pink-50/20 transition-all space-y-3"
+                                onDragOver={(e) => {
+                                    if (secondsRemaining > 0) return;
+                                    e.preventDefault();
+                                }}
+                                onDrop={(e) => {
+                                    if (secondsRemaining > 0) return;
+                                    handleDrop(e);
+                                }}
+                                onClick={() => {
+                                    if (secondsRemaining > 0) return;
+                                    fileInputRef.current?.click();
+                                }}
+                                className={`border-2 border-dashed rounded-3xl p-8 text-center transition-all space-y-3 bg-[#ebf0f7]/60 dark:bg-[#14151e]/60 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] ${
+                                    secondsRemaining > 0
+                                        ? 'border-slate-200 dark:border-slate-800 opacity-50 cursor-not-allowed pointer-events-none'
+                                        : 'border-slate-300/80 dark:border-slate-700/80 hover:border-pink-500 dark:hover:border-pink-500 cursor-pointer hover:bg-pink-50/20'
+                                }`}
                             >
                                 <input
                                     type="file"
                                     ref={fileInputRef}
                                     onChange={handleFileChange}
                                     accept="image/*,application/pdf"
+                                    disabled={secondsRemaining > 0}
                                     className="hidden"
                                 />
 
@@ -456,11 +682,17 @@ export function UploadReceiptModal({
                                     type="button"
                                     variant="primary"
                                     size="sm"
-                                    disabled={!file || isUploading}
+                                    disabled={!file || isUploading || secondsRemaining > 0}
                                     onClick={handleSubmitUpload}
                                 >
-                                    <i className="fas fa-microchip text-xs"></i>
-                                    <span>{initialVerificationId || po.verification ? 'Retry Run AI OCR' : 'Run AI OCR Verification'}</span>
+                                    <i className={`fas ${secondsRemaining > 0 ? 'fa-lock' : 'fa-microchip'} text-xs`}></i>
+                                    <span>
+                                        {secondsRemaining > 0
+                                            ? `Locked (${Math.floor(secondsRemaining / 60)}m ${secondsRemaining % 60}s)`
+                                            : initialVerificationId || po.verification
+                                                ? 'Retry Run AI OCR'
+                                                : 'Run AI OCR Verification'}
+                                    </span>
                                 </AppButton>
                             </div>
                         </div>
@@ -641,13 +873,16 @@ export function UploadReceiptModal({
                                         type="button"
                                         variant="neutral"
                                         size="sm"
+                                        disabled={secondsRemaining > 0}
                                         onClick={() => {
                                             setVerificationState('upload');
                                             setFile(null);
                                             setPreviewUrl(null);
                                         }}
+                                        title={secondsRemaining > 0 ? `Upload disabled for ${Math.floor(secondsRemaining / 60)}m ${secondsRemaining % 60}s` : undefined}
                                     >
-                                        Upload Different File
+                                        <i className={`fas ${secondsRemaining > 0 ? 'fa-lock text-rose-500 mr-1.5' : ''}`}></i>
+                                        Upload Different File {secondsRemaining > 0 ? `(${Math.floor(secondsRemaining / 60)}m ${secondsRemaining % 60}s)` : ''}
                                     </AppButton>
                                 )}
                                 <AppButton

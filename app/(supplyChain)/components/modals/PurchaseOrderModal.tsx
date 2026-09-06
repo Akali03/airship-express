@@ -40,14 +40,52 @@ export function PurchaseOrderModal({
 
     useEffect(() => {
         if (request) {
+            const rawItems = request.items || [];
+            const reqAmount = Number(request.amount) || 0;
+            let mappedItems = rawItems.map((item: any) => {
+                const itemName = item.item_name || item.name || item.description || request.description || request.type || 'Inventory Item';
+                const quantity = Math.max(1, Number(item.quantity) || 1);
+                let unit_price = Number(item.unit_price ?? item.price ?? item.purchase_price ?? 0);
+                if (unit_price <= 0 && reqAmount > 0 && rawItems.length === 1) {
+                    unit_price = reqAmount / quantity;
+                }
+                const total = unit_price > 0 ? unit_price * quantity : 0;
+                return {
+                    ...item,
+                    name: itemName,
+                    item_name: itemName,
+                    quantity,
+                    unit_price,
+                    total,
+                };
+            });
+
+            // If rawItems was empty, synthesize an item using request details
+            if (mappedItems.length === 0) {
+                const defaultName = request.description || request.type || "General Request Item";
+                mappedItems = [{
+                    name: defaultName,
+                    item_name: defaultName,
+                    quantity: 1,
+                    unit_price: reqAmount > 0 ? reqAmount : 0,
+                    total: reqAmount > 0 ? reqAmount : 0,
+                }];
+            }
+
+            // If unit prices were 0 across all items but request has an approved amount, allocate proportionally
+            const totalFromItems = mappedItems.reduce((sum, it) => sum + it.total, 0);
+            if (totalFromItems === 0 && reqAmount > 0 && mappedItems.length > 0) {
+                const perItemTotal = reqAmount / mappedItems.length;
+                mappedItems.forEach((it) => {
+                    it.unit_price = Number((perItemTotal / it.quantity).toFixed(2));
+                    it.total = Number((it.unit_price * it.quantity).toFixed(2));
+                });
+            }
+
             setFormData({
                 delivery_date: "",
                 notes: "",
-                items: (request.items || []).map((item) => ({
-                    ...item,
-                    unit_price: 0,
-                    total: 0,
-                })),
+                items: mappedItems,
             });
             setStep(1);
             setAiMessage('');
@@ -145,11 +183,39 @@ export function PurchaseOrderModal({
         return `${aiMessage}\n\n---\n\n📋 **Confirm this order:** ${confirmLink}\n\nPlease click the link above to confirm this purchase order.`;
     };
 
+    const getSanitizedItems = () => {
+        const itemsToProcess = formData.items && formData.items.length > 0
+            ? formData.items
+            : [{
+                name: request?.description || request?.type || "Inventory Item",
+                item_name: request?.description || request?.type || "Inventory Item",
+                quantity: 1,
+                unit_price: totalAmount > 0 ? totalAmount : 0,
+                total: totalAmount > 0 ? totalAmount : 0,
+            }];
+
+        return itemsToProcess.map((item: any) => {
+            const itemName = item.item_name || item.name || item.description || request?.description || request?.type || "Inventory Item";
+            const quantity = Math.max(1, Number(item.quantity) || 1);
+            const unit_price = Number(item.unit_price ?? item.price ?? 0);
+            const total = item.total ? Number(item.total) : Number((quantity * unit_price).toFixed(2));
+            return {
+                ...item,
+                name: itemName,
+                item_name: itemName,
+                quantity,
+                unit_price,
+                total,
+            };
+        });
+    };
+
     const createPurchaseOrder = async (): Promise<boolean> => {
         if (!request) return false;
         if (poCreated) return true;
 
         try {
+            const sanitizedItems = getSanitizedItems();
             const orderData = {
                 po_number: poNumber,
                 request_id: request.id,
@@ -159,7 +225,7 @@ export function PurchaseOrderModal({
                 status: "Sent",
                 delivery_date: formData.delivery_date || new Date().toISOString().split("T")[0],
                 notes: formData.notes,
-                items: formData.items,
+                items: sanitizedItems,
                 created_by: user.getName(),
             };
 
@@ -353,6 +419,7 @@ export function PurchaseOrderModal({
         if (!request || isSending) return;
         setIsSending(true);
         try {
+            const sanitizedItems = getSanitizedItems();
             const orderData = {
                 po_number: poNumber,
                 request_id: request.id,
@@ -362,7 +429,7 @@ export function PurchaseOrderModal({
                 status: "Draft",
                 delivery_date: formData.delivery_date || new Date().toISOString().split("T")[0],
                 notes: formData.notes,
-                items: formData.items,
+                items: sanitizedItems,
                 created_by: user.getName(),
             };
 
@@ -408,292 +475,306 @@ export function PurchaseOrderModal({
     return (
         <Portal>
             <div className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200" onClick={onClose}>
-            <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-200/60 dark:border-white/[0.06]">
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-emerald-500 dark:text-emerald-400 flex items-center justify-center">
-                                <i className="fas fa-file-invoice text-sm" />
-                            </span>
-                            Create Purchase Order
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            For request:{" "}
-                            <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
-                                {request.request_number}
-                            </span>
-                        </p>
-                    </div>
-                    <AppButton type="button" variant="neutral" size="icon-sm" onClick={onClose} aria-label="Close modal">
-                        <i className="fas fa-times text-xs" />
-                    </AppButton>
-                </div>
-
-                {step === 1 && (
-                    <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-                        <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                                <div>
-                                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                                        Supplier
-                                    </span>
-                                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
-                                        {request.supplier_name}
-                                    </p>
-                                    {supplierEmail && (
-                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
-                                            📧 {supplierEmail}
-                                        </p>
-                                    )}
-                                    {supplierMessenger && (
-                                        <p className="text-[10px] text-sky-400 dark:text-sky-500 mt-0.5 truncate">
-                                            💬 Messenger available
-                                        </p>
-                                    )}
-                                </div>
-                                <div>
-                                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                                        Requested By
-                                    </span>
-                                    <p className="font-medium text-slate-800 dark:text-slate-200 mt-0.5 truncate">
-                                        {request.requested_by}
-                                    </p>
-                                </div>
-                                <div>
-                                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                                        Department
-                                    </span>
-                                    <p className="font-medium text-slate-800 dark:text-slate-200 mt-0.5 truncate">
-                                        {request.department}
-                                    </p>
-                                </div>
-                                <div>
-                                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                                        Priority
-                                    </span>
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/30 mt-1">
-                                        {request.priority}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
+                <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-200/60 dark:border-white/[0.06]">
                         <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                    Items & Pricing
-                                </label>
-                                <span className="text-xs text-slate-500 dark:text-slate-400">
-                                    {formData.items.length} items
+                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-emerald-500 dark:text-emerald-400 flex items-center justify-center">
+                                    <i className="fas fa-file-invoice text-sm" />
                                 </span>
-                            </div>
-                            <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-                                {formData.items.map((item, index) => (
-                                    <div key={index} className="flex items-center gap-3 bg-[#ebf0f7] dark:bg-[#14151e] p-3 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] transition-all">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                                                {item.name}
-                                            </p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                                Qty:{" "}
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                                    {item.quantity}
-                                                </span>
-                                            </p>
-                                        </div>
-                                        <div className="w-36">
-                                            <div className="relative rounded-2xl">
-                                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
-                                                    <span className="text-xs text-slate-400 dark:text-slate-500">
-                                                        ₱
-                                                    </span>
-                                                </div>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl pl-6 pr-2.5 py-1.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-all"
-                                                    placeholder="0.00"
-                                                    value={item.unit_price || ""}
-                                                    onChange={(e) => updateItem(index, e.target.value)}
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="w-28 text-right">
-                                            <span className="text-xs text-slate-400 dark:text-slate-500 block">
-                                                Total
-                                            </span>
-                                            <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                                                ₱{item.total.toLocaleString()}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                                Create Purchase Order
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                For request:{" "}
+                                <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                    {request.request_number}
+                                </span>
+                            </p>
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                    Delivery Date
-                                </label>
-                                <input
-                                    type="date"
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
-                                    value={formData.delivery_date}
-                                    min={new Date().toISOString().split("T")[0]}
-                                    onChange={(e) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            delivery_date: e.target.value,
-                                        }))
-                                    }
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                    Total Amount
-                                </label>
-                                <div className="bg-[#ebf0f7] dark:bg-[#14151e] border border-emerald-300/60 dark:border-emerald-800/40 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] rounded-2xl px-4 py-2 flex items-center justify-between">
-                                    <span className="text-xs font-medium text-emerald-800 dark:text-emerald-400">
-                                        Grand Total
-                                    </span>
-                                    <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                                        ₱{totalAmount.toLocaleString()}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                Notes
-                            </label>
-                            <textarea
-                                className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-all resize-none"
-                                rows={2}
-                                placeholder="Add any specific instructions or details for this purchase order..."
-                                value={formData.notes}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
-                            <AppButton type="button" variant="neutral" size="md" onClick={onClose}>
-                                Cancel
-                            </AppButton>
-                            <AppButton type="button" variant="success" size="md" onClick={handleNext}>
-                                <span>Next</span>
-                                <i className="fas fa-arrow-right text-xs" />
-                            </AppButton>
-                        </div>
+                        <AppButton type="button" variant="neutral" size="icon-sm" onClick={onClose} aria-label="Close modal">
+                            <i className="fas fa-times text-xs" />
+                        </AppButton>
                     </div>
-                )}
 
-                {step === 2 && (
-                    <>
-                        <div className="bg-[#ebf0f7] dark:bg-[#14151e] border border-indigo-200/80 dark:border-indigo-800/30 rounded-2xl p-4 sm:p-5 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300">
-                                    <span className="p-1.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl flex items-center justify-center shadow-xs">
-                                        <i className="fas fa-robot text-xs" />
-                                    </span>
+                    {step === 1 && (
+                        <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                                     <div>
-                                        <h3 className="text-sm font-semibold leading-none">
-                                            AI Recommended Supplier Message
-                                        </h3>
-                                        <span className="text-[11px] text-indigo-600/80 dark:text-indigo-400/80 mt-0.5 block">
-                                            Based on your order details
+                                        <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                                            Supplier
+                                        </span>
+                                        <p className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
+                                            {request.supplier_name}
+                                        </p>
+                                        {supplierEmail && (
+                                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+                                                📧 {supplierEmail}
+                                            </p>
+                                        )}
+                                        {supplierMessenger && (
+                                            <p className="text-[10px] text-sky-400 dark:text-sky-500 mt-0.5 truncate">
+                                                💬 Messenger available
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                                            Requested By
+                                        </span>
+                                        <p className="font-medium text-slate-800 dark:text-slate-200 mt-0.5 truncate">
+                                            {request.requested_by}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                                            Department
+                                        </span>
+                                        <p className="font-medium text-slate-800 dark:text-slate-200 mt-0.5 truncate">
+                                            {request.department}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                                            Priority
+                                        </span>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/30 mt-1">
+                                            {request.priority}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <AppButton type="button" variant="neutral" size="xs" onClick={generateAIMessage} disabled={isGeneratingAI || isSending}>
-                                        {isGeneratingAI ? (<i className="fas fa-spinner fa-spin text-[11px]" />) : (<i className="fas fa-wand-magic-sparkles text-[11px]" />)}
-                                        <span>{isGeneratingAI ? 'Generating...' : 'Generate with AI'}</span>
-                                    </AppButton>
-                                    {aiMessage && (
-                                        <AppButton type="button" variant="neutral" size="xs" onClick={handleCopyOnly} disabled={isSending}>
-                                            <i className="fas fa-copy text-[11px]" />
-                                            <span>Copy</span>
+                            </div>
+
+                            <div>
+                                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                            Items & Pricing
+                                        </label>
+                                        {Number(request.amount) > 0 && (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/50 shadow-sm">
+                                                Approved: ₱{Number(request.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        {formData.items.length} items
+                                    </span>
+                                </div>
+                                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                                    {formData.items.map((item, index) => (
+                                        <div key={index} className="flex items-center gap-3 bg-[#ebf0f7] dark:bg-[#14151e] p-3 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] transition-all">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                                                    {item.name || item.item_name || "Item"}
+                                                </p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                    Qty:{" "}
+                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                        {item.quantity}
+                                                    </span>
+                                                </p>
+                                            </div>
+                                            <div className="w-36">
+                                                <div className="relative rounded-2xl">
+                                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
+                                                        <span className="text-xs text-slate-400 dark:text-slate-500">
+                                                            ₱
+                                                        </span>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl pl-6 pr-2.5 py-1.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-all"
+                                                        placeholder="0.00"
+                                                        value={item.unit_price || ""}
+                                                        onChange={(e) => updateItem(index, e.target.value)}
+                                                        required
+                                                        readOnly
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="w-28 text-right">
+                                                <span className="text-xs text-slate-400 dark:text-slate-500 block">
+                                                    Total
+                                                </span>
+                                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                                                    ₱{item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                        Delivery Date
+                                    </label>
+                                    <input
+                                        required
+                                        type="date"
+                                        className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                                        value={formData.delivery_date}
+                                        min={new Date().toISOString().split("T")[0]}
+                                        onChange={(e) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                delivery_date: e.target.value,
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                        Total Amount
+                                    </label>
+                                    <div className="bg-[#ebf0f7] dark:bg-[#14151e] border border-emerald-300/60 dark:border-emerald-800/40 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] rounded-2xl px-4 py-2 flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-medium text-emerald-800 dark:text-emerald-400">
+                                                Grand Total
+                                            </span>
+                                            {Number(request.amount) > 0 && (
+                                                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                                    Approved: ₱{Number(request.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                                            ₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                    Notes
+                                </label>
+                                <textarea
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition-all resize-none"
+                                    rows={2}
+                                    placeholder="Add any specific instructions or details for this purchase order..."
+                                    value={formData.notes}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
+                                <AppButton type="button" variant="neutral" size="md" onClick={onClose}>
+                                    Cancel
+                                </AppButton>
+                                <AppButton type="button" variant="success" size="md" onClick={handleNext}>
+                                    <span>Next</span>
+                                    <i className="fas fa-arrow-right text-xs" />
+                                </AppButton>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 2 && (
+                        <>
+                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] border border-indigo-200/80 dark:border-indigo-800/30 rounded-2xl p-4 sm:p-5 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300">
+                                        <span className="p-1.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl flex items-center justify-center shadow-xs">
+                                            <i className="fas fa-robot text-xs" />
+                                        </span>
+                                        <div>
+                                            <h3 className="text-sm font-semibold leading-none">
+                                                AI Recommended Supplier Message
+                                            </h3>
+                                            <span className="text-[11px] text-indigo-600/80 dark:text-indigo-400/80 mt-0.5 block">
+                                                Based on your order details
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <AppButton type="button" variant="neutral" size="xs" onClick={generateAIMessage} disabled={isGeneratingAI || isSending}>
+                                            {isGeneratingAI ? (<i className="fas fa-spinner fa-spin text-[11px]" />) : (<i className="fas fa-wand-magic-sparkles text-[11px]" />)}
+                                            <span>{isGeneratingAI ? 'Generating...' : 'Generate with AI'}</span>
                                         </AppButton>
+                                        {aiMessage && (
+                                            <AppButton type="button" variant="neutral" size="xs" onClick={handleCopyOnly} disabled={isSending}>
+                                                <i className="fas fa-copy text-[11px]" />
+                                                <span>Copy</span>
+                                            </AppButton>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-[#e4ebf5] dark:bg-[#111218] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] text-sm text-slate-800 dark:text-slate-200 leading-relaxed shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] min-h-[120px]">
+                                    {isGeneratingAI ? (
+                                        <div className="flex items-center justify-center h-20">
+                                            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                                                <i className="fas fa-spinner fa-spin text-lg" />
+                                                <span>Generating message...</span>
+                                            </div>
+                                        </div>
+                                    ) : aiMessage ? (
+                                        <div>
+                                            <p className="whitespace-pre-wrap">{aiMessage}</p>
+                                            <div className="mt-3 pt-3 border-t border-indigo-100/60 dark:border-indigo-800/30">
+                                                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                                                    📋 Confirmation link will be included when you use Email or Messenger
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-slate-400 dark:text-slate-500 italic text-center py-6">
+                                            Click "Generate with AI" to create a professional supplier message
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    {supplierEmail && (
+                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 bg-[#e4ebf5] dark:bg-[#111218] p-2.5 rounded-xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                            <i className="fas fa-envelope text-blue-500" />
+                                            <span>Email: <strong>{supplierEmail}</strong></span>
+                                        </div>
+                                    )}
+                                    {supplierMessenger && (
+                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 bg-[#e4ebf5] dark:bg-[#111218] p-2.5 rounded-xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                            <i className="fab fa-facebook-messenger text-sky-500" />
+                                            <span>Messenger: <strong>Available</strong></span>
+                                        </div>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="bg-[#e4ebf5] dark:bg-[#111218] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] text-sm text-slate-800 dark:text-slate-200 leading-relaxed shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] min-h-[120px]">
-                                {isGeneratingAI ? (
-                                    <div className="flex items-center justify-center h-20">
-                                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                                            <i className="fas fa-spinner fa-spin text-lg" />
-                                            <span>Generating message...</span>
-                                        </div>
-                                    </div>
-                                ) : aiMessage ? (
-                                    <div>
-                                        <p className="whitespace-pre-wrap">{aiMessage}</p>
-                                        <div className="mt-3 pt-3 border-t border-indigo-100/60 dark:border-indigo-800/30">
-                                            <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                                                📋 Confirmation link will be included when you use Email or Messenger
-                                            </p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-slate-400 dark:text-slate-500 italic text-center py-6">
-                                        Click "Generate with AI" to create a professional supplier message
-                                    </p>
-                                )}
-                            </div>
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
+                                <AppButton type="button" variant="neutral" size="md" onClick={handleBack} disabled={submitting || isSending} className="w-full sm:w-auto">
+                                    <i className="fas fa-arrow-left text-xs" />
+                                    <span>Back</span>
+                                </AppButton>
 
-                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                {supplierEmail && (
-                                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 bg-[#e4ebf5] dark:bg-[#111218] p-2.5 rounded-xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
-                                        <i className="fas fa-envelope text-blue-500" />
-                                        <span>Email: <strong>{supplierEmail}</strong></span>
+                                <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+                                    <div className="flex items-center gap-1.5">
+                                        <AppButton type="button" variant="neutral" size="sm" onClick={handlePrint} title="Print PO" disabled={!aiMessage || isSending}>
+                                            <i className="fas fa-print text-slate-500 dark:text-slate-400" />
+                                            <span className="hidden sm:inline">Print</span>
+                                        </AppButton>
+                                        <AppButton type="button" variant="neutral" size="sm" onClick={handleEmail} title="Send Email (Gmail)" disabled={!aiMessage || isSending}>
+                                            {isSending ? (<i className="fas fa-spinner fa-spin text-pink-500" />) : (<i className="fas fa-envelope text-blue-500 dark:text-blue-400" />)}
+                                            <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Gmail'}</span>
+                                        </AppButton>
+                                        <AppButton type="button" variant="neutral" size="sm" onClick={handleMessenger} title="Send via Messenger" disabled={!aiMessage || isSending}>
+                                            {isSending ? (<i className="fas fa-spinner fa-spin text-sky-500" />) : (<i className="fab fa-facebook-messenger text-sky-500 dark:text-sky-400" />)}
+                                            <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Messenger'}</span>
+                                        </AppButton>
                                     </div>
-                                )}
-                                {supplierMessenger && (
-                                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 bg-[#e4ebf5] dark:bg-[#111218] p-2.5 rounded-xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
-                                        <i className="fab fa-facebook-messenger text-sky-500" />
-                                        <span>Messenger: <strong>Available</strong></span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
 
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200/60 dark:border-white/[0.06]">
-                            <AppButton type="button" variant="neutral" size="md" onClick={handleBack} disabled={submitting || isSending} className="w-full sm:w-auto">
-                                <i className="fas fa-arrow-left text-xs" />
-                                <span>Back</span>
-                            </AppButton>
-
-                            <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
-                                <div className="flex items-center gap-1.5">
-                                    <AppButton type="button" variant="neutral" size="sm" onClick={handlePrint} title="Print PO" disabled={!aiMessage || isSending}>
-                                        <i className="fas fa-print text-slate-500 dark:text-slate-400" />
-                                        <span className="hidden sm:inline">Print</span>
-                                    </AppButton>
-                                    <AppButton type="button" variant="neutral" size="sm" onClick={handleEmail} title="Send Email (Gmail)" disabled={!aiMessage || isSending}>
-                                        {isSending ? (<i className="fas fa-spinner fa-spin text-pink-500" />) : (<i className="fas fa-envelope text-blue-500 dark:text-blue-400" />)}
-                                        <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Gmail'}</span>
-                                    </AppButton>
-                                    <AppButton type="button" variant="neutral" size="sm" onClick={handleMessenger} title="Send via Messenger" disabled={!aiMessage || isSending}>
-                                        {isSending ? (<i className="fas fa-spinner fa-spin text-sky-500" />) : (<i className="fab fa-facebook-messenger text-sky-500 dark:text-sky-400" />)}
-                                        <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Messenger'}</span>
+                                    <AppButton type="button" variant="success" size="md" onClick={handleCreatePOOnly} disabled={submitting || isSending} loading={submitting || isSending} className="ml-auto sm:ml-0">
+                                        {!submitting && !isSending && (<i className="fas fa-check text-xs" />)}
+                                        <span>Create PO</span>
                                     </AppButton>
                                 </div>
-
-                                <AppButton type="button" variant="success" size="md" onClick={handleCreatePOOnly} disabled={submitting || isSending} loading={submitting || isSending} className="ml-auto sm:ml-0">
-                                    {!submitting && !isSending && (<i className="fas fa-check text-xs" />)}
-                                    <span>Create PO</span>
-                                </AppButton>
                             </div>
-                        </div>
-                    </>
-                )}
+                        </>
+                    )}
+                </div>
             </div>
-        </div>
         </Portal>
     );
 }

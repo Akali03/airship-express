@@ -64,9 +64,20 @@ export function ScopedPORequestModal({
 
     if (!isOpen || !item) return null;
 
+    const hasPendingPR = Boolean(
+        item?.latest_po?.has_pending_pr ||
+        (item?.latest_po?.is_request && item?.latest_po?.status === 'Pending')
+    );
+    const pendingPRNumber = item?.latest_po?.pending_pr_number || (item?.latest_po?.is_request && item?.latest_po?.status === 'Pending' ? item?.latest_po?.po_number : undefined);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (submitting) return;
+
+        if (hasPendingPR) {
+            toast.error(`A purchase request (${pendingPRNumber || 'Pending'}) is already awaiting approval for this item.`);
+            return;
+        }
 
         if (quantity <= 0) {
             toast.warning('Order quantity must be at least 1');
@@ -152,6 +163,18 @@ export function ScopedPORequestModal({
 
                     {/* Form Body */}
                     <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+                        {hasPendingPR && (
+                            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-amber-600 dark:text-amber-400">
+                                <i className="fas fa-exclamation-triangle text-sm mt-0.5 shrink-0"></i>
+                                <div className="text-xs">
+                                    <span className="font-bold block mb-0.5">Pending Purchase Request Exists</span>
+                                    <span>
+                                        Purchase Request <strong className="font-mono font-bold">{pendingPRNumber || 'Pending'}</strong> is currently awaiting approval for this item. You cannot create a new request or order until this request is approved or rejected.
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Item Snapshot Card */}
                         <div className="p-4 bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] space-y-2.5">
                             <div className="flex items-center justify-between text-xs">
@@ -209,7 +232,7 @@ export function ScopedPORequestModal({
                                 <input
                                     type="number"
                                     min="0"
-                                    step="0.01"
+                                    step="1"
                                     required
                                     className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-4 py-2.5 text-sm font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pink-500 transition-all font-mono"
                                     value={unitPrice}
@@ -332,11 +355,12 @@ export function ScopedPORequestModal({
                                 type="submit"
                                 variant="primary"
                                 size="md"
-                                disabled={submitting}
+                                disabled={submitting || hasPendingPR}
                                 loading={submitting}
+                                title={hasPendingPR ? `Cannot submit: PR ${pendingPRNumber || 'Pending'} is awaiting approval` : undefined}
                             >
                                 {!submitting}
-                                <span>Submit</span>
+                                <span>{hasPendingPR ? 'Pending Request Exists' : 'Submit'}</span>
                             </AppButton>
                         </div>
                     </form>

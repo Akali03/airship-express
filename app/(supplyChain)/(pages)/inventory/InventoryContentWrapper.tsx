@@ -12,6 +12,7 @@ import { EditItemModal } from '@/app/(supplyChain)/(pages)/inventory/components/
 import { StockInModal } from '@/app/(supplyChain)/(pages)/inventory/components/modals/StockInModal';
 import { StockOutModal } from '@/app/(supplyChain)/(pages)/inventory/components/modals/StockOutModal';
 import { ScopedPORequestModal } from '@/app/(supplyChain)/(pages)/inventory/components/modals/ScopedPORequestModal';
+import { PurchaseRequestDetailModal } from '@/app/(supplyChain)/components/modals/PurchaseRequestDetailModal';
 import { GroupedParcels, InventoryItem } from '@/app/(supplyChain)/(pages)/inventory/types';
 import { useDebounce } from "@/app/(supplyChain)/hooks/useDebounce";
 import { fetchInventoryPageData, type Parcel } from '@/app/(supplyChain)/(pages)/inventory/server/query';
@@ -80,6 +81,8 @@ export default function InventoryClient() {
     const [showStockInModal, setShowStockInModal] = useState(false);
     const [showStockOutModal, setShowStockOutModal] = useState(false);
     const [showScopedPOModal, setShowScopedPOModal] = useState(false);
+    const [showPRDetailModal, setShowPRDetailModal] = useState(false);
+    const [viewingPRId, setViewingPRId] = useState<string | null>(null);
     const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
     const [selectedItemForStock, setSelectedItemForStock] = useState<string>('');
     const [selectedItemObjectForStock, setSelectedItemObjectForStock] = useState<InventoryItem | null>(null);
@@ -656,6 +659,10 @@ export default function InventoryClient() {
                             onDelete={handleDeleteItem}
                             onStockIn={openStockInModal}
                             onOrderPO={openScopedPOModal}
+                            onViewPurchaseRequest={(requestId) => {
+                                setViewingPRId(requestId);
+                                setShowPRDetailModal(true);
+                            }}
                             onStockOut={handleStockOutClick}
                             onAddItem={openAddItemModal}
                         />
@@ -708,6 +715,19 @@ export default function InventoryClient() {
                 fetchDashboardData(true);
                 fetchInventoryData(false, true);
             }}/>
+
+            <PurchaseRequestDetailModal
+                isOpen={showPRDetailModal}
+                onClose={() => {
+                    setShowPRDetailModal(false);
+                    setViewingPRId(null);
+                }}
+                requestId={viewingPRId}
+                onSuccess={() => {
+                    fetchDashboardData(true);
+                    fetchInventoryData(false, true);
+                }}
+            />
 
             <StockOutModal isOpen={showStockOutModal} onClose={() => {
                 setShowStockOutModal(false);

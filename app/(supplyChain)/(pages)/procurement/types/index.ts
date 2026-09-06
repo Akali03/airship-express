@@ -13,6 +13,7 @@ export interface Supplier {
 
 export interface PurchaseRequestItem {
     name: string;
+    item_name?: string;
     quantity: number;
     unit_price?: number;
     price?: number;
@@ -62,6 +63,7 @@ export interface PurchaseRequestModalProps {
     onRequestSubmitted?: (request: any) => void;
     editData?: any;
     isEdit?: boolean;
+    readOnly?: boolean;
 }
 
 export interface PurchaseOrderModalProps {

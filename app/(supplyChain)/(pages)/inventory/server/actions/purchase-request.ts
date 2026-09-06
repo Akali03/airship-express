@@ -43,6 +43,29 @@ export async function createScopedPurchaseRequestAction(params: CreateScopedPRPa
             return { success: false, error: 'Supplier is required', status: 400 };
         }
 
+        // Check if there is already an active Pending purchase request for this item
+        const { data: existingPRs } = await supabase
+            .from('purchase_requests')
+            .select('id, request_number, items')
+            .eq('status', 'Pending');
+
+        const existingPending = (existingPRs || []).find(pr => {
+            const items = Array.isArray(pr.items) ? pr.items : [];
+            return items.some((it: any) =>
+                String(it.inventory_item_id) === String(inventory_item_id) ||
+                (it.name && it.name.toLowerCase().trim() === item_name.toLowerCase().trim()) ||
+                (it.item_name && it.item_name.toLowerCase().trim() === item_name.toLowerCase().trim())
+            );
+        });
+
+        if (existingPending) {
+            return {
+                success: false,
+                error: `A pending purchase request (${existingPending.request_number}) already exists for ${item_name}. You cannot create a new request until it is processed.`,
+                status: 400
+            };
+        }
+
         // Fetch supplier name if not provided
         let finalSupplierName = params.supplier_name || '';
         if (!finalSupplierName) {
@@ -102,30 +125,17 @@ export async function createScopedPurchaseRequestAction(params: CreateScopedPRPa
             const notifMsg = `Manual replenishment PR for ${item_name} (Qty: ${quantity}, ₱${totalAmount.toLocaleString()}) created by ${requested_by || 'Inventory Officer'}. Pending review & approval.`;
             const notifLink = `/procurement?search=${encodeURIComponent(requestNumber)}`;
 
-            await supabase.from('notifications').insert([
-                {
-                    creator_name: requested_by || 'Inventory Officer',
-                    creator_email: 'inventory@airshipexpress.ph',
-                    title: notifTitle,
-                    message: notifMsg,
-                    type: 'purchase_request',
-                    link: notifLink,
-                    role: 'Admin',
-                    is_read: false,
-                    po_request_id: data.id || requestNumber,
-                },
-                {
-                    creator_name: requested_by || 'Inventory Officer',
-                    creator_email: 'inventory@airshipexpress.ph',
-                    title: notifTitle,
-                    message: notifMsg,
-                    type: 'purchase_request',
-                    link: notifLink,
-                    role: 'Executive',
-                    is_read: false,
-                    po_request_id: data.id || requestNumber,
-                },
-            ]);
+            await supabase.from('notifications').insert({
+                creator_name: requested_by || 'Inventory Officer',
+                creator_email: 'inventory@airshipexpress.ph',
+                title: notifTitle,
+                message: notifMsg,
+                type: 'purchase_request',
+                link: notifLink,
+                role: 'Admin',
+                is_read: false,
+                po_request_id: data.id || requestNumber,
+            });
         } catch (notifErr) {
             console.error('Error dispatching notifications for inventory PR:', notifErr);
         }

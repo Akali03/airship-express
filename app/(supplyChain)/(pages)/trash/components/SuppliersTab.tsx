@@ -14,6 +14,7 @@ import { CardsSkeleton, TableRowsSkeleton } from '@/app/(supplyChain)/components
 import { CrudActionButton } from '@/app/(supplyChain)/components/ui/CrudActionButton';
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
+import { trashCache } from '../utils/trashCache';
 
 interface ArchivedSupplier {
     id: number;
@@ -23,14 +24,14 @@ interface ArchivedSupplier {
     phone: string;
     email: string;
     location: string;
-    products: string | null;
-    notes: string | null;
+    products?: string | null;
+    notes?: string | null;
     is_active: boolean;
     created_at: string;
     updated_at: string;
     deleted_at: string;
     deleted_by: string;
-    deletion_reason: string | null;
+    deletion_reason?: string | null;
     original_id: number;
 }
 
@@ -39,8 +40,12 @@ const ITEMS_PER_PAGE = 10;
 export function SuppliersTab() {
     const { confirm } = useConfirm();
 
-    const [archivedSuppliers, setArchivedSuppliers] = useState<ArchivedSupplier[]>([]);
-    const [supplierLoading, setSupplierLoading] = useState(false);
+    const [archivedSuppliers, setArchivedSuppliers] = useState<ArchivedSupplier[]>(() => {
+        return trashCache.get<ArchivedSupplier>('suppliers') || [];
+    });
+    const [supplierLoading, setSupplierLoading] = useState<boolean>(() => {
+        return !trashCache.get('suppliers');
+    });
     const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
     const [supplierCategoryFilter, setSupplierCategoryFilter] = useState('all');
     const [selectedSupplierIds, setSelectedSupplierIds] = useState<Set<number>>(new Set());
@@ -50,8 +55,19 @@ export function SuppliersTab() {
 
     const debouncedSupplierSearchTerm = useDebounce(supplierSearchTerm, 300);
 
-    const fetchArchivedSuppliers = useCallback(async () => {
-        setSupplierLoading(true);
+    const fetchArchivedSuppliers = useCallback(async (force = false) => {
+        const cached = trashCache.get<ArchivedSupplier>('suppliers');
+        if (cached && !force && !trashCache.isStale('suppliers')) {
+            setArchivedSuppliers(cached);
+            setSupplierTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+            setSupplierLoading(false);
+            return;
+        }
+
+        if (!cached || cached.length === 0) {
+            setSupplierLoading(true);
+        }
+
         try {
             const { data, error } = await supabase
                 .from('suppliers_archive')
@@ -79,6 +95,7 @@ export function SuppliersTab() {
                 original_id: supplier.original_id || supplier.id,
             }));
 
+            trashCache.set('suppliers', transformedData);
             setArchivedSuppliers(transformedData);
             setSupplierTotalPages(Math.ceil(transformedData.length / ITEMS_PER_PAGE));
         } catch (error) {
@@ -100,22 +117,34 @@ export function SuppliersTab() {
         if (confirmed) {
             setSupplierLoading(true);
             try {
-                const { error: insertError } = await supabase
+                const supplierPayload = {
+                    name: supplier.name,
+                    category: supplier.category,
+                    contact_person: supplier.contact_person,
+                    phone: supplier.phone,
+                    email: supplier.email,
+                    location: supplier.location,
+                    products: supplier.products,
+                    notes: supplier.notes,
+                    is_active: supplier.is_active,
+                    created_at: supplier.created_at,
+                    updated_at: new Date().toISOString(),
+                };
+
+                let { error: insertError } = await supabase
                     .from('suppliers')
                     .insert({
                         id: supplier.original_id,
-                        name: supplier.name,
-                        category: supplier.category,
-                        contact_person: supplier.contact_person,
-                        phone: supplier.phone,
-                        email: supplier.email,
-                        location: supplier.location,
-                        products: supplier.products,
-                        notes: supplier.notes,
-                        is_active: supplier.is_active,
-                        created_at: supplier.created_at,
-                        updated_at: new Date().toISOString(),
+                        ...supplierPayload,
                     });
+
+                // If id is GENERATED ALWAYS AS IDENTITY (error 428C9), retry without explicit id
+                if (insertError && (insertError as any).code === '428C9') {
+                    const retry = await supabase
+                        .from('suppliers')
+                        .insert(supplierPayload);
+                    insertError = retry.error;
+                }
 
                 if (insertError) throw insertError;
 
@@ -126,6 +155,7 @@ export function SuppliersTab() {
 
                 if (deleteError) throw deleteError;
 
+                trashCache.removeItem('suppliers', supplier.id);
                 setArchivedSuppliers(prev => prev.filter(s => s.id !== supplier.id));
                 setSupplierTotalPages(Math.ceil((archivedSuppliers.length - 1) / ITEMS_PER_PAGE));
                 setSelectedSupplierIds(prev => {
@@ -161,6 +191,7 @@ export function SuppliersTab() {
 
                 if (error) throw error;
 
+                trashCache.removeItem('suppliers', supplier.id);
                 setArchivedSuppliers(prev => prev.filter(s => s.id !== supplier.id));
                 setSupplierTotalPages(Math.ceil((archivedSuppliers.length - 1) / ITEMS_PER_PAGE));
                 setSelectedSupplierIds(prev => {
@@ -193,22 +224,34 @@ export function SuppliersTab() {
             try {
                 const suppliersToRestore = archivedSuppliers.filter(s => selectedSupplierIds.has(s.id));
                 for (const supplier of suppliersToRestore) {
-                    const { error: insertError } = await supabase
+                    const supplierPayload = {
+                        name: supplier.name,
+                        category: supplier.category,
+                        contact_person: supplier.contact_person,
+                        phone: supplier.phone,
+                        email: supplier.email,
+                        location: supplier.location,
+                        products: supplier.products,
+                        notes: supplier.notes,
+                        is_active: supplier.is_active,
+                        created_at: supplier.created_at,
+                        updated_at: new Date().toISOString(),
+                    };
+
+                    let { error: insertError } = await supabase
                         .from('suppliers')
                         .insert({
                             id: supplier.original_id,
-                            name: supplier.name,
-                            category: supplier.category,
-                            contact_person: supplier.contact_person,
-                            phone: supplier.phone,
-                            email: supplier.email,
-                            location: supplier.location,
-                            products: supplier.products,
-                            notes: supplier.notes,
-                            is_active: supplier.is_active,
-                            created_at: supplier.created_at,
-                            updated_at: new Date().toISOString(),
+                            ...supplierPayload,
                         });
+
+                    // If id is GENERATED ALWAYS AS IDENTITY (error 428C9), retry without explicit id
+                    if (insertError && (insertError as any).code === '428C9') {
+                        const retry = await supabase
+                            .from('suppliers')
+                            .insert(supplierPayload);
+                        insertError = retry.error;
+                    }
 
                     if (insertError) throw insertError;
 
@@ -218,6 +261,7 @@ export function SuppliersTab() {
                         .eq('id', supplier.id);
                 }
 
+                trashCache.removeItems('suppliers', selectedSupplierIds);
                 setArchivedSuppliers(prev => prev.filter(s => !selectedSupplierIds.has(s.id)));
                 setSupplierTotalPages(Math.ceil((archivedSuppliers.length - selectedSupplierIds.size) / ITEMS_PER_PAGE));
                 toast.success(`${selectedSupplierIds.size} supplier(s) restored successfully!`);
@@ -251,6 +295,7 @@ export function SuppliersTab() {
                         .eq('id', supplierId);
                 }
 
+                trashCache.removeItems('suppliers', selectedSupplierIds);
                 setArchivedSuppliers(prev => prev.filter(s => !selectedSupplierIds.has(s.id)));
                 setSupplierTotalPages(Math.ceil((archivedSuppliers.length - selectedSupplierIds.size) / ITEMS_PER_PAGE));
                 toast.success(`${selectedSupplierIds.size} supplier(s) permanently deleted.`);
@@ -290,13 +335,11 @@ export function SuppliersTab() {
         });
     }, [archivedSuppliers, debouncedSupplierSearchTerm, supplierCategoryFilter]);
 
-    const getPaginatedData = <T,>(data: T[], page: number): T[] => {
-        const startIndex = (page - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return data.slice(startIndex, endIndex);
-    };
+    const paginatedSuppliers = useMemo(() => {
+        const startIndex = (supplierPage - 1) * ITEMS_PER_PAGE;
+        return filteredSuppliers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredSuppliers, supplierPage]);
 
-    const paginatedSuppliers = getPaginatedData(filteredSuppliers, supplierPage);
     const supplierCategories = useMemo(() => ['all', ...Array.from(new Set(archivedSuppliers.map(s => s.category)))], [archivedSuppliers]);
     const isAllSuppliersSelected = filteredSuppliers.length > 0 && selectedSupplierIds.size === filteredSuppliers.length;
 
@@ -310,7 +353,23 @@ export function SuppliersTab() {
     useEffect(() => {
         setIsMounted(true);
         fetchArchivedSuppliers();
-    }, []);
+
+        const unsubscribe = trashCache.subscribe((key, action) => {
+            if (!key || key === 'suppliers') {
+                if (action === 'force-refresh' || action === 'invalidate') {
+                    fetchArchivedSuppliers(true);
+                } else {
+                    const cached = trashCache.get<ArchivedSupplier>('suppliers');
+                    if (cached) {
+                        setArchivedSuppliers(cached);
+                        setSupplierTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+                    }
+                }
+            }
+        });
+
+        return unsubscribe;
+    }, [fetchArchivedSuppliers]);
 
     return (
         <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-300">

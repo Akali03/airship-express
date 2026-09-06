@@ -1,7 +1,24 @@
 const rateLimiter = new Map<string, { count: number; resetTime: number }>();
+let lastCleanup = Date.now();
+
+// periodic sweep to prune expired entries and prevent unbounded memory growth
+function pruneExpiredRecords(now: number) {
+    // only run cleanup at most once every 60 seconds or if map exceeds 500 entries
+    if (now - lastCleanup < 60000 && rateLimiter.size < 500) {
+        return;
+    }
+    lastCleanup = now;
+    for (const [key, record] of rateLimiter.entries()) {
+        if (now > record.resetTime) {
+            rateLimiter.delete(key);
+        }
+    }
+}
 
 export function isRateLimited(key: string): boolean {
     const now = Date.now();
+    pruneExpiredRecords(now);
+
     const record = rateLimiter.get(key);
 
     if (!record || now > record.resetTime) {

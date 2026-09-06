@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, BellOff, Check, X, Loader2, Clock, DollarSign, FileText, User, Building, Tag, AlertCircle, Users, UserCog, Shield, Calendar, Package, Trash2 } from 'lucide-react';
+import { Bell, BellOff, Check, X, Loader2, Clock, DollarSign, FileText, User, Building, Tag, AlertCircle, Users, UserCog, Shield, Calendar, Package, Trash2, Edit3, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/app/(supplyChain)/lib/services/client/supabase';
 import { useConfirm } from '@/app/(supplyChain)/components/ui/ConfirmModal';
@@ -45,6 +45,59 @@ const CACHE_KEY_BASE = 'notifications_cache';
 const LEGACY_CACHE_KEY = 'notifications_cache';
 const CACHE_DURATION = 5 * 60 * 1000;
 
+// Module-level cache to prevent duplicate toasts across mounted NotificationBell instances (e.g. desktop + mobile) and rapid events
+const recentToastedKeys = new Map<string, number>();
+
+function shouldShowToastForNotification(notif: Notification, currentEmail: string, currentName: string): boolean {
+    const now = Date.now();
+    // Clean entries older than 15s
+    for (const [key, timestamp] of recentToastedKeys.entries()) {
+        if (now - timestamp > 15000) {
+            recentToastedKeys.delete(key);
+        }
+    }
+
+    // Suppress toast if the current logged-in user is the one who created it (they already received their own action toast)
+    const creatorEmail = (notif.creator_email || '').toLowerCase().trim();
+    const creatorName = (notif.creator_name || '').toLowerCase().trim();
+    const myEmail = (currentEmail || '').toLowerCase().trim();
+    const myName = (currentName || '').toLowerCase().trim();
+
+    if (myEmail && creatorEmail && myEmail === creatorEmail) {
+        return false;
+    }
+    if (myName && creatorName && myName === creatorName && myName !== 'system') {
+        return false;
+    }
+
+    // Deduplication key: prefer po_request_id, otherwise title + message
+    const dedupeKey = notif.po_request_id
+        ? `pr_${notif.po_request_id}`
+        : `${notif.title}_${notif.message}`;
+
+    const lastTime = recentToastedKeys.get(dedupeKey);
+    if (lastTime && now - lastTime < 5000) {
+        return false; // Suppress duplicate toast within 5 seconds
+    }
+
+    recentToastedKeys.set(dedupeKey, now);
+    return true;
+}
+
+function deduplicateNotifications(list: Notification[]): Notification[] {
+    const seen = new Set<string>();
+    const result: Notification[] = [];
+    for (const item of list) {
+        // If it's a purchase request notification, deduplicate by po_request_id so historical dual-role rows don't duplicate
+        const key = item.po_request_id ? `pr_${item.po_request_id}` : item.id;
+        if (!seen.has(key)) {
+            seen.add(key);
+            result.push(item);
+        }
+    }
+    return result;
+}
+
 export function NotificationBell() {
     const router = useRouter();
     const { confirm } = useConfirm();
@@ -58,8 +111,18 @@ export function NotificationBell() {
     const [isMounted, setIsMounted] = useState(false);
     const [userRole, setUserRole] = useState<string>('');
     const [userEmail, setUserEmail] = useState<string>('');
+    const [userName, setUserName] = useState<string>('');
     const [totalUnread, setTotalUnread] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
+
+    const userEmailRef = useRef(userEmail);
+    const userNameRef = useRef(userName);
+    useEffect(() => {
+        userEmailRef.current = userEmail;
+    }, [userEmail]);
+    useEffect(() => {
+        userNameRef.current = userName;
+    }, [userName]);
 
     // Modal states
     const [showModal, setShowModal] = useState(false);
@@ -69,6 +132,9 @@ export function NotificationBell() {
     const [isApproving, setIsApproving] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(false);
+    const [isEditingPR, setIsEditingPR] = useState(false);
+    const [editPRData, setEditPRData] = useState<any>(null);
+    const [isSavingEdits, setIsSavingEdits] = useState(false);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -77,18 +143,53 @@ export function NotificationBell() {
         return `${CACHE_KEY_BASE}_${userEmail || 'anon'}`;
     }, [userEmail]);
 
-    // get user role and email from storage
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            if (localStorage.getItem(LEGACY_CACHE_KEY)) {
-                localStorage.removeItem(LEGACY_CACHE_KEY);
-            }
+    const isNotificationForUser = useCallback((notifRole: string) => {
+        if (!notifRole) return true;
+        const nRole = notifRole.toLowerCase().trim();
+        const uRole = (userRole || '').toLowerCase().trim();
+        if (nRole === 'all') return true;
+        if (nRole === uRole) return true;
+        // Admins and Executives see notifications targeted to each other / leadership
+        if (['admin', 'executive'].includes(uRole) && ['admin', 'executive'].includes(nRole)) return true;
+        // Managers can also see Manager notifications
+        if (['admin', 'executive', 'manager'].includes(uRole) && nRole === 'manager') return true;
+        return false;
+    }, [userRole]);
 
-            const role = localStorage.getItem('user_role') || 'User';
-            const email = localStorage.getItem('user_email') || '';
-            setUserRole(role);
-            setUserEmail(email);
+    const getRoleFilterQuery = useCallback(() => {
+        const uRole = (userRole || '').toLowerCase().trim();
+        if (['admin', 'executive'].includes(uRole)) {
+            return 'role.ilike.All,role.ilike.Admin,role.ilike.Executive';
         }
+        if (uRole === 'manager') {
+            return 'role.ilike.All,role.ilike.Manager';
+        }
+        if (uRole) {
+            return `role.ilike.All,role.ilike.${userRole}`;
+        }
+        return 'role.ilike.All';
+    }, [userRole]);
+
+    // get user role and email from storage and keep updated
+    useEffect(() => {
+        const syncUserData = () => {
+            if (typeof window !== 'undefined') {
+                if (localStorage.getItem(LEGACY_CACHE_KEY)) {
+                    localStorage.removeItem(LEGACY_CACHE_KEY);
+                }
+
+                const role = localStorage.getItem('user_role') || 'User';
+                const email = localStorage.getItem('user_email') || localStorage.getItem('logged_in_email') || '';
+                const name = localStorage.getItem('user_name') || '';
+                setUserRole(role);
+                setUserEmail(email);
+                setUserName(name);
+            }
+        };
+
+        syncUserData();
+        window.addEventListener('storage', syncUserData);
+        return () => window.removeEventListener('storage', syncUserData);
     }, []);
 
     // lock page scroll when dropdown is open
@@ -133,9 +234,7 @@ export function NotificationBell() {
                 const { data, timestamp } = JSON.parse(cached);
                 const isExpired = Date.now() - timestamp > CACHE_DURATION;
                 if (!isExpired && data && data.length > 0) {
-                    const filteredData = data.filter((n: Notification) =>
-                        n.role === 'All' || n.role === userRole
-                    );
+                    const filteredData = deduplicateNotifications(data.filter((n: Notification) => isNotificationForUser(n.role)));
                     setNotifications(filteredData);
                     const unread = filteredData.filter((n: Notification) => !n.is_read).length;
                     setUnreadCount(unread);
@@ -147,7 +246,7 @@ export function NotificationBell() {
             console.error('Error loading cache:', error);
         }
         return false;
-    }, [userRole, getCacheKey]);
+    }, [getCacheKey, isNotificationForUser]);
 
     // save notifications to cache
     const saveToCache = useCallback((data: Notification[]) => {
@@ -164,11 +263,12 @@ export function NotificationBell() {
     // count unread notifications
     const fetchUnreadCount = useCallback(async () => {
         try {
+            const roleFilter = getRoleFilterQuery();
             const { count, error } = await supabase
                 .from('notifications')
                 .select('*', { count: 'exact', head: true })
                 .eq('is_read', false)
-                .or(`role.eq.All,role.eq.${userRole}`);
+                .or(roleFilter);
 
             if (error) throw error;
             const unread = count ?? 0;
@@ -177,7 +277,7 @@ export function NotificationBell() {
         } catch (error) {
             console.error('Error fetching unread count:', error);
         }
-    }, [userRole]);
+    }, [getRoleFilterQuery]);
 
     // fetch notifications with pagination
     const fetchNotifications = useCallback(async (pageNum: number, append: boolean = false) => {
@@ -188,10 +288,11 @@ export function NotificationBell() {
         }
 
         try {
+            const roleFilter = getRoleFilterQuery();
             const { count, error: countError } = await supabase
                 .from('notifications')
                 .select('*', { count: 'exact', head: true })
-                .or(`role.eq.All,role.eq.${userRole}`);
+                .or(roleFilter);
 
             if (countError) throw countError;
             const total = count ?? 0;
@@ -213,7 +314,7 @@ export function NotificationBell() {
             const { data, error } = await supabase
                 .from('notifications')
                 .select('*')
-                .or(`role.eq.All,role.eq.${userRole}`)
+                .or(roleFilter)
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
@@ -225,15 +326,16 @@ export function NotificationBell() {
                 setNotifications(prev => {
                     const existingIds = new Set(prev.map(n => n.id));
                     const freshItems = notificationsData.filter(n => !existingIds.has(n.id));
-                    const merged = [...prev, ...freshItems];
+                    const merged = deduplicateNotifications([...prev, ...freshItems]);
                     setHasMore(merged.length < total);
                     return merged;
                 });
             } else {
-                setNotifications(notificationsData);
-                saveToCache(notificationsData);
-                setHasMore(notificationsData.length < total);
-                const unread = notificationsData.filter(n => !n.is_read).length;
+                const uniqueData = deduplicateNotifications(notificationsData);
+                setNotifications(uniqueData);
+                saveToCache(uniqueData);
+                setHasMore(uniqueData.length < total);
+                const unread = uniqueData.filter(n => !n.is_read).length;
                 setUnreadCount(unread);
             }
 
@@ -246,7 +348,7 @@ export function NotificationBell() {
             setIsLoading(false);
             setIsLoadingMore(false);
         }
-    }, [userRole, saveToCache, fetchUnreadCount]);
+    }, [getRoleFilterQuery, saveToCache, fetchUnreadCount]);
 
     // load initial notifications
     useEffect(() => {
@@ -265,9 +367,7 @@ export function NotificationBell() {
 
     // listen for realtime notification updates
     useEffect(() => {
-        if (!userRole) return;
-
-        const channelId = `navbar_notifs_${userRole}_${Math.random().toString(36).substring(2, 9)}`;
+        const channelId = `navbar_notifs_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
         const channel = supabase
             .channel(channelId)
             .on(
@@ -276,40 +376,72 @@ export function NotificationBell() {
                 (payload) => {
                     if (payload.eventType === 'INSERT') {
                         const newNotif = payload.new as Notification;
-                        if (newNotif.role === 'All' || newNotif.role === userRole) {
+                        if (isNotificationForUser(newNotif.role)) {
                             setNotifications(prev => {
-                                if (prev.some(n => n.id === newNotif.id)) return prev;
-                                return [newNotif, ...prev];
+                                if (prev.some(n => n.id === newNotif.id || (newNotif.po_request_id && n.po_request_id === newNotif.po_request_id))) return prev;
+                                const updated = deduplicateNotifications([newNotif, ...prev]);
+                                saveToCache(updated);
+                                return updated;
                             });
                             setTotalCount(prev => prev + 1);
                             if (!newNotif.is_read) {
                                 setUnreadCount(prev => prev + 1);
                                 setTotalUnread(prev => prev + 1);
                             }
-                            toast.info(newNotif.title, {
-                                description: newNotif.message
-                            });
+                            if (shouldShowToastForNotification(newNotif, userEmailRef.current, userNameRef.current)) {
+                                const toastKey = newNotif.po_request_id || newNotif.id || `${newNotif.title}_${newNotif.message}`;
+                                toast.info(newNotif.title, {
+                                    id: `notif_${toastKey}`,
+                                    description: newNotif.message,
+                                    duration: 6000,
+                                });
+                            }
                         }
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedNotif = payload.new as Notification;
-                        setNotifications(prev => prev.map(n => n.id === updatedNotif.id ? updatedNotif : n));
+                        setNotifications(prev => {
+                            const updated = prev.map(n => n.id === updatedNotif.id ? updatedNotif : n);
+                            saveToCache(updated);
+                            return updated;
+                        });
                         fetchUnreadCount();
                     } else if (payload.eventType === 'DELETE') {
                         const deletedId = (payload.old as { id: string })?.id;
                         if (deletedId) {
-                            setNotifications(prev => prev.filter(n => n.id !== deletedId));
+                            setNotifications(prev => {
+                                const updated = prev.filter(n => n.id !== deletedId);
+                                saveToCache(updated);
+                                return updated;
+                            });
                             setTotalCount(prev => Math.max(0, prev - 1));
                             fetchUnreadCount();
                         }
                     }
                 }
             )
-            .subscribe();
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'purchase_requests' },
+                (payload) => {
+                    if (payload.eventType === 'UPDATE') {
+                        const updatedPR = payload.new as PurchaseRequest;
+                        setPurchaseRequest(prev => prev && prev.id === updatedPR.id ? updatedPR : prev);
+                    }
+                }
+            )
+            .subscribe((status, err) => {
+                if (status === 'SUBSCRIBED') {
+                    fetchUnreadCount();
+                }
+                if (err) {
+                    console.warn('[Realtime Notifications] Subscription error:', err);
+                }
+            });
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [userRole, fetchUnreadCount]);
+    }, [userRole, isNotificationForUser, saveToCache, fetchUnreadCount]);
 
     const handleMarkAsRead = async (id: string) => {
         try {
@@ -504,6 +636,8 @@ export function NotificationBell() {
         setSelectedNotification(notification);
         setShowModal(true);
         setIsLoadingPR(true);
+        setIsEditingPR(false);
+        setEditPRData(null);
 
         try {
             const { data, error } = await supabase
@@ -514,6 +648,7 @@ export function NotificationBell() {
 
             if (error) throw error;
             setPurchaseRequest(data);
+            setEditPRData(data ? JSON.parse(JSON.stringify(data)) : null);
         } catch (error) {
             console.error('Error fetching purchase request:', error);
             toast.error('Failed to load purchase request details');
@@ -522,13 +657,124 @@ export function NotificationBell() {
         }
     };
 
+    const handleEditItemChange = (index: number, field: string, value: any) => {
+        if (!editPRData) return;
+        const currentItems = [...(editPRData.items || [])];
+        const item = { ...currentItems[index] };
+
+        if (field === 'name') {
+            item.name = value;
+            item.item_name = value;
+        } else if (field === 'quantity') {
+            const qty = Math.max(1, Number(value) || 1);
+            item.quantity = qty;
+            const price = Number(item.unit_price ?? item.price ?? 0);
+            item.total = qty * price;
+        } else if (field === 'unit_price') {
+            const price = Math.max(0, Number(value) || 0);
+            item.unit_price = price;
+            item.price = price;
+            const qty = Math.max(1, Number(item.quantity) || 1);
+            item.total = qty * price;
+        }
+
+        currentItems[index] = item;
+        const newTotal = currentItems.reduce((acc: number, it: any) => acc + (Number(it.total) || 0), 0);
+
+        setEditPRData({
+            ...editPRData,
+            items: currentItems,
+            amount: newTotal,
+        });
+    };
+
+    const handleAddEditItem = () => {
+        if (!editPRData) return;
+        const currentItems = [...(editPRData.items || [])];
+        currentItems.push({
+            name: '',
+            quantity: 1,
+            unit_price: 0,
+            price: 0,
+            total: 0,
+        });
+        setEditPRData({
+            ...editPRData,
+            items: currentItems,
+        });
+    };
+
+    const handleRemoveEditItem = (index: number) => {
+        if (!editPRData) return;
+        const currentItems = (editPRData.items || []).filter((_: any, idx: number) => idx !== index);
+        const newTotal = currentItems.reduce((acc: number, it: any) => acc + (Number(it.total) || 0), 0);
+        setEditPRData({
+            ...editPRData,
+            items: currentItems,
+            amount: newTotal,
+        });
+    };
+
+    const handleSaveEdits = async () => {
+        if (!selectedNotification?.po_request_id || !purchaseRequest || !editPRData) return;
+
+        setIsSavingEdits(true);
+        try {
+            const rawItems = editPRData.items || [];
+            const sanitizedItems = rawItems.map((item: any) => {
+                const name = (item.name || item.item_name || 'Item').trim();
+                const quantity = Math.max(1, Number(item.quantity) || 1);
+                const unit_price = Number(item.unit_price ?? item.price ?? item.purchase_price ?? 0);
+                return {
+                    name,
+                    quantity,
+                    unit_price,
+                    price: unit_price,
+                    total: quantity * unit_price,
+                };
+            });
+            const computedSum = sanitizedItems.reduce((acc: number, item: any) => acc + item.total, 0);
+            const finalAmount = computedSum > 0 ? computedSum : (Number(editPRData.amount) || 0);
+
+            const updatePayload = {
+                items: sanitizedItems,
+                amount: finalAmount,
+                description: editPRData.description || sanitizedItems.map((i: any) => `${i.name} (${i.quantity} @ ₱${i.unit_price.toLocaleString()})`).join(', '),
+                reason: editPRData.reason,
+                priority: editPRData.priority,
+                updated_at: new Date().toISOString(),
+            };
+
+            const { error } = await supabase
+                .from('purchase_requests')
+                .update(updatePayload)
+                .eq('id', selectedNotification.po_request_id);
+
+            if (error) throw error;
+
+            setPurchaseRequest({
+                ...purchaseRequest,
+                ...updatePayload,
+            });
+            toast.success('Changes saved successfully');
+            setIsEditingPR(false);
+        } catch (error) {
+            console.error('Error saving edits:', error);
+            toast.error('Failed to save changes');
+        } finally {
+            setIsSavingEdits(false);
+        }
+    };
+
     const handleApprove = async () => {
-        if (!selectedNotification?.po_request_id) return;
+        if (!selectedNotification?.po_request_id || !purchaseRequest) return;
 
         const confirmed = await confirm({
             title: 'Approve Purchase Request',
-            message: `Are you sure you want to approve this purchase request? This will mark the request as approved and ready for purchase order creation.`,
-            confirmText: 'Approve Request',
+            message: isEditingPR
+                ? `Save changes and approve this purchase request? This will mark the request as approved and ready for purchase order creation.`
+                : `Are you sure you want to approve this purchase request? This will mark the request as approved and ready for purchase order creation.`,
+            confirmText: isEditingPR ? 'Save & Approve' : 'Approve Request',
             cancelText: 'Cancel',
             confirmVariant: 'pink',
         });
@@ -537,17 +783,45 @@ export function NotificationBell() {
 
         setIsApproving(true);
         try {
+            const activeData = isEditingPR && editPRData ? editPRData : purchaseRequest;
+            const rawItems = activeData.items || [];
+            const sanitizedItems = rawItems.map((item: any) => {
+                const name = (item.name || item.item_name || 'Item').trim();
+                const quantity = Math.max(1, Number(item.quantity) || 1);
+                const unit_price = Number(item.unit_price ?? item.price ?? item.purchase_price ?? 0);
+                return {
+                    name,
+                    quantity,
+                    unit_price,
+                    price: unit_price,
+                    total: quantity * unit_price,
+                };
+            });
+            const computedSum = sanitizedItems.reduce((acc: number, item: any) => acc + item.total, 0);
+            const finalAmount = computedSum > 0 ? computedSum : (Number(activeData.amount) || 0);
+
+            const updatePayload: any = {
+                status: 'Approved',
+                updated_at: new Date().toISOString(),
+            };
+
+            if (isEditingPR && editPRData) {
+                updatePayload.items = sanitizedItems;
+                updatePayload.amount = finalAmount;
+                updatePayload.description = editPRData.description || sanitizedItems.map((i: any) => `${i.name} (${i.quantity} @ ₱${i.unit_price.toLocaleString()})`).join(', ');
+                updatePayload.reason = editPRData.reason || purchaseRequest.reason;
+                updatePayload.priority = editPRData.priority || purchaseRequest.priority;
+            }
+
             const { error } = await supabase
                 .from('purchase_requests')
-                .update({
-                    status: 'Approved',
-                    updated_at: new Date().toISOString(),
-                })
+                .update(updatePayload)
                 .eq('id', selectedNotification.po_request_id);
 
             if (error) throw error;
 
-            toast.success('Purchase request approved successfully');
+            toast.success(isEditingPR ? 'Request updated and approved successfully' : 'Purchase request approved successfully');
+            setIsEditingPR(false);
             setShowModal(false);
             fetchNotifications(0, false);
         } catch (error) {
@@ -1019,9 +1293,27 @@ export function NotificationBell() {
                                                 <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${getStatusColor(purchaseRequest.status)}`}>
                                                     {purchaseRequest.status}
                                                 </span>
-                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${getPriorityColor(purchaseRequest.priority)}`}>
-                                                    {purchaseRequest.priority} Priority
-                                                </span>
+                                                {isEditingPR ? (
+                                                    <select
+                                                        value={editPRData?.priority || 'Normal'}
+                                                        onChange={(e) => setEditPRData({ ...editPRData, priority: e.target.value })}
+                                                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-pink-300/80 dark:border-pink-800/80 text-pink-600 dark:text-pink-400 focus:outline-none cursor-pointer shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                    >
+                                                        <option value="Low">Low Priority</option>
+                                                        <option value="Normal">Normal Priority</option>
+                                                        <option value="High">High Priority</option>
+                                                        <option value="Urgent">Urgent Priority</option>
+                                                    </select>
+                                                ) : (
+                                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${getPriorityColor(purchaseRequest.priority)}`}>
+                                                        {purchaseRequest.priority} Priority
+                                                    </span>
+                                                )}
+                                                {isEditingPR && (
+                                                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800/50">
+                                                        Editing Mode
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
                                                 <Calendar className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
@@ -1075,12 +1367,13 @@ export function NotificationBell() {
                                                 </div>
                                                 <p className="text-base font-extrabold text-pink-600 dark:text-pink-400">
                                                     ₱{(() => {
-                                                        const computedSum = purchaseRequest.items?.reduce((acc: number, item: any) => {
+                                                        const activeData = isEditingPR && editPRData ? editPRData : purchaseRequest;
+                                                        const computedSum = activeData.items?.reduce((acc: number, item: any) => {
                                                             const q = Number(item.quantity) || 1;
                                                             const p = Number(item.unit_price ?? item.price ?? item.purchase_price ?? 0);
                                                             return acc + (q * p);
                                                         }, 0) || 0;
-                                                        const finalAmt = Number(purchaseRequest.amount || 0) > 0 ? Number(purchaseRequest.amount) : computedSum;
+                                                        const finalAmt = computedSum > 0 ? computedSum : (Number(activeData.amount || 0));
                                                         return finalAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                                     })()}
                                                 </p>
@@ -1095,9 +1388,19 @@ export function NotificationBell() {
                                                     <FileText className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
                                                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Description</h4>
                                                 </div>
-                                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line leading-relaxed font-medium">
-                                                    {purchaseRequest.description || 'No description provided.'}
-                                                </p>
+                                                {isEditingPR ? (
+                                                    <textarea
+                                                        value={editPRData?.description || ''}
+                                                        onChange={(e) => setEditPRData({ ...editPRData, description: e.target.value })}
+                                                        rows={3}
+                                                        className="w-full text-xs text-slate-800 dark:text-slate-200 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl p-2.5 outline-none focus:border-pink-500 resize-none font-medium transition-all"
+                                                        placeholder="Description of the request..."
+                                                    />
+                                                ) : (
+                                                    <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line leading-relaxed font-medium">
+                                                        {purchaseRequest.description || 'No description provided.'}
+                                                    </p>
+                                                )}
                                             </div>
 
                                             <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 
@@ -1106,59 +1409,100 @@ export function NotificationBell() {
                                                     <AlertCircle className="h-4 w-4 text-amber-500" />
                                                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Business Reason</h4>
                                                 </div>
-                                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line leading-relaxed font-medium">
-                                                    {purchaseRequest.reason || 'No reason specified.'}
-                                                </p>
+                                                {isEditingPR ? (
+                                                    <textarea
+                                                        value={editPRData?.reason || ''}
+                                                        onChange={(e) => setEditPRData({ ...editPRData, reason: e.target.value })}
+                                                        rows={3}
+                                                        className="w-full text-xs text-slate-800 dark:text-slate-200 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl p-2.5 outline-none focus:border-pink-500 resize-none font-medium transition-all"
+                                                        placeholder="Business justification..."
+                                                    />
+                                                ) : (
+                                                    <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line leading-relaxed font-medium">
+                                                        {purchaseRequest.reason || 'No reason specified.'}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
                                         {/* Line Items Table */}
-                                        {purchaseRequest.items && purchaseRequest.items.length > 0 && (
-                                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                                        {isEditingPR ? (
+                                            <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-pink-300/50 dark:border-pink-900/40 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                                                 <div className="pb-3 mb-2 border-b border-slate-200/60 dark:border-white/[0.04] flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
                                                         <Package className="h-4 w-4 text-pink-500 dark:text-pink-400" />
-                                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Requested Line Items</span>
+                                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Requested Line Items (Editing)</span>
                                                     </div>
-                                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-bold bg-[#f0f3f8] dark:bg-[#1a1b26] px-2 py-0.5 rounded-lg border border-white/80 dark:border-[#2a2b38]">
-                                                        {purchaseRequest.items.length} {purchaseRequest.items.length === 1 ? 'Item' : 'Items'}
-                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAddEditItem}
+                                                        className="text-xs text-pink-600 dark:text-pink-400 font-bold hover:text-pink-500 flex items-center gap-1 bg-[#f0f3f8] dark:bg-[#1a1b26] px-2.5 py-1 rounded-xl border border-pink-200/80 dark:border-pink-900/40 shadow-xs cursor-pointer active:scale-95 transition-all"
+                                                    >
+                                                        <Plus className="h-3 w-3" />
+                                                        <span>Add Item</span>
+                                                    </button>
                                                 </div>
 
                                                 <div className="overflow-x-auto">
                                                     <table className="w-full text-left border-collapse">
                                                         <thead>
                                                             <tr className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200/40 dark:border-white/[0.03]">
-                                                                <th className="py-2 px-3">Item</th>
-                                                                <th className="py-2 px-3 text-center">Qty</th>
-                                                                <th className="py-2 px-3 text-right">Unit Price</th>
-                                                                <th className="py-2 px-3 text-right">Total</th>
+                                                                <th className="py-2 px-3">Item Name</th>
+                                                                <th className="py-2 px-3 text-center w-24">Qty</th>
+                                                                <th className="py-2 px-3 text-right w-36">Unit Price (₱)</th>
+                                                                <th className="py-2 px-3 text-right w-28">Total</th>
+                                                                <th className="py-2 px-2 text-center w-12">Action</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-200/40 dark:divide-white/[0.03] text-xs font-medium">
-                                                            {purchaseRequest.items.map((item: any, index: number) => {
+                                                            {(editPRData?.items || []).map((item: any, index: number) => {
                                                                 const qty = Number(item.quantity) || 1;
-                                                                const directPrice = Number(item.unit_price ?? item.price ?? item.purchase_price ?? 0);
-                                                                const totalReqAmt = Number(purchaseRequest.amount) || 0;
-                                                                const fallbackPrice = totalReqAmt > 0 && purchaseRequest.items.length
-                                                                    ? (totalReqAmt / purchaseRequest.items.length) / qty
-                                                                    : 0;
-                                                                const unitPrice = directPrice > 0 ? directPrice : fallbackPrice;
-                                                                const rowTotal = Number(item.total) > 0 ? Number(item.total) : (qty * unitPrice);
-
+                                                                const price = Number(item.unit_price ?? item.price ?? 0);
+                                                                const total = qty * price;
                                                                 return (
                                                                     <tr key={index} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
-                                                                        <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
-                                                                            {item.name || item.item_name || item.description || 'Inventory Item'}
+                                                                        <td className="py-2 px-2">
+                                                                            <input
+                                                                                type="text"
+                                                                                value={item.name || item.item_name || ''}
+                                                                                onChange={(e) => handleEditItemChange(index, 'name', e.target.value)}
+                                                                                placeholder="Item name"
+                                                                                className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                            />
                                                                         </td>
-                                                                        <td className="py-2.5 px-3 text-center text-slate-600 dark:text-slate-400">
-                                                                            {qty}
+                                                                        <td className="py-2 px-2 text-center">
+                                                                            <input
+                                                                                type="number"
+                                                                                min="1"
+                                                                                value={item.quantity || 1}
+                                                                                onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
+                                                                                className="w-20 text-center bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                            />
                                                                         </td>
-                                                                        <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">
-                                                                            ₱{unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                        <td className="py-2 px-2 text-right">
+                                                                            <input
+                                                                                type="number"
+                                                                                min="0"
+                                                                                step="0.01"
+                                                                                value={item.unit_price ?? item.price ?? 0}
+                                                                                onChange={(e) => handleEditItemChange(index, 'unit_price', e.target.value)}
+                                                                                className="w-32 text-right bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                            />
                                                                         </td>
-                                                                        <td className="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-white">
-                                                                            ₱{rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                        <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                                                                            ₱{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                        </td>
+                                                                        <td className="py-2 px-2 text-center">
+                                                                            {(editPRData?.items || []).length > 1 && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleRemoveEditItem(index)}
+                                                                                    className="p-1 text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                                                                                    title="Remove item"
+                                                                                >
+                                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                                </button>
+                                                                            )}
                                                                         </td>
                                                                     </tr>
                                                                 );
@@ -1167,6 +1511,62 @@ export function NotificationBell() {
                                                     </table>
                                                 </div>
                                             </div>
+                                        ) : (
+                                            purchaseRequest.items && purchaseRequest.items.length > 0 && (
+                                                <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                                                    <div className="pb-3 mb-2 border-b border-slate-200/60 dark:border-white/[0.04] flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <Package className="h-4 w-4 text-pink-500 dark:text-pink-400" />
+                                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Requested Line Items</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400 font-bold bg-[#f0f3f8] dark:bg-[#1a1b26] px-2 py-0.5 rounded-lg border border-white/80 dark:border-[#2a2b38]">
+                                                            {purchaseRequest.items.length} {purchaseRequest.items.length === 1 ? 'Item' : 'Items'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200/40 dark:border-white/[0.03]">
+                                                                    <th className="py-2 px-3">Item</th>
+                                                                    <th className="py-2 px-3 text-center">Qty</th>
+                                                                    <th className="py-2 px-3 text-right">Unit Price</th>
+                                                                    <th className="py-2 px-3 text-right">Total</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-200/40 dark:divide-white/[0.03] text-xs font-medium">
+                                                                {purchaseRequest.items.map((item: any, index: number) => {
+                                                                    const qty = Number(item.quantity) || 1;
+                                                                    const directPrice = Number(item.unit_price ?? item.price ?? item.purchase_price ?? 0);
+                                                                    const totalReqAmt = Number(purchaseRequest.amount) || 0;
+                                                                    const fallbackPrice = totalReqAmt > 0 && purchaseRequest.items.length
+                                                                        ? (totalReqAmt / purchaseRequest.items.length) / qty
+                                                                        : 0;
+                                                                    const unitPrice = directPrice > 0 ? directPrice : fallbackPrice;
+                                                                    const rowTotal = Number(item.total) > 0 ? Number(item.total) : (qty * unitPrice);
+
+                                                                    return (
+                                                                        <tr key={index} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                                                                            <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
+                                                                                {item.name || item.item_name || item.description || 'Inventory Item'}
+                                                                            </td>
+                                                                            <td className="py-2.5 px-3 text-center text-slate-600 dark:text-slate-400">
+                                                                                {qty}
+                                                                            </td>
+                                                                            <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">
+                                                                                ₱{unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                            </td>
+                                                                            <td className="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-white">
+                                                                                ₱{rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )
                                         )}
 
                                         {/* Creation Audit Stamp */}
@@ -1185,45 +1585,111 @@ export function NotificationBell() {
                             {/* Fixed Footer Actions */}
                             {purchaseRequest && (
                                 <div className="shrink-0 border-t border-slate-200/60 dark:border-white/[0.06] 
-                                                px-6 py-4 bg-[#ebf0f7]/60 dark:bg-[#14151e]/60 flex items-center justify-end">
-                                    {/* Action Buttons (Approve/Reject) for Pending Requests */}
-                                    {purchaseRequest.status === 'Pending' && ['admin', 'executive', 'manager'].includes((userRole || '').toLowerCase()) ? (
-                                        <div className="flex items-center justify-end gap-3 w-full sm:w-auto">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowRejectModal(true)}
-                                                disabled={isApproving}
-                                                className="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-[#f0f3f8] dark:bg-[#1a1b26] border border-rose-200/80 dark:border-rose-900/40 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
-                                            >
-                                                <X className="h-4 w-4" />
-                                                <span>Reject Request</span>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleApprove}
-                                                disabled={isApproving}
-                                                className="px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 shadow-[3px_3px_8px_rgba(236,72,153,0.35),-2px_-2px_6px_rgba(255,255,255,0.4)] border border-pink-400/60 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
-                                            >
-                                                {isApproving ? (
-                                                    <>
-                                                        <Loader2 className="animate-spin h-4 w-4" />
-                                                        <span>Processing...</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Check className="h-4 w-4" />
-                                                        <span>Approve Request</span>
-                                                    </>
+                                                px-6 py-4 bg-[#ebf0f7]/60 dark:bg-[#14151e]/60 flex items-center justify-between flex-wrap gap-3">
+                                    {/* Action Buttons (Approve/Reject/Edit) with precise permission checks */}
+                                    {(() => {
+                                        const normalizedRole = (userRole || '').trim().toLowerCase();
+                                        const statusLower = (purchaseRequest.status || '').toLowerCase();
+                                        const isLocked = ['sent', 'confirmed', 'delivered', 'completed'].includes(statusLower);
+                                        const canApproveReject = statusLower === 'pending' && ['admin', 'executive'].includes(normalizedRole);
+                                        const canEdit = !isLocked && (
+                                            (statusLower === 'pending' && ['admin', 'executive', 'manager'].includes(normalizedRole)) ||
+                                            (statusLower === 'approved' && ['admin', 'executive'].includes(normalizedRole))
+                                        );
+
+                                        if (!canEdit && !canApproveReject) {
+                                            return (
+                                                <div className="flex items-center justify-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 py-1 w-full">
+                                                    <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                                                    <span>This request is currently {purchaseRequest.status.toLowerCase()}</span>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    {canEdit && (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (isEditingPR) {
+                                                                        setEditPRData(JSON.parse(JSON.stringify(purchaseRequest)));
+                                                                        setIsEditingPR(false);
+                                                                    } else {
+                                                                        setIsEditingPR(true);
+                                                                    }
+                                                                }}
+                                                                disabled={isApproving || isSavingEdits}
+                                                                className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 ${
+                                                                    isEditingPR
+                                                                        ? 'text-slate-600 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#1a1b26] border border-slate-300 dark:border-slate-700 shadow-sm'
+                                                                        : 'text-indigo-600 dark:text-indigo-400 bg-[#f0f3f8] dark:bg-[#1a1b26] border border-indigo-200/80 dark:border-indigo-900/40 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55)]'
+                                                                }`}
+                                                            >
+                                                                <Edit3 className="h-3.5 w-3.5" />
+                                                                <span>{isEditingPR ? 'Cancel Edit' : 'Edit Request'}</span>
+                                                            </button>
+
+                                                            {isEditingPR && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleSaveEdits}
+                                                                    disabled={isApproving || isSavingEdits}
+                                                                    className="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-[#f0f3f8] dark:bg-[#1a1b26] border border-emerald-300 dark:border-emerald-800 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                                                                >
+                                                                    {isSavingEdits ? (
+                                                                        <>
+                                                                            <Loader2 className="animate-spin h-3.5 w-3.5" />
+                                                                            <span>Saving...</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Check className="h-3.5 w-3.5" />
+                                                                            <span>Save Edits</span>
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {canApproveReject && (
+                                                    <div className="flex items-center justify-end gap-3 w-full sm:w-auto ml-auto">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowRejectModal(true)}
+                                                            disabled={isApproving || isSavingEdits}
+                                                            className="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-[#f0f3f8] dark:bg-[#1a1b26] border border-rose-200/80 dark:border-rose-900/40 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                            <span>Reject Request</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleApprove}
+                                                            disabled={isApproving || isSavingEdits}
+                                                            className="px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-white bg-pink-600 hover:bg-pink-500 active:bg-pink-700 shadow-[3px_3px_8px_rgba(236,72,153,0.35),-2px_-2px_6px_rgba(255,255,255,0.4)] border border-pink-400/60 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                                                        >
+                                                            {isApproving ? (
+                                                                <>
+                                                                    <Loader2 className="animate-spin h-4 w-4" />
+                                                                    <span>Processing...</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Check className="h-4 w-4" />
+                                                                    <span>{isEditingPR ? 'Save & Approve' : 'Approve Request'}</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
                                                 )}
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-center gap-2 text-xs font-medium 
-                                                        text-slate-500 dark:text-slate-400 py-1 w-full">
-                                            <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                                            <span>This request is currently {purchaseRequest.status.toLowerCase()}</span>
-                                        </div>
-                                    )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             )}
 

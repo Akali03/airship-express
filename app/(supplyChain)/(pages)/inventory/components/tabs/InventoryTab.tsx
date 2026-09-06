@@ -38,6 +38,7 @@ interface InventoryTabProps {
     onStockOut: (itemName: string) => void;
     onAddItem: () => void;
     onOrderPO?: (item: InventoryItem) => void;
+    onViewPurchaseRequest?: (requestId: string, requestNumber?: string) => void;
 }
 
 export const InventoryTab = memo(function InventoryTab({
@@ -64,6 +65,7 @@ export const InventoryTab = memo(function InventoryTab({
     onStockOut,
     onAddItem,
     onOrderPO,
+    onViewPurchaseRequest,
 }: InventoryTabProps) {
     const [activeMessageModal, setActiveMessageModal] = useState<{
         title: string;
@@ -353,10 +355,27 @@ export const InventoryTab = memo(function InventoryTab({
                                         <td data-label="Latest PO / Activity" className="px-4 py-3 whitespace-nowrap">
                                             {po ? (
                                                 po.is_request ? (
-                                                    <StatusBadge tone="amber" icon="fas fa-clock" size="xs">
-                                                        <span className="font-mono">{po.request_number}</span>
-                                                        <span className="opacity-85">({po.status})</span>
-                                                    </StatusBadge>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (po.request_id && onViewPurchaseRequest) {
+                                                                onViewPurchaseRequest(po.request_id, po.request_number);
+                                                            }
+                                                        }}
+                                                        className="text-left group/pr cursor-pointer focus:outline-none"
+                                                        title="Click to view purchase request details"
+                                                    >
+                                                        <StatusBadge
+                                                            tone={po.status === 'Approved' ? 'emerald' : po.status === 'Rejected' ? 'rose' : 'amber'}
+                                                            icon={po.status === 'Approved' ? 'fas fa-check-circle' : 'fas fa-clock'}
+                                                            size="xs"
+                                                        >
+                                                            <span className="font-mono">{po.request_number}</span>
+                                                            <span className="opacity-85">({po.status})</span>
+                                                            <i className="fas fa-external-link-alt text-[8px] ml-1 opacity-60 group-hover/pr:opacity-100 transition-opacity"></i>
+                                                        </StatusBadge>
+                                                    </button>
                                                 ) : (
                                                     <div className="flex flex-col space-y-1">
                                                         <StatusBadge
@@ -367,6 +386,25 @@ export const InventoryTab = memo(function InventoryTab({
                                                             <span className="font-mono">{po.po_number}</span>
                                                             <span>• {po.status}</span>
                                                         </StatusBadge>
+                                                        {po.has_pending_pr && po.pending_pr_id && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (po.pending_pr_id && onViewPurchaseRequest) {
+                                                                        onViewPurchaseRequest(po.pending_pr_id, po.pending_pr_number);
+                                                                    }
+                                                                }}
+                                                                className="text-left group/pr cursor-pointer focus:outline-none block"
+                                                                title="Pending PR exists! Click to view"
+                                                            >
+                                                                <StatusBadge tone="amber" icon="fas fa-clock" size="xs">
+                                                                    <span className="font-mono">{po.pending_pr_number || 'Pending PR'}</span>
+                                                                    <span className="opacity-85">(Pending)</span>
+                                                                    <i className="fas fa-external-link-alt text-[8px] ml-1 opacity-60 group-hover/pr:opacity-100 transition-opacity"></i>
+                                                                </StatusBadge>
+                                                            </button>
+                                                        )}
                                                         {po.quantity_ordered && po.quantity_ordered > 0 && (
                                                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                                                                 <span className="font-bold text-slate-700 dark:text-slate-300">
@@ -430,16 +468,33 @@ export const InventoryTab = memo(function InventoryTab({
 
                                         {/* actions */}
                                         <td data-label="Actions" className="px-4 py-3 text-right whitespace-nowrap min-w-[190px] w-[190px]" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex items-center justify-end gap-1.5">
-                                                {/* po button */}
-                                                <CrudActionButton
-                                                    action="custom"
-                                                    label="Order"
-                                                    icon={ShoppingCart}
-                                                    ariaLabel="Order / Purchase Request"
-                                                    title="Order / Purchase Request"
-                                                    onClick={() => onOrderPO?.(item)}
-                                                />
+                                            {(() => {
+                                                const hasPendingPR = Boolean(
+                                                    po?.has_pending_pr || (po?.is_request && po?.status === 'Pending')
+                                                );
+                                                const pendingPRNumber = po?.pending_pr_number || (po?.is_request && po?.status === 'Pending' ? po?.request_number || po?.po_number : undefined);
+
+                                                return (
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {/* po button */}
+                                                        <div
+                                                            className="inline-block"
+                                                            title={hasPendingPR ? `Cannot order: Purchase Request (${pendingPRNumber || 'Pending'}) is currently pending` : "Order / Purchase Request"}
+                                                        >
+                                                            <CrudActionButton
+                                                                action="custom"
+                                                                label="Order"
+                                                                icon={ShoppingCart}
+                                                                disabled={hasPendingPR}
+                                                                ariaLabel={hasPendingPR ? `Cannot order: PR ${pendingPRNumber || 'Pending'} pending` : "Order / Purchase Request"}
+                                                                title={hasPendingPR ? `Cannot order: Purchase Request (${pendingPRNumber || 'Pending'}) is currently pending` : "Order / Purchase Request"}
+                                                                onClick={() => {
+                                                                    if (!hasPendingPR) {
+                                                                        onOrderPO?.(item);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
 
                                                 {/* stock in */}
                                                 <CrudActionButton
@@ -477,7 +532,9 @@ export const InventoryTab = memo(function InventoryTab({
                                                     onClick={() => onDelete(item.id, item.item_name)}
                                                 />
                                             </div>
-                                        </td>
+                                        );
+                                    })()}
+                                </td>
                                     </tr>
                                 );
                             })

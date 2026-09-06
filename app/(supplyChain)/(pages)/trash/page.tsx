@@ -7,11 +7,13 @@ import { DocumentsTab } from '@/app/(supplyChain)/(pages)/trash/components/Docum
 import { PurchaseOrdersTab } from '@/app/(supplyChain)/(pages)/trash/components/PurchaseOrdersTab';
 import { SuppliersTab } from '@/app/(supplyChain)/(pages)/trash/components/SuppliersTab';
 import { ParcelsTab } from '@/app/(supplyChain)/(pages)/trash/components/ParcelsTab';
+import { trashCache } from '@/app/(supplyChain)/(pages)/trash/utils/trashCache';
+import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
 
-type ArchiveTab = 'inventory' | 'documents' | 'purchase_orders' | 'suppliers' | 'parcels';
+type ArchiveTab = 'documents' | 'purchase_orders' | 'suppliers' | 'parcels';
 
 const DEFAULT_TAB: ArchiveTab = 'documents';
-const VALID_TABS: ArchiveTab[] = ['inventory', 'documents', 'purchase_orders', 'suppliers', 'parcels'];
+const VALID_TABS: ArchiveTab[] = ['documents', 'purchase_orders', 'suppliers', 'parcels'];
 
 export default function ArchivePage() {
     const router = useRouter();
@@ -20,13 +22,18 @@ export default function ArchivePage() {
     const tabFromUrl = searchParams.get('tab') as ArchiveTab;
     const isValidTab = tabFromUrl && VALID_TABS.includes(tabFromUrl);
     const [activeTab, setActiveTab] = useState<ArchiveTab>(isValidTab ? tabFromUrl : DEFAULT_TAB);
-    const [isAnimating, setIsAnimating] = useState(false);
+    const [visitedTabs, setVisitedTabs] = useState<Set<ArchiveTab>>(new Set([isValidTab ? tabFromUrl : DEFAULT_TAB]));
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // update tab
     const updateTab = useCallback((tab: ArchiveTab) => {
-        setIsAnimating(true);
-        setTimeout(() => setIsAnimating(false), 300);
         setActiveTab(tab);
+        setVisitedTabs(prev => {
+            if (prev.has(tab)) return prev;
+            const next = new Set(prev);
+            next.add(tab);
+            return next;
+        });
 
         const params = new URLSearchParams(searchParams.toString());
         params.set('tab', tab);
@@ -38,12 +45,26 @@ export default function ArchivePage() {
         const tab = searchParams.get('tab') as ArchiveTab;
         if (tab && VALID_TABS.includes(tab)) {
             setActiveTab(tab);
+            setVisitedTabs(prev => {
+                if (prev.has(tab)) return prev;
+                const next = new Set(prev);
+                next.add(tab);
+                return next;
+            });
         } else if (!tab) {
             const params = new URLSearchParams(searchParams.toString());
             params.set('tab', DEFAULT_TAB);
             router.replace(`?${params.toString()}`, { scroll: false });
         }
     }, [searchParams, router]);
+
+    const handleRefresh = useCallback(() => {
+        setIsRefreshing(true);
+        trashCache.forceRefresh(activeTab);
+        setTimeout(() => {
+            setIsRefreshing(false);
+        }, 600);
+    }, [activeTab]);
 
     // tab config
     const tabs = [
@@ -55,7 +76,7 @@ export default function ArchivePage() {
 
     return (
         <SessionGuard requiredRole={['Admin', 'Manager', 'Employee', 'Executive']}>
-            <div className={`p-6 space-y-6 animate-in fade-in duration-300 bgCard ${isAnimating ? 'opacity-50 transition-opacity duration-200' : 'opacity-100'}`}>
+            <div className="p-6 space-y-6 animate-in fade-in duration-300 bgCard">
                 {/* header */}
                 <div className="flex items-center justify-between gap-4 flex-wrap border-b border-slate-200/80 dark:border-slate-800 pb-5">
                     <div className="flex items-center gap-3.5">
@@ -70,6 +91,20 @@ export default function ArchivePage() {
                                 View, restore, or permanently remove deleted records
                             </p>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <AppButton
+                            variant="neutral"
+                            size="sm"
+                            pill
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className="cursor-pointer"
+                        >
+                            <i className={`fas fa-rotate text-xs mr-1.5 ${isRefreshing ? 'fa-spin text-pink-500' : 'text-slate-500 dark:text-slate-400'}`}></i>
+                            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                        </AppButton>
                     </div>
                 </div>
 
@@ -98,12 +133,28 @@ export default function ArchivePage() {
                     })}
                 </div>
 
-                {/* content */}
-                <div className="transition-opacity duration-300 ease-in-out">
-                    {activeTab === 'documents' && <DocumentsTab />}
-                    {activeTab === 'purchase_orders' && <PurchaseOrdersTab />}
-                    {activeTab === 'suppliers' && <SuppliersTab />}
-                    {activeTab === 'parcels' && <ParcelsTab />}
+                {/* content with keep-alive and smooth fade-in */}
+                <div className="relative min-h-[400px]">
+                    {visitedTabs.has('documents') && (
+                        <div className={activeTab === 'documents' ? 'block animate-in fade-in-50 duration-200' : 'hidden'}>
+                            <DocumentsTab />
+                        </div>
+                    )}
+                    {visitedTabs.has('purchase_orders') && (
+                        <div className={activeTab === 'purchase_orders' ? 'block animate-in fade-in-50 duration-200' : 'hidden'}>
+                            <PurchaseOrdersTab />
+                        </div>
+                    )}
+                    {visitedTabs.has('suppliers') && (
+                        <div className={activeTab === 'suppliers' ? 'block animate-in fade-in-50 duration-200' : 'hidden'}>
+                            <SuppliersTab />
+                        </div>
+                    )}
+                    {visitedTabs.has('parcels') && (
+                        <div className={activeTab === 'parcels' ? 'block animate-in fade-in-50 duration-200' : 'hidden'}>
+                            <ParcelsTab />
+                        </div>
+                    )}
                 </div>
             </div>
         </SessionGuard>

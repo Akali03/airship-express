@@ -1,7 +1,7 @@
 // app/(supplyChain)/(pages)/purchase-orders/page.tsx
 "use client";
 // imports
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Chart from "chart.js/auto";
 import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
@@ -13,22 +13,53 @@ import { Pagination } from "@/app/(supplyChain)/components/global/pagination";
 import { SessionGuard } from "@/app/(supplyChain)/components/server/SessionGuard";
 import { TableContentLoader } from "@/app/(supplyChain)/components/global/Loader";
 import Cards from "@/app/(supplyChain)/components/global/Cards";
-import { PurchaseOrderModal } from "@/app/(supplyChain)/components/modals/PurchaseOrderModal";
-import { ApprovedRequestsModal } from "@/app/(supplyChain)/components/modals/ApprovedRequestsModal";
-import { PurchaseRequestModal } from "@/app/(supplyChain)/components/modals/PurchaseRequestModal";
-import { ChartDetailModal } from "@/app/(supplyChain)/components/modals/ChartDetailModal";
+import dynamic from "next/dynamic";
 import { createPurchaseRequest } from "@/app/(supplyChain)/(pages)/procurement/utils/procurementApi";
 import AiQuestions from "@/app/(supplyChain)/components/global/AiQuestions";
 import { user } from "@/app/(supplyChain)/lib/services/Class/user";
 import { buildEmailTemplate } from "@/app/(supplyChain)/(pages)/procurement/api/send-email/template";
-import { UploadReceiptModal, VerificationJob } from "@/app/(supplyChain)/components/modals/UploadReceiptModal";
+import {
+    VerificationJob,
+    ReceiptQueueItem,
+    getPoRateLimit,
+    setPoRateLimit,
+    clearPoRateLimit,
+    MAX_MISMATCH_ATTEMPTS,
+} from "@/app/(supplyChain)/components/modals/UploadReceiptModal";
+import { uploadReceiptAndVerifyAction } from "@/app/(supplyChain)/(pages)/purchase-orders/server/actions/ocr-verify";
 import { ReceiptProcessingIndicator } from "@/app/(supplyChain)/components/global/ReceiptProcessingIndicator";
 import { CrudActionButton } from "@/app/(supplyChain)/components/ui/CrudActionButton";
 import { AppButton } from "@/app/(supplyChain)/components/ui/AppButton";
 import { FileText, MoreHorizontal } from "lucide-react";
-import DocumentViewerModal, { ViewDocumentData } from "@/app/(supplyChain)/components/modals/DocumentViewerModal";
+import type { ViewDocumentData } from "@/app/(supplyChain)/components/modals/DocumentViewerModal";
 import { StatusBadge, getPOStatusTone } from "@/app/(supplyChain)/components/ui/StatusBadge";
 import Portal from "@/app/(supplyChain)/components/client/Portal";
+
+// dynamic modal imports to reduce initial bundle size
+const PurchaseOrderModal = dynamic(
+    () => import("@/app/(supplyChain)/components/modals/PurchaseOrderModal").then(m => m.PurchaseOrderModal),
+    { ssr: false }
+);
+const ApprovedRequestsModal = dynamic(
+    () => import("@/app/(supplyChain)/components/modals/ApprovedRequestsModal").then(m => m.ApprovedRequestsModal),
+    { ssr: false }
+);
+const PurchaseRequestModal = dynamic(
+    () => import("@/app/(supplyChain)/components/modals/PurchaseRequestModal").then(m => m.PurchaseRequestModal),
+    { ssr: false }
+);
+const ChartDetailModal = dynamic(
+    () => import("@/app/(supplyChain)/components/modals/ChartDetailModal").then(m => m.ChartDetailModal),
+    { ssr: false }
+);
+const DocumentViewerModal = dynamic(
+    () => import("@/app/(supplyChain)/components/modals/DocumentViewerModal"),
+    { ssr: false }
+);
+const UploadReceiptModal = dynamic(
+    () => import("@/app/(supplyChain)/components/modals/UploadReceiptModal").then(m => m.UploadReceiptModal),
+    { ssr: false }
+);
 // types
 interface PurchaseOrder {
     id: string;
@@ -92,25 +123,25 @@ function EmptyState({ title, description, icon = "fas fa-file-invoice", actionTe
         ? "Try adjusting your search terms or filter criteria to find what you're looking for."
         : "Create purchase requests or generate purchase orders to start managing your procurement.");
     return (<div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-            <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] flex items-center justify-center mb-3.5 text-pink-500 dark:text-pink-400 transition-transform duration-300 hover:scale-105">
-                <i className={`${icon} text-2xl`}/>
-            </div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">
-                {displayTitle}
-            </h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm mb-5 leading-relaxed">
-                {displayDescription}
-            </p>
-            <div className="flex items-center gap-3">
-                {actionText && onAction && (<button onClick={onAction} className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] rounded-2xl transition-all flex items-center gap-2 cursor-pointer active:scale-95">
-                        <i className="fas fa-plus text-[10px]"/>
-                        <span>{actionText}</span>
-                    </button>)}
-                {isFilterActive && onClearSearch && (<button onClick={onClearSearch} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1d1e28] hover:bg-white dark:hover:bg-slate-800 border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] rounded-2xl transition-all cursor-pointer active:scale-95">
-                        Clear Filters
-                    </button>)}
-            </div>
-        </div>);
+        <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] flex items-center justify-center mb-3.5 text-pink-500 dark:text-pink-400 transition-transform duration-300 hover:scale-105">
+            <i className={`${icon} text-2xl`} />
+        </div>
+        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">
+            {displayTitle}
+        </h3>
+        <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm mb-5 leading-relaxed">
+            {displayDescription}
+        </p>
+        <div className="flex items-center gap-3">
+            {actionText && onAction && (<button onClick={onAction} className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 border border-pink-400/80 shadow-[0_3px_10px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] rounded-2xl transition-all flex items-center gap-2 cursor-pointer active:scale-95">
+                <i className="fas fa-plus text-[10px]" />
+                <span>{actionText}</span>
+            </button>)}
+            {isFilterActive && onClearSearch && (<button onClick={onClearSearch} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1d1e28] hover:bg-white dark:hover:bg-slate-800 border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] rounded-2xl transition-all cursor-pointer active:scale-95">
+                Clear Filters
+            </button>)}
+        </div>
+    </div>);
 }
 // component
 export default function PurchaseOrders() {
@@ -156,6 +187,83 @@ export default function PurchaseOrders() {
     const [activeVerificationJob, setActiveVerificationJob] = useState<VerificationJob | null>(null);
     const [viewingDocData, setViewingDocData] = useState<ViewDocumentData | null>(null);
     const [isDocViewerOpen, setIsDocViewerOpen] = useState(false);
+    // tracking POs currently being verified for receipt matching
+    const [verifyingPoIds, setVerifyingPoIds] = useState<Set<string>>(new Set());
+    // OCR Verification Queue
+    const [receiptQueue, setReceiptQueue] = useState<ReceiptQueueItem[]>([]);
+    const isProcessingQueueRef = useRef(false);
+
+    const handleStartVerification = useCallback((poId: string) => {
+        setVerifyingPoIds((prev) => {
+            const next = new Set(prev);
+            next.add(poId);
+            return next;
+        });
+    }, []);
+
+    const handleEndVerification = useCallback((poId: string) => {
+        setVerifyingPoIds((prev) => {
+            const next = new Set(prev);
+            next.delete(poId);
+            return next;
+        });
+    }, []);
+
+    const handleEnqueueVerification = useCallback(({ po, file, base64Data }: { po: any; file: File; base64Data: string }) => {
+        const newItem: ReceiptQueueItem = {
+            id: `queue_${po.id}_${Date.now()}`,
+            poId: po.id,
+            poNumber: po.po_number,
+            supplierName: po.supplier_name,
+            totalAmount: po.total_amount,
+            file,
+            fileName: file.name,
+            fileBase64: base64Data,
+            fileType: file.type,
+            fileSize: file.size,
+            status: 'queued',
+            addedAt: Date.now(),
+        };
+
+        setReceiptQueue(prev => [...prev, newItem]);
+        setVerifyingPoIds(prev => new Set(prev).add(po.id));
+
+        const pendingCount = receiptQueue.filter(q => q.status === 'queued' || q.status === 'processing').length;
+        if (pendingCount > 0) {
+            toast.info(`Receipt for PO #${po.po_number} added to queue (${pendingCount + 1} waiting). You can upload other receipts!`);
+        } else {
+            toast.success(`Receipt for PO #${po.po_number} added to queue and started processing!`);
+        }
+    }, [receiptQueue]);
+
+    const handleOpenQueueItem = useCallback((poId?: string) => {
+        if (!poId) return;
+        const target = purchaseOrders.find(p => p.id === poId) || allOrders.find(p => p.id === poId);
+        if (!target) return;
+
+        const queueItem = receiptQueue.find(q => q.poId === poId);
+        if (queueItem?.status === 'matched' || target.paid || target.verification?.match_result === 'matched') {
+            setViewingDocData({
+                id: target.document?.id || target.verification?.id || queueItem?.verificationId,
+                title: target.document?.title || `Receipt - PO #${target.po_number}`,
+                fileName: target.document?.file_name || queueItem?.fileName || `receipt_${target.po_number}.png`,
+                fileUrl: target.verification?.uploaded_file_url,
+                storagePath: target.document?.storage_path,
+                fileType: target.document?.file_type,
+                poNumber: target.po_number,
+                supplierName: target.supplier_name,
+                verifiedStatus: 'matched',
+                totalAmount: target.total_amount,
+                notes: target.document?.notes || 'Verified via Gemini OCR (Matched)',
+                uploadedBy: target.document?.uploaded_by,
+            });
+            setIsDocViewerOpen(true);
+        } else {
+            setReceiptModalPO(target);
+            setReceiptVerificationId(target.verification?.id || queueItem?.verificationId || null);
+            setIsReceiptModalOpen(true);
+        }
+    }, [purchaseOrders, allOrders, receiptQueue]);
     const ACTIVE_OCR_STORAGE_KEY = 'supplychain_active_verification_job';
     // load job
     useEffect(() => {
@@ -329,135 +437,52 @@ export default function PurchaseOrders() {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-    // fetch data
-    const fetchData = useCallback(async (opts?: {
-        silent?: boolean;
-    }) => {
-        const silent = opts?.silent ?? false;
+    const fetchDataRef = useRef<(opts?: { silent?: boolean; refreshAll?: boolean }) => Promise<void>>(() => Promise.resolve());
+
+    // 1. Fetch overview data: all orders (for top cards & chart) + suppliers
+    const fetchOverviewData = useCallback(async (opts?: { silent?: boolean }) => {
         try {
-            if (!silent && !hasLoadedOnceRef.current) {
-                setLoading(true);
-            }
-            else if (!silent) {
-                setIsRefreshing(true);
-            }
-            // build query
-            let query = supabase
-                .from('purchase_orders')
-                .select('*', { count: 'exact' });
-            // status filter
-            if (activeStatusFilter !== 'all') {
-                query = query.eq('status', activeStatusFilter);
-            }
-            // search filter
-            if (debouncedSearch) {
-                query = query.or(`po_number.ilike.%${debouncedSearch}%,` +
-                    `supplier_name.ilike.%${debouncedSearch}%`);
-            }
-            // get total
-            const { count: totalCount, error: countError } = await query;
-            if (countError)
-                throw countError;
-            // pagination
-            const from = (currentPage - 1) * itemsPerPage;
-            const to = from + itemsPerPage - 1;
-            // fetch orders
-            let ordersQuery = query.range(from, to).order('created_at', { ascending: false });
-            const { data: orders, error: ordersError } = await ordersQuery;
-            if (ordersError) {
-                if (ordersError.code === 'PGRST103') {
-                    setPurchaseOrders([]);
-                    setTotalItems(totalCount || 0);
-                }
-                else {
-                    throw ordersError;
-                }
-            }
-            else {
-                let enrichedOrders = orders || [];
-                if (enrichedOrders.length > 0) {
-                    try {
-                        const orderIds = enrichedOrders.map(o => o.id);
-                        // fetch verifications
-                        const { data: verifs } = await supabase
-                            .from('document_verifications')
-                            .select('id, purchase_order_id, match_result, uploaded_file_url, compared_fields, extracted_json, created_at')
-                            .in('purchase_order_id', orderIds)
-                            .order('created_at', { ascending: false });
-                        const verifMap: Record<string, any> = {};
-                        (verifs || []).forEach((v: any) => {
-                            if (!verifMap[v.purchase_order_id]) {
-                                verifMap[v.purchase_order_id] = v;
-                            }
-                        });
-                        // fetch documents
-                        const { data: linkedDocs } = await supabase
-                            .from('documents')
-                            .select('id, title, file_name, storage_path, file_type, notes, uploaded_by, purchase_id')
-                            .in('purchase_id', orderIds)
-                            .order('created_at', { ascending: false });
-                        const docMap: Record<string, any> = {};
-                        (linkedDocs || []).forEach((d: any) => {
-                            if (d.purchase_id && !docMap[d.purchase_id]) {
-                                docMap[d.purchase_id] = d;
-                            }
-                        });
-                        enrichedOrders = enrichedOrders.map(o => ({
-                            ...o,
-                            verification: verifMap[o.id] || null,
-                            document: docMap[o.id] || null,
-                        }));
-                    }
-                    catch (vErr) {
-                        console.warn('Could not load verifications or documents for orders:', vErr);
-                    }
-                }
-                setPurchaseOrders(enrichedOrders);
-                setTotalItems(totalCount || 0);
-            }
-            // fetch stats
+            // fetch lightweight stats dataset without loading heavy all-documents payload
             const { data: allOrdersData, error: allOrdersError } = await supabase
                 .from('purchase_orders')
-                .select('*')
+                .select('id, po_number, status, total_amount, paid, created_at')
                 .order('created_at', { ascending: false });
+
             if (!allOrdersError && allOrdersData) {
-                let enrichedAll = allOrdersData;
+                let enrichedAll = allOrdersData as PurchaseOrder[];
                 if (enrichedAll.length > 0) {
                     try {
                         const allIds = enrichedAll.map(o => o.id);
+                        // Only fetch verifications with matched/forced to verify paid state for stats
                         const { data: allVerifs } = await supabase
                             .from('document_verifications')
-                            .select('id, purchase_order_id, match_result, uploaded_file_url, compared_fields, extracted_json, created_at')
+                            .select('id, purchase_order_id, match_result')
                             .in('purchase_order_id', allIds)
-                            .order('created_at', { ascending: false });
+                            .in('match_result', ['matched', 'forced']);
+
                         const allVerifMap: Record<string, any> = {};
                         (allVerifs || []).forEach((v: any) => {
                             if (!allVerifMap[v.purchase_order_id]) {
                                 allVerifMap[v.purchase_order_id] = v;
                             }
                         });
-                        const { data: allDocs } = await supabase
-                            .from('documents')
-                            .select('id, title, file_name, storage_path, file_type, notes, uploaded_by, purchase_id')
-                            .in('purchase_id', allIds)
-                            .order('created_at', { ascending: false });
-                        const allDocMap: Record<string, any> = {};
-                        (allDocs || []).forEach((d: any) => {
-                            if (d.purchase_id && !allDocMap[d.purchase_id]) {
-                                allDocMap[d.purchase_id] = d;
-                            }
+
+                        enrichedAll = enrichedAll.map(o => {
+                            const v = allVerifMap[o.id] || null;
+                            const isPaid = o.paid === true || v?.match_result === 'matched' || v?.match_result === 'forced';
+                            return {
+                                ...o,
+                                paid: isPaid,
+                                verification: v,
+                            };
                         });
-                        enrichedAll = enrichedAll.map(o => ({
-                            ...o,
-                            verification: allVerifMap[o.id] || null,
-                            document: allDocMap[o.id] || null,
-                        }));
                     }
                     catch (e) {
-                        console.warn('Could not enrich allOrders with verification/document data:', e);
+                        console.warn('Could not enrich allOrders with verification data:', e);
                     }
                 }
                 setAllOrders(enrichedAll);
+
                 // auto-sync job
                 try {
                     const saved = localStorage.getItem(ACTIVE_OCR_STORAGE_KEY);
@@ -488,7 +513,6 @@ export default function PurchaseOrders() {
                                     });
                                 }
                                 else if (parsed.timestamp && Date.now() - parsed.timestamp > 3 * 60 * 1000) {
-                                    // check expiry
                                     updateActiveVerificationJob(null);
                                 }
                             }
@@ -499,21 +523,110 @@ export default function PurchaseOrders() {
                     console.error('Error syncing active verification job:', syncErr);
                 }
             }
-            // fetch suppliers
+
+            // fetch active suppliers
             const { data: suppliersData, error: suppliersError } = await supabase
                 .from('suppliers')
                 .select('*')
                 .eq('is_active', true)
                 .order('name');
-            if (!suppliersError) {
-                setSuppliers(suppliersData || []);
+            if (!suppliersError && suppliersData) {
+                setSuppliers(suppliersData);
             }
+        } catch (err) {
+            console.error('Error fetching overview data:', err);
         }
-        catch (error) {
-            console.error('Error fetching purchase orders:', error);
+    }, []);
+
+    // 2. Fetch paginated table data (only 15 rows for current view)
+    const fetchPaginatedOrders = useCallback(async (opts?: { silent?: boolean }) => {
+        const silent = opts?.silent ?? false;
+        try {
+            if (!silent && !hasLoadedOnceRef.current) {
+                setLoading(true);
+            }
+            else if (!silent) {
+                setIsRefreshing(true);
+            }
+
+            let query = supabase
+                .from('purchase_orders')
+                .select('*', { count: 'exact' });
+
+            if (activeStatusFilter !== 'all') {
+                query = query.eq('status', activeStatusFilter);
+            }
+
+            if (debouncedSearch) {
+                query = query.or(`po_number.ilike.%${debouncedSearch}%,supplier_name.ilike.%${debouncedSearch}%`);
+            }
+
+            const from = (currentPage - 1) * itemsPerPage;
+            const to = from + itemsPerPage - 1;
+
+            const { data: orders, count: totalCount, error: ordersError } = await query
+                .range(from, to)
+                .order('created_at', { ascending: false });
+
+            if (ordersError) {
+                if (ordersError.code === 'PGRST103') {
+                    setPurchaseOrders([]);
+                    setTotalItems(0);
+                } else {
+                    throw ordersError;
+                }
+            } else {
+                let enrichedOrders = orders || [];
+                if (enrichedOrders.length > 0) {
+                    try {
+                        const orderIds = enrichedOrders.map(o => o.id);
+                        const { data: verifs } = await supabase
+                            .from('document_verifications')
+                            .select('id, purchase_order_id, match_result, uploaded_file_url, compared_fields, extracted_json, created_at')
+                            .in('purchase_order_id', orderIds)
+                            .order('created_at', { ascending: false });
+
+                        const verifMap: Record<string, any> = {};
+                        (verifs || []).forEach((v: any) => {
+                            if (!verifMap[v.purchase_order_id]) {
+                                verifMap[v.purchase_order_id] = v;
+                            }
+                        });
+
+                        const { data: linkedDocs } = await supabase
+                            .from('documents')
+                            .select('id, title, file_name, storage_path, file_type, notes, uploaded_by, purchase_id')
+                            .in('purchase_id', orderIds)
+                            .order('created_at', { ascending: false });
+
+                        const docMap: Record<string, any> = {};
+                        (linkedDocs || []).forEach((d: any) => {
+                            if (d.purchase_id && !docMap[d.purchase_id]) {
+                                docMap[d.purchase_id] = d;
+                            }
+                        });
+
+                        enrichedOrders = enrichedOrders.map(o => {
+                            const v = verifMap[o.id] || null;
+                            const isPaid = o.paid === true || v?.match_result === 'matched' || v?.match_result === 'forced';
+                            return {
+                                ...o,
+                                paid: isPaid,
+                                verification: v,
+                                document: docMap[o.id] || null,
+                            };
+                        });
+                    } catch (vErr) {
+                        console.warn('Could not load verifications or documents for orders:', vErr);
+                    }
+                }
+                setPurchaseOrders(enrichedOrders);
+                setTotalItems(totalCount || 0);
+            }
+        } catch (error) {
+            console.error('Error fetching paginated purchase orders:', error);
             toast.error('Failed to load purchase orders');
-        }
-        finally {
+        } finally {
             hasLoadedOnceRef.current = true;
             if (!silent) {
                 setLoading(false);
@@ -521,21 +634,120 @@ export default function PurchaseOrders() {
             }
         }
     }, [currentPage, itemsPerPage, debouncedSearch, activeStatusFilter]);
+
+    // Combined fetch
+    const fetchData = useCallback(async (opts?: { silent?: boolean; refreshAll?: boolean }) => {
+        await Promise.all([
+            fetchPaginatedOrders(opts),
+            fetchOverviewData(opts),
+        ]);
+    }, [fetchPaginatedOrders, fetchOverviewData]);
+
+    fetchDataRef.current = fetchData;
+
+    // Fetch paginated table whenever pagination, search, or status filter changes
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-    // realtime
+        fetchPaginatedOrders();
+    }, [fetchPaginatedOrders]);
+
+    // Fetch overview statistics and suppliers once on mount
+    useEffect(() => {
+        fetchOverviewData();
+    }, [fetchOverviewData]);
+
+    // Stable realtime subscription: remains open without thrashing on every keystroke
     useEffect(() => {
         const ordersSubscription = supabase
             .channel('purchase_orders_changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders' }, () => {
-            fetchData({ silent: true });
-        })
+                fetchDataRef.current({ silent: true, refreshAll: true });
+            })
             .subscribe();
         return () => {
             ordersSubscription.unsubscribe();
         };
-    }, [fetchData]);
+    }, []);
+
+    // Receipt OCR background queue processor
+    useEffect(() => {
+        const processQueue = async () => {
+            if (isProcessingQueueRef.current) return;
+
+            const nextItem = receiptQueue.find(item => item.status === 'queued');
+            if (!nextItem) return;
+
+            isProcessingQueueRef.current = true;
+
+            // Mark item as processing
+            setReceiptQueue(prev => prev.map(item => item.id === nextItem.id ? { ...item, status: 'processing' } : item));
+            setVerifyingPoIds(prev => new Set(prev).add(nextItem.poId));
+
+            try {
+                const res = await uploadReceiptAndVerifyAction({
+                    po_id: nextItem.poId,
+                    fileBase64: nextItem.fileBase64,
+                    fileName: nextItem.fileName,
+                    fileType: nextItem.fileType,
+                    fileSize: nextItem.fileSize,
+                    userId: user.getUserId() || undefined,
+                    userRole: user.getRole(),
+                    userName: user.getName() || 'Procurement Officer',
+                    userEmail: user.getEmail() || 'procurement@airshipexpress.com',
+                });
+
+                if (res.success) {
+                    const matchResult = res.matchResult as 'matched' | 'mismatched';
+                    setReceiptQueue(prev => prev.map(item => item.id === nextItem.id ? {
+                        ...item,
+                        status: matchResult,
+                        verificationId: res.verificationId,
+                        comparedFields: res.comparedFields,
+                        extractedJson: res.extractedJson,
+                    } : item));
+
+                    if (matchResult === 'matched') {
+                        clearPoRateLimit(nextItem.poId);
+                        toast.success(`PO #${nextItem.poNumber}: Receipt matched! Saved to Documents & marked Paid.`);
+                    } else {
+                        const rate = getPoRateLimit(nextItem.poId);
+                        const newCount = (rate.count || 0) + 1;
+                        if (newCount >= MAX_MISMATCH_ATTEMPTS) {
+                            setPoRateLimit(nextItem.poId, { count: newCount, lockedUntil: Date.now() + 120_000 });
+                            toast.error(`PO #${nextItem.poNumber}: 3 mismatches reached. Upload locked for 2 mins.`);
+                        } else {
+                            setPoRateLimit(nextItem.poId, { count: newCount, lockedUntil: null });
+                            toast.warning(`PO #${nextItem.poNumber}: Receipt mismatch (${newCount}/${MAX_MISMATCH_ATTEMPTS}). Review differences.`);
+                        }
+                    }
+                } else {
+                    setReceiptQueue(prev => prev.map(item => item.id === nextItem.id ? {
+                        ...item,
+                        status: 'error',
+                        error: res.error || 'Verification failed',
+                    } : item));
+                    toast.error(`PO #${nextItem.poNumber}: Verification failed - ${res.error || 'Error'}`);
+                }
+            } catch (err: any) {
+                console.error('Queue execution error:', err);
+                setReceiptQueue(prev => prev.map(item => item.id === nextItem.id ? {
+                    ...item,
+                    status: 'error',
+                    error: err?.message || 'Verification error',
+                } : item));
+                toast.error(`PO #${nextItem.poNumber}: Error - ${err?.message || 'Verification failed'}`);
+            } finally {
+                setVerifyingPoIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(nextItem.poId);
+                    return next;
+                });
+                isProcessingQueueRef.current = false;
+                fetchDataRef.current({ silent: true, refreshAll: true });
+            }
+        };
+
+        processQueue();
+    }, [receiptQueue]);
     // crud operations
     const handleOrderCreated = useCallback(async (orderData: any) => {
         try {
@@ -548,23 +760,50 @@ export default function PurchaseOrders() {
                     console.warn("Could not update purchase request status:", reqError);
                 }
             }
+
+            const sanitizedItems = (orderData.items && orderData.items.length > 0
+                ? orderData.items
+                : [{
+                    name: orderData.notes || "Purchase Order Item",
+                    item_name: orderData.notes || "Purchase Order Item",
+                    quantity: 1,
+                    unit_price: Number(orderData.total_amount) || 0,
+                    total: Number(orderData.total_amount) || 0,
+                }]
+            ).map((item: any) => {
+                const itemName = item.item_name || item.name || item.description || "Purchase Order Item";
+                const quantity = Math.max(1, Number(item.quantity) || 1);
+                const unit_price = Number(item.unit_price ?? item.price ?? 0);
+                const total = item.total ? Number(item.total) : Number((quantity * unit_price).toFixed(2));
+                return {
+                    ...item,
+                    name: itemName,
+                    item_name: itemName,
+                    quantity,
+                    unit_price,
+                    total,
+                };
+            });
+
+            const initialStatus = orderData.status || 'Draft';
+
             const { error: orderError } = await supabase
                 .from('purchase_orders')
                 .insert({
-                po_number: orderData.po_number,
-                request_id: orderData.request_id,
-                supplier_id: orderData.supplier_id,
-                supplier_name: orderData.supplier_name,
-                total_amount: orderData.total_amount,
-                status: orderData.status || 'Draft',
-                delivery_date: orderData.delivery_date,
-                notes: orderData.notes || '',
-                items: orderData.items || [],
-                paid: false,
-            });
+                    po_number: orderData.po_number,
+                    request_id: orderData.request_id,
+                    supplier_id: orderData.supplier_id,
+                    supplier_name: orderData.supplier_name,
+                    total_amount: orderData.total_amount,
+                    status: initialStatus,
+                    delivery_date: orderData.delivery_date,
+                    notes: orderData.notes || '',
+                    items: sanitizedItems,
+                    paid: false,
+                });
             if (orderError)
                 throw orderError;
-            setPurchaseOrders(prev => [{ ...orderData, id: Date.now().toString(), paid: false, status: orderData.status || 'Draft' }, ...prev]);
+            setPurchaseOrders(prev => [{ ...orderData, items: sanitizedItems, id: Date.now().toString(), paid: false, status: initialStatus }, ...prev]);
             setTotalItems(prev => prev + 1);
             toast.success("Purchase Order created successfully!");
             setIsPurchaseOrderModalOpen(false);
@@ -720,60 +959,14 @@ export default function PurchaseOrders() {
             setPendingRowId(null);
         }
     };
-    const handleBulkUpdatePaid = async (paidState: boolean) => {
-        if (selectedIds.size === 0) {
-            toast.warning("Please select at least one purchase order");
-            return;
-        }
-        // validate status
-        if (paidState) {
-            const selectedOrders = datasetOrders.filter(po => selectedIds.has(po.id));
-            const invalidOrders = selectedOrders.filter(po => po.status === 'Draft' || po.status === 'Sent');
-            if (invalidOrders.length > 0) {
-                toast.warning(`Cannot mark ${invalidOrders.length} order(s) as Paid while status is Draft or Sent. Status must be Confirmed or Delivered.`);
-                return;
-            }
-        }
-        const actionName = paidState ? "Paid" : "Unpaid";
-        const confirmed = await confirm({
-            title: `Mark Orders as ${actionName}`,
-            message: `Are you sure you want to mark ${selectedIds.size} selected purchase order(s) as ${actionName}?`,
-            confirmText: `Mark as ${actionName}`,
-            cancelText: "Cancel",
-            confirmVariant: paidState ? "success" : "warning",
-        });
-        if (!confirmed)
-            return;
-        setPendingRowId("bulk");
-        try {
-            const idsToUpdate = Array.from(selectedIds);
-            const { error } = await supabase
-                .from('purchase_orders')
-                .update({ paid: paidState, updated_at: new Date().toISOString() })
-                .in('id', idsToUpdate);
-            if (error)
-                throw error;
-            setPurchaseOrders(prev => prev.map(po => selectedIds.has(po.id) ? { ...po, paid: paidState } : po));
-            setAllOrders(prev => prev.map(po => selectedIds.has(po.id) ? { ...po, paid: paidState } : po));
-            setSelectedIds(new Set());
-            setIsSelectAll(false);
-            toast.success(`Marked ${idsToUpdate.length} order(s) as ${actionName}`);
-        }
-        catch (error) {
-            console.error('Error updating purchase orders payment status in bulk:', error);
-            toast.error('Failed to update payment status');
-        }
-        finally {
-            setPendingRowId(null);
-        }
-    };
+
     const handleSelectAll = () => {
         if (isSelectAll) {
             setSelectedIds(new Set());
             setIsSelectAll(false);
         }
         else {
-            const allIds = filteredOrders.map(o => o.id);
+            const allIds = filteredOrders.map((o: PurchaseOrder) => o.id);
             setSelectedIds(new Set(allIds));
             setIsSelectAll(true);
         }
@@ -787,7 +980,7 @@ export default function PurchaseOrders() {
             next.add(id);
         }
         setSelectedIds(next);
-        setIsSelectAll(filteredOrders.length > 0 && filteredOrders.every(o => next.has(o.id)));
+        setIsSelectAll(filteredOrders.length > 0 && filteredOrders.every((o: PurchaseOrder) => next.has(o.id)));
     };
     const handleUpdateStatus = async (id: string, newStatus: string, options?: {
         skipConfirm?: boolean;
@@ -1059,7 +1252,7 @@ export default function PurchaseOrders() {
         }
     };
     // charts
-    const datasetOrders = allOrders.length > 0 ? allOrders : purchaseOrders;
+    const datasetOrders = useMemo(() => allOrders.length > 0 ? allOrders : purchaseOrders, [allOrders, purchaseOrders]);
     useEffect(() => {
         if (loading)
             return;
@@ -1116,12 +1309,12 @@ export default function PurchaseOrders() {
                 data: {
                     labels: sortedLabels,
                     datasets: [{
-                            data: sortedData,
-                            backgroundColor: backgroundColor,
-                            borderWidth: 2,
-                            borderColor: "#ffffff",
-                            hoverOffset: 8,
-                        }],
+                        data: sortedData,
+                        backgroundColor: backgroundColor,
+                        borderWidth: 2,
+                        borderColor: "#ffffff",
+                        hoverOffset: 8,
+                    }],
                 },
                 options: {
                     responsive: true,
@@ -1191,13 +1384,18 @@ export default function PurchaseOrders() {
             }
         };
     }, [datasetOrders, loading]);
-    // filtering
-    const filteredOrders = purchaseOrders.filter((order) => {
-        const matchesStatus = activeStatusFilter === 'all' || order.status === activeStatusFilter;
-        const matchesSearch = (order.po_number || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-            (order.supplier_name || '').toLowerCase().includes(debouncedSearch.toLowerCase());
-        return matchesStatus && matchesSearch;
-    });
+    // saved/cache filtering
+    const filteredOrders = useMemo(() => {
+        const query = (debouncedSearch || '').toLowerCase().trim();
+        return purchaseOrders.filter((order) => {
+            const matchesStatus = activeStatusFilter === 'all' || order.status === activeStatusFilter;
+            if (!matchesStatus) return false;
+            if (!query) return true;
+            return (order.po_number || '').toLowerCase().includes(query) ||
+                (order.supplier_name || '').toLowerCase().includes(query);
+        });
+    }, [purchaseOrders, activeStatusFilter, debouncedSearch]);
+
     const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
     const handlePageChange = (page: number) => {
         if (page >= 1 && page <= totalPages && page !== currentPage) {
@@ -1207,15 +1405,34 @@ export default function PurchaseOrders() {
             setTimeout(scrollToTable, 100);
         }
     };
-    // calc stats
-    const statsSource = allOrders.length > 0 ? allOrders : purchaseOrders;
-    const totalOrders = statsSource.length;
-    const pendingConfirmation = statsSource.filter(o => o.status === 'Sent' || o.status === 'Draft').length;
-    const inTransit = statsSource.filter(o => o.status === 'Confirmed').length;
-    const completed = statsSource.filter(o => o.status === 'Delivered').length;
-    const totalSpend = statsSource
-        .filter(o => o.paid === true)
-        .reduce((sum, o) => sum + (o.total_amount || 0), 0);
+
+    // saved/cache stats calculation in a single high-performance pass
+    const { totalOrders, pendingConfirmation, inTransit, completed, totalSpend } = useMemo(() => {
+        const source = allOrders.length > 0 ? allOrders : purchaseOrders;
+        let pending = 0;
+        let transit = 0;
+        let done = 0;
+        let spend = 0;
+
+        for (let i = 0; i < source.length; i++) {
+            const o = source[i];
+            if (o.status === 'Sent' || o.status === 'Draft') pending++;
+            else if (o.status === 'Confirmed') transit++;
+            else if (o.status === 'Delivered') done++;
+
+            if (o.paid === true) {
+                spend += Number(o.total_amount) || 0;
+            }
+        }
+
+        return {
+            totalOrders: source.length,
+            pendingConfirmation: pending,
+            inTransit: transit,
+            completed: done,
+            totalSpend: spend,
+        };
+    }, [allOrders, purchaseOrders]);
     // create po handler
     const handleOpenApprovedRequests = () => {
         setIsApprovedRequestsModalOpen(true);
@@ -1225,198 +1442,198 @@ export default function PurchaseOrders() {
         setIsApprovedRequestsModalOpen(false);
         setIsPurchaseOrderModalOpen(true);
     };
-    return (<SessionGuard requiredRole={['Admin', 'Employee', 'Executive']}>
-            <div className="p-6 space-y-6 fade-in bgCard">
-                {/* header */}
-                <div className="flex items-start justify-between gap-4 flex-wrap border-b border-slate-200/80 dark:border-white/10 pb-5 transition-colors">
-                    <div className="flex items-start gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-[#ffe6f0] border border-pink-300/90 dark:bg-[#341427] dark:border-[#67224c] flex items-center justify-center text-pink-600 dark:text-pink-300 text-xl shadow-[inset_0_1px_0_#ffffff,0_2px_6px_rgba(244,63,94,0.14)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_6px_rgba(0,0,0,0.6)] shrink-0 mt-0.5 transition-colors">
-                            <i className="fa-solid fa-file-invoice-dollar"/>
-                        </div>
-
-                        <div>
-                            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight transition-colors">
-                                Purchase Orders
-                            </h1>
-                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 transition-colors">
-                                Manage approved purchase orders, supplier orders, and delivery tracking.
-                            </p>
-                            <div className="inline-flex items-center gap-2 mt-2 px-3.5 py-1.5 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] transition-all">
-                                <span className="w-2 h-2 rounded-full bg-pink-500 shadow-xs shadow-pink-500/50"/>
-                                <i className="fas fa-user-tag text-[11px] text-pink-500 dark:text-pink-400"/>
-                                <span className="font-medium text-slate-500 dark:text-slate-400">Role:</span>
-                                <span className="font-bold text-slate-800 dark:text-slate-100 capitalize">
-                                    {userRole}
-                                </span>
-                            </div>
-                        </div>
+    return (<SessionGuard requiredRole={['Admin', 'Manager', 'Executive']}>
+        <div className="p-6 space-y-6 fade-in bgCard">
+            {/* header */}
+            <div className="flex items-start justify-between gap-4 flex-wrap border-b border-slate-200/80 dark:border-white/10 pb-5 transition-colors">
+                <div className="flex items-start gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-[#ffe6f0] border border-pink-300/90 dark:bg-[#341427] dark:border-[#67224c] flex items-center justify-center text-pink-600 dark:text-pink-300 text-xl shadow-[inset_0_1px_0_#ffffff,0_2px_6px_rgba(244,63,94,0.14)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_6px_rgba(0,0,0,0.6)] shrink-0 mt-0.5 transition-colors">
+                        <i className="fa-solid fa-file-invoice-dollar" />
                     </div>
 
-                    <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                        <AppButton type="button" variant="neutral" size="md" onClick={() => setIsPurchaseRequestModalOpen(true)}>
-                            <i className="fas fa-plus text-pink-500 dark:text-pink-400 text-xs"/>
-                            <span>Make Purchase Request</span>
-                        </AppButton>
-                        <AppButton type="button" variant="primary" size="md" onClick={handleOpenApprovedRequests}>
-                            <i className="fas fa-clipboard-check text-xs"/>
-                            <span>Create PO from Request</span>
-                        </AppButton>
+                    <div>
+                        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight transition-colors">
+                            Purchase Orders
+                        </h1>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 transition-colors">
+                            Manage approved purchase orders, supplier orders, and delivery tracking.
+                        </p>
+                        <div className="inline-flex items-center gap-2 mt-2 px-3.5 py-1.5 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)] transition-all">
+                            <span className="w-2 h-2 rounded-full bg-pink-500 shadow-xs shadow-pink-500/50" />
+                            <i className="fas fa-user-tag text-[11px] text-pink-500 dark:text-pink-400" />
+                            <span className="font-medium text-slate-500 dark:text-slate-400">Role:</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-100 capitalize">
+                                {userRole}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* ai questions */}
-                <AiQuestions title="AI Suggested Questions" subtitle="Click to ask" questions={[
-            {
-                question: "PO summary",
-                color: "bg-pink-500"
-            },
-            {
-                question: "Top suppliers by spend?",
-                color: "bg-amber-500"
-            },
-            {
-                question: "Delayed purchase orders?",
-                color: "bg-blue-500"
-            },
-            {
-                question: "Payment status breakdown?",
-                color: "bg-emerald-500"
-            }
-        ]}/>
+                <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                    <AppButton type="button" variant="neutral" size="md" onClick={() => setIsPurchaseRequestModalOpen(true)}>
+                        <i className="fas fa-plus text-pink-500 dark:text-pink-400 text-xs" />
+                        <span>Make Purchase Request</span>
+                    </AppButton>
+                    <AppButton type="button" variant="primary" size="md" onClick={handleOpenApprovedRequests}>
+                        <i className="fas fa-clipboard-check text-xs" />
+                        <span>Create PO from Request</span>
+                    </AppButton>
+                </div>
+            </div>
 
-                {/* stats */}
-                {loading ? (<CardsSkeleton count={4} className="grid-cols-2 lg:grid-cols-4"/>) : (<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Cards frontIcon="fa-solid fa-file-invoice" header="Total POs" data={String(totalOrders)} arrow="fa-solid fa-arrow-up" description="All orders" backBg="bg-ink dark:bg-ink/90" backHeader="Overview" headerTextColor="text-muted dark:text-white/80" backDescription={`Total Purchase Orders: ${totalOrders}\nPending: ${pendingConfirmation}\nCompleted: ${completed}`} tooltip="View all POs" tooltipLink="/purchase-orders" frontTextColor="text-pink-500 dark:text-pink-400" descriptionTextColor="text-emerald-600 dark:text-emerald-400"/>
+            {/* ai questions */}
+            <AiQuestions title="AI Suggested Questions" subtitle="Click to ask" questions={[
+                {
+                    question: "PO summary",
+                    color: "bg-pink-500"
+                },
+                {
+                    question: "Top suppliers by spend?",
+                    color: "bg-amber-500"
+                },
+                {
+                    question: "Delayed purchase orders?",
+                    color: "bg-blue-500"
+                },
+                {
+                    question: "Payment status breakdown?",
+                    color: "bg-emerald-500"
+                }
+            ]} />
 
-                        <Cards frontIcon="fa-solid fa-clock" header="Pending" data={String(pendingConfirmation)} arrow="fa-solid fa-hourglass-half" description="Awaiting confirmation" backBg="bg-ink dark:bg-ink/90" backHeader="Pending Orders" headerTextColor="text-muted dark:text-white/80" backDescription={`Pending: ${pendingConfirmation}\n${pendingConfirmation > 0 ? 'Awaiting supplier confirmation' : 'No pending orders'}`} tooltip="View pending orders" tooltipLink="/purchase-orders?status=Sent" badge={pendingConfirmation > 0 ? `${pendingConfirmation} waiting` : undefined} frontTextColor="text-amber-500 dark:text-amber-400" descriptionTextColor="text-amber-600 dark:text-amber-400"/>
+            {/* stats */}
+            {loading ? (<CardsSkeleton count={4} className="grid-cols-2 lg:grid-cols-4" />) : (<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <Cards frontIcon="fa-solid fa-file-invoice" header="Total POs" data={String(totalOrders)} arrow="fa-solid fa-arrow-up" description="All orders" backBg="bg-ink dark:bg-ink/90" backHeader="Overview" headerTextColor="text-muted dark:text-white/80" backDescription={`Total Purchase Orders: ${totalOrders}\nPending: ${pendingConfirmation}\nCompleted: ${completed}`} tooltip="View all POs" tooltipLink="/purchase-orders" frontTextColor="text-pink-500 dark:text-pink-400" descriptionTextColor="text-emerald-600 dark:text-emerald-400" />
 
-                        <Cards frontIcon="fa-solid fa-circle-check" header="Completed" data={String(completed)} arrow="fa-solid fa-check-double" description="Delivered" backBg="bg-ink dark:bg-ink/90" backHeader="Completed" headerTextColor="text-muted dark:text-white/80" backDescription={`Completed: ${completed}\n${completed > 0 ? 'Orders successfully delivered' : 'No completed orders'}`} tooltip="View completed orders" tooltipLink="/purchase-orders?status=Delivered" frontTextColor="text-emerald-500 dark:text-emerald-400" descriptionTextColor="text-emerald-600 dark:text-emerald-400"/>
+                <Cards frontIcon="fa-solid fa-clock" header="Pending" data={String(pendingConfirmation)} arrow="fa-solid fa-hourglass-half" description="Awaiting confirmation" backBg="bg-ink dark:bg-ink/90" backHeader="Pending Orders" headerTextColor="text-muted dark:text-white/80" backDescription={`Pending: ${pendingConfirmation}\n${pendingConfirmation > 0 ? 'Awaiting supplier confirmation' : 'No pending orders'}`} tooltip="View pending orders" tooltipLink="/purchase-orders?status=Sent" badge={pendingConfirmation > 0 ? `${pendingConfirmation} waiting` : undefined} frontTextColor="text-amber-500 dark:text-amber-400" descriptionTextColor="text-amber-600 dark:text-amber-400" />
 
-                        <Cards frontIcon="fa-solid fa-coins" header="Total Spend" data={`₱${totalSpend.toLocaleString()}`} arrow="fa-solid fa-chart-line" description="Paid orders" backBg="bg-ink dark:bg-ink/90" backHeader="Financial Summary" headerTextColor="text-muted dark:text-white/80" backDescription={`Total Spend: ₱${totalSpend.toLocaleString()}\n${purchaseOrders.filter(o => o.paid).length} paid orders\n${totalSpend > 0 ? 'Tracking procurement costs' : 'No paid orders yet'}`} tooltip="View financial details" frontTextColor="text-blue-500 dark:text-blue-400" descriptionTextColor="text-blue-600 dark:text-blue-400"/>
-                    </div>)}
+                <Cards frontIcon="fa-solid fa-circle-check" header="Completed" data={String(completed)} arrow="fa-solid fa-check-double" description="Delivered" backBg="bg-ink dark:bg-ink/90" backHeader="Completed" headerTextColor="text-muted dark:text-white/80" backDescription={`Completed: ${completed}\n${completed > 0 ? 'Orders successfully delivered' : 'No completed orders'}`} tooltip="View completed orders" tooltipLink="/purchase-orders?status=Delivered" frontTextColor="text-emerald-500 dark:text-emerald-400" descriptionTextColor="text-emerald-600 dark:text-emerald-400" />
 
-                {/* charts */}
-                {loading ? (<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <ChartSkeleton type="doughnut" badgeIcon="fas fa-chart-pie" title="PO Status Categories" subtitle="Distribution by order status"/>
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between animate-pulse">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="space-y-1">
-                                    <div className="h-4 w-36 bg-slate-200 dark:bg-slate-800 rounded"/>
-                                    <div className="h-3 w-44 bg-slate-200/70 dark:bg-slate-800/70 rounded"/>
-                                </div>
-                                <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-900/30"/>
-                            </div>
-                            <div className="space-y-2.5">
-                                {[1, 2, 3].map((n) => (<div key={n} className="flex items-center gap-3 p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
-                                        <div className="w-5 h-5 rounded-full bg-pink-100/60 dark:bg-pink-950/60"/>
-                                        <div className="flex-1 space-y-1.5">
-                                            <div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-800 rounded"/>
-                                            <div className="h-3 w-40 bg-slate-200/70 dark:bg-slate-800/70 rounded"/>
-                                        </div>
-                                    </div>))}
-                            </div>
+                <Cards frontIcon="fa-solid fa-coins" header="Total Spend" data={`₱${totalSpend.toLocaleString()}`} arrow="fa-solid fa-chart-line" description="Paid orders" backBg="bg-ink dark:bg-ink/90" backHeader="Financial Summary" headerTextColor="text-muted dark:text-white/80" backDescription={`Total Spend: ₱${totalSpend.toLocaleString()}\n${purchaseOrders.filter(o => o.paid).length} paid orders\n${totalSpend > 0 ? 'Tracking procurement costs' : 'No paid orders yet'}`} tooltip="View financial details" frontTextColor="text-blue-500 dark:text-blue-400" descriptionTextColor="text-blue-600 dark:text-blue-400" />
+            </div>)}
+
+            {/* charts */}
+            {loading ? (<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ChartSkeleton type="doughnut" badgeIcon="fas fa-chart-pie" title="PO Status Categories" subtitle="Distribution by order status" />
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between animate-pulse">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="space-y-1">
+                            <div className="h-4 w-36 bg-slate-200 dark:bg-slate-800 rounded" />
+                            <div className="h-3 w-44 bg-slate-200/70 dark:bg-slate-800/70 rounded" />
                         </div>
-                    </div>) : (<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {/* po status */}
-                        <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col justify-between transition-all">
-                            <div className="flex items-center justify-between mb-3">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">PO Status Categories</h3>
-                                        <div className="relative group">
-                                            <button type="button" className="w-4 h-4 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-[10px] font-bold inline-flex items-center justify-center hover:text-pink-500 dark:hover:text-pink-400 transition-colors cursor-help shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3)]" aria-label="Information">
-                                                <i className="fas fa-info text-[9px]"/>
-                                            </button>
-                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 p-3.5 bg-slate-900 text-slate-200 text-xs rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 pointer-events-none border border-slate-700/60">
-                                                <p className="font-semibold text-white mb-1.5 flex items-center gap-1.5 text-xs">
-                                                    <i className="fas fa-chart-pie text-pink-400 text-xs"/> Status Metrics
-                                                </p>
-                                                <p className="text-[11px] text-slate-300 leading-relaxed">Distribution of purchase orders across lifecycle stages.</p>
-                                                <p className="mt-2 text-pink-300 text-[10px] font-medium flex items-center gap-1.5 border-t border-slate-800 pt-1.5">
-                                                    <i className="fas fa-mouse-pointer text-[9px] text-pink-400"/> Click slice to view detailed orders
-                                                </p>
-                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-slate-900 border-r border-b border-slate-700/60"/>
-                                            </div>
+                        <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-950/40 border border-pink-100 dark:border-pink-900/30" />
+                    </div>
+                    <div className="space-y-2.5">
+                        {[1, 2, 3].map((n) => (<div key={n} className="flex items-center gap-3 p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <div className="w-5 h-5 rounded-full bg-pink-100/60 dark:bg-pink-950/60" />
+                            <div className="flex-1 space-y-1.5">
+                                <div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
+                                <div className="h-3 w-40 bg-slate-200/70 dark:bg-slate-800/70 rounded" />
+                            </div>
+                        </div>))}
+                    </div>
+                </div>
+            </div>) : (<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* po status */}
+                <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col justify-between transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-sm text-slate-900 dark:text-white">PO Status Categories</h3>
+                                <div className="relative group">
+                                    <button type="button" className="w-4 h-4 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-[10px] font-bold inline-flex items-center justify-center hover:text-pink-500 dark:hover:text-pink-400 transition-colors cursor-help shadow-[inset_1px_1px_2px_rgba(166,175,195,0.3)]" aria-label="Information">
+                                        <i className="fas fa-info text-[9px]" />
+                                    </button>
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 p-3.5 bg-slate-900 text-slate-200 text-xs rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 pointer-events-none border border-slate-700/60">
+                                        <p className="font-semibold text-white mb-1.5 flex items-center gap-1.5 text-xs">
+                                            <i className="fas fa-chart-pie text-pink-400 text-xs" /> Status Metrics
+                                        </p>
+                                        <p className="text-[11px] text-slate-300 leading-relaxed">Distribution of purchase orders across lifecycle stages.</p>
+                                        <p className="mt-2 text-pink-300 text-[10px] font-medium flex items-center gap-1.5 border-t border-slate-800 pt-1.5">
+                                            <i className="fas fa-mouse-pointer text-[9px] text-pink-400" /> Click slice to view detailed orders
+                                        </p>
+                                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-slate-900 border-r border-b border-slate-700/60" />
+                                    </div>
+                                </div>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution by order status</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
+                            <i className="fas fa-chart-pie text-xs" />
+                        </div>
+                    </div>
+
+                    <div className="h-60 relative w-full flex items-center justify-center">
+                        {datasetOrders.length === 0 ? (<div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center">
+                            <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3">
+                                <i className="fas fa-chart-pie text-base" />
+                            </div>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No order data available</span>
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Status metrics will display once orders are created</span>
+                        </div>) : (<canvas ref={poChartRef} className="w-full h-full max-h-60 cursor-pointer" />)}
+                    </div>
+                </div>
+
+                {/* activity */}
+                <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                        <div>
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white">Recent Activity</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Latest purchase order actions</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
+                            <i className="fas fa-clock text-xs" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                        {[0, 1, 2].map((index) => {
+                            const order = allOrders[index];
+                            const slotNumber = index + 1;
+                            if (order) {
+                                return (<div key={order.id} className="flex items-start gap-3 p-3 bg-[#ebf0f7] dark:bg-[#14151c] rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] transition-all">
+                                    <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-xl bg-gradient-to-b from-pink-500 to-pink-600 text-white text-[11px] font-bold mt-0.5 border border-pink-400/80 shadow-[0_2px_6px_rgba(236,72,153,0.3)]">
+                                        {slotNumber}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                                                {order.po_number}
+                                            </span>
+                                            <StatusBadge tone={getPOStatusTone(order.status)} dot size="xs">
+                                                {order.status}
+                                            </StatusBadge>
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto">
+                                                {order.delivery_date || 'No date'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-1 text-xs">
+                                            <span className="text-slate-600 dark:text-slate-400 truncate font-medium">
+                                                {order.supplier_name}
+                                            </span>
+                                            <span className="font-bold text-slate-900 dark:text-white shrink-0 ml-2">
+                                                ₱{order.total_amount.toLocaleString()}
+                                            </span>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution by order status</p>
+                                </div>);
+                            }
+                            return (<div key={`empty-slot-${index}`} className="flex items-center gap-3 p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 text-slate-400 dark:text-slate-500">
+                                <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] text-slate-400 dark:text-slate-500 text-[10px] font-bold border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
+                                    {slotNumber}
                                 </div>
-                                <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
-                                    <i className="fas fa-chart-pie text-xs"/>
+                                <div className="flex items-center justify-between w-full text-xs">
+                                    <span className="font-medium text-slate-400 dark:text-slate-500 italic">No recent activity</span>
+                                    <span className="text-[11px] text-slate-300 dark:text-slate-600 font-mono">—</span>
                                 </div>
-                            </div>
+                            </div>);
+                        })}
+                    </div>
+                </div>
+            </div>)}
 
-                            <div className="h-60 relative w-full flex items-center justify-center">
-                                {datasetOrders.length === 0 ? (<div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center">
-                                        <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3">
-                                            <i className="fas fa-chart-pie text-base"/>
-                                        </div>
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No order data available</span>
-                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Status metrics will display once orders are created</span>
-                                    </div>) : (<canvas ref={poChartRef} className="w-full h-full max-h-60 cursor-pointer"/>)}
-                            </div>
-                        </div>
-
-                        {/* activity */}
-                        <div className="p-5 sm:p-6 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col transition-all">
-                            <div className="flex items-center justify-between mb-3">
-                                <div>
-                                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Recent Activity</h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Latest purchase order actions</p>
-                                </div>
-                                <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
-                                    <i className="fas fa-clock text-xs"/>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2.5">
-                                {[0, 1, 2].map((index) => {
-                const order = allOrders[index];
-                const slotNumber = index + 1;
-                if (order) {
-                    return (<div key={order.id} className="flex items-start gap-3 p-3 bg-[#ebf0f7] dark:bg-[#14151c] rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] transition-all">
-                                                <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-xl bg-gradient-to-b from-pink-500 to-pink-600 text-white text-[11px] font-bold mt-0.5 border border-pink-400/80 shadow-[0_2px_6px_rgba(236,72,153,0.3)]">
-                                                    {slotNumber}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
-                                                            {order.po_number}
-                                                        </span>
-                                                        <StatusBadge tone={getPOStatusTone(order.status)} dot size="xs">
-                                                            {order.status}
-                                                        </StatusBadge>
-                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto">
-                                                            {order.delivery_date || 'No date'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between mt-1 text-xs">
-                                                        <span className="text-slate-600 dark:text-slate-400 truncate font-medium">
-                                                            {order.supplier_name}
-                                                        </span>
-                                                        <span className="font-bold text-slate-900 dark:text-white shrink-0 ml-2">
-                                                            ₱{order.total_amount.toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>);
-                }
-                return (<div key={`empty-slot-${index}`} className="flex items-center gap-3 p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 text-slate-400 dark:text-slate-500">
-                                            <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] text-slate-400 dark:text-slate-500 text-[10px] font-bold border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
-                                                {slotNumber}
-                                            </div>
-                                            <div className="flex items-center justify-between w-full text-xs">
-                                                <span className="font-medium text-slate-400 dark:text-slate-500 italic">No recent activity</span>
-                                                <span className="text-[11px] text-slate-300 dark:text-slate-600 font-mono">—</span>
-                                            </div>
-                                        </div>);
-            })}
-                            </div>
-                        </div>
-                    </div>)}
-
-                {/* table (Neumorphic Card Container) */}
-                {loading ? (<TableSkeleton rows={itemsPerPage} hasFilter hasSearch hasPagination columns={[
+            {/* table (Neumorphic Card Container) */}
+            {loading ? (<TableSkeleton rows={itemsPerPage} hasFilter hasSearch hasPagination columns={[
                 { type: 'checkbox', width: 'w-10' },
                 { header: 'PO Number', type: 'mono' },
                 { header: 'Supplier', type: 'avatar-text', subtext: false },
@@ -1425,679 +1642,728 @@ export default function PurchaseOrders() {
                 { header: 'Status', type: 'badge' },
                 { header: 'Payment', type: 'badge' },
                 { header: 'Actions', type: 'actions', align: 'right', width: 'w-[150px]' },
-            ]}/>) : (<div ref={tableContainerRef} id="purchase-orders-table" className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] overflow-hidden relative flex flex-col">
-                        {isRefreshing && <TableContentLoader />}
+            ]} />) : (<div ref={tableContainerRef} id="purchase-orders-table" className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] overflow-hidden relative flex flex-col">
+                {isRefreshing && <TableContentLoader />}
 
-                    {/* filter bar */}
-                    <div className="flex-shrink-0 pb-4 mb-3 border-b border-slate-200/60 dark:border-slate-800/80 transition-all">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <div className="font-bold text-slate-900 dark:text-white text-sm mr-2 flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
-                                    <i className="fas fa-list text-xs"/>
-                                </div>
-                                <span>Purchase Orders</span>
-                                {isRefreshing && (<i className="fas fa-circle-notch fa-spin text-pink-400 text-xs" title="Refreshing..."/>)}
+                {/* filter bar */}
+                <div className="flex-shrink-0 pb-4 mb-3 border-b border-slate-200/60 dark:border-slate-800/80 transition-all">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="font-bold text-slate-900 dark:text-white text-sm mr-2 flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center">
+                                <i className="fas fa-list text-xs" />
                             </div>
-
-                            <div className="relative flex-1 min-w-[200px] max-w-xs">
-                                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"/>
-                                <input className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2 pl-9 pr-8 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Search by PO # or supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
-                            </div>
-
-                            <div className="flex gap-1 bg-[#ebf0f7] dark:bg-[#14151c] p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)]">
-                                {[
-                { key: "all", label: "All", count: totalOrders },
-                { key: "Draft", label: "Draft", count: allOrders.filter(o => o.status === 'Draft').length },
-                { key: "Sent", label: "Sent", count: allOrders.filter(o => o.status === 'Sent').length },
-                { key: "Confirmed", label: "Confirmed", count: allOrders.filter(o => o.status === 'Confirmed').length },
-                { key: "Delivered", label: "Delivered", count: allOrders.filter(o => o.status === 'Delivered').length },
-                { key: "Cancelled", label: "Cancelled", count: allOrders.filter(o => o.status === 'Cancelled').length },
-            ].map((tab) => {
-                const isActive = activeStatusFilter === tab.key;
-                return (<button key={tab.key} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 active:scale-95 ${isActive
-                        ? "bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-900 dark:text-white border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)]"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`} onClick={() => {
-                        setActiveStatusFilter(tab.key);
-                        setCurrentPage(1);
-                    }}>
-                                            <span>{tab.label}</span>
-                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${isActive
-                        ? "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40"
-                        : "bg-slate-300/50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
-                                                {tab.count}
-                                            </span>
-                                        </button>);
-            })}
-                            </div>
+                            <span>Purchase Orders</span>
+                            {isRefreshing && (<i className="fas fa-circle-notch fa-spin text-pink-400 text-xs" title="Refreshing..." />)}
                         </div>
-                    </div>
 
-                    {/* bulk toolbar */}
-                    {selectedIds.size > 0 && (<div className="px-4 py-2.5 mb-3 bg-[#ebf0f7] dark:bg-[#14151c] rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                            <div className="flex items-center gap-2.5">
-                                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-xl bg-gradient-to-b from-pink-500 to-pink-600 text-white font-bold text-xs border border-pink-400/80 shadow-[0_2px_6px_rgba(236,72,153,0.3)]">
-                                    {selectedIds.size}
-                                </span>
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                    {selectedIds.size} purchase order{selectedIds.size > 1 ? 's' : ''} selected
-                                </span>
-                                <button type="button" onClick={() => {
-                    setSelectedIds(new Set());
-                    setIsSelectAll(false);
-                }} className="text-[11px] text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 underline font-medium cursor-pointer ml-1">
-                                    Deselect all
-                                </button>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2">
-                                {/* bulk status */}
-                                <div className="flex items-center gap-1.5 bg-[#f0f3f8] dark:bg-[#1d1e28] rounded-xl px-2.5 py-1 border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)]">
-                                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Status:</span>
-                                    <select className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1" defaultValue="" onChange={(e) => {
-                    if (e.target.value) {
-                        handleBulkUpdateStatus(e.target.value);
-                        e.target.value = "";
-                    }
-                }} disabled={pendingRowId === "bulk"}>
-                                        <option value="" disabled>Change Status...</option>
-                                        <option value="Draft">Draft</option>
-                                        <option value="Sent">Sent</option>
-                                        <option value="Confirmed">Confirmed</option>
-                                        <option value="Delivered">Delivered</option>
-                                        <option value="Cancelled">Cancelled</option>
-                                    </select>
-                                </div>
-
-                                {/* mark paid */}
-                                <button type="button" onClick={() => handleBulkUpdatePaid(true)} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/50 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] active:scale-95" title="Mark all selected orders as Paid">
-                                    <i className="fas fa-check-circle text-emerald-600 dark:text-emerald-400 text-[11px]"/>
-                                    <span>Mark Paid</span>
-                                </button>
-
-                                {/* mark unpaid */}
-                                <button type="button" onClick={() => handleBulkUpdatePaid(false)} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/50 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] active:scale-95" title="Mark all selected orders as Unpaid">
-                                    <i className="fas fa-hourglass-half text-amber-600 dark:text-amber-400 text-[11px]"/>
-                                    <span>Mark Unpaid</span>
-                                </button>
-
-                                {/* bulk delete */}
-                                <button type="button" onClick={handleBulkDelete} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/50 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] active:scale-95" title="Delete selected orders">
-                                    <i className="fas fa-trash-alt text-rose-600 dark:text-rose-400 text-[11px]"/>
-                                    <span>Delete</span>
-                                </button>
-                            </div>
-                        </div>)}
-
-                    {/* body */}
-                    <div className="flex-1 overflow-y-auto max-h-[500px] relative">
-                        <div className="transition-opacity duration-200">
-                            <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.25)]">
-                                <table className="table-pro w-full border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="border-b border-slate-200/80 dark:border-slate-800 bg-[#e4ebf5] dark:bg-[#14151c] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
-                                            <th className="w-10 py-3 px-4 text-center">
-                                                <div className="flex items-center justify-center gap-1.5">
-                                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600" checked={isSelectAll && selectedIds.size > 0} onChange={handleSelectAll} disabled={filteredOrders.length === 0} title={filteredOrders.length === 0 ? "No orders to select" : "Select all purchase orders"}/>
-                                                    {selectedIds.size > 0 && (<span className="text-[10px] bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold px-1.5 py-0.2 rounded-full border border-pink-200/60 dark:border-pink-900/40">
-                                                            {selectedIds.size}
-                                                        </span>)}
-                                                </div>
-                                            </th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">PO #</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Supplier</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Items</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-right">Amount</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Delivery Date</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Status</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Payment</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-center">OCR Result</th>
-                                            <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-right! w-[130px] min-w-[130px]">Actions</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                                        {filteredOrders.length === 0 ? (<tr>
-                                                <td colSpan={10} className="py-12">
-                                                    <EmptyState title="No purchase orders found" description={activeStatusFilter !== 'all'
-                    ? `There are no orders with status "${activeStatusFilter}".`
-                    : "Select an approved purchase request to generate a purchase order."} icon="fas fa-file-invoice" actionText="Create PO from Request" onAction={handleOpenApprovedRequests}/>
-                                                </td>
-                                            </tr>) : (filteredOrders.map((order) => {
-                const rowBusy = pendingRowId === order.id;
-                const isSelected = selectedIds.has(order.id);
-                return (<tr key={order.id} onClick={() => setActionModalOrder(order)} className={`group transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer ${rowBusy ? "opacity-50 pointer-events-none" : isSelected ? "bg-pink-50/30 dark:bg-pink-950/20" : "bg-transparent"}`}>
-                                                        <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                                            <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600" checked={isSelected} onChange={() => handleSelectOne(order.id)}/>
-                                                        </td>
-                                                        <td data-label="PO #" className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap">
-                                                            {order.po_number}
-                                                        </td>
-                                                        <td data-label="Supplier" className="py-3.5 px-4">
-                                                            <div className="font-medium text-slate-800 dark:text-slate-200">
-                                                                {order.supplier_name}
-                                                            </div>
-                                                        </td>
-                                                        <td data-label="Items" className="py-3.5 px-4">
-                                                            <span className="text-slate-600 dark:text-slate-400 truncate max-w-[150px] block" title={order.items?.length ? order.items.map((i: any) => i.name).join(', ') : ''}>
-                                                                {order.items?.length ? order.items.map((i: any) => i.name).join(', ') : 'N/A'}
-                                                            </span>
-                                                        </td>
-                                                        <td data-label="Amount" className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
-                                                            ₱{order.total_amount.toLocaleString()}
-                                                        </td>
-                                                        <td data-label="Delivery Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
-                                                            {order.delivery_date || 'TBD'}
-                                                        </td>
-                                                        <td data-label="Status" className="py-3.5 px-4 whitespace-nowrap">
-                                                            <StatusBadge tone={getPOStatusTone(order.status)} dot size="xs">
-                                                                {order.status}
-                                                            </StatusBadge>
-                                                        </td>
-                                                        <td data-label="Payment" className="py-3.5 px-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                                            {order.paid ? (<StatusBadge tone="purple" icon="fas fa-check-circle" size="xs" title="Payment verified via receipt" onClick={() => handleTogglePaid(order.id, order.paid, order.po_number, order.status)} disabled={rowBusy}>
-                                                                    Paid ✓
-                                                                </StatusBadge>) : order.status === 'Delivered' ? (<StatusBadge tone="pink" icon="fas fa-receipt" size="xs" interactive title="PO Delivered: Click to upload receipt & verify payment" onClick={() => handleTogglePaid(order.id, order.paid, order.po_number, order.status)} disabled={rowBusy}>
-                                                                    Upload Receipt
-                                                                </StatusBadge>) : (<StatusBadge tone="neutral" icon="fas fa-lock" size="xs" disabled title={`Locked: Order must be Delivered before receipt verification (currently ${order.status})`}>
-                                                                    Unpaid
-                                                                </StatusBadge>)}
-                                                        </td>
-                                                        <td data-label="OCR Result" className="py-3.5 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                                            {order.verification?.match_result === 'matched' ? (<StatusBadge tone="pink" icon="fas fa-check-circle" size="xs" interactive title="Receipt verified. Click to view document." onClick={() => {
-                            setViewingDocData({
-                                id: order.document?.id || order.verification?.id,
-                                title: order.document?.title || `Receipt - PO #${order.po_number}`,
-                                fileName: order.document?.file_name || `receipt_${order.po_number}.png`,
-                                fileUrl: order.verification?.uploaded_file_url,
-                                storagePath: order.document?.storage_path,
-                                fileType: order.document?.file_type,
-                                poNumber: order.po_number,
-                                supplierName: order.supplier_name,
-                                verifiedStatus: 'matched',
-                                totalAmount: order.total_amount,
-                                notes: order.document?.notes || 'Verified via Gemini OCR (Matched)',
-                                uploadedBy: order.document?.uploaded_by,
-                            });
-                            setIsDocViewerOpen(true);
-                        }}>
-                                                                    Matched ✓
-                                                                </StatusBadge>) : order.verification?.match_result === 'mismatched' ? (<StatusBadge tone="amber" icon="fas fa-exclamation-triangle" size="xs" interactive title="Receipt mismatch detected. Click to review differences or force insert." onClick={() => {
-                            setReceiptModalPO(order);
-                            setReceiptVerificationId(order.verification?.id || null);
-                            setIsReceiptModalOpen(true);
-                        }}>
-                                                                    Mismatch ⚠
-                                                                </StatusBadge>) : order.verification?.match_result === 'forced' ? (<StatusBadge tone="indigo" icon="fas fa-shield-alt" size="xs" interactive title="Admin forced override. Click to view document." onClick={() => {
-                            setViewingDocData({
-                                id: order.document?.id || order.verification?.id,
-                                title: order.document?.title || `Receipt (Forced) - PO #${order.po_number}`,
-                                fileName: order.document?.file_name || `receipt_${order.po_number}.png`,
-                                fileUrl: order.verification?.uploaded_file_url,
-                                storagePath: order.document?.storage_path,
-                                fileType: order.document?.file_type,
-                                poNumber: order.po_number,
-                                supplierName: order.supplier_name,
-                                verifiedStatus: 'forced',
-                                totalAmount: order.total_amount,
-                                notes: order.document?.notes || 'Admin Forced Override',
-                                uploadedBy: order.document?.uploaded_by,
-                            });
-                            setIsDocViewerOpen(true);
-                        }}>
-                                                                    Forced ✓
-                                                                </StatusBadge>) : order.verification?.match_result === 'pending' ? (<StatusBadge tone="indigo" icon="fas fa-spinner fa-spin" size="xs" interactive title="Receipt verification is processing..." onClick={() => {
-                            setReceiptModalPO(order);
-                            setReceiptVerificationId(order.verification?.id || null);
-                            setIsReceiptModalOpen(true);
-                        }}>
-                                                                    Processing...
-                                                                </StatusBadge>) : order.paid ? (<StatusBadge tone="purple" icon="fas fa-check" size="xs">
-                                                                    Paid
-                                                                </StatusBadge>) : order.status === 'Delivered' ? (<StatusBadge tone="pink" icon="fas fa-arrow-up-from-bracket" size="xs" interactive title="Click to upload receipt for OCR verification" onClick={() => {
-                            setReceiptModalPO(order);
-                            setReceiptVerificationId(null);
-                            setIsReceiptModalOpen(true);
-                        }}>
-                                                                    Upload
-                                                                </StatusBadge>) : (<span className="text-slate-400 dark:text-slate-600 text-xs font-medium italic">—</span>)}
-                                                        </td>
-                                                        <td data-label="Actions" className="py-3.5 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]" onClick={(e) => e.stopPropagation()}>
-                                                            <div className="flex items-center justify-end gap-2.5">
-                                                                {rowBusy && (<svg className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24">
-                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                                                    </svg>)}
-
-                                                                {/* view doc */}
-                                                                {(order.verification?.uploaded_file_url || order.document?.storage_path) && (<CrudActionButton action="custom" label="Doc" icon={FileText} disabled={rowBusy} ariaLabel="View Receipt Document" title="View Receipt Document" onClick={() => {
-                            setViewingDocData({
-                                id: order.document?.id || order.verification?.id,
-                                title: order.document?.title || `Receipt - PO #${order.po_number}`,
-                                fileName: order.document?.file_name || `receipt_${order.po_number}.png`,
-                                fileUrl: order.verification?.uploaded_file_url,
-                                storagePath: order.document?.storage_path,
-                                fileType: order.document?.file_type,
-                                poNumber: order.po_number,
-                                supplierName: order.supplier_name,
-                                verifiedStatus: order.verification?.match_result,
-                                totalAmount: order.total_amount,
-                                notes: order.document?.notes || (order.verification?.match_result === 'matched' ? 'OCR Verified Matched' : undefined),
-                                uploadedBy: order.document?.uploaded_by,
-                            });
-                            setIsDocViewerOpen(true);
-                        }}/>)}
-
-                                                                {/* manage order */}
-                                                                <CrudActionButton action="custom" label="Manage" icon={MoreHorizontal} disabled={rowBusy} ariaLabel="Manage Purchase Order" title="Manage Purchase Order" onClick={() => setActionModalOrder(order)}/>
-                                                            </div>
-                                                        </td>
-                                                    </tr>);
-            }))}
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div className="relative flex-1 min-w-[200px] max-w-xs">
+                            <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none" />
+                            <input className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2 pl-9 pr-8 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Search by PO # or supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
-                    </div>
 
-                    {/* pagination */}
-                    <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1">
-                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium">
-                                Showing <span className="font-semibold text-slate-800 dark:text-white">
-                                    {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
-                                </span> to{' '}
-                                <span className="font-semibold text-slate-800 dark:text-white">
-                                    {Math.min(currentPage * itemsPerPage, totalItems)}
-                                </span> of{' '}
-                                <span className="font-semibold text-slate-800 dark:text-white">{totalItems}</span> orders
-                            </span>
-
-                            {selectedIds.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200/60 dark:border-slate-800 animate-in fade-in duration-150">
-                                    <span className="px-2.5 py-1 rounded-xl bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold border border-pink-200/80 dark:border-pink-900/40 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
-                                        {selectedIds.size} selected
+                        <div className="flex gap-1 bg-[#ebf0f7] dark:bg-[#14151c] p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)]">
+                            {[
+                                { key: "all", label: "All", count: totalOrders },
+                                { key: "Draft", label: "Draft", count: allOrders.filter(o => o.status === 'Draft').length },
+                                { key: "Sent", label: "Sent", count: allOrders.filter(o => o.status === 'Sent').length },
+                                { key: "Confirmed", label: "Confirmed", count: allOrders.filter(o => o.status === 'Confirmed').length },
+                                { key: "Delivered", label: "Delivered", count: allOrders.filter(o => o.status === 'Delivered').length },
+                                { key: "Cancelled", label: "Cancelled", count: allOrders.filter(o => o.status === 'Cancelled').length },
+                            ].map((tab) => {
+                                const isActive = activeStatusFilter === tab.key;
+                                return (<button key={tab.key} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 active:scale-95 ${isActive
+                                    ? "bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-900 dark:text-white border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)]"
+                                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"}`} onClick={() => {
+                                        setActiveStatusFilter(tab.key);
+                                        setCurrentPage(1);
+                                    }}>
+                                    <span>{tab.label}</span>
+                                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${isActive
+                                        ? "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40"
+                                        : "bg-slate-300/50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
+                                        {tab.count}
                                     </span>
+                                </button>);
+                            })}
+                        </div>
+                    </div>
+                </div>
 
-                                    <button type="button" onClick={handleBulkDelete} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-2xl border border-rose-200/70 dark:border-rose-800/50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95">
-                                        {pendingRowId === "bulk" ? (<i className="fas fa-spinner fa-spin text-xs"/>) : (<i className="fas fa-trash-alt text-xs"/>)}
-                                        <span>Delete Selected</span>
-                                    </button>
+                {/* bulk toolbar */}
+                {selectedIds.size > 0 && (<div className="px-4 py-2.5 mb-3 bg-[#ebf0f7] dark:bg-[#14151c] rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex items-center gap-2.5">
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-xl bg-gradient-to-b from-pink-500 to-pink-600 text-white font-bold text-xs border border-pink-400/80 shadow-[0_2px_6px_rgba(236,72,153,0.3)]">
+                            {selectedIds.size}
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            {selectedIds.size} purchase order{selectedIds.size > 1 ? 's' : ''} selected
+                        </span>
+                        <button type="button" onClick={() => {
+                            setSelectedIds(new Set());
+                            setIsSelectAll(false);
+                        }} className="text-[11px] text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 underline font-medium cursor-pointer ml-1">
+                            Deselect all
+                        </button>
+                    </div>
 
-                                    <button type="button" onClick={() => {
-                    setSelectedIds(new Set());
-                    setIsSelectAll(false);
-                }} className="w-7 h-7 rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95" title="Clear selection" aria-label="Clear selection">
-                                        <i className="fas fa-times text-xs"/>
-                                    </button>
-                                </div>)}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        {/* bulk status dropdown */}
+                        <div className="flex items-center gap-2 bg-white dark:bg-[#1a1b26] rounded-xl px-3 py-1.5 border border-slate-200/90 dark:border-slate-700/80 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-none transition-all">
+                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
+                                <i className="fas fa-tasks text-pink-500 text-[10px]" />
+                                Status:
+                            </span>
+                            <select
+                                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer pr-1 transition-colors"
+                                defaultValue=""
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        handleBulkUpdateStatus(e.target.value);
+                                        e.target.value = "";
+                                    }
+                                }}
+                                disabled={pendingRowId === "bulk"}
+                            >
+                                <option value="" disabled className="bg-white dark:bg-[#1e202e] text-slate-400 dark:text-slate-500 font-normal">
+                                    Change Status...
+                                </option>
+                                <option value="Draft" className="bg-white dark:bg-[#1e202e] text-slate-800 dark:text-slate-100 font-semibold py-1">
+                                    Draft
+                                </option>
+                                <option value="Sent" className="bg-white dark:bg-[#1e202e] text-slate-800 dark:text-slate-100 font-semibold py-1">
+                                    Sent
+                                </option>
+                                <option value="Confirmed" className="bg-white dark:bg-[#1e202e] text-slate-800 dark:text-slate-100 font-semibold py-1">
+                                    Confirmed
+                                </option>
+                                <option value="Delivered" className="bg-white dark:bg-[#1e202e] text-slate-800 dark:text-slate-100 font-semibold py-1">
+                                    Delivered
+                                </option>
+                                <option value="Cancelled" className="bg-white dark:bg-[#1e202e] text-rose-600 dark:text-rose-400 font-semibold py-1">
+                                    Cancelled
+                                </option>
+                            </select>
                         </div>
 
-                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange}/>
+                        {/* bulk delete */}
+                        <button
+                            type="button"
+                            onClick={handleBulkDelete}
+                            disabled={pendingRowId === "bulk"}
+                            className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-none active:scale-95"
+                            title="Delete selected orders"
+                        >
+                            <i className="fas fa-trash-alt text-rose-600 dark:text-rose-400 text-[11px]" />
+                            <span>Delete</span>
+                        </button>
                     </div>
                 </div>)}
 
-                {/* selection modal */}
-                <ApprovedRequestsModal isOpen={isApprovedRequestsModalOpen} onClose={() => setIsApprovedRequestsModalOpen(false)} onSelectRequest={handleSelectRequestForPO}/>
+                {/* body */}
+                <div className="flex-1 overflow-y-auto max-h-[500px] relative">
+                    <div className="transition-opacity duration-200">
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-[#ebf0f7]/40 dark:bg-[#14151c]/40 shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.25)]">
+                            <table className="table-pro w-full border-collapse text-left text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-200/80 dark:border-slate-800 bg-[#e4ebf5] dark:bg-[#14151c] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                                        <th className="w-10 py-3 px-4 text-center">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600" checked={isSelectAll && selectedIds.size > 0} onChange={handleSelectAll} disabled={filteredOrders.length === 0} title={filteredOrders.length === 0 ? "No orders to select" : "Select all purchase orders"} />
+                                                {selectedIds.size > 0 && (<span className="text-[10px] bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold px-1.5 py-0.2 rounded-full border border-pink-200/60 dark:border-pink-900/40">
+                                                    {selectedIds.size}
+                                                </span>)}
+                                            </div>
+                                        </th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">PO #</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Supplier</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Items</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-right">Amount</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Delivery Date</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Status</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400">Payment</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-center">OCR Result</th>
+                                        <th className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-400 text-right! w-[130px] min-w-[130px]">Actions</th>
+                                    </tr>
+                                </thead>
 
-                {/* po modal */}
-                <PurchaseOrderModal isOpen={isPurchaseOrderModalOpen} onClose={() => {
-            setIsPurchaseOrderModalOpen(false);
-            setSelectedRequestForPO(null);
-        }} request={selectedRequestForPO} suppliers={suppliers} onOrderCreated={handleOrderCreated}/>
-{/* pr modal */}
-                <PurchaseRequestModal isOpen={isPurchaseRequestModalOpen} onClose={() => setIsPurchaseRequestModalOpen(false)} suppliers={suppliers} role={userRole} onRequestSubmitted={handleRequestSubmitted}/>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                                    {filteredOrders.length === 0 ? (<tr>
+                                        <td colSpan={10} className="py-12">
+                                            <EmptyState title="No purchase orders found" description={activeStatusFilter !== 'all'
+                                                ? `There are no orders with status "${activeStatusFilter}".`
+                                                : "Select an approved purchase request to generate a purchase order."} icon="fas fa-file-invoice" actionText="Create PO from Request" onAction={handleOpenApprovedRequests} />
+                                        </td>
+                                    </tr>) : (filteredOrders.map((order: PurchaseOrder) => {
+                                        const isRowVerifying = verifyingPoIds.has(order.id);
+                                        const rowBusy = pendingRowId === order.id || isRowVerifying;
+                                        const isSelected = selectedIds.has(order.id);
+                                        return (<tr key={order.id} onClick={() => !rowBusy && setActionModalOrder(order)} className={`group transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${rowBusy ? "opacity-60 cursor-not-allowed" : "cursor-pointer"} ${isSelected ? "bg-pink-50/30 dark:bg-pink-950/20" : "bg-transparent"}`}>
+                                            <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <input type="checkbox" disabled={rowBusy} className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-pink-600 focus:ring-pink-500/20 focus:ring-2 transition-all cursor-pointer accent-pink-600 disabled:opacity-50" checked={isSelected} onChange={() => handleSelectOne(order.id)} />
+                                            </td>
+                                            <td data-label="PO #" className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                                                {order.po_number}
+                                            </td>
+                                            <td data-label="Supplier" className="py-3.5 px-4">
+                                                <div className="font-medium text-slate-800 dark:text-slate-200">
+                                                    {order.supplier_name}
+                                                </div>
+                                            </td>
+                                            <td data-label="Items" className="py-3.5 px-4">
+                                                <span className="text-slate-600 dark:text-slate-400 truncate max-w-[150px] block" title={order.items?.length ? order.items.map((i: any) => i.name).join(', ') : ''}>
+                                                    {order.items?.length ? order.items.map((i: any) => i.name).join(', ') : 'N/A'}
+                                                </span>
+                                            </td>
+                                            <td data-label="Amount" className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
+                                                ₱{order.total_amount.toLocaleString()}
+                                            </td>
+                                            <td data-label="Delivery Date" className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                                {order.delivery_date || 'TBD'}
+                                            </td>
+                                            <td data-label="Status" className="py-3.5 px-4 whitespace-nowrap">
+                                                <StatusBadge tone={getPOStatusTone(order.status)} dot size="xs">
+                                                    {order.status}
+                                                </StatusBadge>
+                                            </td>
+                                            <td data-label="Payment" className="py-3.5 px-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                                {isRowVerifying ? (
+                                                    <StatusBadge tone="indigo" icon="fas fa-spinner fa-spin" size="xs" disabled title="Verifying receipt for this order...">
+                                                        Verifying...
+                                                    </StatusBadge>
+                                                ) : (order.paid || order.verification?.match_result === 'matched' || order.verification?.match_result === 'forced') ? (
+                                                    <StatusBadge tone="emerald" icon="fas fa-check-circle" size="xs" title="Payment verified via receipt" onClick={() => handleTogglePaid(order.id, true, order.po_number, order.status)} disabled={rowBusy}>
+                                                        Paid ✓
+                                                    </StatusBadge>
+                                                ) : order.status === 'Delivered' ? (
+                                                    <StatusBadge tone="pink" icon="fas fa-receipt" size="xs" interactive title="PO Delivered: Click to upload receipt & verify payment" onClick={() => handleTogglePaid(order.id, order.paid, order.po_number, order.status)} disabled={rowBusy}>
+                                                        Upload Receipt
+                                                    </StatusBadge>
+                                                ) : (
+                                                    <StatusBadge tone="neutral" icon="fas fa-lock" size="xs" disabled title={`Locked: Order must be Delivered before receipt verification (currently ${order.status})`}>
+                                                        Unpaid
+                                                    </StatusBadge>
+                                                )}
+                                            </td>
+                                            <td data-label="OCR Result" className="py-3.5 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                                {isRowVerifying ? (
+                                                    <StatusBadge tone="indigo" icon="fas fa-spinner fa-spin" size="xs" interactive title="Checking receipt match... Click to reopen modal" onClick={() => {
+                                                        setReceiptModalPO(order);
+                                                        setIsReceiptModalOpen(true);
+                                                    }}>
+                                                        Checking Match...
+                                                    </StatusBadge>
+                                                ) : order.verification?.match_result === 'matched' ? (<StatusBadge tone="emerald" icon="fas fa-check-circle" size="xs" interactive title="Receipt verified. Click to view document." onClick={() => {
+                                                    setViewingDocData({
+                                                        id: order.document?.id || order.verification?.id,
+                                                        title: order.document?.title || `Receipt - PO #${order.po_number}`,
+                                                        fileName: order.document?.file_name || `receipt_${order.po_number}.png`,
+                                                        fileUrl: order.verification?.uploaded_file_url,
+                                                        storagePath: order.document?.storage_path,
+                                                        fileType: order.document?.file_type,
+                                                        poNumber: order.po_number,
+                                                        supplierName: order.supplier_name,
+                                                        verifiedStatus: 'matched',
+                                                        totalAmount: order.total_amount,
+                                                        notes: order.document?.notes || 'Verified via Gemini OCR (Matched)',
+                                                        uploadedBy: order.document?.uploaded_by,
+                                                    });
+                                                    setIsDocViewerOpen(true);
+                                                }}>
+                                                    Matched ✓
+                                                </StatusBadge>) : order.verification?.match_result === 'mismatched' ? (<StatusBadge tone="amber" icon="fas fa-exclamation-triangle" size="xs" interactive title="Receipt mismatch detected. Click to review differences or force insert." onClick={() => {
+                                                    setReceiptModalPO(order);
+                                                    setReceiptVerificationId(order.verification?.id || null);
+                                                    setIsReceiptModalOpen(true);
+                                                }}>
+                                                    Mismatch ⚠
+                                                </StatusBadge>) : order.verification?.match_result === 'forced' ? (<StatusBadge tone="blue" icon="fas fa-shield-alt" size="xs" interactive title="Admin forced override. Click to view document." onClick={() => {
+                                                    setViewingDocData({
+                                                        id: order.document?.id || order.verification?.id,
+                                                        title: order.document?.title || `Receipt (Forced) - PO #${order.po_number}`,
+                                                        fileName: order.document?.file_name || `receipt_${order.po_number}.png`,
+                                                        fileUrl: order.verification?.uploaded_file_url,
+                                                        storagePath: order.document?.storage_path,
+                                                        fileType: order.document?.file_type,
+                                                        poNumber: order.po_number,
+                                                        supplierName: order.supplier_name,
+                                                        verifiedStatus: 'forced',
+                                                        totalAmount: order.total_amount,
+                                                        notes: order.document?.notes || 'Admin Forced Override',
+                                                        uploadedBy: order.document?.uploaded_by,
+                                                    });
+                                                    setIsDocViewerOpen(true);
+                                                }}>
+                                                    Forced ✓
+                                                </StatusBadge>) : order.verification?.match_result === 'pending' ? (<StatusBadge tone="indigo" icon="fas fa-spinner fa-spin" size="xs" interactive title="Receipt verification is processing..." onClick={() => {
+                                                    setReceiptModalPO(order);
+                                                    setReceiptVerificationId(order.verification?.id || null);
+                                                    setIsReceiptModalOpen(true);
+                                                }}>
+                                                    Processing...
+                                                </StatusBadge>) : order.paid ? (<StatusBadge tone="emerald" icon="fas fa-check" size="xs">
+                                                    Paid
+                                                </StatusBadge>) : order.status === 'Delivered' ? (<StatusBadge tone="pink" icon="fas fa-arrow-up-from-bracket" size="xs" interactive title="Click to upload receipt for OCR verification" onClick={() => {
+                                                    setReceiptModalPO(order);
+                                                    setReceiptVerificationId(null);
+                                                    setIsReceiptModalOpen(true);
+                                                }}>
+                                                    Upload
+                                                </StatusBadge>) : (<span className="text-slate-400 dark:text-slate-600 text-xs font-medium italic">—</span>)}
+                                            </td>
+                                            <td data-label="Actions" className="py-3.5 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-2.5">
+                                                    {rowBusy && (<svg className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                    </svg>)}
 
-                {/* chart detail */}
-                <ChartDetailModal isOpen={chartDetailModal.isOpen} onClose={() => setChartDetailModal(prev => ({ ...prev, isOpen: false }))} month={chartDetailModal.month} monthIndex={chartDetailModal.monthIndex} orders={chartDetailModal.orders} totalAmount={chartDetailModal.totalAmount}/>
+                                                    {/* view doc */}
+                                                    {(order.verification?.uploaded_file_url || order.document?.storage_path) && (<CrudActionButton action="custom" label="Doc" icon={FileText} disabled={rowBusy} ariaLabel="View Receipt Document" title="View Receipt Document" onClick={() => {
+                                                        setViewingDocData({
+                                                            id: order.document?.id || order.verification?.id,
+                                                            title: order.document?.title || `Receipt - PO #${order.po_number}`,
+                                                            fileName: order.document?.file_name || `receipt_${order.po_number}.png`,
+                                                            fileUrl: order.verification?.uploaded_file_url,
+                                                            storagePath: order.document?.storage_path,
+                                                            fileType: order.document?.file_type,
+                                                            poNumber: order.po_number,
+                                                            supplierName: order.supplier_name,
+                                                            verifiedStatus: order.verification?.match_result,
+                                                            totalAmount: order.total_amount,
+                                                            notes: order.document?.notes || (order.verification?.match_result === 'matched' ? 'OCR Verified Matched' : undefined),
+                                                            uploadedBy: order.document?.uploaded_by,
+                                                        });
+                                                        setIsDocViewerOpen(true);
+                                                    }} />)}
 
-                {/* manage po */}
-                {actionModalOrder && (
-                    <Portal>
-                        <div className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center z-[99999] p-4 animate-in fade-in duration-200" onClick={() => setActionModalOrder(null)}>
-                            <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-[12px_12px_36px_rgba(166,175,195,0.45),-12px_-12px_36px_rgba(255,255,255,0.95)] dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-                                
-                                {/* header */}
-                                <div className="px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] flex items-center justify-between shrink-0">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-11 h-11 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center text-lg shrink-0">
-                                            <i className="fas fa-file-invoice" />
+                                                    {/* manage order */}
+                                                    <CrudActionButton action="custom" label="Manage" icon={MoreHorizontal} disabled={rowBusy} ariaLabel="Manage Purchase Order" title="Manage Purchase Order" onClick={() => setActionModalOrder(order)} />
+                                                </div>
+                                            </td>
+                                        </tr>);
+                                    }))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                {/* pagination */}
+                <div className="flex-shrink-0 pagination-container-class flex flex-col sm:flex-row items-center justify-between gap-4 py-3 px-1">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
+                        <span className="text-slate-500 dark:text-slate-400 font-medium">
+                            Showing <span className="font-semibold text-slate-800 dark:text-white">
+                                {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
+                            </span> to{' '}
+                            <span className="font-semibold text-slate-800 dark:text-white">
+                                {Math.min(currentPage * itemsPerPage, totalItems)}
+                            </span> of{' '}
+                            <span className="font-semibold text-slate-800 dark:text-white">{totalItems}</span> orders
+                        </span>
+
+                        {selectedIds.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200/60 dark:border-slate-800 animate-in fade-in duration-150">
+                            <span className="px-2.5 py-1 rounded-xl bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold border border-pink-200/80 dark:border-pink-900/40 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
+                                {selectedIds.size} selected
+                            </span>
+
+                            <button type="button" onClick={handleBulkDelete} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-2xl border border-rose-200/70 dark:border-rose-800/50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95">
+                                {pendingRowId === "bulk" ? (<i className="fas fa-spinner fa-spin text-xs" />) : (<i className="fas fa-trash-alt text-xs" />)}
+                                <span>Delete Selected</span>
+                            </button>
+
+                            <button type="button" onClick={() => {
+                                setSelectedIds(new Set());
+                                setIsSelectAll(false);
+                            }} className="w-7 h-7 rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center border border-white/70 dark:border-[#2a2b38] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95" title="Clear selection" aria-label="Clear selection">
+                                <i className="fas fa-times text-xs" />
+                            </button>
+                        </div>)}
+                    </div>
+
+                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
+                </div>
+            </div>)}
+
+            {/* selection modal */}
+            <ApprovedRequestsModal isOpen={isApprovedRequestsModalOpen} onClose={() => setIsApprovedRequestsModalOpen(false)} onSelectRequest={handleSelectRequestForPO} />
+
+            {/* po modal */}
+            <PurchaseOrderModal isOpen={isPurchaseOrderModalOpen} onClose={() => {
+                setIsPurchaseOrderModalOpen(false);
+                setSelectedRequestForPO(null);
+            }} request={selectedRequestForPO} suppliers={suppliers} onOrderCreated={handleOrderCreated} />
+            {/* pr modal */}
+            <PurchaseRequestModal isOpen={isPurchaseRequestModalOpen} onClose={() => setIsPurchaseRequestModalOpen(false)} suppliers={suppliers} role={userRole} onRequestSubmitted={handleRequestSubmitted} />
+
+            {/* chart detail */}
+            <ChartDetailModal isOpen={chartDetailModal.isOpen} onClose={() => setChartDetailModal(prev => ({ ...prev, isOpen: false }))} month={chartDetailModal.month} monthIndex={chartDetailModal.monthIndex} orders={chartDetailModal.orders} totalAmount={chartDetailModal.totalAmount} />
+
+            {/* manage po */}
+            {actionModalOrder && (
+                <Portal>
+                    <div className="fixed inset-0 bg-slate-950/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center z-[99999] p-4 animate-in fade-in duration-200" onClick={() => setActionModalOrder(null)}>
+                        <div className="bg-[#f0f3f8] dark:bg-[#161722] rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-[12px_12px_36px_rgba(166,175,195,0.45),-12px_-12px_36px_rgba(255,255,255,0.95)] dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] border border-white/90 dark:border-white/[0.08] overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+
+                            {/* header */}
+                            <div className="px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] flex items-center justify-between shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] text-pink-500 dark:text-pink-400 flex items-center justify-center text-lg shrink-0">
+                                        <i className="fas fa-file-invoice" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                                Manage Order
+                                            </h2>
+                                            <span className="font-mono text-xs font-bold text-pink-600 dark:text-pink-400 bg-[#ebf0f7] dark:bg-[#14151e] px-2 py-0.5 rounded-lg border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                                {actionModalOrder.po_number}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                                            {actionModalOrder.supplier_name} • <span className="font-bold text-slate-800 dark:text-slate-200">₱{actionModalOrder.total_amount.toLocaleString()}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={isSendingActionComm}
+                                    onClick={() => setActionModalOrder(null)}
+                                    className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                                    aria-label="Close modal"
+                                >
+                                    <i className="fas fa-times text-xs" />
+                                </button>
+                            </div>
+
+                            {/* content body */}
+                            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                                {/* quick overview card */}
+                                <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <span className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 tracking-wider">
+                                                Current Status
+                                            </span>
+                                            <div className="mt-1.5 flex items-center gap-1.5">
+                                                <StatusBadge tone={getPOStatusTone(actionModalOrder.status)} dot size="xs">
+                                                    {actionModalOrder.status}
+                                                </StatusBadge>
+                                            </div>
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2">
-                                                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                                                    Manage Order
-                                                </h2>
-                                                <span className="font-mono text-xs font-bold text-pink-600 dark:text-pink-400 bg-[#ebf0f7] dark:bg-[#14151e] px-2 py-0.5 rounded-lg border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
-                                                    {actionModalOrder.po_number}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
-                                                {actionModalOrder.supplier_name} • <span className="font-bold text-slate-800 dark:text-slate-200">₱{actionModalOrder.total_amount.toLocaleString()}</span>
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActionModalOrder(null)}
-                                        className="w-8 h-8 rounded-xl bg-[#ebf0f7] dark:bg-[#14151e] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center transition-all cursor-pointer active:scale-95"
-                                        aria-label="Close modal"
-                                    >
-                                        <i className="fas fa-times text-xs" />
-                                    </button>
-                                </div>
-
-                                {/* content body */}
-                                <div className="p-6 space-y-5 overflow-y-auto flex-1">
-                                    {/* quick overview card */}
-                                    <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <span className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 tracking-wider">
-                                                    Current Status
-                                                </span>
-                                                <div className="mt-1.5 flex items-center gap-1.5">
-                                                    <StatusBadge tone={getPOStatusTone(actionModalOrder.status)} dot size="xs">
-                                                        {actionModalOrder.status}
+                                            <span className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 tracking-wider">
+                                                Payment Status
+                                            </span>
+                                            <div className="mt-1.5 flex items-center gap-1.5">
+                                                {(actionModalOrder.paid || actionModalOrder.verification?.match_result === 'matched' || actionModalOrder.verification?.match_result === 'forced') ? (
+                                                    <StatusBadge tone="purple" icon="fas fa-check-circle" size="xs">
+                                                        Paid ✓
                                                     </StatusBadge>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <span className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 tracking-wider">
-                                                    Payment Status
-                                                </span>
-                                                <div className="mt-1.5 flex items-center gap-1.5">
-                                                    {actionModalOrder.paid ? (
-                                                        <StatusBadge tone="purple" icon="fas fa-check-circle" size="xs">
-                                                            Paid ✓
-                                                        </StatusBadge>
-                                                    ) : (
-                                                        <StatusBadge tone="amber" icon="fas fa-hourglass-half" size="xs">
-                                                            Unpaid
-                                                        </StatusBadge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* items preview if available */}
-                                        {actionModalOrder.items && actionModalOrder.items.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-white/[0.04]">
-                                                <span className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 tracking-wider block mb-1">
-                                                    Order Items ({actionModalOrder.items.length})
-                                                </span>
-                                                <div className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate" title={actionModalOrder.items.map((i: any) => `${i.name || i.item_name} (x${i.quantity || 1})`).join(', ')}>
-                                                    {actionModalOrder.items.map((i: any) => i.name || i.item_name).join(', ')}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* ocr verification CTA */}
-                                        {!actionModalOrder.paid && actionModalOrder.status === 'Delivered' && (
-                                            <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-white/[0.04]">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setReceiptModalPO(actionModalOrder);
-                                                        setReceiptVerificationId(null);
-                                                        setIsReceiptModalOpen(true);
-                                                        setActionModalOrder(null);
-                                                    }}
-                                                    className="w-full px-4 py-2 text-xs font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 bg-[#f0f3f8] dark:bg-[#1a1b26] rounded-xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] border border-pink-200/80 dark:border-pink-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                                                >
-                                                    <i className="fas fa-receipt text-xs" />
-                                                    <span>Upload Receipt & Verify Payment (OCR)</span>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* send options (for draft orders) */}
-                                    {actionModalOrder.status === 'Draft' && (
-                                        <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="w-6 h-6 rounded-lg bg-pink-50 dark:bg-pink-950/50 border border-pink-200/60 dark:border-pink-900/40 flex items-center justify-center text-pink-500 dark:text-pink-400 text-[10px]">
-                                                        <i className="fas fa-paper-plane" />
-                                                    </span>
-                                                    <div>
-                                                        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">
-                                                            Send PO to Supplier
-                                                        </h3>
-                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 block">
-                                                            Generates dispatch email or message & marks as Sent
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleGenerateActionAIMessage}
-                                                        disabled={isGeneratingActionAI || isSendingActionComm}
-                                                        className="px-2.5 py-1 text-[11px] font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 bg-[#f0f3f8] dark:bg-[#1d1e28] rounded-xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] border border-white/80 dark:border-[#2a2b38] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
-                                                    >
-                                                        {isGeneratingActionAI ? (
-                                                            <i className="fas fa-spinner fa-spin text-[10px]" />
-                                                        ) : (
-                                                            <i className="fas fa-wand-magic-sparkles text-[10px]" />
-                                                        )}
-                                                        <span>{isGeneratingActionAI ? 'Generating...' : 'AI Compose'}</span>
-                                                    </button>
-                                                    {actionModalAiMessage && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleActionCopyOnly}
-                                                            disabled={isSendingActionComm}
-                                                            className="w-7 h-7 rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-600 dark:text-slate-300 hover:text-pink-600 dark:hover:text-pink-400 flex items-center justify-center border border-white/80 dark:border-[#2a2b38] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                                                            title="Copy Message"
-                                                        >
-                                                            <i className="fas fa-copy text-[10px]" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* ai message preview well */}
-                                            <div className="bg-[#e2e8f0]/60 dark:bg-[#101118] rounded-xl p-3 border border-white/60 dark:border-white/[0.04] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] text-xs text-slate-800 dark:text-slate-200 leading-relaxed min-h-[70px] max-h-[130px] overflow-y-auto">
-                                                {isGeneratingActionAI ? (
-                                                    <div className="flex items-center justify-center h-14">
-                                                        <div className="flex items-center gap-2 text-pink-600 dark:text-pink-400 text-xs font-semibold">
-                                                            <i className="fas fa-spinner fa-spin" />
-                                                            <span>Drafting professional supplier message...</span>
-                                                        </div>
-                                                    </div>
-                                                ) : actionModalAiMessage ? (
-                                                    <div>
-                                                        <p className="whitespace-pre-wrap">{actionModalAiMessage}</p>
-                                                        <div className="mt-2 pt-2 border-t border-slate-300/40 dark:border-slate-800">
-                                                            <p className="text-[10px] text-pink-600 dark:text-pink-400 font-bold flex items-center gap-1">
-                                                                <i className="fas fa-link text-[9px]" /> Confirmation link is automatically included
-                                                            </p>
-                                                        </div>
-                                                    </div>
                                                 ) : (
-                                                    <p className="text-slate-400 dark:text-slate-500 italic text-center py-2.5">
-                                                        Click "AI Compose" to generate a tailored message for {actionModalOrder.supplier_name}
-                                                    </p>
+                                                    <StatusBadge tone="amber" icon="fas fa-hourglass-half" size="xs">
+                                                        Unpaid
+                                                    </StatusBadge>
                                                 )}
                                             </div>
+                                        </div>
+                                    </div>
 
-                                            {/* supplier contact & buttons */}
-                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
-                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                                    {actionSupplierEmail ? (
-                                                        <span className="truncate block font-medium" title={actionSupplierEmail}>
-                                                            <i className="fas fa-envelope text-pink-500 mr-1.5" />
-                                                            {actionSupplierEmail}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-amber-600 dark:text-amber-400 font-medium">
-                                                            <i className="fas fa-exclamation-triangle mr-1.5" />
-                                                            No supplier email configured
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex items-center gap-2 justify-end">
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleActionEmail}
-                                                        title="Send Email via Gmail"
-                                                        disabled={!actionModalAiMessage || isSendingActionComm || !actionSupplierEmail}
-                                                        className="px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1d1e28] hover:text-pink-600 dark:hover:text-pink-400 border border-white/80 dark:border-[#2a2b38] rounded-xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55)] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
-                                                    >
-                                                        {isSendingActionComm ? (
-                                                            <i className="fas fa-spinner fa-spin text-pink-500" />
-                                                        ) : (
-                                                            <i className="fas fa-envelope text-pink-500 dark:text-pink-400 text-[11px]" />
-                                                        )}
-                                                        <span>Email</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleActionMessenger}
-                                                        title="Send via Messenger"
-                                                        disabled={!actionModalAiMessage || isSendingActionComm}
-                                                        className="px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1d1e28] hover:text-sky-600 dark:hover:text-sky-400 border border-white/80 dark:border-[#2a2b38] rounded-xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55)] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
-                                                    >
-                                                        {isSendingActionComm ? (
-                                                            <i className="fas fa-spinner fa-spin text-sky-500" />
-                                                        ) : (
-                                                            <i className="fab fa-facebook-messenger text-sky-500 dark:text-sky-400 text-[11px]" />
-                                                        )}
-                                                        <span>Messenger</span>
-                                                    </button>
-                                                </div>
+                                    {/* items preview if available */}
+                                    {actionModalOrder.items && actionModalOrder.items.length > 0 && (
+                                        <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-white/[0.04]">
+                                            <span className="text-[10px] uppercase font-extrabold text-slate-400 dark:text-slate-500 tracking-wider block mb-1">
+                                                Order Items ({actionModalOrder.items.length})
+                                            </span>
+                                            <div className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate" title={actionModalOrder.items.map((i: any) => `${i.name || i.item_name} (x${i.quantity || 1})`).join(', ')}>
+                                                {actionModalOrder.items.map((i: any) => i.name || i.item_name).join(', ')}
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* status transition section */}
-                                    <div className="space-y-2.5">
+                                    {/* ocr verification CTA */}
+                                    {!(actionModalOrder.paid || actionModalOrder.verification?.match_result === 'matched' || actionModalOrder.verification?.match_result === 'forced') && actionModalOrder.status === 'Delivered' && (
+                                        <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-white/[0.04]">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setReceiptModalPO(actionModalOrder);
+                                                    setReceiptVerificationId(null);
+                                                    setIsReceiptModalOpen(true);
+                                                    setActionModalOrder(null);
+                                                }}
+                                                className="w-full px-4 py-2 text-xs font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 bg-[#f0f3f8] dark:bg-[#1a1b26] rounded-xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] border border-pink-200/80 dark:border-pink-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                                            >
+                                                <i className="fas fa-receipt text-xs" />
+                                                <span>Upload Receipt & Verify Payment (OCR)</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* send options (for draft orders) */}
+                                {actionModalOrder.status === 'Draft' && (
+                                    <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-4 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                                                <i className="fas fa-arrows-rotate text-pink-500 text-[11px]" />
-                                                Update Order Status
-                                            </label>
-                                            {!canUpdateStatus ? (
-                                                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800/40 flex items-center gap-1">
-                                                    <i className="fas fa-lock text-[9px]" /> Managers & Admins Only
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-lg bg-pink-50 dark:bg-pink-950/50 border border-pink-200/60 dark:border-pink-900/40 flex items-center justify-center text-pink-500 dark:text-pink-400 text-[10px]">
+                                                    <i className="fas fa-paper-plane" />
                                                 </span>
-                                            ) : !isAdmin ? (
-                                                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                                                    Confirmed requires Admin
-                                                </span>
-                                            ) : null}
+                                                <div>
+                                                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">
+                                                        Send PO to Supplier
+                                                    </h3>
+                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 block">
+                                                        Generates dispatch email or message & marks as Sent
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleGenerateActionAIMessage}
+                                                    disabled={isGeneratingActionAI || isSendingActionComm}
+                                                    className="px-2.5 py-1 text-[11px] font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 bg-[#f0f3f8] dark:bg-[#1d1e28] rounded-xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] border border-white/80 dark:border-[#2a2b38] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                                                >
+                                                    {isGeneratingActionAI ? (
+                                                        <i className="fas fa-spinner fa-spin text-[10px]" />
+                                                    ) : (
+                                                        <i className="fas fa-wand-magic-sparkles text-[10px]" />
+                                                    )}
+                                                    <span>{isGeneratingActionAI ? 'Generating...' : 'AI Compose'}</span>
+                                                </button>
+                                                {actionModalAiMessage && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleActionCopyOnly}
+                                                        disabled={isSendingActionComm}
+                                                        className="w-7 h-7 rounded-xl bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-600 dark:text-slate-300 hover:text-pink-600 dark:hover:text-pink-400 flex items-center justify-center border border-white/80 dark:border-[#2a2b38] shadow-[2px_2px_4px_rgba(166,175,195,0.3),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                                                        title="Copy Message"
+                                                    >
+                                                        <i className="fas fa-copy text-[10px]" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 gap-2">
-                                            {['Draft', 'Sent', 'Confirmed', 'Delivered', 'Cancelled'].map((status) => {
-                                                const isCurrent = actionModalOrder.status === status;
-                                                const requiresAdmin = status === 'Confirmed' || actionModalOrder.status === 'Confirmed';
-                                                const isRestricted = !canUpdateStatus || (requiresAdmin && !isAdmin);
-                                                const isDisabled = pendingRowId === actionModalOrder.id || isCurrent || isRestricted;
+                                        {/* ai message preview well */}
+                                        <div className="bg-[#e2e8f0]/60 dark:bg-[#101118] rounded-xl p-3 border border-white/60 dark:border-white/[0.04] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] text-xs text-slate-800 dark:text-slate-200 leading-relaxed min-h-[70px] max-h-[130px] overflow-y-auto">
+                                            {isGeneratingActionAI ? (
+                                                <div className="flex items-center justify-center h-14">
+                                                    <div className="flex items-center gap-2 text-pink-600 dark:text-pink-400 text-xs font-semibold">
+                                                        <i className="fas fa-spinner fa-spin" />
+                                                        <span>Drafting professional supplier message...</span>
+                                                    </div>
+                                                </div>
+                                            ) : actionModalAiMessage ? (
+                                                <div>
+                                                    <p className="whitespace-pre-wrap">{actionModalAiMessage}</p>
+                                                    <div className="mt-2 pt-2 border-t border-slate-300/40 dark:border-slate-800">
+                                                        <p className="text-[10px] text-pink-600 dark:text-pink-400 font-bold flex items-center gap-1">
+                                                            <i className="fas fa-link text-[9px]" /> Confirmation link is automatically included
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-slate-400 dark:text-slate-500 italic text-center py-2.5">
+                                                    Click "AI Compose" to generate a tailored message for {actionModalOrder.supplier_name}
+                                                </p>
+                                            )}
+                                        </div>
 
-                                                const getDotColor = () => {
-                                                    switch (status) {
-                                                        case 'Draft': return 'bg-slate-400 dark:bg-slate-500';
-                                                        case 'Sent': return 'bg-indigo-500 dark:bg-indigo-400';
-                                                        case 'Confirmed': return 'bg-purple-500 dark:bg-purple-400';
-                                                        case 'Delivered': return 'bg-emerald-500 dark:text-emerald-400';
-                                                        case 'Cancelled': return 'bg-rose-500 dark:bg-rose-400';
-                                                        default: return 'bg-slate-400';
-                                                    }
-                                                };
+                                        {/* supplier contact & buttons */}
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                                {actionSupplierEmail ? (
+                                                    <span className="truncate block font-medium" title={actionSupplierEmail}>
+                                                        <i className="fas fa-envelope text-pink-500 mr-1.5" />
+                                                        {actionSupplierEmail}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                                        <i className="fas fa-exclamation-triangle mr-1.5" />
+                                                        No supplier email configured
+                                                    </span>
+                                                )}
+                                            </div>
 
-                                                return (
-                                                    <button
-                                                        key={status}
-                                                        type="button"
-                                                        disabled={isDisabled}
-                                                        onClick={() => handleUpdateStatus(actionModalOrder.id, status)}
-                                                        title={isCurrent
+                                            <div className="flex items-center gap-2 justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleActionEmail}
+                                                    title="Send Email via Gmail"
+                                                    disabled={!actionModalAiMessage || isSendingActionComm || !actionSupplierEmail}
+                                                    className="px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1d1e28] hover:text-pink-600 dark:hover:text-pink-400 border border-white/80 dark:border-[#2a2b38] rounded-xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55)] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                                                >
+                                                    {isSendingActionComm ? (
+                                                        <i className="fas fa-spinner fa-spin text-pink-500" />
+                                                    ) : (
+                                                        <i className="fas fa-envelope text-pink-500 dark:text-pink-400 text-[11px]" />
+                                                    )}
+                                                    <span>Email</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleActionMessenger}
+                                                    title="Send via Messenger"
+                                                    disabled={!actionModalAiMessage || isSendingActionComm}
+                                                    className="px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1d1e28] hover:text-sky-600 dark:hover:text-sky-400 border border-white/80 dark:border-[#2a2b38] rounded-xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55)] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                                                >
+                                                    {isSendingActionComm ? (
+                                                        <i className="fas fa-spinner fa-spin text-sky-500" />
+                                                    ) : (
+                                                        <i className="fab fa-facebook-messenger text-sky-500 dark:text-sky-400 text-[11px]" />
+                                                    )}
+                                                    <span>Messenger</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* status transition section */}
+                                <div className={`space-y-2.5 transition-opacity duration-200 ${isSendingActionComm ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                                            <i className="fas fa-arrows-rotate text-pink-500 text-[11px]" />
+                                            Update Order Status
+                                        </label>
+                                        {isSendingActionComm ? (
+                                            <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40 px-2 py-0.5 rounded-md border border-pink-200 dark:border-pink-800/40 flex items-center gap-1">
+                                                <i className="fas fa-spinner fa-spin text-[9px]" /> Disabled while sending...
+                                            </span>
+                                        ) : !canUpdateStatus ? (
+                                            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800/40 flex items-center gap-1">
+                                                <i className="fas fa-lock text-[9px]" /> Managers & Admins Only
+                                            </span>
+                                        ) : !isAdmin ? (
+                                            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                                Confirmed requires Admin
+                                            </span>
+                                        ) : null}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {['Draft', 'Sent', 'Confirmed', 'Delivered', 'Cancelled'].map((status) => {
+                                            const isCurrent = actionModalOrder.status === status;
+                                            const requiresAdmin = status === 'Confirmed' || actionModalOrder.status === 'Confirmed';
+                                            const isRestricted = !canUpdateStatus || (requiresAdmin && !isAdmin);
+                                            const isDisabled = pendingRowId === actionModalOrder.id || isCurrent || isRestricted || isSendingActionComm;
+
+                                            const getDotColor = () => {
+                                                switch (status) {
+                                                    case 'Draft': return 'bg-slate-400 dark:bg-slate-500';
+                                                    case 'Sent': return 'bg-indigo-500 dark:bg-indigo-400';
+                                                    case 'Confirmed': return 'bg-purple-500 dark:bg-purple-400';
+                                                    case 'Delivered': return 'bg-emerald-500 dark:text-emerald-400';
+                                                    case 'Cancelled': return 'bg-rose-500 dark:bg-rose-400';
+                                                    default: return 'bg-slate-400';
+                                                }
+                                            };
+
+                                            return (
+                                                <button
+                                                    key={status}
+                                                    type="button"
+                                                    disabled={isDisabled}
+                                                    onClick={() => handleUpdateStatus(actionModalOrder.id, status)}
+                                                    title={isSendingActionComm
+                                                        ? "Status updates are disabled while sending communication"
+                                                        : isCurrent
                                                             ? `Current status is ${status}`
                                                             : isRestricted
                                                                 ? requiresAdmin && !isAdmin
                                                                     ? "Admin Only: Only Administrators can set or modify Confirmed status"
                                                                     : "Only Managers, Executives, and Admins can update status"
                                                                 : `Click to change status to ${status}`}
-                                                        className={`w-full px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all flex items-center justify-between border ${isCurrent
-                                                            ? 'bg-[#e2e8f0]/80 dark:bg-[#101118] border-pink-400/60 dark:border-pink-500/50 shadow-[inset_2px_2px_4px_rgba(166,175,195,0.4)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] cursor-default'
-                                                            : isRestricted
-                                                                ? 'bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 border-slate-200/40 dark:border-slate-800/40 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-50 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.15)]'
-                                                                : 'bg-[#f0f3f8] dark:bg-[#1a1b26] border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] hover:border-pink-300 dark:hover:border-pink-500/40 hover:text-pink-600 dark:hover:text-pink-400 text-slate-700 dark:text-slate-200 active:scale-[0.98] cursor-pointer'
-                                                            }`}
-                                                    >
-                                                        <div className="flex items-center gap-2.5">
-                                                            <span className={`w-2.5 h-2.5 rounded-full ${getDotColor()} ${isCurrent ? 'ring-2 ring-pink-500/40 shadow-xs' : ''}`} />
-                                                            <span className="font-bold">{status}</span>
-                                                        </div>
+                                                    className={`w-full px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all flex items-center justify-between border ${isCurrent
+                                                        ? 'bg-[#e2e8f0]/80 dark:bg-[#101118] border-pink-400/60 dark:border-pink-500/50 shadow-[inset_2px_2px_4px_rgba(166,175,195,0.4)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] cursor-default'
+                                                        : isRestricted
+                                                            ? 'bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 border-slate-200/40 dark:border-slate-800/40 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-50 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.15)]'
+                                                            : 'bg-[#f0f3f8] dark:bg-[#1a1b26] border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] hover:border-pink-300 dark:hover:border-pink-500/40 hover:text-pink-600 dark:hover:text-pink-400 text-slate-700 dark:text-slate-200 active:scale-[0.98] cursor-pointer'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-2.5">
+                                                        <span className={`w-2.5 h-2.5 rounded-full ${getDotColor()} ${isCurrent ? 'ring-2 ring-pink-500/40 shadow-xs' : ''}`} />
+                                                        <span className="font-bold">{status}</span>
+                                                    </div>
 
-                                                        {isCurrent ? (
-                                                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40 tracking-wider">
-                                                                Current ✓
-                                                            </span>
-                                                        ) : isRestricted ? (
-                                                            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                                                                <i className="fas fa-lock text-[9px]" /> {requiresAdmin && !isAdmin ? 'Admin' : 'Locked'}
-                                                            </span>
-                                                        ) : (
-                                                            <i className="fas fa-chevron-right text-[10px] opacity-40 group-hover:opacity-100 transition-opacity" />
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
+                                                    {isCurrent ? (
+                                                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40 tracking-wider">
+                                                            Current ✓
+                                                        </span>
+                                                    ) : isRestricted ? (
+                                                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                                            <i className="fas fa-lock text-[9px]" /> {requiresAdmin && !isAdmin ? 'Admin' : 'Locked'}
+                                                        </span>
+                                                    ) : (
+                                                        <i className="fas fa-chevron-right text-[10px] opacity-40 group-hover:opacity-100 transition-opacity" />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
+                                </div>
 
-                                    {/* delete purchase order button */}
-                                    <div className="pt-2">
-                                        <button
-                                            type="button"
-                                            disabled={pendingRowId === actionModalOrder.id}
-                                            onClick={() => handleDeleteOrder(actionModalOrder.id)}
-                                            className="w-full py-2.5 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 bg-[#ebf0f7] dark:bg-[#14151e] hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200/70 dark:border-rose-900/40 rounded-2xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-                                        >
-                                            {pendingRowId === actionModalOrder.id ? (
-                                                <i className="fas fa-spinner fa-spin text-xs" />
-                                            ) : (
-                                                <i className="fas fa-trash-alt text-xs" />
-                                            )}
-                                            <span>Delete Purchase Order</span>
-                                        </button>
-                                    </div>
+                                {/* delete purchase order button */}
+                                <div className="pt-2">
+                                    <button
+                                        type="button"
+                                        disabled={pendingRowId === actionModalOrder.id || isSendingActionComm}
+                                        onClick={() => handleDeleteOrder(actionModalOrder.id)}
+                                        className="w-full py-2.5 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 bg-[#ebf0f7] dark:bg-[#14151e] hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200/70 dark:border-rose-900/40 rounded-2xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                                    >
+                                        {pendingRowId === actionModalOrder.id ? (
+                                            <i className="fas fa-spinner fa-spin text-xs" />
+                                        ) : (
+                                            <i className="fas fa-trash-alt text-xs" />
+                                        )}
+                                        <span>Delete Purchase Order</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                    </Portal>
-                )}
+                    </div>
+                </Portal>
+            )}
 
-                {/* ocr modal */}
-                {isReceiptModalOpen && receiptModalPO && (<UploadReceiptModal isOpen={isReceiptModalOpen} onClose={() => setIsReceiptModalOpen(false)} po={receiptModalPO} initialVerificationId={receiptVerificationId} onMinimize={(job) => {
-                updateActiveVerificationJob(job);
-                setIsReceiptModalOpen(false);
-            }} onSuccess={() => {
-                fetchData({ silent: true });
-            }}/>)}
+            {/* ocr modal */}
+            {isReceiptModalOpen && receiptModalPO && (<UploadReceiptModal
+                isOpen={isReceiptModalOpen}
+                onClose={() => setIsReceiptModalOpen(false)}
+                po={receiptModalPO}
+                initialVerificationId={receiptVerificationId}
+                isQueuedOrVerifying={verifyingPoIds.has(receiptModalPO.id)}
+                onStartVerification={handleStartVerification}
+                onEndVerification={handleEndVerification}
+                onQueueVerification={handleEnqueueVerification}
+                onMinimize={(job) => {
+                    updateActiveVerificationJob(job);
+                    setIsReceiptModalOpen(false);
+                }}
+                onSuccess={() => {
+                    fetchData({ silent: true });
+                }}
+            />)}
 
-                {/* verification indicator */}
-                <ReceiptProcessingIndicator job={activeVerificationJob} onClick={() => {
-            if (activeVerificationJob) {
-                const target = purchaseOrders.find(p => p.id === activeVerificationJob.poId) || {
-                    id: activeVerificationJob.poId,
-                    po_number: activeVerificationJob.poNumber,
-                    supplier_name: 'Supplier',
-                    total_amount: 0,
-                } as any;
-                setReceiptModalPO(target);
-                setReceiptVerificationId(activeVerificationJob.verificationId);
-                setIsReceiptModalOpen(true);
-            }
-        }} onDismiss={() => updateActiveVerificationJob(null)}/>
+            {/* verification indicator */}
+            <ReceiptProcessingIndicator
+                job={activeVerificationJob}
+                queue={receiptQueue}
+                onClick={handleOpenQueueItem}
+                onDismiss={() => {
+                    setActiveVerificationJob(null);
+                    setReceiptQueue([]);
+                }}
+                onClearCompleted={() => {
+                    setReceiptQueue(prev => prev.filter(q => q.status === 'queued' || q.status === 'processing'));
+                }}
+            />
 
-                {/* doc viewer */}
-                <DocumentViewerModal isOpen={isDocViewerOpen} onClose={() => {
-            setIsDocViewerOpen(false);
-            setViewingDocData(null);
-        }} data={viewingDocData}/>
-            </div>
-        </SessionGuard>);
+            {/* doc viewer */}
+            <DocumentViewerModal isOpen={isDocViewerOpen} onClose={() => {
+                setIsDocViewerOpen(false);
+                setViewingDocData(null);
+            }} data={viewingDocData} />
+        </div>
+    </SessionGuard>);
 }

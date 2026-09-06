@@ -17,7 +17,7 @@ export interface LatestPOInfo {
     poi_id?: string;
     purchase_order_id?: string;
     po_number?: string;
-    status?: string; // 'Draft' | 'Sent' | 'Confirmed' | 'Delivered' | 'Cancelled' | 'Pending'
+    status?: string; // 'Draft' | 'Sent' | 'Confirmed' | 'Delivered' | 'Cancelled' | 'Pending' | 'Approved' | 'Rejected'
     paid?: boolean;
     fully_received?: boolean;
     quantity_ordered?: number;
@@ -28,6 +28,10 @@ export interface LatestPOInfo {
     request_number?: string;
     request_id?: string;
     delivery_date?: string;
+    created_at?: string;
+    has_pending_pr?: boolean;
+    pending_pr_number?: string;
+    pending_pr_id?: string;
 }
 
 export interface InventoryItem {

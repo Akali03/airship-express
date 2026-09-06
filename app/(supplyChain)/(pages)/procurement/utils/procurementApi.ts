@@ -43,6 +43,18 @@ interface UpdateRequestData {
 interface PatchRequestData {
     id: string;
     action: 'approve' | 'reject';
+    role?: string;
+}
+
+function getAuthHeaders(): Record<string, string> {
+    const role = typeof window !== 'undefined' ? (localStorage.getItem('user_role') || '') : '';
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    };
+    if (role) {
+        headers['x-user-role'] = role;
+    }
+    return headers;
 }
 
 /**
@@ -60,9 +72,7 @@ export async function fetchProcurementData(params: FetchProcurementParams = {}) 
 
     const response = await fetch(`/procurement/api?${queryParams.toString()}`, {
         method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
     });
 
     const result = await response.json();
@@ -78,12 +88,11 @@ export async function fetchProcurementData(params: FetchProcurementParams = {}) 
  * Create a new purchase request
  */
 export async function createPurchaseRequest(data: CreateRequestData) {
+    const role = typeof window !== 'undefined' ? (localStorage.getItem('user_role') || '') : '';
     const response = await fetch('/procurement/api', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ...data, role }),
     });
 
     const result = await response.json();
@@ -99,12 +108,11 @@ export async function createPurchaseRequest(data: CreateRequestData) {
  * Update an existing purchase request
  */
 export async function updatePurchaseRequest(data: UpdateRequestData) {
+    const role = typeof window !== 'undefined' ? (localStorage.getItem('user_role') || '') : '';
     const response = await fetch('/procurement/api', {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ...data, role }),
     });
 
     const result = await response.json();
@@ -122,9 +130,7 @@ export async function updatePurchaseRequest(data: UpdateRequestData) {
 export async function deletePurchaseRequest(id: string) {
     const response = await fetch(`/procurement/api?id=${id}`, {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
     });
 
     const result = await response.json();
@@ -142,9 +148,7 @@ export async function deletePurchaseRequest(id: string) {
 export async function deleteMultiplePurchaseRequests(ids: string[]) {
     const response = await fetch(`/procurement/api?ids=${JSON.stringify(ids)}`, {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
     });
 
     const result = await response.json();
@@ -160,12 +164,11 @@ export async function deleteMultiplePurchaseRequests(ids: string[]) {
  * Approve or reject a purchase request
  */
 export async function patchPurchaseRequest(data: PatchRequestData) {
+    const role = typeof window !== 'undefined' ? (localStorage.getItem('user_role') || '') : '';
     const response = await fetch('/procurement/api', {
         method: 'PATCH',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ...data, role: data.role || role }),
     });
 
     const result = await response.json();

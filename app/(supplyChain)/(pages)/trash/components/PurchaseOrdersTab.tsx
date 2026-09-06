@@ -14,24 +14,25 @@ import { CardsSkeleton, TableRowsSkeleton } from '@/app/(supplyChain)/components
 import { CrudActionButton } from '@/app/(supplyChain)/components/ui/CrudActionButton';
 import { StatusBadge } from '@/app/(supplyChain)/components/ui/StatusBadge';
 import { AppButton } from '@/app/(supplyChain)/components/ui/AppButton';
+import { trashCache } from '../utils/trashCache';
 
 interface ArchivedPurchaseOrder {
     id: string;
     po_number: string;
-    request_id: string | null;
-    supplier_id: number | null;
+    request_id?: string;
+    supplier_id?: number | null;
     supplier_name: string;
     total_amount: number;
     status: string;
-    delivery_date: string | null;
-    notes: string | null;
-    items: any[];
-    created_by: string | null;
+    delivery_date?: string;
+    notes?: string | null;
+    items?: any[];
+    created_by?: string | null;
     created_at: string;
     updated_at: string;
     deleted_at: string;
     deleted_by: string;
-    deletion_reason: string | null;
+    deletion_reason?: string | null;
     original_id: string;
 }
 
@@ -41,8 +42,12 @@ const formatCurrency = (amount: number) => `₱${(amount || 0).toLocaleString()}
 export function PurchaseOrdersTab() {
     const { confirm } = useConfirm();
 
-    const [archivedPurchaseOrders, setArchivedPurchaseOrders] = useState<ArchivedPurchaseOrder[]>([]);
-    const [poLoading, setPoLoading] = useState(false);
+    const [archivedPurchaseOrders, setArchivedPurchaseOrders] = useState<ArchivedPurchaseOrder[]>(() => {
+        return trashCache.get<ArchivedPurchaseOrder>('purchase_orders') || [];
+    });
+    const [poLoading, setPoLoading] = useState<boolean>(() => {
+        return !trashCache.get('purchase_orders');
+    });
     const [poSearchTerm, setPoSearchTerm] = useState('');
     const [poStatusFilter, setPoStatusFilter] = useState('all');
     const [selectedPoIds, setSelectedPoIds] = useState<Set<string>>(new Set());
@@ -52,8 +57,19 @@ export function PurchaseOrdersTab() {
 
     const debouncedPoSearchTerm = useDebounce(poSearchTerm, 300);
 
-    const fetchArchivedPurchaseOrders = useCallback(async () => {
-        setPoLoading(true);
+    const fetchArchivedPurchaseOrders = useCallback(async (force = false) => {
+        const cached = trashCache.get<ArchivedPurchaseOrder>('purchase_orders');
+        if (cached && !force && !trashCache.isStale('purchase_orders')) {
+            setArchivedPurchaseOrders(cached);
+            setPoTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+            setPoLoading(false);
+            return;
+        }
+
+        if (!cached || cached.length === 0) {
+            setPoLoading(true);
+        }
+
         try {
             const { data, error } = await supabase
                 .from('purchase_orders_archive')
@@ -82,6 +98,7 @@ export function PurchaseOrdersTab() {
                 original_id: po.original_id || po.id,
             }));
 
+            trashCache.set('purchase_orders', transformedData);
             setArchivedPurchaseOrders(transformedData);
             setPoTotalPages(Math.ceil(transformedData.length / ITEMS_PER_PAGE));
         } catch (error) {
@@ -130,6 +147,7 @@ export function PurchaseOrdersTab() {
 
                 if (deleteError) throw deleteError;
 
+                trashCache.removeItem('purchase_orders', po.id);
                 setArchivedPurchaseOrders(prev => prev.filter(p => p.id !== po.id));
                 setPoTotalPages(Math.ceil((archivedPurchaseOrders.length - 1) / ITEMS_PER_PAGE));
                 setSelectedPoIds(prev => {
@@ -165,6 +183,7 @@ export function PurchaseOrdersTab() {
 
                 if (error) throw error;
 
+                trashCache.removeItem('purchase_orders', po.id);
                 setArchivedPurchaseOrders(prev => prev.filter(p => p.id !== po.id));
                 setPoTotalPages(Math.ceil((archivedPurchaseOrders.length - 1) / ITEMS_PER_PAGE));
                 setSelectedPoIds(prev => {
@@ -223,6 +242,7 @@ export function PurchaseOrdersTab() {
                         .eq('id', po.id);
                 }
 
+                trashCache.removeItems('purchase_orders', selectedPoIds);
                 setArchivedPurchaseOrders(prev => prev.filter(po => !selectedPoIds.has(po.id)));
                 setPoTotalPages(Math.ceil((archivedPurchaseOrders.length - selectedPoIds.size) / ITEMS_PER_PAGE));
                 toast.success(`${selectedPoIds.size} purchase order(s) restored successfully!`);
@@ -256,6 +276,7 @@ export function PurchaseOrdersTab() {
                         .eq('id', poId);
                 }
 
+                trashCache.removeItems('purchase_orders', selectedPoIds);
                 setArchivedPurchaseOrders(prev => prev.filter(po => !selectedPoIds.has(po.id)));
                 setPoTotalPages(Math.ceil((archivedPurchaseOrders.length - selectedPoIds.size) / ITEMS_PER_PAGE));
                 toast.success(`${selectedPoIds.size} purchase order(s) permanently deleted.`);
@@ -311,13 +332,11 @@ export function PurchaseOrdersTab() {
         });
     }, [archivedPurchaseOrders, debouncedPoSearchTerm, poStatusFilter]);
 
-    const getPaginatedData = <T,>(data: T[], page: number): T[] => {
-        const startIndex = (page - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return data.slice(startIndex, endIndex);
-    };
+    const paginatedPurchaseOrders = useMemo(() => {
+        const startIndex = (poPage - 1) * ITEMS_PER_PAGE;
+        return filteredPurchaseOrders.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredPurchaseOrders, poPage]);
 
-    const paginatedPurchaseOrders = getPaginatedData(filteredPurchaseOrders, poPage);
     const poStatuses = useMemo(() => ['all', ...Array.from(new Set(archivedPurchaseOrders.map(po => po.status)))], [archivedPurchaseOrders]);
     const isAllPoSelected = filteredPurchaseOrders.length > 0 && selectedPoIds.size === filteredPurchaseOrders.length;
 
@@ -331,7 +350,23 @@ export function PurchaseOrdersTab() {
     useEffect(() => {
         setIsMounted(true);
         fetchArchivedPurchaseOrders();
-    }, []);
+
+        const unsubscribe = trashCache.subscribe((key, action) => {
+            if (!key || key === 'purchase_orders') {
+                if (action === 'force-refresh' || action === 'invalidate') {
+                    fetchArchivedPurchaseOrders(true);
+                } else {
+                    const cached = trashCache.get<ArchivedPurchaseOrder>('purchase_orders');
+                    if (cached) {
+                        setArchivedPurchaseOrders(cached);
+                        setPoTotalPages(Math.ceil(cached.length / ITEMS_PER_PAGE));
+                    }
+                }
+            }
+        });
+
+        return unsubscribe;
+    }, [fetchArchivedPurchaseOrders]);
 
     return (
         <div className="space-y-4 text-slate-900 dark:text-slate-100 animate-in slide-in-from-bottom-4 duration-300">
