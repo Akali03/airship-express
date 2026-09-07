@@ -168,7 +168,7 @@ const initialWizardState: WizardState = {
 /* ------------------------------------------------------------------ */
 
 const inputBase =
-  "w-full text-sm border border-line bg-paper text-foreground placeholder-muted/70 rounded-lg px-3 py-2.5 outline-none transition-colors focus:border-accent focus:ring-4 focus:ring-accent/15";
+  "w-full text-sm border border-line bg-background text-foreground placeholder-muted/70 rounded-lg px-3 py-2.5 outline-none transition-colors focus:border-accent focus:ring-4 focus:ring-accent/15";
 
 const labelCls = "text-xs font-medium text-muted block";
 const requiredMark = <span className="text-accent">*</span>;
@@ -213,7 +213,7 @@ function RadioOption({
       className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
         current === value
           ? "border-accent/40 bg-accent/5 text-foreground"
-          : "border-line bg-paper text-muted hover:border-muted/50 hover:text-foreground"
+          : "border-line bg-background text-muted hover:border-muted/50 hover:text-foreground"
       }`}
     >
       <input
@@ -253,7 +253,7 @@ function ProgressIndicator({ current }: { current: number }) {
                   ? "bg-accent text-white"
                   : isDone
                     ? "bg-accent/10 text-accent"
-                    : "bg-paper text-muted border border-line"
+                    : "bg-background text-muted border border-line"
               }`}
             >
               <span
@@ -632,7 +632,7 @@ export default function NewBookingRequestWizard({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-muted hover:text-foreground hover:bg-paper rounded-md p-1 transition-colors"
+            className="text-muted hover:text-foreground hover:bg-background rounded-md p-1 transition-colors"
           >
             <X size={18} />
           </button>
@@ -648,7 +648,7 @@ export default function NewBookingRequestWizard({
           {step === 1 && (
             <div className="space-y-5">
               {/* Mode toggle */}
-              <div className="grid grid-cols-2 gap-2 rounded-lg bg-paper p-1 border border-line">
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-background p-1 border border-line">
                 {(
                   [
                     { value: "search", label: "Existing Customer" },
@@ -768,7 +768,7 @@ export default function NewBookingRequestWizard({
                         {results.map((customer) => (
                           <li
                             key={customer.id}
-                            className="flex items-center justify-between gap-3 px-3.5 py-3 bg-paper hover:bg-accent/5 transition-colors"
+                            className="flex items-center justify-between gap-3 px-3.5 py-3 bg-background hover:bg-accent/5 transition-colors"
                           >
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-foreground truncate">
@@ -898,7 +898,7 @@ export default function NewBookingRequestWizard({
 
               {/* Interaction channel — transactional, not customer identity.
                   Portal customers come through the customer portal, not CRM. */}
-              <div className="space-y-2 rounded-xl border border-line bg-paper/50 p-4">
+              <div className="space-y-2 rounded-xl border border-line bg-background/50 p-4">
                 <SectionHeader
                   icon={Send}
                   title="Request Channel"
@@ -1199,7 +1199,7 @@ export default function NewBookingRequestWizard({
           {/* ============ STEP 4: REVIEW ============ */}
           {step === 4 && (
             <div className="space-y-4">
-              <div className="rounded-xl border border-line bg-paper/50 p-4">
+              <div className="rounded-xl border border-line bg-background/50 p-4">
                 <SectionHeader
                   icon={UserRound}
                   title="Sender"
@@ -1246,7 +1246,7 @@ export default function NewBookingRequestWizard({
                 )}
               </div>
 
-              <div className="rounded-xl border border-line bg-paper/50 p-4">
+              <div className="rounded-xl border border-line bg-background/50 p-4">
                 <SectionHeader
                   icon={UserRound}
                   title="Receiver"
@@ -1268,7 +1268,7 @@ export default function NewBookingRequestWizard({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-line bg-paper/50 p-4">
+              <div className="rounded-xl border border-line bg-background/50 p-4">
                 <SectionHeader icon={Package} title="Package" />
                 <div className="mt-3">
                   <ReviewRow label="Quantity" value={wizard.package.quantity} />
@@ -1331,12 +1331,12 @@ export default function NewBookingRequestWizard({
         </div>
 
         {/* Footer navigation */}
-        <div className="flex items-center justify-between gap-2 border-t border-line bg-paper/50 px-5 py-4 rounded-b-2xl">
+        <div className="flex items-center justify-between gap-2 border-t border-line bg-background/50 px-5 py-4 rounded-b-2xl">
           {step === 1 ? (
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-paper"
+              className="cursor-pointer rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-background"
             >
               Cancel
             </button>
@@ -1344,7 +1344,7 @@ export default function NewBookingRequestWizard({
             <button
               type="button"
               onClick={goBack}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-paper"
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-background"
             >
               <ArrowLeft size={14} />
               Back

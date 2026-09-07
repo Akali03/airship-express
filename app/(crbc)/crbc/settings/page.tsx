@@ -1,7 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { Shield, Bell, User, Key } from "lucide-react";
+import { Shield, Bell, User } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -52,13 +52,6 @@ export default function SettingsPage() {
               <div>
                 <p className="text-foreground text-sm font-medium">Profile</p>
                 <p className="text-muted text-xs">Name, avatar, and contact info</p>
-              </div>
-            </button>
-            <button className="w-full flex items-center gap-3 rounded-lg p-3 text-left hover:bg-accent/5 transition-colors">
-              <Key size={18} className="text-accent shrink-0" />
-              <div>
-                <p className="text-foreground text-sm font-medium">API Keys</p>
-                <p className="text-muted text-xs">Manage integration tokens</p>
               </div>
             </button>
           </div>

@@ -25,14 +25,26 @@ export interface BookingRequest {
   status: string;
   created_at: string;
   updated_at: string;
-  // Joined customer info
-  customer?: {
-    id: string;
-    customer_id: string;
-    full_name: string;
-    email: string | null;
+  sender: {
+    name: string;
     phone: string | null;
     address: string | null;
+  };
+  receiver: {
+    name: string;
+    contact: string | null;
+    address: string;
+  };
+  package: {
+    quantity: number;
+    type: string;
+    category: string | null;
+    weight: number | null;
+    dimensions: {
+      length_cm: number;
+      width_cm: number;
+      height_cm: number;
+    } | null;
   };
 }
 
@@ -59,13 +71,27 @@ export interface BookingRequestListItem {
   status: string;
   created_at: string;
   updated_at: string;
-  customer?: {
-    id: string;
-    customer_id: string;
-    full_name: string;
-    email: string | null;
+ 
+  sender: {
+    name: string;
     phone: string | null;
     address: string | null;
+  };
+  receiver: {
+    name: string;
+    contact: string | null;
+    address: string;
+  };
+  package: {
+    quantity: number;
+    type: string;
+    category: string | null;
+    weight: number | null;
+    dimensions: {
+      length_cm: number;
+      width_cm: number;
+      height_cm: number;
+    } | null;
   };
 }
 
@@ -97,7 +123,7 @@ async function getCustomerByAuthUserId(
   const { data, error } = await supabase
     .from("customers")
     .select("id, customer_id, full_name, email, phone, address, role, created_at")
-    .eq("auth_user_id", authUserId)
+    .eq("id", authUserId)
     .maybeSingle();
 
   if (error) {
@@ -294,9 +320,10 @@ export async function getBookingRequests(
     status?: string;
     limit?: number;
     offset?: number;
+    supabaseClient?: any;
   } = {}
 ): Promise<BookingRequestListItem[]> {
-  const supabase = await createClient();
+  const supabase = options.supabaseClient ?? (await createClient());
 
   let query = supabase
     .from("booking_requests")
@@ -318,7 +345,12 @@ export async function getBookingRequests(
       remarks,
       status,
       created_at,
-      updated_at
+      updated_at,
+      customers:customer_id (
+        full_name,
+        phone,
+        address
+      )
     `)
     .order("created_at", { ascending: false });
 
@@ -342,14 +374,53 @@ export async function getBookingRequests(
     throw new Error("Failed to fetch booking requests");
   }
 
-  return data ?? [];
+  // Shape rows into the shipment-ready payload (preserves flat fields
+  // for internal CRM consumers, adds nested groups for Freight Ops API).
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    request_id: row.request_id,
+    customer_id: row.customer_id,
+    request_channel: row.request_channel,
+    receiver_name: row.receiver_name,
+    receiver_contact: row.receiver_contact,
+    receiver_address: row.receiver_address,
+    package_quantity: row.package_quantity,
+    package_type: row.package_type,
+    item_category: row.item_category,
+    weight: row.weight,
+    dimensions: row.dimensions,
+    declared_value: row.declared_value,
+    airship_packaging_requested: row.airship_packaging_requested,
+    remarks: row.remarks,
+    status: row.status,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    sender: {
+      name: row.customers?.full_name ?? "",
+      phone: row.customers?.phone ?? null,
+      address: row.customers?.address ?? null,
+    },
+    receiver: {
+      name: row.receiver_name,
+      contact: row.receiver_contact,
+      address: row.receiver_address,
+    },
+    package: {
+      quantity: row.package_quantity,
+      type: row.package_type,
+      category: row.item_category,
+      weight: row.weight,
+      dimensions: row.dimensions,
+    },
+  }));
 }
 
 
 export async function getBookingRequestById(
-  requestId: string
+  requestId: string,
+  supabaseClient?: any
 ): Promise<BookingRequest | null> {
-  const supabase = await createClient();
+  const supabase = supabaseClient ?? (await createClient());
 
   const { data, error } = await supabase
     .from("booking_requests")
@@ -371,7 +442,12 @@ export async function getBookingRequestById(
       remarks,
       status,
       created_at,
-      updated_at
+      updated_at,
+      customers:customer_id (
+        full_name,
+        phone,
+        address
+      )
     `)
     .eq("request_id", requestId)
     .maybeSingle();
@@ -385,16 +461,42 @@ export async function getBookingRequestById(
     return null;
   }
 
-  // Optionally fetch customer info
-  const { data: customer } = await supabase
-    .from("customers")
-    .select("id, customer_id, full_name, email, phone, address")
-    .eq("id", data.customer_id)
-    .maybeSingle();
-
   return {
-    ...data,
-    customer: customer ?? undefined,
+    id: data.id,
+    request_id: data.request_id,
+    customer_id: data.customer_id,
+    request_channel: data.request_channel,
+    receiver_name: data.receiver_name,
+    receiver_contact: data.receiver_contact,
+    receiver_address: data.receiver_address,
+    package_quantity: data.package_quantity,
+    package_type: data.package_type,
+    item_category: data.item_category,
+    weight: data.weight,
+    dimensions: data.dimensions,
+    declared_value: data.declared_value,
+    airship_packaging_requested: data.airship_packaging_requested,
+    remarks: data.remarks,
+    status: data.status,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    sender: {
+      name: data.customers?.full_name ?? "",
+      phone: data.customers?.phone ?? null,
+      address: data.customers?.address ?? null,
+    },
+    receiver: {
+      name: data.receiver_name,
+      contact: data.receiver_contact,
+      address: data.receiver_address,
+    },
+    package: {
+      quantity: data.package_quantity,
+      type: data.package_type,
+      category: data.item_category,
+      weight: data.weight,
+      dimensions: data.dimensions,
+    },
   };
 }
 

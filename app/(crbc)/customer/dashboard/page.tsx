@@ -66,7 +66,7 @@ export default async function CustomerDashboard() {
   ];
 
   return (
-    <div className="w-full py-4 space-y-6">
+    <div className="w-full py-6 space-y-6">
       <div>
         <h1 className="text-foreground text-xl font-semibold">
           Welcome, {customer?.full_name}
@@ -83,10 +83,10 @@ export default async function CustomerDashboard() {
           ({ label, value, icon: Icon, color }) => (
             <div
               key={label}
-              className="bg-paper border border-line rounded-xl p-4"
+              className="bg-background border border-line rounded-xl p-4"
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-muted text-xs">
+                <span className="text-foreground text-xs">
                   {label}
                 </span>
 
@@ -102,7 +102,7 @@ export default async function CustomerDashboard() {
       </div>
 
       {/* Active Shipments */}
-      <div className="bg-paper border border-line rounded-xl">
+      <div className="bg-background border border-line rounded-xl">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="text-foreground text-sm font-medium">
             Recent Shipments

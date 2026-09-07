@@ -119,7 +119,7 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
           <p className="text-sm text-muted mt-0.5">Manage your delivery policies.</p>
         </div>
 
-        <div className="bg-paper border border-line rounded-xl p-5">
+        <div className="bg-background border border-line rounded-xl p-5">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="text-red-700 bg-red-50 border border-red-200 dark:text-red-400 dark:bg-red-950 dark:border-red-900 rounded-lg text-sm px-3 py-2">
@@ -182,7 +182,7 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
           </form>
         </div>
 
-        <div className="bg-paper border border-line rounded-xl overflow-hidden">
+        <div className="bg-background border border-line rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-line">
             <span className="text-sm font-medium text-muted">{policies.length} policies</span>
             <button
@@ -260,7 +260,7 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
       {/* Delete Confirm Modal */}
       {confirmDeleteId && confirmTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-paper border border-line rounded-xl shadow-lg p-6 w-full max-w-sm mx-4">
+          <div className="bg-background border border-line rounded-xl shadow-lg p-6 w-full max-w-sm mx-4">
             <div className="flex items-start justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground">Delete Policy</h2>
               <button onClick={() => setConfirmDeleteId(null)} className="text-muted hover:text-foreground transition-colors cursor-pointer"><X size={16} /></button>

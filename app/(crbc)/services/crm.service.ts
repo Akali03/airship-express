@@ -74,7 +74,7 @@ export async function getInteractionsByCustomerId(
     )
     .eq("customer_id", uuid)
     .order("interaction_date", { ascending: false });
-
+     console.log("Fetched interactions:", uuid); //booking request table customer_id uuid is a foreign key to customers.id
   if (error) {
     console.error("Fetch customer interactions error:", error);
     throw new Error("Failed to fetch customer interactions");
