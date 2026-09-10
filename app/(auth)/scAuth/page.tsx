@@ -388,10 +388,10 @@ export default function SupplyChainLoginPage() {
         setRememberedPassword('');
     };
 
-    const handleVerifyRememberedPassword = async () => {
+    const handleVerifyRememberedPassword = async (): Promise<boolean> => {
         if (!rememberedPassword.trim()) {
             toast.error('Please enter your password');
-            return;
+            return false;
         }
 
         setIsLoggingInWithRemembered(true);
@@ -412,17 +412,16 @@ export default function SupplyChainLoginPage() {
                 );
 
                 if (signInError) {
-                    toast.error('Invalid password. Please try again.');
                     setRememberedPassword('');
                     setIsLoggingInWithRemembered(false);
-                    return;
+                    return false;
                 }
             } catch (authError) {
                 console.error('Auth error:', authError);
                 toast.error('Authentication failed. Please try again.');
                 setRememberedPassword('');
                 setIsLoggingInWithRemembered(false);
-                return;
+                return false;
             }
 
             // activate remembered session
@@ -436,7 +435,7 @@ export default function SupplyChainLoginPage() {
                     toast.error(`This device is blocked. Reason: ${blockedDevice.reason || 'Blocked by admin'}`);
                     setIsLoggingInWithRemembered(false);
                     setShowRememberedPasswordModal(false);
-                    return;
+                    return false;
                 }
 
                 const { ok } = await activateSessionApi(sessionToken, currentUserAgent);
@@ -445,7 +444,7 @@ export default function SupplyChainLoginPage() {
                     toast.error('Session activation failed. Please login with OTP.');
                     setIsLoggingInWithRemembered(false);
                     setShowRememberedPasswordModal(false);
-                    return;
+                    return false;
                 }
 
                 localStorage.setItem('session_token', sessionToken);
@@ -456,7 +455,7 @@ export default function SupplyChainLoginPage() {
                     toast.error('No session found. Please login with OTP.');
                     setIsLoggingInWithRemembered(false);
                     setShowRememberedPasswordModal(false);
-                    return;
+                    return false;
                 }
             }
 
@@ -476,10 +475,12 @@ export default function SupplyChainLoginPage() {
             setShowRememberedPasswordModal(false);
             setShowEmployeeModal(false);
             router.push(ROLE_REDIRECTS[userRole] || '/warehousing');
+            return true;
 
         } catch (error) {
             console.error('Error logging in:', error);
             toast.error('Failed to login. Please try again.');
+            return false;
         } finally {
             setIsLoggingInWithRemembered(false);
         }
