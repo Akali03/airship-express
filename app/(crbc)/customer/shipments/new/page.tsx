@@ -13,5 +13,9 @@ export default async function RequestShipmentPage() {
     redirect("/customerportalAuth/login");
   }
 
-  return <RequestShipmentForm />;
+  return (
+    <div className="py-6">
+      <RequestShipmentForm customer={currentUser.customer} />
+    </div>
+  );
 }

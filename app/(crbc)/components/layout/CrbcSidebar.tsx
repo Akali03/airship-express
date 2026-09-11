@@ -68,7 +68,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
             <aside className={`${collapsed ? "w-16" : "w-56"} bg-paper border-r border-line flex flex-col fixed top-0 left-0 h-screen transition-all duration-200 z-40`}>
 
                 {/* Logo */}
-                <div className="h-14 flex items-center gap-2.5 px-4 border-b border-line shrink-0">
+                <div className="h-14 flex bg-background items-center gap-2.5 px-4 border-b border-line shrink-0">
                     {!collapsed && (
                         <Image src="/images/airship.png" alt="Logo" width={30} height={30} className="shrink-0" />
                     )}
@@ -81,13 +81,13 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                 </div>
 
                 {!collapsed && (
-                    <div className="px-4 pt-4 pb-1 text-[10px] font-semibold text-muted tracking-widest uppercase">
+                    <div className="px-4 pt-4 pb-1 bg-background text-[10px] font-semibold text-muted tracking-widest uppercase">
                         Menu
                     </div>
                 )}
 
                 {/* Nav */}
-                <nav className="flex-1 px-2 overflow-y-auto space-y-0.5 pt-1">
+                <nav className="flex-1 bg-background px-2 overflow-y-auto space-y-0.5 pt-1">
 
                     <SectionLabel collapsed={collapsed}>Overview</SectionLabel>
                     {topModules.map(({ href, label, icon: Icon }) => {
@@ -192,7 +192,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
 
                 </nav>
 
-                <div className="p-2 border-t border-line">
+                <div className="p-2 border-t border-line bg-background">
                     <button
                         onClick={() => customerServiceLogout()}
                         title={collapsed ? "Logout" : undefined}

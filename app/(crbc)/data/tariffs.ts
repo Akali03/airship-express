@@ -32,6 +32,6 @@ export const tariffCard: TariffCard = {
   includedWeightKg: 1,
   perKgFee: 30,
   valuation: { ratePct: 0.01, minimumFee: 10 },
-  packaging: { providedFee: 25 },
+  packaging: { providedFee: 0 },
   volumetricDivisor: 5000,
 };

@@ -1,6 +1,9 @@
 "use client";
 
 import { useId, useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Package,
   UserRound,
@@ -15,6 +18,7 @@ import {
 import { requestShipment } from "../../actions/shipment";
 import type { BookingPackageDetails } from "../../actions/customer";
 import { getQuote, type Quote } from "../../services/pricing.service";
+import type { Customers as Customer } from "../../types/customer";
 
 const ITEM_CATEGORIES = [
   "Parcel",
@@ -34,7 +38,7 @@ const PACKAGE_TYPES = [
 ] as const;
 
 const inputBase =
-  "w-full text-sm border border-line bg-paper text-foreground placeholder-muted/70 rounded-lg px-3 py-2.5 outline-none transition-colors focus:border-accent focus:ring-4 focus:ring-accent/15";
+  "w-full text-sm border border-line bg-background text-foreground placeholder-muted/70 rounded-lg px-3 py-2.5 outline-none transition-colors focus:border-accent focus:ring-4 focus:ring-accent/15";
 
 const labelCls = "text-xs font-medium text-muted block";
 const requiredMark = <span className="text-accent">*</span>;
@@ -80,7 +84,7 @@ type Confirmation = {
   total: number;
 };
 
-export default function RequestShipmentForm() {
+export default function RequestShipmentForm({ customer }: { customer: Customer }) {
   const formId = useId();
 
   const [receiverName, setReceiverName] = useState("");
@@ -103,6 +107,9 @@ export default function RequestShipmentForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+
+  // Show warning if customer address is missing
+  const addressMissing = !customer.address || customer.address.trim() === "";
 
   const actualWeight = parseFloat(weight) || 0;
 
@@ -159,6 +166,8 @@ export default function RequestShipmentForm() {
       return setFormError("Delivery address is required.");
     if (!weight || parseFloat(weight) <= 0)
       return setFormError("Weight is required and must be greater than zero.");
+    if (addressMissing)
+      return setFormError("Please set your address in Account Settings before requesting a shipment.");
     if (!agreeTerms)
       return setFormError("Please agree to the terms and conditions to continue.");
 
@@ -188,6 +197,7 @@ export default function RequestShipmentForm() {
 
       if (res.error) {
         setFormError(res.error);
+        toast.error(res.error);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else if (res.booking) {
         setConfirmation({
@@ -195,6 +205,9 @@ export default function RequestShipmentForm() {
           receiverName,
           receiverAddress,
           total,
+        });
+        toast.success("Shipment request submitted!", {
+          description: `Reference: ${res.booking.booking_id}`,
         });
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
@@ -218,7 +231,7 @@ export default function RequestShipmentForm() {
             You&apos;ll be notified once it&apos;s approved.
           </p>
 
-          <dl className="mt-6 space-y-3 rounded-xl border border-line bg-paper p-4 text-left text-sm">
+          <dl className="mt-6 space-y-3 rounded-xl border border-line bg-background p-4 text-left text-sm">
             <div className="flex items-center justify-between gap-4">
               <dt className="text-muted">Reference No.</dt>
               <dd className="flex items-center gap-2 font-medium text-foreground">
@@ -263,7 +276,7 @@ export default function RequestShipmentForm() {
           <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
             <a
               href="/customer/shipments"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-paper"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-background/50"
             >
               <FileText size={15} />
               View My Shipments
@@ -307,6 +320,58 @@ export default function RequestShipmentForm() {
           care of the rest.
         </p>
       </div>
+
+      {/* Sender Info */}
+      <SectionCard
+        icon={UserRound}
+        title="Sender Information"
+        subtitle="Your account details"
+      >
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <div className="space-y-0.5">
+            <dt className={labelCls}>Full Name</dt>
+            <dd className="text-foreground font-medium">{customer.full_name}</dd>
+          </div>
+          <div className="space-y-0.5">
+            <dt className={labelCls}>Customer ID</dt>
+            <dd className="font-mono text-accent">{customer.customer_id}</dd>
+          </div>
+          {customer.email && (
+            <div className="space-y-0.5">
+              <dt className={labelCls}>Email</dt>
+              <dd className="text-foreground">{customer.email}</dd>
+            </div>
+          )}
+          {customer.phone && (
+            <div className="space-y-0.5">
+              <dt className={labelCls}>Phone</dt>
+              <dd className="text-foreground">{customer.phone}</dd>
+            </div>
+          )}
+          {!addressMissing && (
+            <div className="space-y-0.5 sm:col-span-2">
+              <dt className={labelCls}>Address</dt>
+              <dd className="text-foreground">{customer.address.trim()}</dd>
+            </div>
+          )}
+          {addressMissing && (
+            <div className="space-y-0.5 sm:col-span-2">
+              <dt className={labelCls}>Address</dt>
+              <dd className="flex items-center space-x-2 text-sm">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-50 text-yellow-600">
+                  !
+                </div>
+                <div>
+                  <p className="text-yellow-600">Address not set</p>
+                  <Link href="/customer/profile" className="text-accent hover:underline">
+                    Set your address in Profile
+                  </Link>
+                </div>
+              </dd>
+            </div>
+          )}
+        </dl>
+      </SectionCard>
 
       <SectionCard
         icon={UserRound}
@@ -480,7 +545,7 @@ export default function RequestShipmentForm() {
 
           {/* Weight summary strip */}
           {quote && (quote.volumetricWeightKg > 0 || actualWeight > 0) && (
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-paper px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-line bg-background px-4 py-3 text-sm">
               <span className="text-muted">
                 Actual Weight:{" "}
                 <span className="font-medium text-foreground">
@@ -521,7 +586,7 @@ export default function RequestShipmentForm() {
               </p>
             </div>
             <div className="space-y-1.5">
-              <label className={labelCls}>Packaging Service</label>
+              <label className={labelCls}>Packaging Service <span className="text-accent text-xs font-normal">(Free)</span></label>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 {(
                   [
@@ -534,7 +599,7 @@ export default function RequestShipmentForm() {
                     className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
                       packagingService === opt.value
                         ? "border-accent bg-accent/5 text-foreground"
-                        : "border-line bg-paper text-muted hover:border-muted/50 hover:text-foreground"
+                        : "border-line bg-background text-muted hover:border-muted/50 hover:text-foreground"
                     }`}
                   >
                     <input
@@ -582,7 +647,7 @@ export default function RequestShipmentForm() {
             <p className="text-xs text-muted">Estimated before branch weigh-in</p>
           </div>
         </div>
-        <div className="space-y-2.5 border-t border-line bg-paper/50 px-5 py-4 text-sm sm:px-6">
+        <div className="space-y-2.5 border-t border-line bg-background/50 px-5 py-4 text-sm sm:px-6">
           {!quote ? (
             <p className="flex items-center gap-2 text-muted">
               {isQuoting ? (

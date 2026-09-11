@@ -85,6 +85,13 @@ using (
   id = auth.uid()
 );
 
+create policy "Customers can update own customer record"
+on public.customers
+for update
+to authenticated
+using (id = auth.uid())
+with check (id = auth.uid());
+
 create policy "Customers can create own customer record"
 on public.customers
 for insert

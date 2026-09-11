@@ -26,7 +26,7 @@ export default async function SLAPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-paper border border-line rounded-xl p-4">
+          <div key={label} className="bg-background border border-line rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-muted text-xs">{label}</span>
               <Icon size={14} className={color} />
@@ -36,9 +36,9 @@ export default async function SLAPage() {
         ))}
       </div>
 
-      <div className="bg-paper border border-line rounded-xl overflow-hidden">
+      <div className="bg-background border border-line rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
-          <h2 className="text-ink text-sm font-medium">SLA Records</h2>
+          <h2 className="text-foreground text-sm font-medium">SLA Records</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

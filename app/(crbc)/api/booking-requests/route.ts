@@ -1,54 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "../../library/supabase/server";
+import { adminCreateClient } from "../../library/supabase/admin";
+import { isServiceCall } from "../../library/auth/service-call";
 import {
   createBookingRequestForStaff,
   createBookingRequestForPortal,
   getBookingRequests,
-  findCustomers,
 } from "../../services/booking-request.service";
 import { validateDraft, validatePortalDraft } from "../../library/validation/booking-request.validate";
 
 
-
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const serviceCall = isServiceCall(request);
+    const supabase = serviceCall
+      ? adminCreateClient()
+      : await createClient();
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    let customerUuid: string | undefined;
 
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    if (!serviceCall) {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-    // Check if user is staff (CRM) or customer
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
+      if (authError || !user) {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
 
-    const isStaff = !profileError && profile?.role === "staff";
+      // Check if user is staff (CRM) or customer
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
 
-    // Check if user has a customer profile
-    const { data: customer, error: customerError } = await supabase
-      .from("customers")
-      .select("id")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
+      const isStaff = !profileError && profile?.role === "staff";
 
-    const isCustomer = !customerError && !!customer;
+      // Check if user has a customer profile
+      const { data: customer, error: customerError } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
 
-    if (!isStaff && !isCustomer) {
-      return NextResponse.json(
-        { success: false, error: "Forbidden: No valid role" },
-        { status: 403 }
-      );
+      const isCustomer = !customerError && !!customer;
+
+      if (!isStaff && !isCustomer) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: No valid role" },
+          { status: 403 }
+        );
+      }
+
+      const searchParams = request.nextUrl.searchParams;
+
+      if (isCustomer && !isStaff) {
+        // Customer Portal: only see own requests
+        customerUuid = customer!.id;
+      } else if (isStaff) {
+        // Staff: can optionally filter by customer UUID
+        const customerIdParam = searchParams.get("customer_id");
+        if (customerIdParam) {
+          customerUuid = customerIdParam;
+        }
+      }
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -56,24 +76,12 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    let customerUuid: string | undefined;
-
-    if (isCustomer && !isStaff) {
-      // Customer Portal: only see own requests
-      customerUuid = customer!.id;
-    } else if (isStaff) {
-      // Staff: can optionally filter by customer UUID
-      const customerIdParam = searchParams.get("customer_id");
-      if (customerIdParam) {
-        customerUuid = customerIdParam;
-      }
-    }
-
     const requests = await getBookingRequests({
       customerUuid,
       status: status || undefined,
       limit,
       offset,
+      supabaseClient: supabase, // Pass admin client when service call, normal client otherwise
     });
 
     return NextResponse.json({
@@ -160,9 +168,7 @@ export async function POST(request: NextRequest) {
 
       result = await createBookingRequestForStaff(body);
     } else {
-      // Customer Portal flow: customer_id resolved from auth
-      // Ignore any customer_id in body for security
-      const { customer_id, new_customer, ...portalDraft } = body;
+      const {...portalDraft } = body;
 
       const validationError = validatePortalDraft({
         ...portalDraft,

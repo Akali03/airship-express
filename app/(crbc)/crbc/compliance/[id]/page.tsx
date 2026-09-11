@@ -33,7 +33,7 @@ function CheckItem({
           />
         )}
 
-        <span className="text-xs text-zinc-700">
+        <span className="text-xs primary-foreground">
           {label}
         </span>
       </div>
@@ -117,42 +117,42 @@ export default async function ComplianceDetailsPage({
       </Link>
 
       {/* Title */}
-      <h1 className="text-xl font-semibold text-zinc-800">
+      <h1 className="text-xl font-semibold text-foreground">
         Compliance Details
       </h1>
 
       {/* Compliance Summary */}
-      <div className="bg-white border border-zinc-100 rounded-xl p-6">
+      <div className="bg-background border border-zinc-100 rounded-xl p-6">
 
         <div className="flex items-start justify-between gap-4">
 
           <div>
             <div>
-              <span className="font-mono text-xs text-zinc-400">
+              <span className="font-mono text-xs primary-foreground">
                 Compliance ID:
               </span>
 
-              <span className="font-mono text-xs text-zinc-700 ml-1">
+              <span className="font-mono text-xs primary-foreground ml-1">
                 {compliance.compliance_id}
               </span>
             </div>
 
             <div className="flex items-baseline gap-x-1 mt-1">
-              <span className="text-zinc-400 text-xs">
+              <span className="primary-foreground text-xs">
                 Shipment ID:
               </span>
 
-              <span className="text-zinc-800 text-xs font-medium">
+              <span className="primary-foreground text-xs font-medium">
                 {compliance.shipment_id}
               </span>
             </div>
 
             <div className="flex items-baseline gap-x-1 mt-1">
-              <span className="text-zinc-400 text-xs">
+              <span className="primary-foreground text-xs">
                 Customer:
               </span>
 
-              <span className="text-zinc-800 text-xs">
+              <span className="primary-foreground text-xs">
                 {customer?.full_name ??
                   compliance.customer_id}
               </span>
@@ -173,7 +173,7 @@ export default async function ComplianceDetailsPage({
         <div className="mt-4 pt-4 border-t border-zinc-50 grid grid-cols-2 gap-3 text-xs">
           <div>
 
-            <p className="text-zinc-700 mt-0.5">
+            <p className="primary-foreground mt-0.5">
               {formatDate(compliance.reviewed_at)}
             </p>
           </div>
@@ -187,13 +187,13 @@ export default async function ComplianceDetailsPage({
         {stats.map(({ label, value }) => (
           <div
             key={label}
-            className="bg-white border border-zinc-100 rounded-xl p-4"
+            className="bg-background border border-zinc-100 rounded-xl p-4"
           >
-            <p className="text-zinc-400 text-xs">
+            <p className="primary-foreground text-xs">
               {label}
             </p>
 
-            <p className="text-zinc-900 text-lg font-semibold mt-2">
+            <p className="primary-foreground text-lg font-semibold mt-2">
               {value}
             </p>
           </div>
@@ -202,10 +202,10 @@ export default async function ComplianceDetailsPage({
       </div>
 
       {/* Compliance Checks */}
-      <div className="bg-white border border-zinc-100 rounded-xl">
+      <div className="bg-background border border-zinc-100 rounded-xl">
 
         <div className="px-5 py-4 border-b border-zinc-100">
-          <h2 className="text-zinc-800 text-sm font-medium">
+          <h2 className="primary-foreground text-sm font-medium">
             Compliance Checks
           </h2>
         </div>
@@ -235,10 +235,10 @@ export default async function ComplianceDetailsPage({
       </div>
 
       {/* Review / Remarks */}
-      <div className="bg-white border border-zinc-100 rounded-xl">
+      <div className="bg-background border border-zinc-100 rounded-xl">
 
         <div className="px-5 py-4 border-b border-zinc-100">
-          <h2 className="text-zinc-800 text-sm font-medium">
+          <h2 className="primary-foreground text-sm font-medium">
             Review Remarks
           </h2>
         </div>
@@ -250,7 +250,7 @@ export default async function ComplianceDetailsPage({
               {compliance.remarks}
             </p>
           ) : (
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs primary-foreground">
               No remarks recorded.
             </p>
           )}

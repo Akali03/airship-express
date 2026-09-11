@@ -121,7 +121,7 @@ export default function CustomerManagement({
       />
 
       {/* Search & Filter Bar */}
-      <div className="bg-paper border border-line rounded-xl p-4 space-y-3">
+      <div className="bg-background border border-line rounded-xl p-4 space-y-3">
         {/* Search Input with Search By Selector */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1 min-w-60">
@@ -195,7 +195,7 @@ export default function CustomerManagement({
       </div>
 
       {/* Customer Table */}
-      <div className="bg-paper border border-line rounded-xl overflow-hidden">
+      <div className="bg-background border border-line rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left">
