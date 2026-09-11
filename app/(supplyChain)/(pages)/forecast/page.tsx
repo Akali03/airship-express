@@ -8,6 +8,7 @@ import { AppButton } from "@/app/(supplyChain)/components/ui/AppButton";
 import { StatusBadge } from "@/app/(supplyChain)/components/ui/StatusBadge";
 import { toast } from "sonner";
 import Portal from "@/app/(supplyChain)/components/client/Portal";
+import ForecastExportModal from "./components/ForecastExportModal";
 interface ForecastData {
     raw_db_stats: {
         total_parcels_in_db: number;
@@ -88,6 +89,8 @@ export default function Forecast() {
     const [summarizing, setSummarizing] = useState(false);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
     const [isAiMinimized, setIsAiMinimized] = useState(false);
+    // export modal state
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     // modal state
     const [activeChartModal, setActiveChartModal] = useState<{
         isOpen: boolean;
@@ -429,39 +432,7 @@ export default function Forecast() {
             toast.error("No forecast data available to export.");
             return;
         }
-        const exportObj = {
-            title: "Supply Chain Operational Forecast Report",
-            generated_at: new Date().toISOString(),
-            data_source: "Supabase Database (public.parcels & public.purchase_orders)",
-            wasm_engine: "@sipemu/anofox-forecast (Rust/WASM)",
-            total_db_parcels: forecastData.raw_db_stats.total_parcels_in_db,
-            total_db_purchase_orders: forecastData.raw_db_stats.total_pos_in_db,
-            peak_traffic_insights: forecastData.parcel_7_day.peak_insights,
-            next_7_day_parcel_forecast: {
-                predictions: forecastData.parcel_7_day.predictions,
-                confidence_interval_95_pct: forecastData.parcel_7_day.confidence_interval,
-                total_projected_volume: forecastData.parcel_7_day.total_next_week,
-                dates: forecastData.parcel_7_day.dates,
-                historical_counts: forecastData.parcel_7_day.historical.counts,
-                display_aggregation: forecastData.parcel_7_day.historical.aggregation_type
-            },
-            next_month_expense_forecast: {
-                predicted_amount_php: forecastData.expense_next_month.prediction,
-                confidence_interval_90_pct: forecastData.expense_next_month.confidence_interval,
-                historical_monthly_totals: forecastData.expense_next_month.historical.amounts
-            },
-            courier_volume_breakdown: forecastData.raw_db_stats.courier_breakdown
-        };
-        const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `operational-forecast-${new Date().toISOString().slice(0, 10)}.json`;
-document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success("Forecast report downloaded as JSON!");
+        setIsExportModalOpen(true);
     };
     const totalDbParcels = forecastData?.raw_db_stats?.total_parcels_in_db || 0;
     const weeklyTotal = forecastData?.parcel_7_day?.total_next_week || 0;
@@ -483,8 +454,12 @@ document.body.appendChild(a);
                 {/* header */}
                 <div className="flex items-start justify-between gap-4 flex-wrap border-b border-slate-200/80 dark:border-ink/20 pb-5">
                     <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-[#ffe6f0] border border-pink-300/90 dark:bg-[#341427] dark:border-[#67224c] flex items-center justify-center text-pink-600 dark:text-pink-300 text-xl shadow-[inset_0_1px_0_#ffffff,0_2px_6px_rgba(244,63,94,0.14)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_6px_rgba(0,0,0,0.6)] shrink-0 mt-0.5">
-                            <i className="fa-solid fa-wand-magic-sparkles"/>
+                        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#14151c] border border-slate-200/80 dark:border-slate-800 p-1 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                            <img
+                                src="/images/logo-remove-bg.png"
+                                alt="Airship Express Logo"
+                                className="w-full h-full object-contain"
+                            />
                         </div>
 
                         <div className="w-full min-w-0">
@@ -1239,6 +1214,18 @@ document.body.appendChild(a);
                         </div>
                     </Portal>
                 )}
+
+                {/* Forecast Export Selection Modal */}
+                <ForecastExportModal
+                    isOpen={isExportModalOpen}
+                    onClose={() => setIsExportModalOpen(false)}
+                    forecastData={forecastData as any}
+                    chartCanvases={{
+                        parcelChart: parcelChartRef.current,
+                        expenseChart: expenseChartRef.current,
+                        courierChart: courierPieRef.current,
+                    }}
+                />
             </div>
         </SessionGuard>);
 }

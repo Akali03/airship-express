@@ -8,10 +8,13 @@ import { useExecutiveData } from '../hooks/useExecutiveData';
 import { CardsSkeleton, ChartsSkeleton } from '@/app/(supplyChain)/components/ui/SkeletonLoader';
 import ExecutivePdfExportModal from './modals/ExecutivePdfExportModal';
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 export default function ExecutiveClientPage() {
     const { data, loading, isRefreshing, isLoadedFromCache, isRealtimeActive, refresh } = useExecutiveData();
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const searchParams = useSearchParams();
+    const currentTab = searchParams.get('tab') || 'overview';
 
     const pageKpis = data?.pageKpis || {
         parcelsToday: 0,
@@ -28,13 +31,17 @@ export default function ExecutiveClientPage() {
             {/* Header Section */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-[#ffe6f0] border border-pink-300/90 dark:bg-[#341427] dark:border-[#67224c] flex items-center justify-center text-pink-600 dark:text-pink-300 text-xl shadow-[inset_0_1px_0_#ffffff,0_2px_6px_rgba(244,63,94,0.14)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_6px_rgba(0,0,0,0.6)] shrink-0">
-                        <i className="fa-solid fa-chart-pie"></i>
+                    <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#14151c] border border-slate-200/80 dark:border-slate-800 p-1 flex items-center justify-center shrink-0 shadow-xs">
+                        <img
+                            src="/images/logo-remove-bg.png"
+                            alt="Airship Express"
+                            className="w-full h-full object-contain"
+                        />
                     </div>
                     <div>
                         <div className="flex items-center gap-2.5">
                             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                                Executive Overview
+                                Executive Intelligence
                             </h1>
                             {/* SWR Cache / Live Status Badge */}
                             <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
@@ -127,12 +134,13 @@ export default function ExecutiveClientPage() {
                 data && <ExecutiveCharts data={data} />
             )}
 
-            {/* Executive Official PDF Export Modal */}
+            {/* Executive Official Multi-Tab Export Modal */}
             {data && (
                 <ExecutivePdfExportModal
                     isOpen={isPdfModalOpen}
                     onClose={() => setIsPdfModalOpen(false)}
                     data={data}
+                    initialTab={currentTab}
                 />
             )}
         </div>
