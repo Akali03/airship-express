@@ -1,9 +1,10 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
+import fs from "fs/promises";
+import path from "path";
+import { existsSync } from "fs";
 
 export type PayslipPdfData = {
-  companyName: string;
-  companyAddress: string;
   periodLabel: string;
   employee: {
     email: string;
@@ -57,6 +58,149 @@ function clean(text: string): string {
     .replace(/[^\x20-\x7E]/g, "");
 }
 
+async function loadLogo(): Promise<Uint8Array | null> {
+  const publicDir = path.join(process.cwd(), "public");
+  const candidates = [
+    "images/logo-remove-bg.png",
+    "images/logo.png",
+    "logo-remove-bg.png",
+    "logo.png",
+  ];
+  for (const c of candidates) {
+    const p = path.join(publicDir, c);
+    if (existsSync(p)) {
+      try {
+        const buf = await fs.readFile(p);
+        return new Uint8Array(buf);
+      } catch {
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+type Ctx = {
+  page: PDFPage;
+  regular: PDFFont;
+  bold: PDFFont;
+  mono: PDFFont;
+  pink: ReturnType<typeof rgb>;
+  pinkLight: ReturnType<typeof rgb>;
+  border: ReturnType<typeof rgb>;
+  ink: ReturnType<typeof rgb>;
+  purple: ReturnType<typeof rgb>;
+  green: ReturnType<typeof rgb>;
+};
+
+function drawLabelValue(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  w: number,
+  label: string,
+  value: string,
+  align: "left" | "right" = "left"
+) {
+  const h = 20;
+  ctx.page.drawRectangle({
+    x,
+    y: y - h + 6,
+    width: w,
+    height: h,
+    color: ctx.pinkLight,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
+  });
+  const labelW = w * 0.45;
+  ctx.page.drawRectangle({
+    x,
+    y: y - h + 6,
+    width: labelW,
+    height: h,
+    color: ctx.pinkLight,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
+  });
+  ctx.page.drawText(clean(label.toUpperCase()), {
+    x: x + 5,
+    y: y - h / 2 - 2,
+    size: 8,
+    font: ctx.bold,
+    color: ctx.purple,
+  });
+  const text = clean(value);
+  const tw = ctx.regular.widthOfTextAtSize(text, 8);
+  ctx.page.drawText(text, {
+    x: align === "right" ? x + w - tw - 5 : x + labelW + 5,
+    y: y - h / 2 - 2,
+    size: 8,
+    font: ctx.regular,
+    color: ctx.ink,
+  });
+}
+
+function drawBand(ctx: Ctx, x: number, y: number, w: number, text: string) {
+  const h = 16;
+  ctx.page.drawRectangle({
+    x,
+    y: y - h + 6,
+    width: w,
+    height: h,
+    color: ctx.pink,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
+  });
+  const tw = ctx.bold.widthOfTextAtSize(text.toUpperCase(), 8);
+  ctx.page.drawText(text.toUpperCase(), {
+    x: x + (w - tw) / 2,
+    y: y - h / 2 - 2,
+    size: 8,
+    font: ctx.bold,
+    color: ctx.purple,
+  });
+}
+
+function drawRow(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  w: number,
+  label: string,
+  value: string,
+  isMoney = true
+) {
+  const h = 18;
+  ctx.page.drawRectangle({
+    x,
+    y: y - h + 6,
+    width: w,
+    height: h,
+    color: rgb(1, 1, 1),
+    borderColor: ctx.border,
+    borderWidth: 0.6,
+  });
+  const labelW = w * 0.55;
+  ctx.page.drawText(clean(label.toUpperCase()), {
+    x: x + 5,
+    y: y - h / 2 - 2,
+    size: 8,
+    font: ctx.bold,
+    color: ctx.ink,
+  });
+  const text = clean(value);
+  const f = isMoney ? ctx.mono : ctx.regular;
+  const tw = f.widthOfTextAtSize(text, 8);
+  ctx.page.drawText(text, {
+    x: x + w - tw - 5,
+    y: y - h / 2 - 2,
+    size: 8,
+    font: f,
+    color: ctx.ink,
+  });
+  void labelW;
+}
+
 export async function buildPayslipPdf(
   data: PayslipPdfData,
   password: string
@@ -66,270 +210,335 @@ export async function buildPayslipPdf(
   pdfDoc.setAuthor("R.E.T Airship Courier Services");
   pdfDoc.setSubject("Payslip");
 
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const mono = await pdfDoc.embedFont(StandardFonts.Courier);
 
   const page = pdfDoc.addPage([595, 842]);
   const { width, height } = page.getSize();
 
-  const pink = rgb(0.85, 0.66, 0.76);
-  const pinkLight = rgb(0.97, 0.93, 0.95);
-  const purpleDark = rgb(0.29, 0.12, 0.22);
-  const ink = rgb(0.11, 0.11, 0.12);
-  const muted = rgb(0.42, 0.42, 0.46);
-  const green = rgb(0.04, 0.56, 0.42);
-
-  let y = height - 50;
-
-  page.drawRectangle({
-    x: 40,
-    y: y - 30,
-    width: width - 80,
-    height: 40,
-    color: rgb(0.9, 0.09, 0.49),
-  });
-  page.drawText("AE", {
-    x: 50,
-    y: y - 20,
-    size: 20,
-    font: bold,
-    color: rgb(1, 1, 1),
-  });
-
-  page.drawText(clean("R.E.T AIRSHIP COURIER SERVICES"), {
-    x: 90,
-    y: y - 8,
-    size: 13,
-    font: bold,
-    color: rgb(1, 1, 1),
-  });
-  page.drawText(clean("352 Escolta St., Tomas Pinpin, Binondo, Manila."), {
-    x: 90,
-    y: y - 22,
-    size: 8,
-    font,
-    color: rgb(1, 1, 1),
-  });
-
-  y -= 55;
-
-  page.drawRectangle({
-    x: 40,
-    y: y - 4,
-    width: width - 80,
-    height: 22,
-    color: pink,
-  });
-  page.drawText(
-    clean(`PAYSLIP FOR THE MONTH OF ${data.periodLabel.toUpperCase()}`),
-    {
-      x: 50,
-      y: y + 2,
-      size: 10,
-      font: bold,
-      color: purpleDark,
-    }
-  );
-
-  y -= 30;
-
-  const colLeft = 40;
-  const colRight = width / 2 + 10;
-  const colWidth = width / 2 - 50;
-
-  const drawRow = (
-    x: number,
-    yy: number,
-    w: number,
-    label: string,
-    value: string,
-    align: "left" | "right" = "left",
-    isHeader = false
-  ) => {
-    page.drawRectangle({
-      x,
-      y: yy - 4,
-      width: w,
-      height: 18,
-      color: isHeader ? pink : pinkLight,
-      borderColor: purpleDark,
-      borderWidth: 0.5,
-    });
-    page.drawText(clean(label), {
-      x: x + 6,
-      y: yy + 1,
-      size: 8,
-      font: bold,
-      color: purpleDark,
-    });
-    const text = clean(value);
-    const textWidth = font.widthOfTextAtSize(text, 8);
-    page.drawText(text, {
-      x: align === "right" ? x + w - textWidth - 6 : x + w * 0.55,
-      y: yy + 1,
-      size: 8,
-      font,
-      color: ink,
-    });
+  const ctx: Ctx = {
+    page,
+    regular,
+    bold,
+    mono,
+    pink: rgb(0.85, 0.66, 0.76),
+    pinkLight: rgb(0.97, 0.93, 0.95),
+    border: rgb(0.29, 0.12, 0.22),
+    ink: rgb(0.11, 0.11, 0.12),
+    purple: rgb(0.29, 0.12, 0.22),
+    green: rgb(0.04, 0.56, 0.42),
   };
 
-  drawRow(colLeft, y, colWidth, "EMAIL ADDRESS", data.employee.email);
-  drawRow(colLeft, y - 18, colWidth, "NAME", data.employee.name);
-  drawRow(colLeft, y - 36, colWidth, "POSITION", data.employee.position);
-  drawRow(colLeft, y - 54, colWidth, "EMPLOYEE ID", data.employee.idNumber);
+  const marginX = 32;
+  const fullW = width - marginX * 2;
 
-  drawRow(
-    colRight,
+  let y = height - 32;
+
+  const logoBytes = await loadLogo();
+  let logoDrawn = false;
+  if (logoBytes) {
+    try {
+      const logo = await pdfDoc.embedPng(logoBytes);
+      const logoH = 44;
+      const logoW = (logo.width / logo.height) * logoH;
+      page.drawImage(logo, {
+        x: marginX,
+        y: y - logoH,
+        width: logoW,
+        height: logoH,
+      });
+      logoDrawn = true;
+    } catch {
+      logoDrawn = false;
+    }
+  }
+
+  const titleX = logoDrawn ? marginX + 120 : marginX;
+  page.drawText(clean("R.E.T AIRSHIP COURIER SERVICES"), {
+    x: titleX,
+    y: y - 18,
+    size: 15,
+    font: bold,
+    color: ctx.ink,
+  });
+  page.drawText(clean("352 Escolta St., Tomas Pinpin, Binondo, Manila."), {
+    x: titleX,
+    y: y - 34,
+    size: 9,
+    font: regular,
+    color: ctx.ink,
+  });
+
+  y -= 60;
+
+  page.drawRectangle({
+    x: marginX,
+    y: y - 6,
+    width: fullW,
+    height: 24,
+    color: ctx.pink,
+    borderColor: ctx.border,
+    borderWidth: 0.8,
+  });
+  const banner = clean(
+    `PAYSLIP FOR THE MONTH OF ${data.periodLabel.toUpperCase()}`
+  );
+  const bannerW = bold.widthOfTextAtSize(banner, 11);
+  page.drawText(banner, {
+    x: marginX + (fullW - bannerW) / 2,
+    y: y + 2,
+    size: 11,
+    font: bold,
+    color: ctx.purple,
+  });
+
+  y -= 34;
+
+  const colGap = 6;
+  const halfW = (fullW - colGap) / 2;
+  const leftX = marginX;
+  const rightX = marginX + halfW + colGap;
+
+  const leftHeaderY = y;
+  const rightHeaderY = y;
+
+  const headerH = 20;
+
+  page.drawRectangle({
+    x: leftX,
+    y: leftHeaderY - headerH + 6,
+    width: halfW,
+    height: headerH,
+    color: ctx.pinkLight,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
+  });
+  const leftLabelW = halfW * 0.4;
+  page.drawText("EMAIL ADDRESS", {
+    x: leftX + 5,
+    y: leftHeaderY - 6,
+    size: 8,
+    font: bold,
+    color: ctx.purple,
+  });
+  page.drawText(clean(data.employee.email), {
+    x: leftX + leftLabelW + 4,
+    y: leftHeaderY - 6,
+    size: 8,
+    font: regular,
+    color: ctx.ink,
+  });
+
+  page.drawRectangle({
+    x: rightX,
+    y: rightHeaderY - headerH + 6,
+    width: halfW,
+    height: headerH,
+    color: ctx.pinkLight,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
+  });
+  page.drawText("MONTH OF AUGUST", {
+    x: rightX + 5,
+    y: rightHeaderY - 6,
+    size: 8,
+    font: bold,
+    color: ctx.purple,
+  });
+  const monthW = bold.widthOfTextAtSize("MONTH OF AUGUST", 8);
+  page.drawText(clean(data.periodLabel.split(" ")[0].toUpperCase()), {
+    x: rightX + halfW - monthW - 5,
+    y: rightHeaderY - 6,
+    size: 8,
+    font: bold,
+    color: ctx.purple,
+  });
+
+  y -= headerH;
+
+  drawLabelValue(ctx, leftX, y, halfW, "NAME", data.employee.name);
+  drawLabelValue(ctx, rightX, y, halfW, "CUT OFF PERIOD", data.employee.cutOff);
+
+  y -= 20;
+
+  drawLabelValue(ctx, leftX, y, halfW, "POSITION", data.employee.position);
+  drawLabelValue(
+    ctx,
+    rightX,
     y,
-    colWidth,
-    "MONTH OF",
-    data.periodLabel.split(" ")[0].toUpperCase()
-  );
-  drawRow(colRight, y - 18, colWidth, "CUT OFF PERIOD", data.employee.cutOff);
-  drawRow(
-    colRight,
-    y - 36,
-    colWidth,
+    halfW,
     "DAILY RATE",
-    data.employee.dailyRate ? peso(data.employee.dailyRate) : "-",
-    "right"
+    data.employee.dailyRate ? peso(data.employee.dailyRate) : "-"
   );
 
-  y -= 80;
+  y -= 20;
 
-  drawRow(colLeft, y, colWidth, "EARNINGS", "", "left", true);
-  drawRow(colRight, y, colWidth, "DEDUCTION", "", "left", true);
+  drawLabelValue(ctx, leftX, y, halfW, "EMPLOYEE ID", data.employee.idNumber);
 
-  const leftRows = [
-    ["Total Pay", peso(data.earnings.totalPay)],
-    ["Days Worked", String(data.earnings.daysWorked)],
-    ["Overtime", peso(data.earnings.overtime)],
-    ["Regular Holiday", peso(data.earnings.regularHoliday)],
-    ["Special Holiday", peso(data.earnings.specialHoliday)],
-    ["Incentives", peso(data.earnings.incentives)],
+  y -= 26;
+
+  const earningsTop = y;
+  const deductionTop = y;
+
+  drawBand(ctx, leftX, earningsTop, halfW, "Earnings");
+  drawBand(ctx, rightX, deductionTop, halfW, "Deduction");
+
+  y -= 16;
+
+  const earningsRows: Array<[string, string]> = [
+    ["TOTAL PAY", peso(data.earnings.totalPay)],
+    ["DAYS WORKED", String(data.earnings.daysWorked)],
+    ["OVERTIME", peso(data.earnings.overtime)],
+    ["REGULAR HOLIDAY", peso(data.earnings.regularHoliday)],
+    ["SPECIAL HOLIDAY", peso(data.earnings.specialHoliday)],
+    ["INCENTIVES", peso(data.earnings.incentives)],
   ];
-  const rightRows = [
+  const deductionRows: Array<[string, string]> = [
     ["SSS", peso(data.deductions.sss)],
-    ["Pag-IBIG", peso(data.deductions.pagibig)],
-    ["PhilHealth", peso(data.deductions.philhealth)],
+    ["PAG-IBIG", peso(data.deductions.pagibig)],
+    ["PHILHEALTH", peso(data.deductions.philhealth)],
   ];
 
-  let ly = y - 18;
-  for (const [label, value] of leftRows) {
-    drawRow(colLeft, ly, colWidth, label, value, "right");
+  let ly = y;
+  for (let i = 0; i < earningsRows.length; i++) {
+    drawRow(ctx, leftX, ly, halfW, earningsRows[i][0], earningsRows[i][1]);
+    if (i < deductionRows.length) {
+      drawRow(ctx, rightX, ly, halfW, deductionRows[i][0], deductionRows[i][1]);
+    }
     ly -= 18;
   }
 
-  let ry = y - 18;
-  for (const [label, value] of rightRows) {
-    drawRow(colRight, ry, colWidth, label, value, "right");
-    ry -= 18;
+  const afterEarnings = ly;
+
+  drawBand(ctx, leftX, afterEarnings, halfW, "Allowances");
+  drawBand(ctx, rightX, afterEarnings, halfW, "Loans");
+
+  ly -= 16;
+
+  const allowanceRows: Array<[string, string]> = [
+    ["LOAD", peso(data.earnings.load)],
+    ["TRANSPO", peso(data.earnings.transpo)],
+    ["MISCELLANEOUS", peso(data.earnings.miscellaneous)],
+    ["GAS", peso(data.earnings.gas)],
+    ["ADJUSTMENT", peso(data.earnings.adjustment)],
+  ];
+  const loanRows: Array<[string, string]> = [
+    ["SSS LOAN", peso(data.deductions.sssLoan)],
+    ["PAG-IBIG LOAN", peso(data.deductions.pagibigLoan)],
+    ["CASH ADVANCE BALANCE", peso(data.deductions.cashAdvanceBalance)],
+  ];
+
+  let iy = ly;
+  for (let i = 0; i < allowanceRows.length; i++) {
+    drawRow(ctx, leftX, iy, halfW, allowanceRows[i][0], allowanceRows[i][1]);
+    if (i < loanRows.length) {
+      drawRow(ctx, rightX, iy, halfW, loanRows[i][0], loanRows[i][1]);
+    }
+    iy -= 18;
   }
 
-  const leftY2 = Math.min(ly, y - 18 - rightRows.length * 18);
+  const afterAllowances = iy;
 
-  drawRow(colLeft, leftY2, colWidth, "ALLOWANCES", "", "left", true);
-  const allowanceRows = [
-    ["Load", peso(data.earnings.load)],
-    ["Transpo", peso(data.earnings.transpo)],
-    ["Miscellaneous", peso(data.earnings.miscellaneous)],
-    ["Gas", peso(data.earnings.gas)],
-    ["Adjustment", peso(data.earnings.adjustment)],
-  ];
-  let lay = leftY2 - 18;
-  for (const [label, value] of allowanceRows) {
-    drawRow(colLeft, lay, colWidth, label, value, "right");
-    lay -= 18;
-  }
+  drawBand(ctx, rightX, afterAllowances, halfW, "Other Deduction");
 
-  drawRow(colRight, ry, colWidth, "LOANS", "", "left", true);
-  const loanRows = [
-    ["SSS Loan", peso(data.deductions.sssLoan)],
-    ["Pag-IBIG Loan", peso(data.deductions.pagibigLoan)],
-    ["Cash Advance", peso(data.deductions.cashAdvanceBalance)],
-  ];
-  let loy = ry - 18;
-  for (const [label, value] of loanRows) {
-    drawRow(colRight, loy, colWidth, label, value, "right");
-    loy -= 18;
-  }
+  iy -= 16;
 
-  drawRow(colRight, loy, colWidth, "OTHER DEDUCTION", "", "left", true);
-  const otherRows = [
-    ["Tardiness", peso(data.deductions.tardiness)],
-    ["Penalty", peso(data.deductions.penalty)],
-    ["Employee's Savings", peso(data.deductions.employeeSavings)],
-    ["Excess", peso(data.deductions.excess)],
+  const otherRows: Array<[string, string]> = [
+    ["TARDINESS", peso(data.deductions.tardiness)],
+    ["PENALTY DEDUCTION", peso(data.deductions.penalty)],
+    ["EMPLOYEE'S SAVINGS", peso(data.deductions.employeeSavings)],
+    ["EXCESS", peso(data.deductions.excess)],
   ];
-  let oy = loy - 18;
+
+  let oy = iy;
   for (const [label, value] of otherRows) {
-    drawRow(colRight, oy, colWidth, label, value, "right");
+    drawRow(ctx, rightX, oy, halfW, label, value);
     oy -= 18;
   }
 
-  const bottomY = Math.min(lay, oy) - 10;
+  const bottomY = Math.min(oy, iy);
 
-  drawRow(
-    colLeft,
-    bottomY,
-    colWidth,
-    "GROSS TOTAL",
-    peso(data.grossTotal),
-    "right",
-    true
-  );
-  drawRow(
-    colRight,
-    bottomY,
-    colWidth,
-    "TOTAL DEDUCTION",
-    peso(data.totalDeduction),
-    "right",
-    true
-  );
+  drawBand(ctx, leftX, bottomY, halfW, "Gross Total");
+  drawBand(ctx, rightX, bottomY, halfW, "Total Deduction");
 
-  const netY = bottomY - 30;
+  const valueY = bottomY - 16;
+  const h18 = 18;
   page.drawRectangle({
-    x: colLeft,
-    y: netY - 20,
-    width: width - 80,
-    height: 30,
-    color: pink,
-    borderColor: purpleDark,
-    borderWidth: 0.5,
+    x: leftX,
+    y: valueY - h18 + 6,
+    width: halfW,
+    height: h18,
+    color: ctx.pinkLight,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
   });
-  page.drawText("NET PAY", {
-    x: colLeft + 20,
-    y: netY - 10,
-    size: 12,
-    font: bold,
-    color: purpleDark,
-  });
-  const netText = `PHP ${peso(data.netPay)}`;
-  const netWidth = mono.widthOfTextAtSize(netText, 16);
-  page.drawText(netText, {
-    x: width - 40 - netWidth - 20,
-    y: netY - 12,
-    size: 16,
+  const gtText = clean(peso(data.grossTotal));
+  const gtW = mono.widthOfTextAtSize(gtText, 9);
+  page.drawText(gtText, {
+    x: leftX + halfW - gtW - 5,
+    y: valueY - h18 / 2 - 2,
+    size: 9,
     font: mono,
-    color: green,
+    color: ctx.ink,
+  });
+
+  page.drawRectangle({
+    x: rightX,
+    y: valueY - h18 + 6,
+    width: halfW,
+    height: h18,
+    color: ctx.pinkLight,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
+  });
+  const tdText = clean(peso(data.totalDeduction));
+  const tdW = mono.widthOfTextAtSize(tdText, 9);
+  page.drawText(tdText, {
+    x: rightX + halfW - tdW - 5,
+    y: valueY - h18 / 2 - 2,
+    size: 9,
+    font: mono,
+    color: ctx.ink,
+  });
+
+  const netBandY = valueY - h18 - 2;
+
+  drawBand(ctx, leftX, netBandY, halfW, "Net Pay");
+  const netH = 30;
+  page.drawRectangle({
+    x: rightX,
+    y: netBandY - netH + 6,
+    width: halfW,
+    height: netH,
+    color: ctx.pinkLight,
+    borderColor: ctx.border,
+    borderWidth: 0.7,
+  });
+  const netText = clean(`PHP ${peso(data.netPay)}`);
+  const netW = mono.widthOfTextAtSize(netText, 14);
+  page.drawText(netText, {
+    x: rightX + halfW - netW - 8,
+    y: netBandY - netH / 2 - 2,
+    size: 14,
+    font: mono,
+    color: ctx.green,
   });
 
   page.drawText(
     clean("Generated by R.E.T Airship Courier Services payroll system."),
     {
-      x: 40,
-      y: 30,
+      x: marginX,
+      y: 20,
       size: 7,
-      font,
-      color: muted,
+      font: regular,
+      color: rgb(0.6, 0.6, 0.62),
     }
   );
 
   const bytes = await pdfDoc.save({
     userPassword: password,
-    ownerPassword: password,
+    ownerPassword: password + "_owner",
     permissions: {
       printing: "highResolution",
       modifying: false,
@@ -339,7 +548,7 @@ export async function buildPayslipPdf(
       contentAccessibility: true,
       documentAssembly: false,
     },
-  } as any);
+  });
 
   return bytes;
 }

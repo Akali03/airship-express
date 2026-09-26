@@ -29,6 +29,27 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function periodLabelFromDates(start: string, end: string): string {
+  const s = new Date(start);
+  const e = new Date(end);
+  const month = s.toLocaleDateString("en-PH", { month: "long" }).toUpperCase();
+  return `${month} ${s.getDate()}-${e.getDate()}, ${e.getFullYear()}`;
+}
+
+function cutOffFromDates(start: string, end: string): string {
+  const s = new Date(start).toLocaleDateString("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const e = new Date(end).toLocaleDateString("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${s} - ${e}`;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -95,21 +116,19 @@ export async function POST(
       );
     }
 
+    const periodLabel = periodLabelFromDates(run.period_start, run.period_end);
+    const cutOff = cutOffFromDates(run.period_start, run.period_end);
+
     let sent = 0;
     let failed = 0;
     const failedList: Array<{ name: string; email: string; reason: string }> =
       [];
 
-    const periodLabel = `${new Date(run.period_start)
-      .toLocaleDateString("en-PH", { month: "long" })
-      .toUpperCase()} ${new Date(run.period_start).getDate()}-${new Date(
-      run.period_end
-    ).getDate()}, ${new Date(run.period_end).getFullYear()}`;
-
     for (const slip of payslips) {
       const emp = Array.isArray(slip.hr1_employees)
         ? slip.hr1_employees[0]
         : slip.hr1_employees;
+
       if (!emp?.email) {
         failed++;
         failedList.push({
@@ -146,51 +165,68 @@ export async function POST(
         : emp.hr1_job_positions;
 
       const dailyRate = num(slip.daily_rate);
-      const overtime = num(slip.overtime_hours) * (dailyRate / 8) * 1.25;
-      const totalPay = num(slip.basic_pay) + overtime;
+      const daysWorked = num(slip.days_worked);
+      const overtimeHours = num(slip.overtime_hours);
+      const hourlyRate = dailyRate > 0 ? dailyRate / 8 : 0;
+      const overtime = overtimeHours * hourlyRate * 1.25;
+
+      const basicPay = num(slip.basic_pay);
+      const totalPay = basicPay + overtime;
+
+      const nightDiff = num(slip.night_diff_pay);
+      const holiday = num(slip.holiday_pay);
+      const allowances = num(slip.allowances_pay);
+      const bonus = num(slip.bonus_pay);
+      const incentives = num(slip.incentive_pay);
+
+      const grossTotal =
+        num(slip.gross_pay) ||
+        totalPay + nightDiff + holiday + allowances + bonus + incentives;
+
+      const sss = num(slip.sss_employee_share);
+      const philhealth = num(slip.philhealth_employee_share);
+      const pagibig = num(slip.pagibig_employee_share);
+      const withholdingTax = num(slip.withholding_tax);
+      const otherDeductions = num(slip.other_deductions);
+      const totalDeduction =
+        num(slip.total_deductions) ||
+        sss + philhealth + pagibig + withholdingTax + otherDeductions;
+
+      const netPay = num(slip.net_pay) || grossTotal - totalDeduction;
 
       try {
         const pdfBytes = await buildPayslipPdf(
           {
-            companyName: "R.E.T AIRSHIP COURIER SERVICES",
-            companyAddress: "352 Escolta St., Tomas Pinpin, Binondo, Manila.",
             periodLabel,
             employee: {
               email: emp.email,
-              name: `${emp.first_name} ${emp.last_name}`,
+              name: `${emp.last_name?.toUpperCase() || ""}, ${
+                emp.first_name?.toUpperCase() || ""
+              }`
+                .replace(/^, |, $/g, "")
+                .trim(),
               position: job?.title || "—",
               idNumber: emp.employee_id_number || "",
-              cutOff: `${new Date(run.period_start).toLocaleDateString(
-                "en-PH",
-                {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                }
-              )} - ${new Date(run.period_end).toLocaleDateString("en-PH", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}`,
-              dailyRate,
+              cutOff,
+              dailyRate: dailyRate > 0 ? dailyRate : null,
             },
             earnings: {
               totalPay,
-              daysWorked: num(slip.days_worked),
+              daysWorked,
               overtime,
-              regularHoliday: num(slip.holiday_pay),
+              regularHoliday: holiday,
               specialHoliday: 0,
-              incentives: num(slip.incentive_pay),
+              incentives,
               load: 0,
-              transpo: num(slip.allowances_pay),
-              miscellaneous: num(slip.bonus_pay),
+              transpo: allowances,
+              miscellaneous: bonus,
               gas: 0,
               adjustment: 0,
             },
             deductions: {
-              sss: num(slip.sss_employee_share),
-              pagibig: num(slip.pagibig_employee_share),
-              philhealth: num(slip.philhealth_employee_share),
+              sss,
+              pagibig,
+              philhealth,
               sssLoan: 0,
               pagibigLoan: 0,
               cashAdvanceBalance: 0,
@@ -199,9 +235,9 @@ export async function POST(
               employeeSavings: 0,
               excess: 0,
             },
-            grossTotal: num(slip.gross_pay),
-            totalDeduction: num(slip.total_deductions),
-            netPay: num(slip.net_pay),
+            grossTotal,
+            totalDeduction,
+            netPay,
           },
           password
         );
@@ -211,7 +247,7 @@ export async function POST(
           employeeName: `${emp.first_name} ${emp.last_name}`,
           periodStart: run.period_start,
           periodEnd: run.period_end,
-          netPay: num(slip.net_pay),
+          netPay,
           pdfBytes,
           employeeIdNumber: emp.employee_id_number || "",
         });
