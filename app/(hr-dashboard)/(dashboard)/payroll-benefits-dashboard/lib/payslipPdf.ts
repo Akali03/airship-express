@@ -4,6 +4,8 @@ import fs from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
 
+export const runtime = "nodejs";
+
 export type PayslipPdfData = {
   periodLabel: string;
   employee: {
@@ -180,7 +182,6 @@ function drawRow(
     borderColor: ctx.border,
     borderWidth: 0.6,
   });
-  const labelW = w * 0.55;
   ctx.page.drawText(clean(label.toUpperCase()), {
     x: x + 5,
     y: y - h / 2 - 2,
@@ -198,7 +199,59 @@ function drawRow(
     font: f,
     color: ctx.ink,
   });
-  void labelW;
+}
+
+async function encryptPdf(
+  pdfBytes: Uint8Array,
+  password: string
+): Promise<Uint8Array> {
+  const qpdfModule: any = await import("qpdf-wasm");
+  const createQpdf = qpdfModule.default || qpdfModule.createQpdf || qpdfModule;
+
+  const wasmDir = path.join(process.cwd(), "node_modules", "qpdf-wasm", "dist");
+
+  let wasmBinary: Uint8Array | undefined;
+  try {
+    const buf = await fs.readFile(path.join(wasmDir, "qpdf.wasm"));
+    wasmBinary = new Uint8Array(buf);
+  } catch {
+    wasmBinary = undefined;
+  }
+
+  const qpdf = await createQpdf({
+    locateFile: (file: string) => path.join(wasmDir, file),
+    ...(wasmBinary ? { wasmBinary } : {}),
+  });
+
+  const inputName = "/input.pdf";
+  const outputName = "/output.pdf";
+
+  qpdf.FS.writeFile(inputName, pdfBytes);
+
+  qpdf.callMain([
+    inputName,
+    "--encrypt",
+    password,
+    password,
+    "256",
+    "--print=full",
+    "--modify=none",
+    "--extract=n",
+    "--annotate=n",
+    "--",
+    outputName,
+  ]);
+
+  const out = qpdf.FS.readFile(outputName) as Uint8Array;
+
+  try {
+    qpdf.FS.unlink(inputName);
+    qpdf.FS.unlink(outputName);
+  } catch {
+    /* noop */
+  }
+
+  return out;
 }
 
 export async function buildPayslipPdf(
@@ -339,16 +392,15 @@ export async function buildPayslipPdf(
     borderColor: ctx.border,
     borderWidth: 0.7,
   });
-  page.drawText("MONTH OF AUGUST", {
+  page.drawText("MONTH OF", {
     x: rightX + 5,
     y: rightHeaderY - 6,
     size: 8,
     font: bold,
     color: ctx.purple,
   });
-  const monthW = bold.widthOfTextAtSize("MONTH OF AUGUST", 8);
   page.drawText(clean(data.periodLabel.split(" ")[0].toUpperCase()), {
-    x: rightX + halfW - monthW - 5,
+    x: rightX + halfW - 60,
     y: rightHeaderY - 6,
     size: 8,
     font: bold,
@@ -536,19 +588,6 @@ export async function buildPayslipPdf(
     }
   );
 
-  const bytes = await pdfDoc.save({
-    userPassword: password,
-    ownerPassword: password + "_owner",
-    permissions: {
-      printing: "highResolution",
-      modifying: false,
-      copying: false,
-      annotating: false,
-      fillingForms: false,
-      contentAccessibility: true,
-      documentAssembly: false,
-    },
-  });
-
-  return bytes;
+  const raw = await pdfDoc.save();
+  return await encryptPdf(raw, password);
 }
