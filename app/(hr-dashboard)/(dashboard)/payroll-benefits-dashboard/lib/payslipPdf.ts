@@ -209,7 +209,7 @@ function drawRow(
 
 export async function buildPayslipPdf(
   data: PayslipPdfData,
-  password: string
+  birthdatePassword: string
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`Payslip - ${data.periodLabel}`);
@@ -542,15 +542,15 @@ export async function buildPayslipPdf(
   );
 
   const bytes = await pdfDoc.save({
-    userPassword: password,
-    ownerPassword: `${password}_owner`,
+    userPassword: birthdatePassword,
+    ownerPassword: `${birthdatePassword}_owner_${Date.now()}`,
     permissions: {
       printing: "highResolution",
       modifying: false,
       copying: false,
       annotating: false,
       fillingForms: false,
-      contentAccessibility: true,
+      contentAccessibility: false,
       documentAssembly: false,
     },
   });

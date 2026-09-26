@@ -287,16 +287,18 @@ export async function POST(
       }
     }
 
-    const newCount = currentCount + 1;
+    const newCount = sent > 0 ? currentCount + 1 : currentCount;
 
-    await supabaseAdmin
-      .from("hr4_payroll_runs")
-      .update({
-        distribute_count: newCount,
-        distributed_at: new Date().toISOString(),
-        approval_status: "distributed",
-      })
-      .eq("id", runId);
+    if (sent > 0) {
+      await supabaseAdmin
+        .from("hr4_payroll_runs")
+        .update({
+          distribute_count: newCount,
+          distributed_at: new Date().toISOString(),
+          approval_status: "distributed",
+        })
+        .eq("id", runId);
+    }
 
     return NextResponse.json({
       sent,
