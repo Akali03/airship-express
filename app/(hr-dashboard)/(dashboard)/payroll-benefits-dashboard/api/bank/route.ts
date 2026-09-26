@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanAccountNumber = account_number.trim().replace(/\s/g, "");
-    let validationError = null;
+    let validationError: string | null = null;
 
     if (bankType.bank_type === "e_wallet") {
       if (!/^09\d{9}$/.test(cleanAccountNumber)) {
