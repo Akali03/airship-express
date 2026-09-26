@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       claimedAmount: Number(claimedAmount) || 0,
       claimedDescription: claimedDescription || "",
       claimedClaimType: claimedClaimType || "",
-      verifiedByAdminId: admin.id ?? admin.adminId ?? "",
+      verifiedByAdminId: admin.id ?? "",
     });
 
     if (!result.ok) {
