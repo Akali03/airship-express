@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@cantoo/pdf-lib": "^2.11.1",
     "@fortawesome/fontawesome-free": "^7.3.1",
     "@google/genai": "^2.15.0",
     "@google/generative-ai": "^0.24.1",
@@ -44,7 +45,6 @@
     "pdf-lib": "^1.17.1",
     "puppeteer": "^24.43.1",
     "puppeteer-core": "^24.43.1",
-    "qpdf-wasm": "^0.1.0",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

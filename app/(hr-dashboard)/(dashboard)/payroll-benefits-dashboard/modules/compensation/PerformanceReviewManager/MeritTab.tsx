@@ -27,6 +27,13 @@ import {
     type LatestPerformanceRatingMap,
 } from './shared';
 
+// ---- Airy AI ----
+import AiryMeritSuggestion from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/ai/ui/AiryMeritSuggestion';
+import {
+    type MeritSuggestionInput,
+    type MeritSuggestionResult,
+} from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/ai/actions/suggestMerit';
+
 const COVERAGE_PAGE_SIZE = 8;
 
 const EMPTY_MERIT_FORM = {
@@ -70,6 +77,10 @@ const MeritTab = () => {
     const [pendingAction, setPendingAction] = useState<PendingAction>(null);
     const [isOtpOpen, setIsOtpOpen] = useState(false);
     const [otpPurpose, setOtpPurpose] = useState<'merit' | 'merit_delete'>('merit');
+
+    // ---- Airy AI state ----
+    const [isAiOpen, setIsAiOpen] = useState(false);
+    const [aiInput, setAiInput] = useState<MeritSuggestionInput | null>(null);
 
     const { fetchData, postData, putData, deleteData } = useApi('/payroll-benefits-dashboard/api/compensation/merit-planning');
     const { fetchData: fetchEmployees } = useApi('/payroll-benefits-dashboard/api/payroll/employee-info');
@@ -219,6 +230,56 @@ const MeritTab = () => {
             recommended_increase_percent: String(pct),
             recommended_new_salary: String(Math.round(newSalary * 100) / 100),
         }));
+    };
+
+    // ---------- AIRY AI SUGGEST ----------
+    const handleAiSuggest = () => {
+        if (!form.employee_id) {
+            toast.showError('Select an employee first');
+            return;
+        }
+        const hr3 = activeRatingSource(form.employee_id);
+        const emp = employees.find((e) => e.employee_id === form.employee_id);
+        const currentSalary = Number(form.current_salary) || 0;
+
+        if (!hr3 || hr3.performance_rating == null) {
+            toast.showError(`No HR3 rating for this employee in ${selectedYear}.`);
+            return;
+        }
+
+        const input: MeritSuggestionInput = {
+            employee_name: emp?.employee_name ?? 'Employee',
+            employee_number: emp?.employee_id_number ?? null,
+            department: emp?.department ?? null,
+            position: emp?.position ?? null,
+            tenure_years: null,
+            current_salary: currentSalary,
+            performance_rating: hr3.performance_rating ?? null,
+            letter_grade: (hr3 as any).letter_grade ?? null,
+            cycle_name: (hr3 as any).cycle_name ?? null,
+            comments: (hr3 as any).comments ?? null,
+            strengths: (hr3 as any).strengths ?? null,
+            improvements: (hr3 as any).improvements ?? null,
+            goals_achieved: (hr3 as any).goals_achieved ?? null,
+            goals_total: (hr3 as any).goals_total ?? null,
+            previous_rating: null,
+            previous_increase_percent: null,
+            policy_baseline_percent: MERIT_POLICY[hr3.performance_rating] ?? 0,
+        };
+
+        setAiInput(input);
+        setIsAiOpen(true);
+    };
+
+    const applyAiSuggestion = (r: MeritSuggestionResult) => {
+        setForm((f) => ({
+            ...f,
+            recommended_increase_percent: String(r.recommended_increase_percent),
+            recommended_new_salary: String(r.recommended_new_salary),
+            approver_notes: f.approver_notes.trim() ? f.approver_notes : r.rationale,
+        }));
+        setIsAiOpen(false);
+        toast.showSuccess('Airy suggestion applied');
     };
 
     const buildPayload = () => ({
@@ -1098,17 +1159,31 @@ const MeritTab = () => {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <div className="mb-1.5 flex items-center justify-between">
+                                <div className="mb-1.5 flex items-center justify-between gap-2 flex-wrap">
                                     <label className="block text-xs font-medium text-ink font-rethink">Increase %</label>
-                                    <button
-                                        type="button"
-                                        onClick={applyPolicy}
-                                        disabled={!form.performance_rating || !form.current_salary}
-                                        className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                    >
-                                        <Sparkles className="h-3 w-3" />
-                                        Auto-suggest
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        {/* Auto-suggest (policy only) */}
+                                        <button
+                                            type="button"
+                                            onClick={applyPolicy}
+                                            disabled={!form.performance_rating || !form.current_salary}
+                                            className="inline-flex items-center gap-1 rounded-md border border-line bg-ink/[0.02] px-2 py-0.5 text-[10px] font-medium text-muted hover:bg-ink/[0.05] hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed dark:bg-ink/[0.05]"
+                                            title="Use company policy baseline"
+                                        >
+                                            Policy
+                                        </button>
+                                        {/* Airy AI suggest */}
+                                        <button
+                                            type="button"
+                                            onClick={handleAiSuggest}
+                                            disabled={!form.performance_rating || !form.current_salary || !hasHr3}
+                                            className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title="Ask Airy AI for a merit recommendation"
+                                        >
+                                            <Sparkles className="h-3 w-3" />
+                                            Ask Airy AI
+                                        </button>
+                                    </div>
                                 </div>
                                 <input
                                     type="number" min="0" step="0.01"
@@ -1244,6 +1319,13 @@ const MeritTab = () => {
                     actionLabel={otpPurpose === 'merit' ? 'merit plan' : 'deletion'}
                 />
             )}
+
+            <AiryMeritSuggestion
+                isOpen={isAiOpen}
+                onClose={() => setIsAiOpen(false)}
+                onApply={applyAiSuggestion}
+                input={aiInput}
+            />
         </div>
     );
 };

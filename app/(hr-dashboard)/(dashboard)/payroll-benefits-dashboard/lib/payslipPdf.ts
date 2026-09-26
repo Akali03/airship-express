@@ -1,5 +1,11 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  PDFFont,
+  PDFPage,
+} from "@cantoo/pdf-lib";
 import fs from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
@@ -199,71 +205,6 @@ function drawRow(
     font: f,
     color: ctx.ink,
   });
-}
-
-async function encryptPdf(
-  pdfBytes: Uint8Array,
-  password: string
-): Promise<Uint8Array> {
-  const g = globalThis as any;
-
-  if (typeof g.self === "undefined") g.self = g;
-  if (typeof g.window === "undefined") g.window = g;
-  if (typeof g.document === "undefined") g.document = {};
-  if (typeof g.navigator === "undefined") g.navigator = { userAgent: "node" };
-  if (typeof g.location === "undefined") g.location = { href: "file:///" };
-
-  const qpdfModule: any = await import("qpdf-wasm");
-  const createQpdf =
-    qpdfModule.default?.default ||
-    qpdfModule.default ||
-    qpdfModule.createQpdf ||
-    qpdfModule;
-
-  const wasmDir = path.join(process.cwd(), "node_modules", "qpdf-wasm", "dist");
-
-  let wasmBinary: Uint8Array | undefined;
-  try {
-    const buf = await fs.readFile(path.join(wasmDir, "qpdf.wasm"));
-    wasmBinary = new Uint8Array(buf);
-  } catch {
-    wasmBinary = undefined;
-  }
-
-  const qpdf = await createQpdf({
-    locateFile: (file: string) => path.join(wasmDir, file),
-    ...(wasmBinary ? { wasmBinary } : {}),
-  });
-
-  const inputName = "/input.pdf";
-  const outputName = "/output.pdf";
-
-  qpdf.FS.writeFile(inputName, pdfBytes);
-
-  qpdf.callMain([
-    inputName,
-    "--encrypt",
-    password,
-    password,
-    "256",
-    "--print=full",
-    "--modify=none",
-    "--extract=n",
-    "--annotate=n",
-    "--",
-    outputName,
-  ]);
-
-  const out = qpdf.FS.readFile(outputName) as Uint8Array;
-
-  try {
-    qpdf.FS.unlink(inputName);
-    qpdf.FS.unlink(outputName);
-  } catch {
-    /* noop */
-  }
-
-  return out;
 }
 
 export async function buildPayslipPdf(
@@ -600,6 +541,19 @@ export async function buildPayslipPdf(
     }
   );
 
-  const raw = await pdfDoc.save();
-  return await encryptPdf(raw, password);
+  const bytes = await pdfDoc.save({
+    userPassword: password,
+    ownerPassword: `${password}_owner`,
+    permissions: {
+      printing: "highResolution",
+      modifying: false,
+      copying: false,
+      annotating: false,
+      fillingForms: false,
+      contentAccessibility: true,
+      documentAssembly: false,
+    },
+  });
+
+  return bytes;
 }
