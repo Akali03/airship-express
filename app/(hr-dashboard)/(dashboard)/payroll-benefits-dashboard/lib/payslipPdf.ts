@@ -205,8 +205,20 @@ async function encryptPdf(
   pdfBytes: Uint8Array,
   password: string
 ): Promise<Uint8Array> {
+  const g = globalThis as any;
+
+  if (typeof g.self === "undefined") g.self = g;
+  if (typeof g.window === "undefined") g.window = g;
+  if (typeof g.document === "undefined") g.document = {};
+  if (typeof g.navigator === "undefined") g.navigator = { userAgent: "node" };
+  if (typeof g.location === "undefined") g.location = { href: "file:///" };
+
   const qpdfModule: any = await import("qpdf-wasm");
-  const createQpdf = qpdfModule.default || qpdfModule.createQpdf || qpdfModule;
+  const createQpdf =
+    qpdfModule.default?.default ||
+    qpdfModule.default ||
+    qpdfModule.createQpdf ||
+    qpdfModule;
 
   const wasmDir = path.join(process.cwd(), "node_modules", "qpdf-wasm", "dist");
 
