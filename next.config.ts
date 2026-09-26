@@ -6,17 +6,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
 
-  serverExternalPackages: [
-    "puppeteer-core",
-    "@sparticuz/chromium",
-    "qpdf-wasm",
-  ],
+  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium"],
 
   outputFileTracingIncludes: {
-    "/**/*": [
-      "./node_modules/@sparticuz/chromium/bin/**/*",
-      "./node_modules/qpdf-wasm/dist/**/*",
-    ],
+    "/**/*": ["./node_modules/@sparticuz/chromium/bin/**/*"],
   },
 };
 
