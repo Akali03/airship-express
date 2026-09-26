@@ -4,13 +4,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Sparkles, RefreshCw, Check, TrendingUp, ShieldCheck,
-    ShieldQuestion, ShieldAlert,
+    ShieldQuestion, ShieldAlert, Loader2,
 } from 'lucide-react';
 
-import { Avatar } from './Avatar';
-import { AiryButton } from './AiryButton';
-import { TypingIndicator } from './TypingIndicator';
-import { AiryPanel } from './AiryPanel';
+import { AiryAvatar } from './Avatar';
 import { Button } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Button';
 
 import {
@@ -140,14 +137,23 @@ export default function AiryMeritSuggestion({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 24, scale: 0.98 }}
                 transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                className="relative w-full max-w-md"
+                className="relative w-full max-w-md overflow-hidden rounded-2xl border border-line bg-paper shadow-2xl dark:border-line/30"
             >
-                <AiryPanel
-                    title="Airy · Merit Suggestion"
-                    subtitle={input?.employee_name ?? 'Employee'}
-                    onClose={loading ? undefined : onClose}
-                    headerRight={
-                        !loading ? (
+                <div className="relative overflow-hidden border-b border-line bg-gradient-to-br from-accent/5 via-pink-50/50 to-purple-50/50 px-4 py-3 dark:border-line/30 dark:from-accent/10 dark:via-pink-950/10 dark:to-purple-950/10">
+                    <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/10 blur-2xl" />
+                    <div className="relative flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-purple-500 shadow-lg shadow-accent/30">
+                            <Sparkles className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-semibold text-ink font-rethink truncate">
+                                Airy · Merit Suggestion
+                            </p>
+                            <p className="text-[10px] text-muted font-rethink truncate">
+                                {input?.employee_name ?? 'Employee'}
+                            </p>
+                        </div>
+                        {!loading && (
                             <button
                                 type="button"
                                 onClick={run}
@@ -157,187 +163,199 @@ export default function AiryMeritSuggestion({
                             >
                                 <RefreshCw className="h-3.5 w-3.5" />
                             </button>
-                        ) : null
-                    }
-                >
-                    <div className="space-y-4">
-                        {/* Airy head */}
-                        <div className="flex items-center gap-3">
-                            <Avatar
-                                state={loading ? 'thinking' : error ? 'error' : 'idle'}
-                                size="lg"
-                            />
-                            <div className="min-w-0">
-                                <p className="text-sm font-semibold text-ink font-rethink">
-                                    Airy
-                                </p>
-                                <p className="text-[11px] text-muted font-rethink truncate">
-                                    {loading
-                                        ? STAGES[stage]
-                                        : error
-                                            ? 'Something went wrong'
-                                            : 'Analysis complete'}
-                                </p>
-                            </div>
+                        )}
+                        <button
+                            type="button"
+                            onClick={loading ? undefined : onClose}
+                            disabled={loading}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-ink/5 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label="Close"
+                        >
+                            <span className="text-lg leading-none">×</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="max-h-[70vh] overflow-y-auto p-4 space-y-4">
+                    <div className="flex items-center gap-3">
+                        <AiryAvatar
+                            status={loading ? 'thinking' : 'idle'}
+                            size="lg"
+                            video={loading}
+                            showRing
+                        />
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold text-ink font-rethink">
+                                Airy
+                            </p>
+                            <p className="text-[11px] text-muted font-rethink truncate">
+                                {loading
+                                    ? STAGES[stage]
+                                    : error
+                                        ? 'Something went wrong'
+                                        : 'Analysis complete'}
+                            </p>
                         </div>
+                    </div>
 
-                        <AnimatePresence mode="wait">
-                            {loading && (
-                                <motion.div
-                                    key="loading"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                >
-                                    <TypingIndicator label={STAGES[stage]} />
-                                </motion.div>
-                            )}
+                    <AnimatePresence mode="wait">
+                        {loading && (
+                            <motion.div
+                                key="loading"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex items-center gap-2 text-xs text-muted font-rethink"
+                            >
+                                <Loader2 className="h-4 w-4 animate-spin text-pink-500" />
+                                {STAGES[stage]}
+                            </motion.div>
+                        )}
 
-                            {error && !loading && (
-                                <motion.div
-                                    key="error"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className="space-y-3"
-                                >
-                                    <div className="rounded-lg border border-red-200 bg-red-50/60 p-3 text-xs text-red-700 font-rethink dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300">
-                                        {error}
+                        {error && !loading && (
+                            <motion.div
+                                key="error"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="space-y-3"
+                            >
+                                <div className="rounded-lg border border-red-200 bg-red-50/60 p-3 text-xs text-red-700 font-rethink dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300">
+                                    {error}
+                                </div>
+                                <Button type="button" onClick={run} className="font-rethink">
+                                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                    Try again
+                                </Button>
+                            </motion.div>
+                        )}
+
+                        {result && !loading && (
+                            <motion.div
+                                key="result"
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                className="space-y-3"
+                            >
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="rounded-lg bg-ink/[0.03] p-2 dark:bg-ink/[0.06]">
+                                        <p className="text-[9px] uppercase tracking-wide text-muted font-rethink">
+                                            Baseline
+                                        </p>
+                                        <p className="font-mono text-sm font-semibold text-ink">
+                                            {result.policy_baseline_percent}%
+                                        </p>
                                     </div>
-                                    <Button type="button" onClick={run} className="font-rethink">
-                                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                                        Try again
-                                    </Button>
-                                </motion.div>
-                            )}
-
-                            {result && !loading && (
-                                <motion.div
-                                    key="result"
-                                    initial={{ opacity: 0, y: 6 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0 }}
-                                    className="space-y-3"
-                                >
-                                    {/* Headline numbers */}
-                                    <div className="grid grid-cols-3 gap-2 text-center">
-                                        <div className="rounded-lg bg-ink/[0.03] p-2 dark:bg-ink/[0.06]">
-                                            <p className="text-[9px] uppercase tracking-wide text-muted font-rethink">
-                                                Baseline
-                                            </p>
-                                            <p className="font-mono text-sm font-semibold text-ink">
-                                                {result.policy_baseline_percent}%
-                                            </p>
-                                        </div>
-                                        <div className="rounded-lg bg-pink-50 p-2 dark:bg-pink-950/30">
-                                            <p className="text-[9px] uppercase tracking-wide text-pink-600 font-rethink">
-                                                Airy suggests
-                                            </p>
-                                            <p className="font-mono text-sm font-semibold text-pink-600">
-                                                {result.recommended_increase_percent}%
-                                            </p>
-                                        </div>
-                                        <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30">
-                                            <p className="text-[9px] uppercase tracking-wide text-emerald-600 font-rethink">
-                                                New salary
-                                            </p>
-                                            <p className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                                                ₱{result.recommended_new_salary.toLocaleString()}
-                                            </p>
-                                        </div>
+                                    <div className="rounded-lg bg-pink-50 p-2 dark:bg-pink-950/30">
+                                        <p className="text-[9px] uppercase tracking-wide text-pink-600 font-rethink">
+                                            Airy suggests
+                                        </p>
+                                        <p className="font-mono text-sm font-semibold text-pink-600">
+                                            {result.recommended_increase_percent}%
+                                        </p>
                                     </div>
-
-                                    {/* Badges */}
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        {conf && ConfIcon && (
-                                            <span
-                                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${conf.cls}`}
-                                            >
-                                                <ConfIcon className="h-3 w-3" />
-                                                {conf.label}
-                                            </span>
-                                        )}
-                                        {ret && (
-                                            <span
-                                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${ret.cls}`}
-                                            >
-                                                {ret.label}
-                                            </span>
-                                        )}
+                                    <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30">
+                                        <p className="text-[9px] uppercase tracking-wide text-emerald-600 font-rethink">
+                                            New salary
+                                        </p>
+                                        <p className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                                            ₱{result.recommended_new_salary.toLocaleString()}
+                                        </p>
                                     </div>
+                                </div>
 
-                                    {/* Factors */}
-                                    {result.factors?.length > 0 && (
-                                        <div className="rounded-lg border border-line bg-paper p-3 dark:border-line/30">
-                                            <p className="mb-2 text-[10px] uppercase tracking-wide text-muted font-rethink">
-                                                Contributing factors
-                                            </p>
-                                            <div className="space-y-1.5">
-                                                {result.factors.map((f, i) => (
-                                                    <div key={i} className="flex items-center gap-2">
-                                                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-ink/[0.04] dark:bg-ink/[0.08]">
-                                                            {IMPACT_ICON[f.impact]}
-                                                        </div>
-                                                        <span className="flex-1 truncate text-[11px] font-rethink text-ink">
-                                                            {f.factor}
-                                                        </span>
-                                                        <div className="flex w-20 items-center gap-1.5">
-                                                            <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink/[0.06] dark:bg-ink/[0.12]">
-                                                                <div
-                                                                    className="h-full rounded-full bg-accent"
-                                                                    style={{ width: `${f.weight}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="w-8 text-right text-[10px] font-mono text-muted">
-                                                                {Math.round(f.weight)}%
-                                                            </span>
-                                                        </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {conf && ConfIcon && (
+                                        <span
+                                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${conf.cls}`}
+                                        >
+                                            <ConfIcon className="h-3 w-3" />
+                                            {conf.label}
+                                        </span>
+                                    )}
+                                    {ret && (
+                                        <span
+                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${ret.cls}`}
+                                        >
+                                            {ret.label}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {result.factors?.length > 0 && (
+                                    <div className="rounded-lg border border-line bg-paper p-3 dark:border-line/30">
+                                        <p className="mb-2 text-[10px] uppercase tracking-wide text-muted font-rethink">
+                                            Contributing factors
+                                        </p>
+                                        <div className="space-y-1.5">
+                                            {result.factors.map((f, i) => (
+                                                <div key={i} className="flex items-center gap-2">
+                                                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-ink/[0.04] dark:bg-ink/[0.08]">
+                                                        {IMPACT_ICON[f.impact]}
                                                     </div>
-                                                ))}
-                                            </div>
+                                                    <span className="flex-1 truncate text-[11px] font-rethink text-ink">
+                                                        {f.factor}
+                                                    </span>
+                                                    <div className="flex w-20 items-center gap-1.5">
+                                                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink/[0.06] dark:bg-ink/[0.12]">
+                                                            <div
+                                                                className="h-full rounded-full bg-accent"
+                                                                style={{ width: `${f.weight}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="w-8 text-right text-[10px] font-mono text-muted">
+                                                            {Math.round(f.weight)}%
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    )}
+                                    </div>
+                                )}
 
-                                    {result.adjustment_reason && (
-                                        <div className="rounded-lg border border-line bg-paper p-3 dark:border-line/30">
-                                            <p className="mb-1 text-[10px] uppercase tracking-wide text-muted font-rethink">
-                                                Adjustment vs. baseline
-                                            </p>
-                                            <p className="text-[12px] text-ink font-rethink leading-relaxed">
-                                                {result.adjustment_reason}
-                                            </p>
-                                        </div>
-                                    )}
-
+                                {result.adjustment_reason && (
                                     <div className="rounded-lg border border-line bg-paper p-3 dark:border-line/30">
                                         <p className="mb-1 text-[10px] uppercase tracking-wide text-muted font-rethink">
-                                            Rationale
+                                            Adjustment vs. baseline
                                         </p>
                                         <p className="text-[12px] text-ink font-rethink leading-relaxed">
-                                            {result.rationale}
+                                            {result.adjustment_reason}
                                         </p>
                                     </div>
+                                )}
 
-                                    <div className="flex items-center justify-end gap-2 pt-1">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={onClose}
-                                            className="font-rethink"
-                                        >
-                                            Dismiss
-                                        </Button>
-                                        <AiryButton
-                                            label="Apply suggestion"
-                                            icon={Check}
-                                            onClick={() => onApply(result)}
-                                        />
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </AiryPanel>
+                                <div className="rounded-lg border border-line bg-paper p-3 dark:border-line/30">
+                                    <p className="mb-1 text-[10px] uppercase tracking-wide text-muted font-rethink">
+                                        Rationale
+                                    </p>
+                                    <p className="text-[12px] text-ink font-rethink leading-relaxed">
+                                        {result.rationale}
+                                    </p>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={onClose}
+                                        className="font-rethink"
+                                    >
+                                        Dismiss
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={() => onApply(result)}
+                                        className="font-rethink"
+                                    >
+                                        <Check className="mr-1.5 h-3.5 w-3.5" />
+                                        Apply suggestion
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </motion.div>
         </div>
     );
