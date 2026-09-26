@@ -541,7 +541,7 @@ export async function buildPayslipPdf(
     }
   );
 
-  const bytes = await pdfDoc.save({
+  await pdfDoc.encrypt({
     userPassword: birthdatePassword,
     ownerPassword: `${birthdatePassword}_owner_${Date.now()}`,
     permissions: {
@@ -555,5 +555,6 @@ export async function buildPayslipPdf(
     },
   });
 
+  const bytes = await pdfDoc.save();
   return bytes;
 }
