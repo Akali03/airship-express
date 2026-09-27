@@ -18,6 +18,15 @@ const PERIODS_PER_MONTH: Record<string, number> = {
   bi_weekly: 2,
 };
 
+const WORKED_STATUSES = new Set([
+  "On-Shift",
+  "On-Break",
+  "Tardy",
+  "Clocked Out",
+  "MISSED_PUNCH_OUT",
+  "HALF_DAY_ABSENT",
+]);
+
 function round2(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -51,6 +60,38 @@ function minutesBetween(start: string, end: string): number {
   let e = timeToMinutes(end);
   if (e <= s) e += 1440;
   return e - s;
+}
+
+function workingDaysBetween(
+  start: string,
+  end: string,
+  paySchedule: string
+): number {
+  const s = new Date(start);
+  const e = new Date(end);
+
+  if (paySchedule === "semi_monthly") {
+    const fifteenLater = new Date(s);
+    fifteenLater.setDate(fifteenLater.getDate() + 14);
+    const effectiveEnd = fifteenLater < e ? fifteenLater : e;
+    let count = 0;
+    const d = new Date(s);
+    while (d <= effectiveEnd) {
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) count += 1;
+      d.setDate(d.getDate() + 1);
+    }
+    return Math.max(1, count);
+  }
+
+  let count = 0;
+  const d = new Date(s);
+  while (d <= e) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count += 1;
+    d.setDate(d.getDate() + 1);
+  }
+  return Math.max(1, count);
 }
 
 export async function POST(request: NextRequest) {
@@ -102,11 +143,7 @@ export async function POST(request: NextRequest) {
         `
         employee_id,
         hr1_employees (
-          id,
-          first_name,
-          last_name,
-          employee_id_number,
-          status
+          id, first_name, last_name, employee_id_number, status, job_position_id
         )
       `
       )
@@ -137,7 +174,6 @@ export async function POST(request: NextRequest) {
       .in("employee_id", employeeIds);
 
     if (bankError) {
-      console.error("Error fetching bank accounts:", bankError);
       return NextResponse.json({ error: bankError.message }, { status: 500 });
     }
 
@@ -199,6 +235,11 @@ export async function POST(request: NextRequest) {
     }
 
     const asOfDate = run.period_end;
+    const workingDays = workingDaysBetween(
+      run.period_start,
+      run.period_end,
+      run.pay_schedule
+    );
 
     const [
       { data: payrollInfos, error: infoError },
@@ -206,7 +247,6 @@ export async function POST(request: NextRequest) {
       { data: philhealthRates },
       { data: pagibigTiers },
       { data: jobSettings },
-      { data: jobPositions },
       { data: benefits },
       { data: phHolidays },
     ] = await Promise.all([
@@ -216,16 +256,8 @@ export async function POST(request: NextRequest) {
           `
           *,
           hr1_employees (
-            id,
-            job_position_id,
-            first_name,
-            last_name,
-            employee_id_number,
-            hr1_job_positions (
-              id,
-              title,
-              department
-            )
+            id, job_position_id, first_name, last_name, employee_id_number,
+            hr1_job_positions ( id, title, department )
           )
         `
         )
@@ -246,7 +278,6 @@ export async function POST(request: NextRequest) {
         .eq("is_active", true)
         .order("salary_min", { ascending: true }),
       supabaseAdmin.from("hr4_job_position_settings").select("*"),
-      supabaseAdmin.from("hr1_job_positions").select("*").eq("is_active", true),
       supabaseAdmin
         .from("hr4_compen_employee_benefits")
         .select("*")
@@ -273,11 +304,6 @@ export async function POST(request: NextRequest) {
       settingsMap.set(setting.job_position_id, setting);
     });
 
-    const positionMap = new Map();
-    (jobPositions || []).forEach((pos: any) => {
-      positionMap.set(pos.id, pos);
-    });
-
     const benefitsByEmployee = new Map<string, any[]>();
     (benefits || []).forEach((b: any) => {
       if (!benefitsByEmployee.has(b.employee_id)) {
@@ -297,7 +323,8 @@ export async function POST(request: NextRequest) {
         "employee_id, status, shift_start, shift_end, time_in, time_out, created_at"
       )
       .gte("created_at", `${run.period_start}T00:00:00`)
-      .lte("created_at", `${run.period_end}T23:59:59`);
+      .lte("created_at", `${run.period_end}T23:59:59`)
+      .eq("is_deleted", false);
 
     const attendanceByEmployee = new Map<string, any[]>();
     (attendanceLogs || []).forEach((log: any) => {
@@ -319,38 +346,50 @@ export async function POST(request: NextRequest) {
     const payslips = payrollInfos.map((info) => {
       const salary = Number(info.basic_salary);
       const employee = info.hr1_employees || {};
-      const settings = settingsMap.get(employee.job_position_id) || {};
+      const positionId = employee.job_position_id;
+      const settings = positionId ? settingsMap.get(positionId) || {} : {};
       const employeeAttendance =
         attendanceByEmployee.get(info.employee_id) || [];
 
       const customDailyRate = info.custom_daily_rate
         ? Number(info.custom_daily_rate)
         : null;
-      const positionDailyRate = Number(settings.daily_rate) || salary / 30;
+      const positionDailyRate = Number(settings.daily_rate) || 0;
+      const derivedDailyRate =
+        positionDailyRate > 0
+          ? positionDailyRate
+          : salary > 0
+          ? salary / 24
+          : 0;
       const dailyRate =
         customDailyRate && customDailyRate > 0
           ? customDailyRate
-          : positionDailyRate;
+          : derivedDailyRate;
+
       const hoursPerDay = Number(settings.hours_per_day) || 8;
       const breakHours = Number(settings.break_hours) || 1;
       const overtimeRate = Number(settings.overtime_rate) || 1.25;
 
-      const hourlyRate = dailyRate / hoursPerDay;
+      const hourlyRate = hoursPerDay > 0 ? dailyRate / hoursPerDay : 0;
 
-      const daysWorked = employeeAttendance.filter(
-        (log: any) => log.status === "On-Shift"
-      ).length;
+      const workedLogs = employeeAttendance.filter((log: any) =>
+        WORKED_STATUSES.has(log.status)
+      );
+      const daysWorked = workedLogs.length;
 
       const employeeBenefits = (
         benefitsByEmployee.get(info.employee_id) || []
-      ).filter((b: any) => isEffective(b));
+      ).filter((b: any) => isEffective(b) && b.deduct_from_payroll === true);
 
       const ndConfig = employeeBenefits.find(
         (b: any) =>
           b.night_diff_enabled === true &&
           b.night_diff_start &&
-          b.night_diff_end &&
-          b.deduct_from_payroll === true
+          b.night_diff_end
+      );
+
+      const holidayBenefit = employeeBenefits.find(
+        (b: any) => b.benefit_type === "holiday_pay"
       );
 
       let totalHours = 0;
@@ -361,9 +400,7 @@ export async function POST(request: NextRequest) {
       let regularHolidayHours = 0;
       let specialHolidayHours = 0;
 
-      employeeAttendance.forEach((log: any) => {
-        if (log.status !== "On-Shift") return;
-
+      workedLogs.forEach((log: any) => {
         const shiftMinutes = minutesBetween(log.shift_start, log.shift_end);
         const hours = shiftMinutes / 60;
         totalHours += hours;
@@ -375,16 +412,11 @@ export async function POST(request: NextRequest) {
         overtimeHours += dayOt;
 
         if (ndConfig) {
-          const shiftStartMin = timeToMinutes(log.shift_start);
-          const shiftEndMin = timeToMinutes(log.shift_end);
-          const ndStartMin = timeToMinutes(ndConfig.night_diff_start);
-          const ndEndMin = timeToMinutes(ndConfig.night_diff_end);
-
           const overlap = overlapMinutes(
-            shiftStartMin,
-            shiftEndMin,
-            ndStartMin,
-            ndEndMin
+            timeToMinutes(log.shift_start),
+            timeToMinutes(log.shift_end),
+            timeToMinutes(ndConfig.night_diff_start),
+            timeToMinutes(ndConfig.night_diff_end)
           );
           nightDiffHours += overlap / 60;
         }
@@ -409,10 +441,6 @@ export async function POST(request: NextRequest) {
       }
 
       let holidayPay = 0;
-      const holidayBenefit = employeeBenefits.find(
-        (b: any) =>
-          b.benefit_type === "holiday_pay" && b.deduct_from_payroll === true
-      );
       if (holidayBenefit) {
         const regMultiplier = Number(holidayBenefit.holiday_multiplier) || 2.0;
         holidayPay += regularHolidayHours * hourlyRate * (regMultiplier - 1);
@@ -424,9 +452,9 @@ export async function POST(request: NextRequest) {
       let incentivePay = 0;
 
       employeeBenefits.forEach((b: any) => {
-        if (b.deduct_from_payroll !== true) return;
-
         const monthly = Number(b.amount) || 0;
+        if (monthly === 0) return;
+
         let perPeriod = 0;
         if (b.frequency === "monthly") perPeriod = monthly / periodsPerMonth;
         else if (b.frequency === "quarterly")
@@ -512,8 +540,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const daysInMonth = 30;
-      const prorationFactor = Math.min(1, daysWorked / daysInMonth);
+      const prorationFactor = Math.min(1, daysWorked / workingDays);
 
       const sssEmployeeShare = round2(
         (sssEmployeeMonthly / periodsPerMonth) * prorationFactor

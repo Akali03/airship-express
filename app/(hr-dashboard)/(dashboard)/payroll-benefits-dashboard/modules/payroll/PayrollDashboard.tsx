@@ -24,6 +24,7 @@ import {
     PieChart,
     Search,
     RefreshCw,
+    Sparkles,
 } from 'lucide-react';
 import Chart from 'chart.js/auto';
 import { Button } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Button';
@@ -36,6 +37,7 @@ import PayslipManager from './PayslipManager';
 import { AiryButton } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/ai/ui/AiryButton';
 import { AiryChatDrawer } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/ai/ui/AiryChatDrawer';
 import { airyBriefing } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/ai/actions/payrollActions';
+import type { AiryBriefingSnapshot } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/types';
 
 const TABS = [
     { label: 'Payroll Runs', value: 'runs' },
@@ -48,7 +50,7 @@ const CATEGORY_STYLES: Record<string, string> = {
     incomplete: 'bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800',
 };
 
-const BRIEFING_TIMEOUT_MS = 25000;
+const BRIEFING_TIMEOUT_MS = 12000;
 
 function cssVar(name: string, fallback: string) {
     if (typeof window === 'undefined') return fallback;
@@ -118,6 +120,140 @@ function timeOfDayLabel(): string {
     return 'Evening';
 }
 
+const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function pesoText(n: number): string {
+    return `₱${Number(n || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+    })}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                DETERMINISTIC BRIEFING (never fails, no AI)                  */
+/* -------------------------------------------------------------------------- */
+
+function buildStaticBriefing(s: AiryBriefingSnapshot): string {
+    const bullets: string[] = [];
+
+    if (s.missing_bank > 0) {
+        bullets.push(
+            `⚠️ ${s.missing_bank} employee${s.missing_bank === 1 ? '' : 's'
+            } missing bank details — payout is blocked until resolved.`
+        );
+    }
+
+    if (s.rejected_runs > 0) {
+        bullets.push(
+            `⛔ ${s.rejected_runs} payroll run${s.rejected_runs === 1 ? '' : 's'
+            } rejected by Financial — review the reason and resubmit.`
+        );
+    }
+
+    if (s.pending_approvals > 0) {
+        bullets.push(
+            `📤 ${s.pending_approvals} run${s.pending_approvals === 1 ? '' : 's'
+            } awaiting Financial approval.`
+        );
+    }
+
+    const planned = s.this_month_planned;
+    const actual = s.this_month_actual;
+    const monthName = MONTH_NAMES[s.current_month - 1];
+
+    if (planned > 0) {
+        const burnPct = Math.round((actual / planned) * 100);
+        const remaining = planned - actual;
+        if (actual > planned) {
+            bullets.push(
+                `🚨 ${monthName} budget exceeded by ${pesoText(
+                    actual - planned
+                )} (${burnPct}% of plan). Review spend before next run.`
+            );
+        } else if (burnPct >= 80) {
+            bullets.push(
+                `💸 ${monthName} budget at ${burnPct}% — ${pesoText(
+                    remaining
+                )} left before the cap.`
+            );
+        } else {
+            bullets.push(
+                `📊 ${monthName} budget: ${pesoText(actual)} spent of ${pesoText(
+                    planned
+                )} (${burnPct}%).`
+            );
+        }
+    }
+
+    if (s.pending_claims > 0) {
+        bullets.push(
+            `🧾 ${s.pending_claims} claim${s.pending_claims === 1 ? '' : 's'
+            } pending review${s.claims_pending_amount > 0
+                ? ` · ${pesoText(s.claims_pending_amount)} at stake`
+                : ''
+            }.`
+        );
+    }
+
+    if (bullets.length < 3 && s.last_run_net_pay > 0) {
+        bullets.push(`💰 Last run net pay: ${pesoText(s.last_run_net_pay)}.`);
+    }
+
+    if (bullets.length < 3 && s.ytd_gross_pay > 0) {
+        bullets.push(
+            `📈 YTD gross: ${pesoText(s.ytd_gross_pay)} · net ${pesoText(
+                s.ytd_net_pay
+            )}.`
+        );
+    }
+
+    if (bullets.length < 3 && s.active_employees > 0) {
+        const attendanceLine =
+            s.today_attendance > 0
+                ? ` · ${s.today_attendance} clocked in today${s.attendance_rate > 0 ? ` (${s.attendance_rate}%)` : ''
+                }`
+                : '';
+        bullets.push(
+            `👥 ${s.active_employees} active employee${s.active_employees === 1 ? '' : 's'
+            } across ${s.unique_departments} department${s.unique_departments === 1 ? '' : 's'
+            }${attendanceLine}.`
+        );
+    }
+
+    if (bullets.length < 3 && s.open_for_hiring > 0) {
+        bullets.push(
+            `🎯 ${s.open_for_hiring} position${s.open_for_hiring === 1 ? '' : 's'
+            } open for hiring.`
+        );
+    }
+
+    if (bullets.length < 3 && s.open_draft_runs > 0) {
+        bullets.push(
+            `📝 ${s.open_draft_runs} draft run${s.open_draft_runs === 1 ? '' : 's'
+            } ready to process.`
+        );
+    }
+
+    if (bullets.length === 0) {
+        bullets.push('✨ Payroll is quiet today — no blockers or pending approvals.');
+        if (s.active_employees > 0) {
+            bullets.push(
+                `👥 ${s.active_employees} active employee${s.active_employees === 1 ? '' : 's'
+                } on file.`
+            );
+        }
+        bullets.push('No action required right now.');
+    }
+
+    return bullets.slice(0, 3).join('\n');
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  STAT CARD                                  */
+/* -------------------------------------------------------------------------- */
+
 interface StatCardProps {
     label: string;
     value: string | number;
@@ -145,6 +281,10 @@ const StatCard = ({ label, value, hint, bar, tint, Icon }: StatCardProps) => (
     </div>
 );
 
+/* -------------------------------------------------------------------------- */
+/*                                 DASHBOARD                                   */
+/* -------------------------------------------------------------------------- */
+
 const PayrollDashboard = () => {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'runs' | 'employees'>('runs');
@@ -168,10 +308,12 @@ const PayrollDashboard = () => {
     const [adminUserId, setAdminUserId] = useState<string | undefined>(undefined);
     const [adminName, setAdminName] = useState<string | null>(null);
 
+    // Briefing state
     const [briefing, setBriefing] = useState<string | null>(null);
-    const [briefingLoading, setBriefingLoading] = useState(false);
-    const [briefingError, setBriefingError] = useState<string | null>(null);
+    const [briefingSource, setBriefingSource] = useState<'static' | 'airy'>('static');
+    const [briefingAiLoading, setBriefingAiLoading] = useState(false);
     const [briefingRetry, setBriefingRetry] = useState(0);
+    const snapshotRef = useRef<AiryBriefingSnapshot | null>(null);
 
     const { fetchData: fetchSummary } = useApi(
         '/payroll-benefits-dashboard/api/payroll/summary'
@@ -253,14 +395,17 @@ const PayrollDashboard = () => {
         };
     }, [loadSummary, loadBankStatus]);
 
+    /* ---------------------------------------------------------------------- */
+    /* BRIEFING: static first, AI upgrades in the background                  */
+    /* ---------------------------------------------------------------------- */
     useEffect(() => {
         let cancelled = false;
 
         const loadBriefing = async () => {
             if (!adminUserId) return;
 
-            setBriefingLoading(true);
-            setBriefingError(null);
+            // Reset any previous AI loading indicator
+            setBriefingAiLoading(true);
 
             try {
                 const year = new Date().getFullYear();
@@ -286,12 +431,9 @@ const PayrollDashboard = () => {
                 const rejectedRuns = runs.filter((r) => r.approval_status === 'rejected').length;
                 const openDraftRuns = runs.filter((r) => r.status === 'draft').length;
 
-                const activeEmployees = pickNum(
-                    summary,
-                    'active_employees',
-                    'activeEmployees',
-                    'headcount'
-                ) || employees.length;
+                const activeEmployees =
+                    pickNum(summary, 'active_employees', 'activeEmployees', 'headcount') ||
+                    employees.length;
                 const totalPositions = pickNum(summary, 'total_jobs', 'totalJobs', 'total_positions');
                 const openForHiring = pickNum(summary, 'open_for_hiring', 'openForHiring');
                 const todayAttendance = pickNum(summary, 'today_attendance', 'todayAttendance');
@@ -331,16 +473,11 @@ const PayrollDashboard = () => {
                         .filter((d): d is string => typeof d === 'string' && d.length > 0)
                 ).size;
 
-                const snapshot = {
+                const snapshot: AiryBriefingSnapshot = {
                     pending_approvals: pendingApprovals,
                     approved_not_distributed: approvedNotDistributed,
                     rejected_runs: rejectedRuns,
-                    missing_bank: missingBank,
-                    missing_birthdate: 0,
                     open_draft_runs: openDraftRuns,
-                    this_month_planned: pickNum(monthRow, 'planned_amount', 'plannedAmount'),
-                    this_month_actual: pickNum(monthRow, 'actual_amount', 'actualAmount'),
-
                     active_employees: activeEmployees,
                     total_positions: totalPositions,
                     open_for_hiring: openForHiring,
@@ -350,42 +487,60 @@ const PayrollDashboard = () => {
                     ytd_net_pay: ytdNetPay,
                     ytd_gross_pay: ytdGrossPay,
                     last_run_net_pay: lastRunNetPay,
+                    missing_bank: missingBank,
                     with_bank: withBank,
                     pending_claims: pendingClaims,
                     approved_claims: approvedClaims,
                     claims_pending_amount: claimsTotalAmount,
+                    this_month_planned: pickNum(monthRow, 'planned_amount', 'plannedAmount'),
+                    this_month_actual: pickNum(monthRow, 'actual_amount', 'actualAmount'),
                     current_month: thisMonth,
                     current_year: year,
                     time_of_day: timeOfDay(),
                 };
 
-                const text = await withTimeout(
-                    airyBriefing(snapshot as any, adminUserId),
-                    BRIEFING_TIMEOUT_MS
-                );
+                snapshotRef.current = snapshot;
 
-                if (cancelled) return;
-
-                const cleaned = (text ?? '').toString().trim();
-                if (!cleaned) {
-                    setBriefingError('Airy returned an empty briefing.');
-                    setBriefing(null);
-                } else {
-                    setBriefing(cleaned);
-                    setBriefingError(null);
+                // STEP 1: show the deterministic briefing immediately
+                if (!cancelled) {
+                    setBriefing(buildStaticBriefing(snapshot));
+                    setBriefingSource('static');
                 }
-            } catch (err: any) {
+
+                // STEP 2: try Airy in the background; keep static on failure
+                try {
+                    const text = await withTimeout(
+                        airyBriefing(snapshot as any, adminUserId),
+                        BRIEFING_TIMEOUT_MS
+                    );
+                    if (cancelled) return;
+
+                    const cleaned = (text ?? '').toString().trim();
+                    const looksLikeError =
+                        cleaned.length === 0 ||
+                        /airy is unavailable/i.test(cleaned) ||
+                        /all ai providers failed/i.test(cleaned);
+
+                    if (!looksLikeError) {
+                        setBriefing(cleaned);
+                        setBriefingSource('airy');
+                    }
+                    // else: keep static, silently
+                } catch (err) {
+                    if (cancelled) return;
+                    // Airy failed — keep the static briefing. Log only.
+                    console.warn('[PayrollDashboard] AI briefing unavailable, using static:', err);
+                }
+            } catch (err) {
                 if (cancelled) return;
-                console.error('[PayrollDashboard] briefing error:', err);
-                const msg =
-                    err?.message === 'Timeout'
-                        ? 'Airy took too long to respond. Click refresh to try again.'
-                        : err?.message?.slice?.(0, 160) ||
-                        'Airy could not generate a briefing right now.';
-                setBriefingError(msg);
-                setBriefing(null);
+                console.error('[PayrollDashboard] briefing data load failed:', err);
+                // Even if data fetch fails, still show a graceful message
+                setBriefing(
+                    'Payroll data is temporarily unavailable. Refreshing in a moment.'
+                );
+                setBriefingSource('static');
             } finally {
-                if (!cancelled) setBriefingLoading(false);
+                if (!cancelled) setBriefingAiLoading(false);
             }
         };
 
@@ -393,9 +548,11 @@ const PayrollDashboard = () => {
         return () => {
             cancelled = true;
         };
+        // Note: `summary` is intentionally NOT in the dependency array to
+        // avoid re-firing on every 60s summary poll (which burns AI quota).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         adminUserId,
-        summary,
         briefingRetry,
         fetchRuns,
         fetchBudget,
@@ -550,8 +707,6 @@ const PayrollDashboard = () => {
     }, [bankStatus, bankSearch, bankFilter]);
 
     const refreshBriefing = () => {
-        setBriefing(null);
-        setBriefingError(null);
         setBriefingRetry((n) => n + 1);
     };
 
@@ -605,8 +760,9 @@ const PayrollDashboard = () => {
                 </div>
             </div>
 
+            {/* --------------------- BRIEFING CARD --------------------- */}
             <div className="relative overflow-hidden rounded-xl border border-line border-l-4 border-l-accent bg-gradient-to-r from-pink-50/60 to-white p-4 dark:border-paper/10 dark:from-pink-950/20 dark:to-transparent">
-                <RefreshCw
+                <Sparkles
                     size={72}
                     className="pointer-events-none absolute -bottom-3 -right-3 text-accent opacity-[0.06]"
                 />
@@ -619,60 +775,49 @@ const PayrollDashboard = () => {
                         />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <p className="text-xs font-semibold text-ink font-bricolage">
                                 Airy — {timeOfDayLabel()} Briefing
                             </p>
+                            <span
+                                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium ring-1 ${briefingSource === 'airy'
+                                        ? 'bg-accent/10 text-accent ring-accent/20'
+                                        : 'bg-ink/[0.04] text-muted ring-line dark:bg-ink/[0.08] dark:ring-line/30'
+                                    }`}
+                                title={
+                                    briefingSource === 'airy'
+                                        ? 'Generated by Airy AI'
+                                        : 'Generated from your live payroll data'
+                                }
+                            >
+                                {briefingSource === 'airy' ? 'Airy AI' : 'Live data'}
+                            </span>
+                            {briefingAiLoading && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-muted font-rethink">
+                                    <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                    Airy is polishing…
+                                </span>
+                            )}
                             <button
                                 type="button"
                                 onClick={refreshBriefing}
-                                disabled={briefingLoading}
+                                disabled={briefingAiLoading}
                                 title="Refresh briefing"
-                                className="flex h-5 w-5 items-center justify-center rounded-md text-accent hover:bg-accent/10 transition-colors disabled:opacity-50"
+                                className="ml-auto flex h-5 w-5 items-center justify-center rounded-md text-accent hover:bg-accent/10 transition-colors disabled:opacity-50"
                             >
                                 <RefreshCw
-                                    className={`h-3 w-3 ${briefingLoading ? 'animate-spin' : ''}`}
+                                    className={`h-3 w-3 ${briefingAiLoading ? 'animate-spin' : ''}`}
                                 />
                             </button>
                         </div>
 
-                        {briefingLoading ? (
-                            <div className="flex items-center gap-2 py-1">
-                                <video
-                                    src="/images/airy-ai/run.mp4"
-                                    autoPlay
-                                    loop
-                                    muted
-                                    playsInline
-                                    className="h-6 w-6 object-contain"
-                                />
-                                <span className="text-xs text-muted font-rethink">
-                                    Airy is reviewing your payroll…
-                                </span>
-                            </div>
-                        ) : briefingError ? (
-                            <div className="flex items-start gap-2 py-0.5">
-                                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-                                <div className="min-w-0">
-                                    <p className="text-xs text-amber-700 dark:text-amber-400 font-rethink leading-relaxed">
-                                        {briefingError}
-                                    </p>
-                                    <button
-                                        type="button"
-                                        onClick={refreshBriefing}
-                                        className="mt-1 text-[11px] font-medium text-accent hover:underline"
-                                    >
-                                        Try again →
-                                    </button>
-                                </div>
-                            </div>
-                        ) : briefing ? (
+                        {briefing ? (
                             <p className="text-xs text-ink font-rethink leading-relaxed whitespace-pre-wrap">
                                 {briefing}
                             </p>
                         ) : (
                             <p className="text-xs text-muted font-rethink">
-                                No briefing available yet.
+                                Loading briefing…
                             </p>
                         )}
                     </div>
@@ -1078,7 +1223,7 @@ const PayrollDashboard = () => {
                 </Modal>
             )}
 
-            <AiryButton onClick={() => setAiryOpen(true)} thinking={briefingLoading} />
+            <AiryButton onClick={() => setAiryOpen(true)} thinking={briefingAiLoading} />
             <AiryChatDrawer
                 isOpen={airyOpen}
                 onClose={() => setAiryOpen(false)}

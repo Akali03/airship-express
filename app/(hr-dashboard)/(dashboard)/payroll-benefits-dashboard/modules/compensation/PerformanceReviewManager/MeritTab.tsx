@@ -27,7 +27,6 @@ import {
     type LatestPerformanceRatingMap,
 } from './shared';
 
-// ---- Airy AI ----
 import AiryMeritSuggestion from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/ai/ui/AiryMeritSuggestion';
 import {
     type MeritSuggestionInput,
@@ -78,9 +77,9 @@ const MeritTab = () => {
     const [isOtpOpen, setIsOtpOpen] = useState(false);
     const [otpPurpose, setOtpPurpose] = useState<'merit' | 'merit_delete'>('merit');
 
-    // ---- Airy AI state ----
     const [isAiOpen, setIsAiOpen] = useState(false);
     const [aiInput, setAiInput] = useState<MeritSuggestionInput | null>(null);
+    const [appliedSource, setAppliedSource] = useState<'none' | 'policy' | 'airy'>('none');
 
     const { fetchData, postData, putData, deleteData } = useApi('/payroll-benefits-dashboard/api/compensation/merit-planning');
     const { fetchData: fetchEmployees } = useApi('/payroll-benefits-dashboard/api/payroll/employee-info');
@@ -180,6 +179,7 @@ const MeritTab = () => {
     const openCreate = () => {
         setEditTarget(null);
         setForm({ ...EMPTY_MERIT_FORM, proposed_effective_date: todayISO() });
+        setAppliedSource('none');
         setIsModalOpen(true);
     };
 
@@ -196,6 +196,7 @@ const MeritTab = () => {
             approver_notes: plan.approver_notes || '',
             status: plan.status || 'draft',
         });
+        setAppliedSource('none');
         setIsModalOpen(true);
     };
 
@@ -204,8 +205,6 @@ const MeritTab = () => {
         const currentSalary = getCurrentSalaryForEmployee(employeeId);
         const ratingNum =
             hr3?.performance_rating != null ? Number(hr3.performance_rating) : null;
-        const pct = ratingNum != null ? MERIT_POLICY[ratingNum] ?? 0 : 0;
-        const suggestedNew = currentSalary + currentSalary * (pct / 100);
 
         setForm((f) => ({
             ...f,
@@ -213,10 +212,10 @@ const MeritTab = () => {
             performance_appraisal_id: hr3?.appraisal_id || '',
             performance_rating: ratingNum != null ? String(ratingNum) : '',
             current_salary: currentSalary ? String(currentSalary) : '',
-            recommended_increase_percent: pct ? String(pct) : '',
-            recommended_new_salary:
-                suggestedNew > 0 ? String(Math.round(suggestedNew * 100) / 100) : '',
+            recommended_increase_percent: '',
+            recommended_new_salary: '',
         }));
+        setAppliedSource('none');
     };
 
     const applyPolicy = () => {
@@ -230,9 +229,9 @@ const MeritTab = () => {
             recommended_increase_percent: String(pct),
             recommended_new_salary: String(Math.round(newSalary * 100) / 100),
         }));
+        setAppliedSource('policy');
     };
 
-    // ---------- AIRY AI SUGGEST ----------
     const handleAiSuggest = () => {
         if (!form.employee_id) {
             toast.showError('Select an employee first');
@@ -278,6 +277,7 @@ const MeritTab = () => {
             recommended_new_salary: String(r.recommended_new_salary),
             approver_notes: f.approver_notes.trim() ? f.approver_notes : r.rationale,
         }));
+        setAppliedSource('airy');
         setIsAiOpen(false);
         toast.showSuccess('Airy suggestion applied');
     };
@@ -302,6 +302,7 @@ const MeritTab = () => {
             return;
         }
         if (!form.performance_rating) { toast.showError('No performance rating available'); return; }
+        if (!form.recommended_increase_percent) { toast.showError('Increase % is required'); return; }
         if (!form.recommended_new_salary) { toast.showError('New salary is required'); return; }
         if (!form.proposed_effective_date) { toast.showError('Effective date is required'); return; }
         if (!form.approver_notes.trim()) { toast.showError('Approver notes are required'); return; }
@@ -338,6 +339,7 @@ const MeritTab = () => {
             setForm({ ...EMPTY_MERIT_FORM, proposed_effective_date: todayISO() });
             setEditTarget(null);
             setPendingAction(null);
+            setAppliedSource('none');
             loadMeritPlans();
         } catch (error: any) {
             toast.showError(error?.message || 'Failed to save merit plan');
@@ -636,6 +638,7 @@ const MeritTab = () => {
         isSaving ||
         !form.employee_id ||
         !form.performance_rating ||
+        !form.recommended_increase_percent ||
         !form.recommended_new_salary ||
         !form.proposed_effective_date ||
         !form.approver_notes.trim() ||
@@ -1162,7 +1165,6 @@ const MeritTab = () => {
                                 <div className="mb-1.5 flex items-center justify-between gap-2 flex-wrap">
                                     <label className="block text-xs font-medium text-ink font-rethink">Increase %</label>
                                     <div className="flex items-center gap-1">
-                                        {/* Auto-suggest (policy only) */}
                                         <button
                                             type="button"
                                             onClick={applyPolicy}
@@ -1172,7 +1174,6 @@ const MeritTab = () => {
                                         >
                                             Policy
                                         </button>
-                                        {/* Airy AI suggest */}
                                         <button
                                             type="button"
                                             onClick={handleAiSuggest}
@@ -1197,6 +1198,7 @@ const MeritTab = () => {
                                             recommended_increase_percent: e.target.value,
                                             recommended_new_salary: String(Math.round(newSalary * 100) / 100),
                                         }));
+                                        setAppliedSource('none');
                                     }}
                                     placeholder="0"
                                     className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-rethink text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 dark:border-line/30"
@@ -1204,6 +1206,8 @@ const MeritTab = () => {
                                 {form.performance_rating && (
                                     <p className="mt-1 text-[10px] text-muted font-rethink">
                                         Policy for {form.performance_rating}★: {MERIT_POLICY[Number(form.performance_rating)] ?? 0}% recommended
+                                        {appliedSource === 'policy' && <span className="ml-1 text-accent">· Policy applied</span>}
+                                        {appliedSource === 'airy' && <span className="ml-1 text-accent">· Airy applied</span>}
                                     </p>
                                 )}
                             </div>

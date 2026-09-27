@@ -101,7 +101,10 @@ export async function POST(
       .from("hr4_payslips")
       .select(
         `*,
-        hr1_employees ( id, first_name, last_name, employee_id_number, birthdate, email, department, hr1_job_positions ( title, department ) )`
+        hr1_employees (
+          id, first_name, last_name, employee_id_number, birthdate, email, department,
+          hr1_job_positions ( title, department )
+        )`
       )
       .eq("payroll_run_id", runId);
 
@@ -167,7 +170,13 @@ export async function POST(
       const dailyRate = num(slip.daily_rate);
       const daysWorked = num(slip.days_worked);
       const overtimeHours = num(slip.overtime_hours);
-      const hourlyRate = dailyRate > 0 ? dailyRate / 8 : 0;
+      const hoursPerDay =
+        num(slip.hours_worked) > 0 && num(slip.regular_hours) > 0
+          ? (num(slip.hours_worked) /
+              Math.max(1, num(slip.regular_hours) + num(slip.overtime_hours))) *
+            8
+          : 8;
+      const hourlyRate = dailyRate > 0 ? dailyRate / (hoursPerDay || 8) : 0;
       const overtime = overtimeHours * hourlyRate * 1.25;
 
       const basicPay = num(slip.basic_pay);

@@ -23,22 +23,21 @@ export type AiryTask =
   | "anomaly_deep"
   | "vision";
 
-export function routeForTask(task: AiryTask): ProviderName {
-  const map: Record<AiryTask, ProviderName> = {
-    chat: "groq",
-    briefing: "groq",
-    preflight: "groq",
-    audit: "deepseek",
-    summary: "groq",
-    rejection: "groq",
-    recovery: "deepseek",
-    payslip_explainer: "groq",
-    distribute_check: "groq",
-    budget_guard: "groq",
-    anomaly_deep: "deepseek",
-    vision: "gemini",
-  };
-  return map[task] || DEFAULT_PROVIDER;
+export function routeForTask(_task: AiryTask): ProviderName {
+  return "gemini";
+}
+
+function hasKey(provider: ProviderName): boolean {
+  switch (provider) {
+    case "gemini":
+      return !!process.env.GEMINI_API_KEY_HR;
+    case "groq":
+      return !!process.env.GROQ_API_KEY_HR;
+    case "deepseek":
+      return !!process.env.DEEP_SEEK_API_KEY_HR;
+    default:
+      return false;
+  }
 }
 
 async function chatWithProvider(
@@ -66,19 +65,24 @@ export async function chat(
     ...PROVIDER_FALLBACK_ORDER.filter((p) => p !== preferredProvider),
   ];
 
-  let lastError: any;
   const failures: string[] = [];
 
   for (const provider of order) {
+    if (!hasKey(provider)) {
+      failures.push(`${provider}: no key configured`);
+      continue;
+    }
+
     try {
       return await withRetry(() => chatWithProvider(provider, req), {
-        retries: 0,
-        delayMs: 300,
+        retries: 1,
+        delayMs: 400,
       });
     } catch (err: any) {
-      lastError = err;
       failures.push(`${provider}: ${err?.message || "unknown"}`);
-      console.warn(`[airy] ${provider} failed, trying next`);
+      console.warn(
+        `[airy] ${provider} failed, trying next: ${err?.message || ""}`
+      );
     }
   }
 
@@ -122,11 +126,7 @@ async function visionWithProvider(
         mimeType: req.mimeType,
         maxTokens: req.maxTokens,
       });
-      return {
-        content: r.content,
-        provider: "gemini",
-        model: r.model,
-      };
+      return { content: r.content, provider: "gemini", model: r.model };
     }
     case "groq": {
       return await groqVision({
@@ -146,14 +146,16 @@ async function visionWithProvider(
 }
 
 export async function visionChat(req: VisionRequest): Promise<LLMResponse> {
-  let lastError: any;
   const failures: string[] = [];
 
   for (const provider of VISION_PROVIDER_ORDER) {
+    if (!hasKey(provider)) {
+      failures.push(`${provider}: no key configured`);
+      continue;
+    }
     try {
       return await visionWithProvider(provider, req);
     } catch (err: any) {
-      lastError = err;
       failures.push(`${provider}: ${err?.message || "unknown"}`);
       console.warn(`[airy-vision] ${provider} failed, trying next`);
     }

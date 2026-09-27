@@ -41,8 +41,9 @@ export const SUBDOMAIN_PORTALS: SubdomainPortal[] = [
     routes: [
       "/hr-dashboard",
       "/payroll-benefits-dashboard",
+      "recruitment-core-hub-dashboard",
       "/performance-development-dashboard",
-      "/workforce-management-hr2",
+      "/workforce-management-hr",
     ],
   },
   {

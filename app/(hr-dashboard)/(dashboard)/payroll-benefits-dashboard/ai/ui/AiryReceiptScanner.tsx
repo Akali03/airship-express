@@ -220,10 +220,10 @@ export function AiryReceiptScanner({
                         </span>
                         <span
                             className={`ml-auto rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${verdict.verdict === "approve"
-                                    ? "bg-emerald-500 text-white"
-                                    : verdict.verdict === "review"
-                                        ? "bg-amber-500 text-white"
-                                        : "bg-red-500 text-white"
+                                ? "bg-emerald-500 text-white"
+                                : verdict.verdict === "review"
+                                    ? "bg-amber-500 text-white"
+                                    : "bg-red-500 text-white"
                                 }`}
                         >
                             {verdict.verdict}
@@ -257,7 +257,9 @@ export function AiryReceiptScanner({
                                             : ""
                                         } Please retake the photo: flat on a surface, good lighting, all four corners visible, no glare.`
                                         : verdict.verdict === "approve"
-                                            ? "Everything matches. The amount, merchant, and details on this receipt line up with the claim. Safe to approve."
+                                            ? verdict.mismatches.length > 0
+                                                ? "The amount and merchant match the claim. I noted one minor detail below — worth a glance, but it's safe to approve."
+                                                : "Everything matches. The amount, merchant, and details on this receipt line up with the claim. Safe to approve."
                                             : verdict.verdict === "review"
                                                 ? "I spotted a few differences. Nothing critical, but take a moment to review the mismatches below before approving."
                                                 : "This receipt does not match the claim. Do not approve without a manual check. Enable override only if you've verified it yourself."}
@@ -345,10 +347,10 @@ export function AiryReceiptScanner({
                                         }}
                                         transition={{ duration: 0.8, ease: "easeOut" }}
                                         className={`h-full ${verdict.confidence >= 0.8
-                                                ? "bg-emerald-500"
-                                                : verdict.confidence >= 0.6
-                                                    ? "bg-amber-500"
-                                                    : "bg-red-500"
+                                            ? "bg-emerald-500"
+                                            : verdict.confidence >= 0.6
+                                                ? "bg-amber-500"
+                                                : "bg-red-500"
                                             }`}
                                     />
                                 </div>

@@ -33,20 +33,78 @@ export type ReceiptVerdict = {
 
 export type ReceiptVerdictError = { ok: false; error: string };
 
-/**
- * Guards against the model emitting a hardcoded "everything is fine"
- * confidence (commonly 0.95) even when it also flags mismatches, tamper
- * signals, or an unreadable receipt.
- */
-function deriveConfidence(parsed: any): number {
+function fieldMatchScore(opts: {
+  claimedAmount: number;
+  claimedDescription: string;
+  claimedClaimType: string;
+  extractedAmount: number | null;
+  extractedMerchant: string | null;
+}): number {
+  const {
+    claimedAmount,
+    claimedDescription,
+    claimedClaimType,
+    extractedAmount,
+    extractedMerchant,
+  } = opts;
+
+  let amountScore = 0;
+  const claimed = Number(claimedAmount) || 0;
+  if (extractedAmount != null && claimed > 0) {
+    const absDiff = Math.abs(extractedAmount - claimed);
+    const pctDiff = absDiff / claimed;
+    if (absDiff <= 1) amountScore = 1.0;
+    else if (pctDiff <= 0.01) amountScore = 0.95;
+    else if (pctDiff <= 0.05) amountScore = 0.7;
+    else if (pctDiff <= 0.2) amountScore = 0.35;
+    else amountScore = 0;
+  }
+
+  const norm = (s: string) =>
+    (s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .trim();
+  const tokens = (s: string) =>
+    new Set(
+      norm(s)
+        .split(/\s+/)
+        .filter((w) => w.length >= 3)
+    );
+
+  const claimedTokens = new Set([
+    ...tokens(claimedDescription),
+    ...tokens(claimedClaimType),
+  ]);
+  const foundTokens = tokens(extractedMerchant || "");
+
+  let overlapBonus = 0;
+  if (claimedTokens.size > 0 && foundTokens.size > 0) {
+    let hits = 0;
+    foundTokens.forEach((t) => {
+      if (claimedTokens.has(t)) hits++;
+    });
+    overlapBonus = Math.min(
+      0.05,
+      (hits / Math.max(1, foundTokens.size)) * 0.05
+    );
+  }
+
+  return Math.max(0, Math.min(1, amountScore + overlapBonus));
+}
+
+function deriveConfidence(
+  parsed: any,
+  fieldScore: number,
+  claimedAmount: number,
+  claimedDescription: string,
+  claimedClaimType: string
+): number {
   const raw =
     typeof parsed?.confidence === "number" && Number.isFinite(parsed.confidence)
       ? parsed.confidence
-      : null;
+      : 0;
 
-  if (raw === null) return 0;
-
-  // Normalize: model may return 0-100 instead of 0-1.
   const normalized = raw > 1 ? raw / 100 : raw;
   const clamped = Math.max(0, Math.min(1, normalized));
 
@@ -55,9 +113,32 @@ function deriveConfidence(parsed: any): number {
   const hasTamper =
     Array.isArray(parsed?.tamper_signals) && parsed.tamper_signals.length > 0;
   const unreadable = parsed?.receipt_readable === false;
+  const verdict = parsed?.verdict;
 
-  // Self-contradictory: model says "near certain" while flagging problems.
-  if (clamped >= 0.9 && (hasMismatch || hasTamper || unreadable)) {
+  const extractedAmount =
+    typeof parsed?.extracted?.amount === "number"
+      ? parsed.extracted.amount
+      : null;
+  const extractedMerchant =
+    typeof parsed?.extracted?.merchant === "string"
+      ? parsed.extracted.merchant
+      : null;
+
+  const serverFieldScore = fieldMatchScore({
+    claimedAmount,
+    claimedDescription,
+    claimedClaimType,
+    extractedAmount,
+    extractedMerchant,
+  });
+
+  const effectiveFieldScore = Math.min(fieldScore || 1, serverFieldScore);
+
+  if (unreadable) return Math.min(clamped, 0.19);
+  if (hasTamper) return Math.min(clamped, 0.54);
+  if (verdict === "reject") return Math.min(clamped, 0.4);
+  if (verdict === "review") return Math.min(clamped, 0.79);
+  if (hasMismatch && clamped >= 0.9) {
     console.warn(
       "[verifyReceipt] confidence guard tripped",
       JSON.stringify({
@@ -65,17 +146,13 @@ function deriveConfidence(parsed: any): number {
         hasMismatch,
         hasTamper,
         unreadable,
-        verdict: parsed?.verdict,
+        verdict,
       })
     );
-    // Cap at 0.79 — matches "one low/medium mismatch" band.
     return Math.min(clamped, 0.79);
   }
 
-  // Hard cap if unreadable, regardless of model's claim.
-  if (unreadable) return Math.min(clamped, 0.39);
-
-  return clamped;
+  return Math.min(clamped, effectiveFieldScore);
 }
 
 export async function verifyReceipt(opts: {
@@ -86,6 +163,9 @@ export async function verifyReceipt(opts: {
   claimedDescription: string;
   claimedClaimType: string;
   verifiedByAdminId: string;
+  claimId?: string | null;
+  receiptUrl?: string | null;
+  fieldScore?: number;
 }): Promise<ReceiptVerdict | ReceiptVerdictError> {
   try {
     const systemPrompt = loadKnowledgeServer("receipt-verifier");
@@ -93,12 +173,15 @@ export async function verifyReceipt(opts: {
       return { ok: false, error: "Receipt verifier knowledge missing." };
     }
 
+    const today = new Date().toISOString().slice(0, 10);
+
     const userPrompt =
       systemPrompt +
       `\n\n---\nCLAIMED DATA\n` +
       `amount: ${opts.claimedAmount}\n` +
       `description: ${opts.claimedDescription || "(empty)"}\n` +
-      `claim_type: ${opts.claimedClaimType}\n`;
+      `claim_type: ${opts.claimedClaimType}\n` +
+      `today: ${today}\n`;
 
     const res = await visionChat({
       prompt: userPrompt,
@@ -106,15 +189,6 @@ export async function verifyReceipt(opts: {
       mimeType: opts.mimeType,
       maxTokens: 900,
     });
-
-    // ---- TEMP: confirm what the model actually returns, then delete ----
-    console.log(
-      "[verifyReceipt] provider=%s model=%s raw=%s",
-      res.provider,
-      res.model,
-      res.content
-    );
-    // -------------------------------------------------------------------
 
     let parsed: any;
     try {
@@ -142,7 +216,13 @@ export async function verifyReceipt(opts: {
       tamper_signals: Array.isArray(parsed.tamper_signals)
         ? parsed.tamper_signals
         : [],
-      confidence: deriveConfidence(parsed),
+      confidence: deriveConfidence(
+        parsed,
+        opts.fieldScore ?? 1,
+        opts.claimedAmount,
+        opts.claimedDescription,
+        opts.claimedClaimType
+      ),
       verdict:
         parsed.verdict === "approve" ||
         parsed.verdict === "review" ||
@@ -155,9 +235,9 @@ export async function verifyReceipt(opts: {
     };
 
     await supabaseAdmin.from("hr4_claim_receipt_verifications").insert({
-      claim_id: null,
+      claim_id: opts.claimId ?? null,
       employee_id: opts.employeeId,
-      receipt_url: "pending-upload",
+      receipt_url: opts.receiptUrl || "pending-upload",
       claimed_amount: opts.claimedAmount,
       claimed_description: opts.claimedDescription || null,
       claimed_claim_type: opts.claimedClaimType,
@@ -171,8 +251,11 @@ export async function verifyReceipt(opts: {
       notes: verdict.notes,
       provider: verdict.provider,
       model: verdict.model,
-      raw_response: parsed,
-      verified_by: opts.verifiedByAdminId,
+      raw_response: {
+        ...parsed,
+        confidence: verdict.confidence,
+      },
+      verified_by: opts.verifiedByAdminId || null,
     });
 
     return verdict;
