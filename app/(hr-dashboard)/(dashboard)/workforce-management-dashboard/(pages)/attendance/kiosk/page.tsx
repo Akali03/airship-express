@@ -7,6 +7,7 @@ import { ArrowLeft, Clock, MapPin, User, Building, IdCard, AlertCircle } from 'l
 import { useRealtimeAttendance } from '../../../hooks/useRealtime';
 import { workforceApi } from '../../../lib/workforceApi';
 import { Plus_Jakarta_Sans } from 'next/font/google';
+import logoImg from '../../../assets/logo.png';
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'] });
 
@@ -191,7 +192,7 @@ export default function AttendanceKioskPage() {
         <div className="relative z-10 flex flex-col items-center animate-in fade-in duration-1000">
           <div className="mb-12 relative w-[500px] h-[200px]">
             <Image 
-              src="/images/airship.png" 
+              src={logoImg} 
               alt="Airship Express" 
               fill
               className="object-contain drop-shadow-xl"
