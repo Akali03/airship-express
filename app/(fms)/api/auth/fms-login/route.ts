@@ -44,8 +44,8 @@ export async function POST(request: Request) {
         const cookiesToApply: { name: string; value: string; options: any }[] = [];
 
         const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            process.env.NEXT_PUBLIC_FMS_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_FMS_SUPABASE_ANON_KEY!,
             {
                 cookies: {
                     getAll() {

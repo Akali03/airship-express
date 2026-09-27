@@ -73,7 +73,7 @@ export const SUBDOMAIN_PORTALS: SubdomainPortal[] = [
     primarySubdomain: "fms",
     loginPath: "/fmsAuth",
     authPaths: ["/fmsAuth"],
-    routes: ["/fms"],
+    routes: ["/dashboard", "/fms"],
   },
   {
     name: "SPNC",

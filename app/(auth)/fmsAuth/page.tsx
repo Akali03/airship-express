@@ -16,11 +16,13 @@ export default function fmsAuth() {
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    async function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setError(null);
 
-        if (!employeeId || !password) {
+        const trimmedEmployeeId = employeeId.trim();
+
+        if (!trimmedEmployeeId || !password) {
             setError('Enter your employee ID and password to continue.');
             return;
         }
@@ -30,19 +32,29 @@ export default function fmsAuth() {
         try {
             const res = await fetch('/api/auth/fms-login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ employeeId, password }),
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    employeeId: trimmedEmployeeId,
+                    password,
+                }),
             });
 
             const data = await res.json().catch(() => null);
 
             if (!res.ok) {
                 setError(data?.message ?? 'Employee ID or password is incorrect.');
-                setIsSubmitting(false);
                 return;
             }
 
-            if (data?.session) {
+            if (!data?.success) {
+                setError(data?.message ?? 'Login failed. Please try again.');
+                return;
+            }
+
+            if (data.session) {
                 const { error: sessionError } = await supabase.auth.setSession({
                     access_token: data.session.access_token,
                     refresh_token: data.session.refresh_token,
@@ -51,15 +63,16 @@ export default function fmsAuth() {
                 if (sessionError) {
                     console.error('Session sync error:', sessionError);
                     setError('Login succeeded, but your session could not be established.');
-                    setIsSubmitting(false);
                     return;
                 }
             }
 
-            router.push(data?.redirectTo || '/dashboard');
+            await router.push(data.redirectTo || '/dashboard');
             router.refresh();
-        } catch {
+        } catch (error) {
+            console.error('FMS login request failed:', error);
             setError('Something went wrong. Try again.');
+        } finally {
             setIsSubmitting(false);
         }
     }
