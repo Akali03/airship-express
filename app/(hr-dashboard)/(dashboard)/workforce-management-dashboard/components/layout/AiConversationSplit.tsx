@@ -123,7 +123,12 @@ export function AiConversationSplit({ isOpen, onClose, initialQuery }: AiConvers
       // Redact tool names
       .replace(/get_all_active_employees/g, 'employee database')
       .replace(/get_attendance/g, 'attendance records')
-      .replace(/get_shifts/g, 'shift schedules');
+      .replace(/get_shifts/g, 'shift schedules')
+      // Redact sensitive data
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[REDACTED EMAIL]')
+      .replace(/\b(?:\+?63|0)?\d{2,3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED PHONE]')
+      // Basic address redaction (e.g. anything containing St, Street, Ave, Blvd, City, Province in a comma separated format)
+      .replace(/\b\d+\s+[a-zA-Z0-9\s.,]+(?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|City|Province|Region)[a-zA-Z0-9\s.,]*\b/gi, '[REDACTED ADDRESS]');
   };
 
   const ThoughtBlock = ({ thoughts, isGenerating, isCurrentGenerating, duration }: { thoughts: string[], isGenerating: boolean, isCurrentGenerating: boolean, duration?: number }) => {
