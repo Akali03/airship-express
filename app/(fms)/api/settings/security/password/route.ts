@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import nodemailer from "nodemailer";
 import { supabaseAdmin } from "@/app/(fms)/lib/supabaseAdmin";
-import { createOtp, getActiveLock, verifyOtp } from "@/app/(fms)/lib/otp";
+import { createOtp, getActiveLock, verifyOtp } from "@/app/(fms)/lib/fmsOtp";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
