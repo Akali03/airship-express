@@ -11,13 +11,6 @@ type Applicant = {
   last_name: string;
 };
 
-type Profile = {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-};
-
 type Interview = {
   id: string;
   applicant_id: string;
@@ -51,10 +44,9 @@ export default function EditInterviewPage({ params }: EditInterviewPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [applicants, setApplicants] = useState<Applicant[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
 
   const [applicantId, setApplicantId] = useState("");
-  const [interviewerId, setInterviewerId] = useState("");
+  const [interviewer, setInterviewer] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
   const [locationOrLink, setLocationOrLink] = useState("");
 
@@ -96,7 +88,7 @@ export default function EditInterviewPage({ params }: EditInterviewPageProps) {
         const interview = data as Interview;
 
         setApplicantId(interview.applicant_id);
-        setInterviewerId(interview.interviewer_id || "");
+        setInterviewer(interview.interviewer_id || "");
 
         // Convert database ISO string to local HTML datetime-local format
         if (interview.scheduled_date) {
@@ -126,28 +118,25 @@ export default function EditInterviewPage({ params }: EditInterviewPageProps) {
   }, [interviewId]);
 
   // ==========================================
-  // LOAD APPLICANTS & PROFILES
+  // LOAD APPLICANTS
   // ==========================================
 
   useEffect(() => {
-    async function loadDropdowns() {
+    async function loadApplicants() {
       try {
-        const [applicantsRes, profilesRes] = await Promise.all([
-          supabase.from("hr1_applicants").select("id, first_name, last_name").order("first_name"),
-          supabase.from("hr1_profiles").select("id, full_name, email, role").order("full_name"),
-        ]);
+        const { data, error } = await supabase
+          .from("hr1_applicants")
+          .select("id, first_name, last_name")
+          .order("first_name");
 
-        if (applicantsRes.error) console.error("APPLICANTS LOAD ERROR:", applicantsRes.error);
-        if (profilesRes.error) console.error("PROFILES LOAD ERROR:", profilesRes.error);
-
-        setApplicants(applicantsRes.data || []);
-        setProfiles(profilesRes.data || []);
+        if (error) console.error("APPLICANTS LOAD ERROR:", error);
+        setApplicants(data || []);
       } catch (err) {
         console.error("DROPDOWN LOAD ERROR:", err);
       }
     }
 
-    loadDropdowns();
+    loadApplicants();
   }, []);
 
   // ==========================================
@@ -170,8 +159,8 @@ export default function EditInterviewPage({ params }: EditInterviewPageProps) {
       return;
     }
 
-    if (!interviewerId) {
-      setError("Please select an interviewer.");
+    if (!interviewer.trim()) {
+      setError("Please enter the interviewer's name.");
       setSaving(false);
       return;
     }
@@ -224,7 +213,7 @@ export default function EditInterviewPage({ params }: EditInterviewPageProps) {
         .from("hr1_interviews")
         .update({
           applicant_id: applicantId,
-          interviewer_id: interviewerId,
+          interviewer_id: interviewer.trim(),
           scheduled_date: new Date(scheduledDate).toISOString(),
           location_or_link: locationOrLink || null,
           status,
@@ -397,24 +386,19 @@ export default function EditInterviewPage({ params }: EditInterviewPageProps) {
               </select>
             </div>
 
-            {/* Interviewer Select */}
+            {/* Interviewer Text Input */}
             <div>
               <label className="mb-1.5 block text-xs font-bold text-gray-700">
                 Interviewer <span className="text-red-500">*</span>
               </label>
-              <select
-                value={interviewerId}
-                onChange={(e) => setInterviewerId(e.target.value)}
+              <input
+                type="text"
+                value={interviewer}
+                onChange={(e) => setInterviewer(e.target.value)}
+                placeholder="Enter interviewer name (e.g., John Doe)"
                 required
-                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-800 outline-none transition focus:border-[#CB1A8E] focus:ring-2 focus:ring-[#CB1A8E]/15"
-              >
-                <option value="">Select an interviewer</option>
-                {profiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.full_name} ({profile.role})
-                  </option>
-                ))}
-              </select>
+                className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 outline-none transition focus:border-[#CB1A8E] focus:ring-2 focus:ring-[#CB1A8E]/15 placeholder:text-gray-400"
+              />
             </div>
 
             {/* Date & Time Input */}

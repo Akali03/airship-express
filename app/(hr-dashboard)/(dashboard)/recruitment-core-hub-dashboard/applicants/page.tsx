@@ -93,7 +93,7 @@ export default function ApplicantsPage() {
   }
 
   // ==========================================
-  // AI SCREENING
+  // AI SCREENING (FIXED ROUTE PATH)
   // ==========================================
 
   async function handleAIScreening(applicant: Applicant) {
@@ -103,7 +103,8 @@ export default function ApplicantsPage() {
     setScreeningApplicantName(`${applicant.first_name || ""} ${applicant.last_name || ""}`.trim());
 
     try {
-      const response = await fetch("/api/screening", {
+      // ⚠️ Fixed path: matched with project folder structure
+      const response = await fetch("/recruitment-core-hub-dashboard/api/screening", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ applicant_id: applicant.id }),
@@ -129,36 +130,45 @@ export default function ApplicantsPage() {
   }
 
   // ==========================================
-  // DELETE APPLICANT
+  // DELETE APPLICANT (WITH CASCADE DEPENDENCY CLEANUP)
   // ==========================================
 
   async function handleDeleteApplicant(applicantId: string) {
-    const applicant = applicants.find((item) => item.id === applicantId);
-    const candidateName = applicant 
-      ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() 
-      : "this applicant";
+  const applicant = applicants.find((item) => item.id === applicantId);
+  const candidateName = applicant 
+    ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() 
+    : "this applicant";
 
-    if (!window.confirm(`Are you sure you want to delete ${candidateName}?`)) {
-      return;
-    }
-
-    setError("");
-
-    try {
-      const { error: deleteError } = await supabase
-        .from("hr1_applicants")
-        .delete()
-        .eq("id", applicantId);
-
-      if (deleteError) throw deleteError;
-
-      setApplicants((prev) => prev.filter((item) => item.id !== applicantId));
-    } catch (err: any) {
-      console.error("APPLICANT DELETE ERROR:", err);
-      setError(`Delete failed: ${err.message}`);
-    }
+  if (!window.confirm(`Are you sure you want to delete ${candidateName}?`)) {
+    return;
   }
 
+  setError("");
+
+  try {
+    // Delete from Supabase and return affected rows to verify execution
+    const { data, error: deleteError } = await supabase
+      .from("hr1_applicants")
+      .delete()
+      .eq("id", applicantId)
+      .select(); // 👈 .select() returns the deleted row(s)
+
+    if (deleteError) throw deleteError;
+
+    // Check if Supabase blocked the delete silently (0 rows returned)
+    if (!data || data.length === 0) {
+      throw new Error(
+        "Delete failed. Row Level Security (RLS) on Supabase prevented deleting this record."
+      );
+    }
+
+    // Update UI state only when database delete is confirmed
+    setApplicants((prev) => prev.filter((item) => item.id !== applicantId));
+  } catch (err: any) {
+    console.error("APPLICANT DELETE ERROR:", err);
+    setError(`Delete failed: ${err.message}`);
+  }
+}
   // ==========================================
   // FILTERING LOGIC
   // ==========================================
@@ -184,6 +194,7 @@ export default function ApplicantsPage() {
   function getStatusClass(status: string) {
     switch (status) {
       case "Pending":
+      case "applied":
         return "bg-gray-100 text-gray-700 ring-gray-200";
       case "Under Review":
         return "bg-blue-50 text-blue-700 ring-blue-200";
@@ -254,7 +265,7 @@ export default function ApplicantsPage() {
           </div>
 
           <Link
-            href="/recruitment-core-hub-dashboard/applicants/new"
+            href="/recruitment-core-hub-dashboard/apply"
             className="inline-flex items-center justify-center rounded-xl bg-[#CB1A8E] px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#CB1A8E]/20 transition-all hover:bg-[#a31270] active:scale-[0.98]"
           >
             + Add Applicant
@@ -302,7 +313,7 @@ export default function ApplicantsPage() {
                 className="rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2 text-xs text-gray-800 outline-none transition focus:bg-white focus:border-[#CB1A8E] focus:ring-2 focus:ring-[#CB1A8E]/15"
               >
                 <option value="ALL">All Statuses</option>
-                <option value="Pending">Pending</option>
+                <option value="Pending">Pending / Applied</option>
                 <option value="Under Review">Under Review</option>
                 <option value="Shortlisted">Shortlisted</option>
                 <option value="Interview Scheduled">Interview Scheduled</option>
@@ -366,7 +377,7 @@ export default function ApplicantsPage() {
               </p>
               {!searchQuery && statusFilter === "ALL" && (
                 <Link
-                  href="/recruitment-core-hub-dashboard/applicants/new"
+                  href="/recruitment-core-hub-dashboard/apply"
                   className="mt-5 rounded-xl bg-[#CB1A8E] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#a31270]"
                 >
                   Add First Applicant

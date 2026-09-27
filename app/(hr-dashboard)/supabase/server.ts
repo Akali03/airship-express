@@ -30,3 +30,6 @@ export const createServerSupabaseClient = async () => {
     }
   );
 };
+
+// Export as createClient alias to support imports expecting createClient
+export const createClient = createServerSupabaseClient;

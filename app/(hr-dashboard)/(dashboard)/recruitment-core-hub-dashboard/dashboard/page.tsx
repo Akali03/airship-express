@@ -39,98 +39,188 @@ export default function DashboardPage() {
   }, []);
 
   async function loadDashboardData() {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      const [
-        applicantRes,
-        positionRes,
-        onboardingRes,
-        employeeRes,
-        recentApplicantsRes,
-        recentOnboardingsRes,
-      ] = await Promise.all([
-        supabase
-          .from("applicants")
-          .select("*", { count: "exact", head: true }),
-        supabase
-          .from("job_positions")
-          .select("*", { count: "exact", head: true })
-          .eq("is_active", true),
-        supabase
-          .from("onboardings")
-          .select("*", { count: "exact", head: true })
-          .is("completed_at", null),
-        supabase
-          .from("employees")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "Active"),
-        supabase
-          .from("applicants")
-          .select("id, first_name, last_name, created_at, status")
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("onboardings")
-          .select(`
-            id,
-            created_at,
-            completed_at,
-            applicants(first_name, last_name)
-          `)
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
+  try {
+    const [
+      applicantRes,
+      positionRes,
+      onboardingRes,
+      employeeRes,
+      recentApplicantsRes,
+      recentOnboardingsRes,
+    ] = await Promise.all([
+      // Total applicants
+      supabase
+        .from("hr1_applicants")
+        .select("*", { count: "exact", head: true }),
 
-      if (applicantRes.error) throw new Error(`Applicants query failed: ${applicantRes.error.message}`);
-      if (positionRes.error) throw new Error(`Positions query failed: ${positionRes.error.message}`);
-      if (onboardingRes.error) throw new Error(`Onboarding query failed: ${onboardingRes.error.message}`);
-      if (employeeRes.error) throw new Error(`Employees query failed: ${employeeRes.error.message}`);
+      // Open positions
+      supabase
+        .from("hr1_job_positions")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", true),
 
-      setStats({
-        applicants: applicantRes.count ?? 0,
-        openPositions: positionRes.count ?? 0,
-        onboarding: onboardingRes.count ?? 0,
-        activeEmployees: employeeRes.count ?? 0,
-      });
+      // Applicants currently in onboarding
+      supabase
+        .from("hr1_onboardings")
+        .select("*", { count: "exact", head: true })
+        .is("completed_at", null),
 
-      const formattedApplicants: ActivityItem[] = (recentApplicantsRes.data || []).map((item: any) => ({
+      // Active employees
+      supabase
+        .from("hr1_employees")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "active"),
+
+      // Recent applicants
+      supabase
+        .from("hr1_applicants")
+        .select("id, first_name, last_name, created_at, status")
+        .order("created_at", { ascending: false })
+        .limit(5),
+
+      // Recent onboarding records
+      supabase
+        .from("hr1_onboardings")
+        .select(`
+          id,
+          created_at,
+          completed_at,
+          applicant_id
+        `)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+    if (applicantRes.error) {
+      throw new Error(
+        `Applicants query failed: ${applicantRes.error.message}`
+      );
+    }
+
+    if (positionRes.error) {
+      throw new Error(
+        `Positions query failed: ${positionRes.error.message}`
+      );
+    }
+
+    if (onboardingRes.error) {
+      throw new Error(
+        `Onboarding query failed: ${onboardingRes.error.message}`
+      );
+    }
+
+    if (employeeRes.error) {
+      throw new Error(
+        `Employees query failed: ${employeeRes.error.message}`
+      );
+    }
+
+    if (recentApplicantsRes.error) {
+      throw new Error(
+        `Recent applicants query failed: ${recentApplicantsRes.error.message}`
+      );
+    }
+
+    if (recentOnboardingsRes.error) {
+      throw new Error(
+        `Recent onboarding query failed: ${recentOnboardingsRes.error.message}`
+      );
+    }
+
+    setStats({
+      applicants: applicantRes.count ?? 0,
+      openPositions: positionRes.count ?? 0,
+      onboarding: onboardingRes.count ?? 0,
+      activeEmployees: employeeRes.count ?? 0,
+    });
+
+    const formattedApplicants: ActivityItem[] =
+      (recentApplicantsRes.data || []).map((item: any) => ({
         id: item.id,
         type: "applicant" as const,
         title: `${item.first_name} ${item.last_name}`,
         subtitle: "Submitted an application",
         date: item.created_at,
-        status: item.status || "Pending",
+        status: item.status || "applied",
       }));
 
-      const formattedOnboardings: ActivityItem[] = (recentOnboardingsRes.data || []).map((item: any) => ({
-        id: item.id,
-        type: "onboarding" as const,
-        title: item.applicants
-          ? `${item.applicants.first_name} ${item.applicants.last_name}`
-          : "New Hire",
-        subtitle: "Entered onboarding stage",
-        date: item.created_at,
-        status: item.completed_at ? "Completed" : "In Progress",
-      }));
+    // Get applicant names for recent onboarding records
+    const applicantIds = (recentOnboardingsRes.data || [])
+      .map((item: any) => item.applicant_id)
+      .filter(Boolean);
 
-      const combined = [...formattedApplicants, ...formattedOnboardings].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    let applicantMap: Record<
+      string,
+      { first_name: string; last_name: string }
+    > = {};
+
+    if (applicantIds.length > 0) {
+      const { data: applicants, error: applicantsError } = await supabase
+        .from("hr1_applicants")
+        .select("id, first_name, last_name")
+        .in("id", applicantIds);
+
+      if (applicantsError) {
+        throw new Error(
+          `Onboarding applicants query failed: ${applicantsError.message}`
+        );
+      }
+
+      applicantMap = Object.fromEntries(
+        (applicants || []).map((applicant: any) => [
+          applicant.id,
+          {
+            first_name: applicant.first_name,
+            last_name: applicant.last_name,
+          },
+        ])
       );
+    }
 
-      setActivities(combined.slice(0, 6));
-    } catch (err: any) {
-      console.error("DASHBOARD LOAD ERROR:", JSON.stringify(err, null, 2));
-      setError(
-        err?.message ||
+    const formattedOnboardings: ActivityItem[] =
+      (recentOnboardingsRes.data || []).map((item: any) => {
+        const applicant = applicantMap[item.applicant_id];
+
+        return {
+          id: item.id,
+          type: "onboarding" as const,
+          title: applicant
+            ? `${applicant.first_name} ${applicant.last_name}`
+            : "New Hire",
+          subtitle: "Entered onboarding stage",
+          date: item.created_at,
+          status: item.completed_at ? "Completed" : "In Progress",
+        };
+      });
+
+    const combined = [
+      ...formattedApplicants,
+      ...formattedOnboardings,
+    ].sort(
+      (a, b) =>
+        new Date(b.date).getTime() -
+        new Date(a.date).getTime()
+    );
+
+    setActivities(combined.slice(0, 6));
+  } catch (err: any) {
+    console.error(
+      "DASHBOARD LOAD ERROR:",
+      JSON.stringify(err, null, 2)
+    );
+
+    setError(
+      err?.message ||
         err?.error_description ||
         "Failed to load dashboard statistics and activity feed."
-      );
-    } finally {
-      setLoading(false);
-    }
+    );
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
