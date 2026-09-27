@@ -33,6 +33,51 @@ export type ReceiptVerdict = {
 
 export type ReceiptVerdictError = { ok: false; error: string };
 
+/**
+ * Guards against the model emitting a hardcoded "everything is fine"
+ * confidence (commonly 0.95) even when it also flags mismatches, tamper
+ * signals, or an unreadable receipt.
+ */
+function deriveConfidence(parsed: any): number {
+  const raw =
+    typeof parsed?.confidence === "number" && Number.isFinite(parsed.confidence)
+      ? parsed.confidence
+      : null;
+
+  if (raw === null) return 0;
+
+  // Normalize: model may return 0-100 instead of 0-1.
+  const normalized = raw > 1 ? raw / 100 : raw;
+  const clamped = Math.max(0, Math.min(1, normalized));
+
+  const hasMismatch =
+    Array.isArray(parsed?.mismatches) && parsed.mismatches.length > 0;
+  const hasTamper =
+    Array.isArray(parsed?.tamper_signals) && parsed.tamper_signals.length > 0;
+  const unreadable = parsed?.receipt_readable === false;
+
+  // Self-contradictory: model says "near certain" while flagging problems.
+  if (clamped >= 0.9 && (hasMismatch || hasTamper || unreadable)) {
+    console.warn(
+      "[verifyReceipt] confidence guard tripped",
+      JSON.stringify({
+        rawConfidence: clamped,
+        hasMismatch,
+        hasTamper,
+        unreadable,
+        verdict: parsed?.verdict,
+      })
+    );
+    // Cap at 0.79 — matches "one low/medium mismatch" band.
+    return Math.min(clamped, 0.79);
+  }
+
+  // Hard cap if unreadable, regardless of model's claim.
+  if (unreadable) return Math.min(clamped, 0.39);
+
+  return clamped;
+}
+
 export async function verifyReceipt(opts: {
   employeeId: string;
   imageBase64: string;
@@ -62,6 +107,15 @@ export async function verifyReceipt(opts: {
       maxTokens: 900,
     });
 
+    // ---- TEMP: confirm what the model actually returns, then delete ----
+    console.log(
+      "[verifyReceipt] provider=%s model=%s raw=%s",
+      res.provider,
+      res.model,
+      res.content
+    );
+    // -------------------------------------------------------------------
+
     let parsed: any;
     try {
       parsed = JSON.parse(res.content);
@@ -88,7 +142,7 @@ export async function verifyReceipt(opts: {
       tamper_signals: Array.isArray(parsed.tamper_signals)
         ? parsed.tamper_signals
         : [],
-      confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
+      confidence: deriveConfidence(parsed),
       verdict:
         parsed.verdict === "approve" ||
         parsed.verdict === "review" ||
@@ -100,7 +154,6 @@ export async function verifyReceipt(opts: {
       model: res.model,
     };
 
-    // Persist audit trail
     await supabaseAdmin.from("hr4_claim_receipt_verifications").insert({
       claim_id: null,
       employee_id: opts.employeeId,
