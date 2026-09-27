@@ -1,26 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
-import { Plus, RefreshCw } from "lucide-react";
-import { StatTile } from "@/performance-development-dashboard/components/ui/StatTile";
+import { Archive, CalendarDays, Eye, FolderOpen, Plus, RefreshCw } from "lucide-react";
+import { PerformanceSectionHeader } from "@/performance-development-dashboard/components/ui/performance";
 import type {
   CycleCreateInput,
   CurrentPerDevUser,
   PerformanceCycle,
   PerformanceCycleClosureReadiness,
+  PerformanceCycleOpenReadiness,
   PerformanceCycleReadiness,
 } from "@/performance-development-dashboard/types";
 import { useCycleApi } from "@/performance-development-dashboard/hooks/useCycleApi";
 import { PerDevHttpError } from "@/performance-development-dashboard/lib/api/perDevFetch";
 import { AdvanceCycleModal } from "@/performance-development-dashboard/components/performance-cycle/AdvanceCycleModal";
 import { CloseCycleModal } from "@/performance-development-dashboard/components/performance-cycle/CloseCycleModal";
+import { OpenCycleModal } from "@/performance-development-dashboard/components/performance-cycle/OpenCycleModal";
 import { CycleRow } from "@/performance-development-dashboard/components/performance-cycle/CycleRow";
 import { CreateCycleModal } from "@/performance-development-dashboard/components/performance-cycle/CreateCycleModal";
 
 type PendingAdvance = {
   cycle: PerformanceCycle;
   readiness: PerformanceCycleReadiness;
+};
+
+type PendingOpen = {
+  cycle: PerformanceCycle;
+  openReadiness: PerformanceCycleOpenReadiness;
 };
 
 type PendingClose = {
@@ -32,18 +40,28 @@ type Props = {
   serverUser: CurrentPerDevUser;
   initialCycles: PerformanceCycle[];
   initialError?: string;
+  /**
+   * Employee directory for read-only pre-confirm verification rows.
+   * Optional: verification rows fall back to "Unknown employee" without it.
+   */
+  employeeNamesById?: Record<string, string>;
+  employeeIdNumbersById?: Record<string, string>;
 };
 
 export function CycleManagement({
   serverUser,
   initialCycles,
   initialError,
+  employeeNamesById = {},
+  employeeIdNumbersById = {},
 }: Props) {
   const api = useCycleApi();
   const [cycles, setCycles] = useState<PerformanceCycle[]>(initialCycles);
   const [createOpen, setCreateOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [checkingAdvanceId, setCheckingAdvanceId] = useState<string | null>(null);
+  const [checkingOpenId, setCheckingOpenId] = useState<string | null>(null);
+  const [pendingOpen, setPendingOpen] = useState<PendingOpen | null>(null);
   const [pendingAdvance, setPendingAdvance] = useState<PendingAdvance | null>(
     null
   );
@@ -114,13 +132,54 @@ export function CycleManagement({
     await refreshCyclesQuietly();
   }
 
+  // Open is confirmed through a modal (release gate + server 409
+  // blockers), never fired directly from the row.
   async function handleOpen(id: string) {
+    const cycle = cycles.find((item) => item.id === id);
+    if (!cycle) return;
+
+    setCheckingOpenId(id);
     try {
-      const next = await api.runAction(id, "open", api.open);
+      const openReadiness = await api.getOpenReadiness(id);
+      setPendingOpen({ cycle, openReadiness });
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to check open readiness."
+      );
+    } finally {
+      setCheckingOpenId(null);
+    }
+  }
+
+  async function confirmOpen() {
+    if (!pendingOpen) return;
+
+    try {
+      const next = await api.runAction(
+        pendingOpen.cycle.id,
+        "open",
+        api.open
+      );
       applyCycle(next);
+      setPendingOpen(null);
       toast.success(`Cycle "${next.name}" is now open.`);
       await refreshCyclesQuietly();
     } catch (err) {
+      if (
+        err instanceof PerDevHttpError &&
+        err.status === 409 &&
+        err.body !== null &&
+        typeof err.body === "object" &&
+        "openReadiness" in err.body
+      ) {
+        setPendingOpen({
+          cycle: pendingOpen.cycle,
+          openReadiness: (
+            err.body as { openReadiness: PerformanceCycleOpenReadiness }
+          ).openReadiness,
+        });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to open cycle.");
     }
   }
@@ -153,7 +212,7 @@ export function CycleManagement({
       );
       applyCycle(next);
       setPendingAdvance(null);
-      toast.success(`Cycle "${next.name}" advanced a stage.`);
+      toast.success(`Cycle "${next.name}" advanced.`);
       await refreshCyclesQuietly();
     } catch (err) {
       if (
@@ -277,8 +336,11 @@ export function CycleManagement({
             Performance Cycles
           </h1>
           <p className="mt-2 max-w-xl text-[13px] text-muted">
-            Hello {firstName}. Create the cycle, open it when ready, and advance
-            it one stage at a time through the performance lifecycle.
+            Hello {firstName}. Create the cycle, open it when ready, and
+            advance it one phase at a time: Planning → Monitoring →
+            Reviewing → Rewarding &amp; Developing. Closing is terminal and
+            historical. Individual appraisals move only through their own
+            actions.
           </p>
         </div>
 
@@ -307,25 +369,39 @@ export function CycleManagement({
         </div>
       </div>
 
-      <div className="grid w-full grid-cols-2 gap-3 lg:grid-cols-4">
-<StatTile label="Total cycles" value={cycles.length} tone="bg-accent-dark" />
-              <StatTile label="Open" value={openCount} tone="bg-accent" />
-              <StatTile label="In review" value={inReviewCount} tone="bg-ink" />
-              <StatTile label="Closed" value={closedCount} tone="bg-emerald-600" />
-      </div>
-
-      <div className="rounded-2xl border border-line bg-paper px-5 py-4 dark:border-paper/10">
-        <p className="text-[13px] font-medium text-ink">
-          How performance cycles work
-        </p>
-        <p className="mt-1 max-w-3xl text-[12.5px] leading-relaxed text-muted">
-          Prepare a cycle, open it to start active performance activity, then
-          monitor progress while employees and managers work independently.
-          Intermediate stages are coordination context — closing the cycle is
-          the terminal step, and it requires every linked appraisal to be
-          finalized or acknowledged.
-        </p>
-      </div>
+      <section aria-label="Key metrics">
+        <PerformanceSectionHeader
+          eyebrow="Summary"
+          title="At a glance"
+          description="Cycle totals from the current list."
+        />
+        <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <CycleKpiCard
+            label="Total Cycles"
+            value={cycles.length}
+            detail="All cycles"
+            icon={<CalendarDays size={16} strokeWidth={1.9} />}
+          />
+          <CycleKpiCard
+            label="Open"
+            value={openCount}
+            detail="Currently open"
+            icon={<FolderOpen size={16} strokeWidth={1.9} />}
+          />
+          <CycleKpiCard
+            label="In Review"
+            value={inReviewCount}
+            detail="In review"
+            icon={<Eye size={16} strokeWidth={1.9} />}
+          />
+          <CycleKpiCard
+            label="Closed"
+            value={closedCount}
+            detail="Historical record"
+            icon={<Archive size={16} strokeWidth={1.9} />}
+          />
+        </ul>
+      </section>
 
       {error && (
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4">
@@ -369,7 +445,9 @@ export function CycleManagement({
                   ? api.busy.action
                   : checkingAdvanceId === cycle.id
                     ? "advance"
-                    : undefined
+                    : checkingOpenId === cycle.id
+                      ? "open"
+                      : undefined
               }
               readiness={readinessById[cycle.id] ?? null}
               onOpen={handleOpen}
@@ -387,6 +465,16 @@ export function CycleManagement({
         />
       )}
 
+      {pendingOpen && (
+        <OpenCycleModal
+          cycle={pendingOpen.cycle}
+          openReadiness={pendingOpen.openReadiness}
+          confirming={api.busy?.action === "open"}
+          onClose={() => setPendingOpen(null)}
+          onConfirm={confirmOpen}
+        />
+      )}
+
       {pendingAdvance && (
         <AdvanceCycleModal
           cycle={pendingAdvance.cycle}
@@ -394,6 +482,8 @@ export function CycleManagement({
           confirming={api.busy?.action === "advance"}
           onClose={() => setPendingAdvance(null)}
           onConfirm={confirmAdvance}
+          employeeNamesById={employeeNamesById}
+          employeeIdNumbersById={employeeIdNumbersById}
         />
       )}
 
@@ -404,8 +494,46 @@ export function CycleManagement({
           confirming={api.busy?.action === "close"}
           onClose={() => setPendingClose(null)}
           onConfirm={confirmClose}
+          employeeNamesById={employeeNamesById}
+          employeeIdNumbersById={employeeIdNumbersById}
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Cycle summary card — same visual language as the main Performance &
+ * Development Dashboard `KpiCard` (bordered paper card, accent icon tile,
+ * small label, large Bricolage value, muted detail). Values/counts are the
+ * existing cycle totals; presentation only.
+ */
+function CycleKpiCard({
+  label,
+  value,
+  detail,
+  icon,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  icon: ReactNode;
+}) {
+  return (
+    <li className="flex min-h-[132px] flex-col rounded-2xl border border-line bg-paper p-4 dark:border-paper/10 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"
+        >
+          {icon}
+        </span>
+      </div>
+      <p className="mt-3 truncate text-[13px] font-medium text-ink">{label}</p>
+      <p className="mt-0.5 font-bricolage text-[28px] font-medium tabular-nums leading-none tracking-tight text-ink">
+        {value}
+      </p>
+      <p className="mt-1.5 truncate text-[12px] text-muted">{detail}</p>
+    </li>
   );
 }

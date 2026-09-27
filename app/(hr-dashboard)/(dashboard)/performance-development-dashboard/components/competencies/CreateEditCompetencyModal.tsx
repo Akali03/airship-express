@@ -18,7 +18,9 @@ import { MAX_COMPETENCY_DESCRIPTION_LENGTH, MAX_COMPETENCY_NAME_LENGTH } from "@
 type Props = {
   competency: Competency | null;
   submitting: boolean;
-  onSubmit: (input: CompetencyInput) => Promise<void>;
+  onSubmit: (
+    input: CompetencyInput & { is_active?: boolean }
+  ) => Promise<void>;
   onClose: () => void;
 };
 
@@ -33,6 +35,7 @@ export function CreateEditCompetencyModal({
     competency?.category ?? "technical"
   );
   const [description, setDescription] = useState(competency?.description ?? "");
+  const [isActive, setIsActive] = useState(competency?.is_active ?? true);
   const [formError, setFormError] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
@@ -50,6 +53,9 @@ export function CreateEditCompetencyModal({
         name: trimmedName,
         category,
         description: description.trim() || null,
+        // Edit mode only: soft activation controls future applicability;
+        // historical records are untouched. New competencies start active.
+        ...(competency ? { is_active: isActive } : {}),
       });
       setName("");
       setDescription("");
@@ -144,6 +150,25 @@ export function CreateEditCompetencyModal({
               {description.length}/{MAX_COMPETENCY_DESCRIPTION_LENGTH}
             </p>
           </div>
+
+          {competency && (
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line px-4 py-3 dark:border-paper/15">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                disabled={submitting}
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span className="text-[12.5px] leading-relaxed">
+                <span className="font-medium text-ink">Active in library.</span>{" "}
+                <span className="text-muted">
+                  Inactive competencies stay in history but stop resolving for
+                  future applicability.
+                </span>
+              </span>
+            </label>
+          )}
 
           {formError && (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">

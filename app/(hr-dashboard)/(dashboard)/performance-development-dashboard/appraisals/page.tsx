@@ -24,6 +24,43 @@ function fullName(firstName: string, lastName: string): string {
   return `${firstName ?? ""} ${lastName ?? ""}`.trim();
 }
 
+/**
+ * Row shape for the new-appraisal subject selector. `job_position` is the
+ * embedded `hr1_job_positions` join resolved via
+ * `hr1_employees.job_position_id` (same pattern the Goals page uses).
+ * Positions are resolved by stable id only — never by title/name.
+ */
+type EmployeeRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  department: string | null;
+  job_position_id: string | null;
+  /**
+   * Runtime verified as a single object (or null) for a to-one embed. Also
+   * accepts the array shape so both lookups are defended against.
+   */
+  job_position?: { title: string | null } | { title: string | null }[] | null;
+};
+
+function resolvePositionTitle(
+  jobPosition: EmployeeRow["job_position"]
+): string | null {
+  if (!jobPosition) return null;
+  const row = Array.isArray(jobPosition) ? jobPosition[0] : jobPosition;
+  return row?.title ?? null;
+}
+
+function toEmployeeOption(employee: EmployeeRow): EmployeeOption {
+  return {
+    id: employee.id,
+    name: fullName(employee.first_name ?? "", employee.last_name ?? ""),
+    department: employee.department,
+    job_position_id: employee.job_position_id,
+    position: resolvePositionTitle(employee.job_position),
+  };
+}
+
 async function resolveReferencedNames(
   appraisals: PerformanceAppraisal[]
 ): Promise<Record<string, string>> {
@@ -85,23 +122,26 @@ export default async function AppraisalsPage() {
         : undefined;
 
     const [employeesResult, employeeNamesById] = await Promise.all([
-      // New-appraisal subject selector: active employees only. Finalized and
-      // historical appraisals (including inactive subjects) still load via
-      // listAppraisals and resolve names through resolveReferencedNames.
+      // New-appraisal subject selector: active employees only, with their
+      // stable HR1 job position (id + title via embedded join) so the create
+      // flow previews the exact scoring split that will be snapshotted.
+      // Finalized and historical appraisals (including inactive subjects)
+      // still load via listAppraisals and resolve names through
+      // resolveReferencedNames.
       supabaseAdmin
         .from("hr1_employees")
-        .select("id, first_name, last_name, department")
+        .select(
+          "id, first_name, last_name, department, job_position_id, job_position:hr1_job_positions(title)"
+        )
         .eq("status", "active")
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
       resolveReferencedNames(appraisals),
     ]);
 
-    const employees: EmployeeOption[] = (employeesResult.data ?? []).map((e) => ({
-      id: e.id,
-      name: fullName(e.first_name, e.last_name),
-      department: e.department,
-    }));
+    const employees: EmployeeOption[] = (
+      (employeesResult.data ?? []) as unknown as EmployeeRow[]
+    ).map(toEmployeeOption);
 
     const cyclesResult = await listPerformanceCycles();
     const cycles: PerformanceCycle[] =
@@ -159,15 +199,17 @@ export default async function AppraisalsPage() {
     if (directReportIds.length > 0) {
       const { data } = await supabaseAdmin
         .from("hr1_employees")
-        .select("id, first_name, last_name, department")
+        .select(
+          "id, first_name, last_name, department, job_position_id, job_position:hr1_job_positions(title)"
+        )
         .in("id", directReportIds);
-      employees = (data ?? []).map((e) => ({
-        id: e.id,
-        name: fullName(e.first_name, e.last_name),
-        department: e.department,
-      }));
-      for (const e of data ?? []) {
-        employeeNamesById[e.id] = fullName(e.first_name, e.last_name);
+      const directReportRows = (data ?? []) as unknown as EmployeeRow[];
+      employees = directReportRows.map(toEmployeeOption);
+      for (const e of directReportRows) {
+        employeeNamesById[e.id] = fullName(
+          e.first_name ?? "",
+          e.last_name ?? ""
+        );
       }
     }
   }

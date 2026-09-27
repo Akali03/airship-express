@@ -14,8 +14,11 @@ import { requireValidUuid } from "@/performance-development-dashboard/lib/perfor
  * appraisal and cycle data. It creates no tables, snapshots, or sync jobs,
  * performs no writes of any kind, and modifies no external-module behavior.
  *
- * AUTHORITY RULE: only appraisals with status "finalized" or
- * "acknowledged" contribute. Pre-finalization rows are excluded
+ * AUTHORITY RULE: only finalized appraisals contribute, witnessed by
+ * `finalized_at` (set exactly once at finalization, never cleared).
+ * Acknowledged-but-unfinalized records are still in flight and are skipped
+ * without counting as invalid; legacy acknowledged records carry
+ * `finalized_at` and remain included. Pre-finalization rows are excluded
  * server-side. No synthetic fallback is ever constructed — goal averages,
  * competency averages, partial ratings, and other substitutes are not
  * authoritative and are not computed here. Persisted final_score is read,
@@ -140,7 +143,7 @@ export async function getAppraisalAnalyticsForIntegration(
 
   const { data, error } = await supabaseAdmin
     .from("hr3_performance_appraisals")
-    .select("id, status, final_score, performance_rating")
+    .select("id, status, final_score, performance_rating, finalized_at")
     .eq("cycle_id", id)
     .in("status", [...ELIGIBLE_STATUSES]);
 
@@ -167,8 +170,17 @@ export async function getAppraisalAnalyticsForIntegration(
     status: unknown;
     final_score: unknown;
     performance_rating: unknown;
+    finalized_at: unknown;
   }[]) {
     if (row.status !== "finalized" && row.status !== "acknowledged") {
+      continue;
+    }
+
+    // Completion is witnessed by `finalized_at` (set exactly once at
+    // finalization, never cleared): legacy acknowledged records carry it,
+    // while acknowledged-but-unfinalized records are still in flight and
+    // must not count as complete nor as invalid.
+    if (typeof row.finalized_at !== "string" || row.finalized_at === "") {
       continue;
     }
 

@@ -152,7 +152,7 @@ export function CourseEnrollmentsTab({
           message={
             isHrAdmin
               ? `Enroll ${selectedEmployeeName} in a course to begin tracking their progress.`
-              : "Your course enrollments will appear here once assigned by your performance team."
+              : "Your course enrollments will appear here when assigned by the performance team or when you self-enroll in an available course."
           }
           action={
             isHrAdmin ? (

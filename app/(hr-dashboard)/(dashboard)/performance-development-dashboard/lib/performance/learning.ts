@@ -132,7 +132,9 @@ export type {
  *     may submit an evaluation for a session THEY were enrolled in, recorded
  *     against their own `employee_id` (server-derived; a foreign employee_id or
  *     a non-attended session is rejected). Supplying any other employee's id on
- *     a read is a generic 403 (never a leak).
+ *     a read is a generic 403 (never a leak). Employees may self-enroll ONLY
+ *     themselves and ONLY in courses whose persisted `allow_self_enrollment`
+ *     is true (server-verified per request; the UI gate is advisory only).
  *
  * IDENTITY RULES
  *   - `hr3_courses.created_by` references `hr_admin.id`, so it is always set
@@ -141,7 +143,8 @@ export type {
  *     (verified live: an hr_admin id is rejected), so it is always the acting
  *     HR account's LINKED EMPLOYEE uuid written server-side when approval is
  *     granted/rejected. The account attribution lives in the audit trail.
- *   - Employees can never self-enroll, self-certify, or write courses/sessions.
+ *   - Employees can never self-certify or write courses/sessions, and can
+ *     self-enroll only where the course explicitly allows it.
  *
  * NOT IN SCOPE (later phases): reporting/analytics, mandatory-course rules,
  * certification validity status (the table has no status field and no
@@ -160,7 +163,7 @@ export {
 } from "@/performance-development-dashboard/lib/constants";
 
 const COURSE_SELECT =
-  "id, title, description, primary_content_url, duration_minutes, competency_id, created_by, created_at";
+  "id, title, description, primary_content_url, duration_minutes, competency_id, allow_self_enrollment, created_by, created_at";
 const ENROLLMENT_SELECT =
   "id, employee_id, course_id, progress_percent, status, enrolled_at, completed_at";
 const SESSION_SELECT =
@@ -287,6 +290,21 @@ async function requireExistingCourseId(
   }
 
   return id;
+}
+
+/**
+ * Parses the per-course self-enrollment toggle. Absent → false (the safe
+ * default for creates); updates pass their own fallback. Only real
+ * booleans are accepted — truthy strings/numbers must not enable it.
+ */
+function requireCourseSelfEnrollmentFlag(
+  value: unknown
+): boolean | NextResponse {
+  if (value === undefined || value === null) return false;
+  if (typeof value !== "boolean") {
+    return BAD_REQUEST_RESPONSE("allow_self_enrollment must be a boolean.");
+  }
+  return value;
 }
 
 async function requireExistingSessionId(
@@ -467,6 +485,11 @@ export async function createCourse(
     if (competencyId instanceof NextResponse) return competencyId;
   }
 
+  const allowSelfEnrollment = requireCourseSelfEnrollmentFlag(
+    input?.allow_self_enrollment
+  );
+  if (allowSelfEnrollment instanceof NextResponse) return allowSelfEnrollment;
+
   const { data, error } = await supabaseAdmin
     .from("hr3_courses")
     .insert({
@@ -475,6 +498,7 @@ export async function createCourse(
       primary_content_url: url === ABSENT ? null : url,
       duration_minutes: duration === ABSENT ? null : duration,
       competency_id: competencyId === ABSENT ? null : competencyId,
+      allow_self_enrollment: allowSelfEnrollment,
       created_by: admin.hrAdminId,
     })
     .select(COURSE_SELECT)
@@ -499,6 +523,7 @@ export async function createCourse(
       primary_content_url: created.primary_content_url,
       duration_minutes: created.duration_minutes,
       competency_id: created.competency_id,
+      allow_self_enrollment: created.allow_self_enrollment,
     },
   });
   if (auditError instanceof NextResponse) return auditError;
@@ -508,9 +533,9 @@ export async function createCourse(
 
 /**
  * Updates editable course fields (title, description, primary_content_url,
- * duration_minutes, competency_id — all real columns; `created_by`/`created_at`
- * are never client-supplied, and `id` is immutable). HR scope only.
- * Mutation → audit (`course.updated`).
+ * duration_minutes, competency_id, allow_self_enrollment — all real columns;
+ * `created_by`/`created_at` are never client-supplied, and `id` is
+ * immutable). HR scope only. Mutation → audit (`course.updated`).
  */
 export async function updateCourse(
   courseId: string,
@@ -566,6 +591,16 @@ export async function updateCourse(
   );
   if (competencyId instanceof NextResponse) return competencyId;
 
+  // Toggle is explicit-or-unchanged: absent keeps the persisted value so
+  // legacy clients that do not send the field cannot flip it by accident.
+  let allowSelfEnrollment = prev.allow_self_enrollment ?? false;
+  if (input?.allow_self_enrollment !== undefined) {
+    if (typeof input.allow_self_enrollment !== "boolean") {
+      return BAD_REQUEST_RESPONSE("allow_self_enrollment must be a boolean.");
+    }
+    allowSelfEnrollment = input.allow_self_enrollment;
+  }
+
   const updates: Record<string, unknown> = {
     title,
     description: description === ABSENT ? prev.description : description,
@@ -574,6 +609,7 @@ export async function updateCourse(
       duration === ABSENT ? prev.duration_minutes : duration,
     competency_id:
       competencyId === ABSENT ? prev.competency_id : competencyId,
+    allow_self_enrollment: allowSelfEnrollment,
   };
 
   const { data, error } = await supabaseAdmin
@@ -601,6 +637,7 @@ export async function updateCourse(
       primary_content_url: prev.primary_content_url,
       duration_minutes: prev.duration_minutes,
       competency_id: prev.competency_id,
+      allow_self_enrollment: prev.allow_self_enrollment ?? false,
     },
     newData: {
       title: updated.title,
@@ -608,6 +645,7 @@ export async function updateCourse(
       primary_content_url: updated.primary_content_url,
       duration_minutes: updated.duration_minutes,
       competency_id: updated.competency_id,
+      allow_self_enrollment: updated.allow_self_enrollment,
     },
   });
   if (auditError instanceof NextResponse) return auditError;
@@ -822,6 +860,110 @@ export async function createCourseEnrollment(
     newData: {
       employee_id: created.employee_id,
       course_id: created.course_id,
+    },
+  });
+  if (auditError instanceof NextResponse) return auditError;
+
+  return created;
+}
+
+/**
+ * Employee self-enrollment: the authenticated employee enrolls ONLY
+ * themselves in a course whose persisted `allow_self_enrollment` is true.
+ * Narrowly scoped — deliberately separate from the HR enrollment endpoint,
+ * which stays HR-only and unchanged.
+ *
+ * Server-authoritative: `employee_id` is derived from the authenticated
+ * employee context (any client-supplied employee id is never read); the
+ * course must exist AND allow self-enrollment (UI visibility is advisory
+ * only); duplicates reject with the same 409 as HR enrollment. Creates the
+ * identical `hr3_course_enrollments` record with the same DB defaults for
+ * status/progress — no certification, no completion, no training writes.
+ */
+export async function createOwnCourseEnrollment(
+  input: Record<string, unknown>
+): Promise<CourseEnrollment | NextResponse> {
+  const identity = await requireHrEmployee();
+  if (identity instanceof NextResponse) return identity;
+  if (!identity.employeeUuid) {
+    return FORBIDDEN_RESPONSE();
+  }
+
+  const employeeId = await requireActiveEmployeeId(
+    identity.employeeUuid,
+    "employee_id"
+  );
+  if (employeeId instanceof NextResponse) return employeeId;
+
+  const courseId = await requireExistingCourseId(input?.course_id, {
+    allowNull: false,
+  });
+  if (courseId instanceof NextResponse) return courseId;
+
+  const { data: course, error: courseError } = await supabaseAdmin
+    .from("hr3_courses")
+    .select("id, allow_self_enrollment")
+    .eq("id", courseId as string)
+    .maybeSingle();
+
+  if (courseError) {
+    console.error("createOwnCourseEnrollment: course query error:", courseError);
+    return NextResponse.json(
+      { error: "Failed to validate course" },
+      { status: 500 }
+    );
+  }
+  if (!course) {
+    return BAD_REQUEST_RESPONSE(
+      "course_id does not reference an existing course."
+    );
+  }
+  if ((course as { allow_self_enrollment: unknown }).allow_self_enrollment !== true) {
+    return FORBIDDEN_RESPONSE();
+  }
+
+  const { data: duplicate } = await supabaseAdmin
+    .from("hr3_course_enrollments")
+    .select("id")
+    .eq("employee_id", employeeId as string)
+    .eq("course_id", courseId as string)
+    .maybeSingle();
+
+  if (duplicate) {
+    return CONFLICT_RESPONSE(
+      "You are already enrolled in this course."
+    );
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("hr3_course_enrollments")
+    .insert({
+      employee_id: employeeId as string,
+      course_id: courseId as string,
+    })
+    .select(ENROLLMENT_SELECT)
+    .single();
+
+  if (error) {
+    console.error("createOwnCourseEnrollment: insert error:", error);
+    return NextResponse.json(
+      { error: "Failed to create course enrollment" },
+      { status: 500 }
+    );
+  }
+
+  const created = data as CourseEnrollment;
+
+  const auditError = await insertAuditEvent({
+    actor: auditActorFromIdentity(identity),
+    reason: PERFORMANCE_AUDIT_REASON.courseEnrollmentCreated,
+    entityType: PERFORMANCE_AUDIT_ENTITY_TYPE.courseEnrollment,
+    entityId: created.id,
+    oldData: null,
+    newData: {
+      employee_id: created.employee_id,
+      course_id: created.course_id,
+      self_enrolled: true,
     },
   });
   if (auditError instanceof NextResponse) return auditError;

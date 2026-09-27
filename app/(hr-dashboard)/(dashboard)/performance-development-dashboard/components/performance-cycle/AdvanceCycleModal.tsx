@@ -3,8 +3,15 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, X } from "lucide-react";
 import { Modal } from "@/performance-development-dashboard/components/ui/Modal";
 import { Tooltip } from "@/performance-development-dashboard/components/ui/Tooltip";
+import { ReviewRecords } from "@/performance-development-dashboard/components/performance-cycle/ReviewRecords";
 import type { PerformanceCycle, PerformanceCycleReadiness } from "@/performance-development-dashboard/types";
-import { PERFORMANCE_CYCLE_STAGE_LABELS } from "@/performance-development-dashboard/types";
+import {
+  PERFORMANCE_CYCLE_PHASE_LABELS,
+  PERFORMANCE_CYCLE_STAGE_LABELS,
+  cycleNextActionForStages,
+  cycleNextActionLabel,
+  cyclePhaseForStage,
+} from "@/performance-development-dashboard/types";
 
 type Props = {
   cycle: PerformanceCycle;
@@ -12,6 +19,9 @@ type Props = {
   confirming: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  /** Employee directory for read-only verification rows (optional). */
+  employeeNamesById?: Record<string, string>;
+  employeeIdNumbersById?: Record<string, string>;
 };
 
 export function AdvanceCycleModal({
@@ -20,10 +30,38 @@ export function AdvanceCycleModal({
   confirming,
   onClose,
   onConfirm,
+  employeeNamesById = {},
+  employeeIdNumbersById = {},
 }: Props) {
   // Terminal advance (finalization → closed) closes the cycle. The modal
   // covers both cases; the direct Close button keeps its existing behavior.
   const isTerminalAdvance = readiness.nextStage === "closed";
+  const nextAction = cycleNextActionForStages(
+    readiness.currentStage,
+    readiness.nextStage,
+  );
+  const nextActionLabel = cycleNextActionLabel(nextAction);
+  const currentPhase = cyclePhaseForStage(readiness.currentStage);
+  const currentPhaseLabel = currentPhase
+    ? PERFORMANCE_CYCLE_PHASE_LABELS[currentPhase]
+    : (PERFORMANCE_CYCLE_STAGE_LABELS[readiness.currentStage] ??
+      readiness.currentStage);
+  const destinationPhase = cyclePhaseForStage(readiness.nextStage ?? "");
+  const destinationLabel =
+    nextAction.kind === "advance-phase" && destinationPhase
+      ? PERFORMANCE_CYCLE_PHASE_LABELS[destinationPhase]
+      : nextAction.kind === "advance-within" && currentPhase
+        ? PERFORMANCE_CYCLE_PHASE_LABELS[currentPhase]
+        : null;
+  const modalTitle = !readiness.ready
+    ? "This cycle is not ready to advance"
+    : isTerminalAdvance
+      ? "Close this performance cycle?"
+      : nextAction.kind === "advance-phase" && destinationLabel
+        ? `Advance cycle to ${destinationLabel}?`
+        : nextAction.kind === "advance-within" && destinationLabel
+          ? `Advance within ${destinationLabel}?`
+          : "Advance cycle?";
   return (
     <Modal
       onClose={onClose}
@@ -40,9 +78,7 @@ export function AdvanceCycleModal({
               id="advance-cycle-modal-title"
               className="mt-1 font-bricolage text-[20px] font-medium tracking-tight text-ink"
             >
-              {readiness.ready
-                ? "Ready to advance"
-                : "This cycle is not ready to advance"}
+              {modalTitle}
             </h2>
           </div>
           <Tooltip label="Close" side="bottom">
@@ -60,9 +96,36 @@ export function AdvanceCycleModal({
 
         <p className="mt-3 text-[13px] text-muted">{cycle.name}</p>
         <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
-          You are advancing the organization-wide performance cycle.
-          Individual employee records are not automatically changed by this
-          action.
+          {isTerminalAdvance ? (
+            <>
+              This closes the organization-wide performance cycle. Closed is
+              terminal and historical under the existing cycle rules.
+              Individual employee appraisal statuses are managed separately.
+            </>
+          ) : nextAction.kind === "advance-phase" && destinationLabel ? (
+            <>
+              This moves the organization-wide performance cycle from{" "}
+              {currentPhaseLabel} to {destinationLabel}. Individual employee
+              appraisal statuses are managed separately.
+            </>
+          ) : nextAction.kind === "advance-within" && destinationLabel ? (
+            <>
+              This moves the organization-wide performance cycle within{" "}
+              {destinationLabel} (next coordination step:{" "}
+              {readiness.nextStage
+                ? (PERFORMANCE_CYCLE_STAGE_LABELS[readiness.nextStage] ??
+                  readiness.nextStage)
+                : "—"}
+              ). Individual employee appraisal statuses are managed
+              separately.
+            </>
+          ) : (
+            <>
+              You are advancing the organization-wide performance cycle.
+              Individual employee records are not automatically changed by
+              this action.
+            </>
+          )}
         </p>
         {isTerminalAdvance && (
           <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
@@ -94,16 +157,20 @@ export function AdvanceCycleModal({
 
             <dl className="mt-4 flex flex-col gap-2 text-[13px]">
               <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">Current stage</dt>
-                <dd className="font-medium text-ink">
-                  {PERFORMANCE_CYCLE_STAGE_LABELS[readiness.currentStage]}
-                </dd>
+                <dt className="text-muted">Current phase</dt>
+                <dd className="font-medium text-ink">{currentPhaseLabel}</dd>
               </div>
               {readiness.nextStage && (
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-muted">Next stage</dt>
+                  <dt className="text-muted">
+                    {isTerminalAdvance ? "End-state" : "Next phase"}
+                  </dt>
                   <dd className="font-medium text-ink">
-                    {PERFORMANCE_CYCLE_STAGE_LABELS[readiness.nextStage]}
+                    {isTerminalAdvance
+                      ? "Closed (terminal)"
+                      : (destinationLabel ??
+                        PERFORMANCE_CYCLE_STAGE_LABELS[readiness.nextStage] ??
+                        readiness.nextStage)}
                   </dd>
                 </div>
               )}
@@ -170,6 +237,14 @@ export function AdvanceCycleModal({
           </div>
         )}
 
+        <ReviewRecords
+          cycle={cycle}
+          mode="advance"
+          readiness={readiness}
+          employeeNamesById={employeeNamesById}
+          employeeIdNumbersById={employeeIdNumbersById}
+        />
+
         <p className="mt-4 text-[11.5px] text-muted">
           Readiness is based on records currently associated with this cycle.
         </p>
@@ -197,9 +272,7 @@ export function AdvanceCycleModal({
                     : "Advancing..."
                   : isTerminalAdvance
                     ? "Close Cycle"
-                    : readiness.nextStage
-                      ? `Advance to ${PERFORMANCE_CYCLE_STAGE_LABELS[readiness.nextStage]}`
-                      : "Advance"}
+                    : (nextActionLabel ?? "Advance")}
               </button>
             </>
           ) : (

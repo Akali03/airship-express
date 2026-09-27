@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Tooltip } from "@/performance-development-dashboard/components/ui/Tooltip";
 import { Modal } from "@/performance-development-dashboard/components/ui/Modal";
@@ -8,13 +8,17 @@ import type {
   EmployeeOption,
   PerformanceCycle,
 } from "@/performance-development-dashboard/types";
-import { MAX_REVIEW_PERIOD_LENGTH } from "@/performance-development-dashboard/lib/constants";
+import { inferStandardCycleSchedule } from "@/performance-development-dashboard/types";
+import type { PositionAppraisalWeightsItem } from "@/performance-development-dashboard/lib/performance/positionWeights";
+import { formatDateOnly } from "@/performance-development-dashboard/lib/format/date";
 
 type Props = {
   employees: EmployeeOption[];
   cycles: PerformanceCycle[];
   defaultEmployeeId?: string | null;
   submitting: boolean;
+  positionWeights: PositionAppraisalWeightsItem[];
+  positionWeightsError?: string | null;
   onSubmit: (input: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
 };
@@ -24,29 +28,52 @@ export function CreateAppraisalModal({
   cycles,
   defaultEmployeeId,
   submitting,
+  positionWeights,
+  positionWeightsError,
   onSubmit,
   onClose,
 }: Props) {
   const [employeeId, setEmployeeId] = useState(defaultEmployeeId ?? "");
   const [cycleId, setCycleId] = useState("");
-  const [reviewPeriod, setReviewPeriod] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Resolve-preview: the scoring split is snapshotted from the selected
+  // employee's job position at creation. Matched by stable job_position_id
+  // only — never by title, department, or string comparison. The server
+  // remains authoritative and may still reject with its existing 400s.
+  const selectedEmployee = useMemo(
+    () => employees.find((employee) => employee.id === employeeId) ?? null,
+    [employees, employeeId]
+  );
+  const hasPositionId = Boolean(selectedEmployee?.job_position_id);
+  const resolvedWeights = useMemo(() => {
+    if (!selectedEmployee?.job_position_id) return null;
+    return (
+      positionWeights.find(
+        (row) => row.job_position_id === selectedEmployee.job_position_id
+      ) ?? null
+    );
+  }, [positionWeights, selectedEmployee]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError(null);
 
-    const trimmedPeriod = reviewPeriod.trim();
+    // Review period is the authoritative performance-cycle UUID. The cycle
+    // owns name/start/end; the appraisal inherits them server-side. There
+    // are no manually editable review-period dates in this flow.
     if (!employeeId) {
       setFormError("Select the employee being appraised.");
       return;
     }
-    if (!cycleId) {
-      setFormError("Select a performance cycle.");
+    if (cycles.length === 0) {
+      setFormError(
+        "No performance cycles available. Create a cycle first, then create the appraisal."
+      );
       return;
     }
-    if (!trimmedPeriod) {
-      setFormError("Review period is required.");
+    if (!cycleId) {
+      setFormError("Select a review period.");
       return;
     }
 
@@ -54,9 +81,7 @@ export function CreateAppraisalModal({
       await onSubmit({
         employee_id: employeeId,
         cycle_id: cycleId,
-        review_period: trimmedPeriod,
       });
-      setReviewPeriod("");
       setCycleId("");
       if (defaultEmployeeId) setEmployeeId(defaultEmployeeId);
     } catch (err) {
@@ -128,7 +153,7 @@ export function CreateAppraisalModal({
               htmlFor="appraisal-cycle"
               className="mb-1.5 block text-[12.5px] font-medium text-ink"
             >
-              Performance Cycle
+              Review period
             </label>
             <select
               id="appraisal-cycle"
@@ -137,45 +162,93 @@ export function CreateAppraisalModal({
               disabled={submitting}
               className="w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-[13.5px] text-ink outline-none transition-colors focus:border-accent disabled:opacity-50 dark:border-paper/15"
             >
-              <option value="">Select cycle</option>
-              {cycles.map((cycle) => (
-                <option key={cycle.id} value={cycle.id}>
-                  {cycle.name}
-                  {cycle.status ? ` (${cycle.status})` : ""}
-                </option>
-              ))}
+              <option value="">Select review period</option>
+              {cycles.map((cycle) => {
+                // Descriptive name first, then the inferred canonical period
+                // label when the stored dates match a standard schedule.
+                // Historical/custom ranges show name + dates only. The
+                // submitted value stays the cycle UUID.
+                const schedule = inferStandardCycleSchedule(
+                  cycle.period_start,
+                  cycle.period_end
+                );
+                return (
+                  <option key={cycle.id} value={cycle.id}>
+                    {cycle.name} —{" "}
+                    {schedule ? `${schedule.label} · ` : ""}
+                    {formatDateOnly(cycle.period_start)} to{" "}
+                    {formatDateOnly(cycle.period_end)}
+                    {cycle.status ? ` (${cycle.status})` : ""}
+                  </option>
+                );
+              })}
             </select>
             <p className="mt-1 text-[11px] text-muted">
-              The cycle this appraisal belongs to. Only active cycles are shown.
+              The appraisal inherits the selected cycle&apos;s name and dates.
+              Draft cycles are supported — creating an appraisal never opens
+              or releases the cycle.
             </p>
           </div>
 
-          <div>
-            <label
-              htmlFor="appraisal-review-period"
-              className="mb-1.5 block text-[12.5px] font-medium text-ink"
+          {selectedEmployee && (
+            <div
+              aria-live="polite"
+              className="rounded-xl border border-line bg-accent/[0.04] px-4 py-3 dark:border-paper/15"
             >
-              Review period
-            </label>
-            <input
-              id="appraisal-review-period"
-              type="text"
-              value={reviewPeriod}
-              onChange={(e) => setReviewPeriod(e.target.value)}
-              maxLength={MAX_REVIEW_PERIOD_LENGTH}
-              placeholder="e.g. Q3-2026"
-              className="w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-[13.5px] text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-accent dark:border-paper/15"
-            />
-            <p className="mt-1 flex items-center justify-between text-[11px] text-muted">
-              <span>
-                The appraisal starts at Self Assessment. The employee can then
-                complete and submit their self-assessment.
-              </span>
-              <span className="tabular-nums">
-                {reviewPeriod.length}/{MAX_REVIEW_PERIOD_LENGTH}
-              </span>
-            </p>
-          </div>
+              {hasPositionId ? (
+                <>
+                  <p className="text-[12.5px] text-ink">
+                    Position:{" "}
+                    <span className="font-medium">
+                      {selectedEmployee.position ??
+                        "Assigned (title unavailable)"}
+                    </span>
+                  </p>
+                  {selectedEmployee.department && (
+                    <p className="mt-0.5 text-[12px] text-muted">
+                      Department: {selectedEmployee.department}
+                    </p>
+                  )}
+                  {resolvedWeights ? (
+                    <p className="mt-1 text-[12px] tabular-nums text-muted">
+                      Scoring split that will be snapshotted: Goals{" "}
+                      {resolvedWeights.goal_weight}% · Competencies{" "}
+                      {resolvedWeights.competency_weight}%
+                    </p>
+                  ) : positionWeightsError ? (
+                    <p className="mt-1 text-[12px] text-muted">
+                      Could not load position weights ({positionWeightsError}).
+                      Creation may fail if this position has no configuration.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[12px] font-medium text-amber-600">
+                      No Goals/Competencies weight configuration
+                      {selectedEmployee.position
+                        ? ` for ${selectedEmployee.position}`
+                        : ""}
+                      . Configure it in Competencies → Position Weights before
+                      creating — otherwise creation will be rejected.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-[12.5px] font-medium text-amber-600">
+                    No job position assigned to this employee.
+                  </p>
+                  {selectedEmployee.department && (
+                    <p className="mt-0.5 text-[12px] text-muted">
+                      Department: {selectedEmployee.department} (department is
+                      not a job position)
+                    </p>
+                  )}
+                  <p className="mt-1 text-[12px] text-muted">
+                    Assign a job position in HR1 before creating an appraisal.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
           {formError && (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">

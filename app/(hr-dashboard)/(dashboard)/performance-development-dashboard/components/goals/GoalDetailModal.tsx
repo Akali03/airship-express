@@ -296,13 +296,37 @@ export function GoalDetailModal({
     goal.status !== "completed" &&
     onUploadEvidence !== undefined;
 
-  useEffect(() => {
+  /**
+   * Keep the draft inputs aligned with the displayed goal (React "adjust
+   * state during render" pattern): when a different goal is shown, or the
+   * goal's server values change after a save, the drafts reset to the new
+   * values. User typing never triggers a reset because typing does not
+   * change the goal values. Converges immediately: each assignment makes
+   * its own condition false on the re-render.
+   */
+  const [progressSync, setProgressSync] = useState({
+    id: goal.id,
+    progress: goal.progress_percent ?? 0,
+  });
+  if (
+    progressSync.id !== goal.id ||
+    progressSync.progress !== (goal.progress_percent ?? 0)
+  ) {
+    setProgressSync({ id: goal.id, progress: goal.progress_percent ?? 0 });
     setProgressInput(goal.progress_percent ?? 0);
-  }, [goal.id, goal.progress_percent]);
+  }
 
-  useEffect(() => {
+  const [actualSync, setActualSync] = useState({
+    id: goal.id,
+    actual: goal.actual_value ?? null,
+  });
+  if (
+    actualSync.id !== goal.id ||
+    actualSync.actual !== (goal.actual_value ?? null)
+  ) {
+    setActualSync({ id: goal.id, actual: goal.actual_value ?? null });
     setActualInput(goal.actual_value != null ? String(goal.actual_value) : "");
-  }, [goal.id, goal.actual_value]);
+  }
 
   const isMeasurable = (goal.progress_method ?? "manual") === "measurable";
 

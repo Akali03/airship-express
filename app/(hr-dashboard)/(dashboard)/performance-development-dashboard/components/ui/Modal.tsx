@@ -94,6 +94,10 @@ export function Modal({
     if (event.key === "Escape") {
       if (onClose && !closeDisabled) {
         event.preventDefault();
+        // Nested-dialog support (e.g. a read-only appraisal detail opened
+        // from inside a confirmation): the innermost dialog consumes Escape
+        // so closing it never also closes the still-open outer dialog.
+        event.stopPropagation();
         onClose();
       }
       return;
@@ -116,10 +120,14 @@ export function Modal({
     if (event.shiftKey) {
       if (active === first || !container.contains(active)) {
         event.preventDefault();
+        // Keep the focus wrap inside this dialog when nested.
+        event.stopPropagation();
         last.focus();
       }
     } else if (active === last || !container.contains(active)) {
       event.preventDefault();
+      // Keep the focus wrap inside this dialog when nested.
+      event.stopPropagation();
       first.focus();
     }
   }

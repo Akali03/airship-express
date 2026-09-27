@@ -8,6 +8,7 @@ import type {
   EmployeeCompetencyAssessmentInput,
   EmployeeCompetencyProfileItem,
   EmployeeOption,
+  PositionOption,
 } from "@/performance-development-dashboard/types";
 import { Modal } from "@/performance-development-dashboard/components/ui/Modal";
 import {
@@ -23,10 +24,13 @@ type Props = {
   competencies: Competency[];
   /**
    * The employee competency PROFILE already loaded by the page (latest
-   * assessment row per employee + competency). Used to pre-fill Current Level
-   * with the employee's latest stored level — no extra API call.
+   * assessment row per employee + competency, unioned with position
+   * requirements). Used to pre-fill Assessed Level with the employee's
+   * latest stored level and to show assessment context — no extra API call.
    */
   profile: EmployeeCompetencyProfileItem[];
+  positions: PositionOption[];
+  employeePositionById: Record<string, string | null>;
   defaultEmployeeId: string;
   submitting: boolean;
   onSubmit: (input: EmployeeCompetencyAssessmentInput) => Promise<void>;
@@ -37,6 +41,8 @@ export function AssessEmployeeModal({
   employees,
   competencies,
   profile,
+  positions,
+  employeePositionById,
   defaultEmployeeId,
   submitting,
   onSubmit,
@@ -51,7 +57,8 @@ export function AssessEmployeeModal({
   /**
    * Latest stored `current_level` for the given employee + competency from the
    * existing profile (already resolved server-side as the latest assessment
-   * row). Empty when there is no prior record — no fake default.
+   * row). Empty when there is no prior record — no fake default. A profile
+   * item with a null level is a never-assessed union entry, never a number.
    */
   function latestStoredLevelFor(
     employee: string,
@@ -62,8 +69,25 @@ export function AssessEmployeeModal({
       (item) =>
         item.employee_id === employee && item.competency_id === competency
     );
-    return latest ? String(latest.current_level) : "";
+    if (!latest || latest.current_level === null) return "";
+    return String(latest.current_level);
   }
+
+  // Assessment context shown before submission: the employee's established
+  // Current Level (or Not Assessed) and the position requirement target.
+  // Recording an assessment never edits the Required Level configuration.
+  const contextEmployee = employees.find((e) => e.id === employeeId) ?? null;
+  const contextPositionTitle =
+    positions.find((p) => p.id === (employeePositionById[employeeId] ?? ""))?.title ??
+    null;
+  const contextCompetency =
+    competencies.find((c) => c.id === competencyId) ?? null;
+  const contextProfileItem = profile.find(
+    (item) => item.employee_id === employeeId && item.competency_id === competencyId
+  );
+  const contextCurrentLevel = contextProfileItem?.current_level ?? null;
+  const contextPositionRequired =
+    contextProfileItem?.position_required_level ?? null;
 
   function parseLevel(value: string): number | null {
     if (!value) return null;
@@ -195,9 +219,48 @@ export function AssessEmployeeModal({
             </PerformanceSelect>
           </PerformanceField>
 
+          {(employeeId || competencyId) && (
+            <div className="rounded-xl border border-line bg-paper px-4 py-3 dark:border-paper/10">
+              <dl className="grid gap-x-4 gap-y-1.5 text-[12.5px] sm:grid-cols-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt className="text-muted">Employee</dt>
+                  <dd className="truncate font-medium text-ink">
+                    {contextEmployee?.name ?? "—"}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt className="text-muted">Position</dt>
+                  <dd className="truncate font-medium text-ink">
+                    {contextPositionTitle ?? "—"}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt className="text-muted">Competency</dt>
+                  <dd className="truncate font-medium text-ink">
+                    {contextCompetency?.name ?? "—"}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt className="text-muted">Current Level</dt>
+                  <dd className="font-medium tabular-nums text-ink">
+                    {contextCurrentLevel === null ? "Not Assessed" : contextCurrentLevel}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-2 sm:col-span-2">
+                  <dt className="text-muted">Position Required Level</dt>
+                  <dd className="font-medium tabular-nums text-ink">
+                    {contextPositionRequired === null
+                      ? "No position target"
+                      : `Level ${contextPositionRequired}`}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          )}
+
           <div className="grid gap-5 sm:grid-cols-2">
             <PerformanceField
-              label="Current level"
+              label="Assessed Level"
               htmlFor="assessment-current"
             >
               <PerformanceTextInput
@@ -213,7 +276,7 @@ export function AssessEmployeeModal({
             </PerformanceField>
 
             <PerformanceField
-              label="Required level"
+              label="Assessment-specific Required Level (optional)"
               htmlFor="assessment-required"
               optional
             >
@@ -230,6 +293,12 @@ export function AssessEmployeeModal({
               />
             </PerformanceField>
           </div>
+          <p className="-mt-2 text-[11.5px] leading-relaxed text-muted">
+            This assessment will become the employee&apos;s latest Current
+            Level. An assessment-specific Required Level overrides the
+            position requirement for that assessment/profile calculation only
+            — leaving it empty keeps the position standard.
+          </p>
 
           <p className="text-[11.5px] leading-relaxed text-muted">
             Current level is pre-filled from the employee&apos;s latest recorded

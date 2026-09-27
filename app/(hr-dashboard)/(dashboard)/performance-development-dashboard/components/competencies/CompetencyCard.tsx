@@ -76,6 +76,14 @@ export function CompetencyCard({
         <PerformanceStatusBadge tone={categoryTone} className="shrink-0">
           {categoryLabel}
         </PerformanceStatusBadge>
+        {competency.is_active === false && (
+          <PerformanceStatusBadge
+            tone="bg-line text-muted"
+            className="shrink-0"
+          >
+            Inactive
+          </PerformanceStatusBadge>
+        )}
       </div>
 
       {competency.description ? (

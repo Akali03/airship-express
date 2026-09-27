@@ -82,9 +82,12 @@ import type { PerDevActor } from "@/performance-development-dashboard/lib/auth/a
   *   feedback.requested            employee requested feedback from a peer/manager
   *   feedback.responded            recipient fulfilled a feedback request
   *   feedback.declined             recipient declined a feedback request
-  *   development_plan_item.created development plan item added to an appraisal
-  *   development_plan_item.updated development plan item fields edited
-  *   development_plan_item.deleted development plan item removed
+ *   development_plan_item.created development plan item added to an appraisal
+ *   development_plan_item.updated development plan item fields edited
+ *   development_plan_item.deleted development plan item removed
+ *   development_plan_item.follow_through employee advanced a finalized
+ *     development action one forward step (not_started → in_progress →
+ *     completed); content (action/target/owner/appraisal) never changes
   *
  * Recognition is create-only (historical record; schema has no updated_at or
  * status columns), so no recognition.update/approve/reject events exist. Badge
@@ -165,6 +168,10 @@ export const PERFORMANCE_AUDIT_REASON = {
   competencyUpdated: "competency.updated",
   positionCompetencyCreated: "position_competency.created",
   positionCompetencyUpdated: "position_competency.updated",
+  positionAppraisalWeightsCreated: "position_appraisal_weights.created",
+  positionAppraisalWeightsUpdated: "position_appraisal_weights.updated",
+  competencyApplicabilityCreated: "competency_applicability.created",
+  competencyApplicabilityDeleted: "competency_applicability.deleted",
   employeeCompetencyAssessed: "employee_competency.assessed",
   courseCreated: "course.created",
   courseUpdated: "course.updated",
@@ -195,6 +202,7 @@ export const PERFORMANCE_AUDIT_REASON = {
   devPlanItemCreated: "development_plan_item.created",
   devPlanItemUpdated: "development_plan_item.updated",
   devPlanItemDeleted: "development_plan_item.deleted",
+  devPlanItemFollowThrough: "development_plan_item.follow_through",
 } as const;
 
 export type PerformanceAuditReason =
@@ -208,6 +216,8 @@ export const PERFORMANCE_AUDIT_ENTITY_TYPE = {
   performanceCycle: "performance_cycle",
   competency: "competency",
   positionCompetency: "position_competency",
+  positionAppraisalWeights: "position_appraisal_weights",
+  competencyApplicability: "competency_applicability",
   employeeCompetency: "employee_competency",
   course: "course",
   courseEnrollment: "course_enrollment",

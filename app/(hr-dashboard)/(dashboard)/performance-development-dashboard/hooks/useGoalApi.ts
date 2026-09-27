@@ -40,8 +40,13 @@ export function useGoalApi() {
   );
 
   const create = useCallback(
-    (input: GoalCreateInput) =>
-      request(GOALS_API, "POST", input) as Promise<PerformanceGoal>,
+    (input: GoalCreateInput, params?: Record<string, string>) => {
+      const url =
+        params && Object.keys(params).length > 0
+          ? `${GOALS_API}?${new URLSearchParams(params).toString()}`
+          : GOALS_API;
+      return request(url, "POST", input) as Promise<PerformanceGoal>;
+    },
     [request]
   );
 

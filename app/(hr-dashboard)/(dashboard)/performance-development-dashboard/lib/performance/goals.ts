@@ -710,33 +710,6 @@ function requireWeight(value: unknown): number | null | NextResponse {
   return numeric;
 }
 
-async function requireExistingEmployeeId(
-  value: unknown
-): Promise<string | NextResponse> {
-  const id = requireValidUuid(value, "employee_id");
-  if (id instanceof NextResponse) return id;
-
-  const { data, error } = await supabaseAdmin
-    .from("hr1_employees")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (error) {
-    console.error("requireExistingEmployeeId: query error:", error);
-    return NextResponse.json(
-      { error: "Failed to validate employee" },
-      { status: 500 }
-    );
-  }
-
-  if (!data) {
-    return BAD_REQUEST_RESPONSE("employee_id does not reference an existing employee.");
-  }
-
-  return id;
-}
-
 async function requireExistingCycleId(
   value: unknown
 ): Promise<string | NextResponse> {
@@ -781,9 +754,14 @@ async function requireExistingCycleId(
  *   OR
  *
  *   B. An appraisal exists for that employee matching the cycle where:
- *      - status is `finalized` or `acknowledged`, OR
+ *      - status is `finalized` (terminal immutable record), OR
  *      - status is `manager_assessment` AND persisted goal/competency result
  *        rows exist (meaning the manager has already submitted).
+ *
+ * Acknowledged-but-unfinalized appraisals fall through to the results
+ * check: with submitted results present they still lock (assessment
+ * content must not shift under review); legacy acknowledged records are
+ * finalized and lock via the first branch.
  *
  * Matching semantics follow `loadApplicableGoals` in appraisals.ts:
  *   - appraisal.cycle_id IS NULL matches all goals for the employee.
@@ -849,11 +827,12 @@ async function assertGoalPlanEditable({
   });
 
   for (const appraisal of matchingAppraisals) {
-    // Finalized or acknowledged → blocked
-    if (
-      appraisal.status === "finalized" ||
-      appraisal.status === "acknowledged"
-    ) {
+    // Finalized → blocked (terminal immutable record). Acknowledged records
+    // are covered by status only when finalized; pre-finalize
+    // acknowledgment is covered by the persisted-results check below, and
+    // legacy acknowledged records (finalized before acknowledgment) always
+    // carry submitted results.
+    if (appraisal.status === "finalized") {
       return CONFLICT_RESPONSE(
         "The related appraisal has been finalized or acknowledged. Goal plan changes are not allowed."
       );
@@ -1375,6 +1354,34 @@ export async function createPerformanceGoal(
     return FORBIDDEN_RESPONSE();
   }
 
+  /**
+   * Department-scoped creation (HR Department tab sends scope=department
+   * with a department value; see the POST route, which forwards query params
+   * into the input). The assignee must belong to the named department —
+   * verified server-side against hr1_employees membership, never trusted
+   * from the client roster. Organization scope (absent scope) keeps HR-wide
+   * assignment to any active employee. Manager scope above still applies
+   * first, so managers can never widen beyond self + direct reports.
+   */
+  const creationScope = requireGoalScope(input?.scope);
+  if (creationScope instanceof NextResponse) return creationScope;
+  if (creationScope === "department") {
+    const explicitDepartment = requireDepartmentName(input?.department);
+    if (explicitDepartment instanceof NextResponse) return explicitDepartment;
+    if (explicitDepartment === null) {
+      return BAD_REQUEST_RESPONSE(
+        "department is required when scope is department."
+      );
+    }
+    const memberIds = await loadEmployeeIdsInDepartment(
+      normalizeDepartmentName(explicitDepartment)
+    );
+    if (memberIds instanceof NextResponse) return memberIds;
+    if (!memberIds.includes(employeeId)) {
+      return FORBIDDEN_RESPONSE();
+    }
+  }
+
   let roleId: string | null = null;
   if (input?.role_id !== undefined && input?.role_id !== null) {
     const parsedRoleId = await requireExistingRoleId(input.role_id);
@@ -1766,7 +1773,10 @@ export async function updatePerformanceGoal(
   }
 
   if ("employee_id" in input) {
-    const employeeId = await requireExistingEmployeeId(input.employee_id);
+    // Reassignment follows the same active-employee requirement as creation:
+    // the new owner must be an existing ACTIVE employee. Historical reads of
+    // goals owned by inactive employees are unaffected.
+    const employeeId = await requireActiveEmployeeId(input.employee_id, "employee_id");
     if (employeeId instanceof NextResponse) return employeeId;
 
     // Manager IDOR: the new employee must be within the manager's scope
@@ -2000,16 +2010,25 @@ export async function updateGoalProgress(
   const identity = await requireHrEmployee();
   if (identity instanceof NextResponse) return identity;
 
-  if (identity.accountType === "manager") {
-    const scopedIds = await resolveManagerScopedEmployeeIds(
-      identity.employeeUuid
-    );
-    if (!isGoalInManagerScope(existing.employee_id, scopedIds)) {
-      return FORBIDDEN_RESPONSE();
-    }
-  } else {
-    if (existing.employee_id !== identity.employeeUuid) {
-      return FORBIDDEN_RESPONSE();
+  // PerDev HR Admin manages goals org-wide, so the dedicated progress
+  // endpoint accepts HR progress updates on any goal (including another
+  // employee's). Manager/employee ownership restrictions below are unchanged.
+  const isHrAdminForProgress =
+    identity.accountType === "hr_admin" &&
+    isPerDevHrAdminRole(identity.role);
+
+  if (!isHrAdminForProgress) {
+    if (identity.accountType === "manager") {
+      const scopedIds = await resolveManagerScopedEmployeeIds(
+        identity.employeeUuid
+      );
+      if (!isGoalInManagerScope(existing.employee_id, scopedIds)) {
+        return FORBIDDEN_RESPONSE();
+      }
+    } else {
+      if (existing.employee_id !== identity.employeeUuid) {
+        return FORBIDDEN_RESPONSE();
+      }
     }
   }
 

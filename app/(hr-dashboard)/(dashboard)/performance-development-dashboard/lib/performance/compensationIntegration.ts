@@ -15,8 +15,11 @@ import { requireValidUuid } from "@/performance-development-dashboard/lib/perfor
  * no writes of any kind, and modifies no Compensation/HR2/HR1 behavior.
  * External Compensation code is never imported.
  *
- * AUTHORITY RULE: only appraisals with status "finalized" or
- * "acknowledged" are eligible. Pre-finalization rows are excluded
+ * AUTHORITY RULE: only finalized appraisals are eligible, witnessed by
+ * `finalized_at` (set exactly once at finalization, never cleared).
+ * Acknowledged-but-unfinalized records are still in flight and are skipped
+ * without counting as excluded; legacy acknowledged records carry
+ * `finalized_at` and remain eligible. Pre-finalization rows are excluded
  * server-side. No synthetic fallback is ever constructed — goal averages,
  * competency averages, partial ratings, and other substitutes are not
  * authoritative and are not computed here.
@@ -176,6 +179,12 @@ export async function listFinalizedAppraisalsForCompensation(
     finalized_at: unknown;
     status: unknown;
   }[]) {
+    // Completion is witnessed by `finalized_at`: acknowledged-but-
+    // unfinalized records are in flight — skip silently (they are neither
+    // eligible nor invalid).
+    if (typeof row.finalized_at !== "string" || row.finalized_at === "") {
+      continue;
+    }
     const finalScore = toFiniteNumber(row.final_score);
     const bandRank = toFiniteNumber(row.performance_rating);
 

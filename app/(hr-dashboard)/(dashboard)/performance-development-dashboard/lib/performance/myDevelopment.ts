@@ -19,8 +19,9 @@
  * Included sources (all read-only; zero writes, zero audit rows):
  * - Development Actions: own `hr3_performance_development_plan_items` rows
  *   reached per-appraisal through the scoped `listDevPlanItems` (which
- *   re-authorizes each appraisal), restricted to `finalized`/`acknowledged`
- *   appraisals so in-flight appraisal work never leaks into history.
+ *   re-authorizes each appraisal), restricted to finalized appraisals
+ *   (`finalized_at` set) so in-flight appraisal work never leaks into
+ *   history.
  * - Competencies: own profile via `listEmployeeCompetencies` (gap/required
  *   levels as computed by the existing model; nothing invented).
  * - Learning: own enrollments via the dual-mode L&D loaders (self-scope
@@ -61,9 +62,6 @@ import type {
   MyDevelopmentData,
   MyDevelopmentTrainingEnrollment,
 } from "@/performance-development-dashboard/types";
-
-/** Appraisal lifecycle states whose development actions count as history. */
-const HISTORICAL_APPRAISAL_STATUSES = ["finalized", "acknowledged"] as const;
 
 export async function getMyDevelopment(): Promise<
   MyDevelopmentData | NextResponse
@@ -129,6 +127,10 @@ export async function getMyDevelopment(): Promise<
   // Narrow types after the guard. The appraisals list is scope-filtered by
   // role upstream, but the employee branch also returns rows where the actor
   // is evaluator — restrict to OWN rows here, then to finalized history.
+  // Finalization is detected via `finalized_at` (set exactly once at
+  // finalization, never cleared): legacy acknowledged records carry it and
+  // stay included, while acknowledged-but-unfinalized records stay excluded
+  // until HR finalizes.
   const ownHistoricalAppraisals = (
     appraisalsResult as Awaited<ReturnType<typeof listAppraisals>> as Array<{
       id: string;
@@ -136,13 +138,12 @@ export async function getMyDevelopment(): Promise<
       review_period: string;
       status: string;
       cycle_id: string | null;
+      finalized_at: string | null;
     }>
   ).filter(
     (appraisal) =>
       appraisal.employee_id === subjectId &&
-      (
-        HISTORICAL_APPRAISAL_STATUSES as readonly string[]
-      ).includes(appraisal.status),
+      appraisal.finalized_at !== null,
   );
 
   // Cycle names for the action source context (read-only lookup, own cycles
@@ -173,7 +174,7 @@ export async function getMyDevelopment(): Promise<
   }
 
   // Per-appraisal scoped reads; each call re-authorizes the appraisal, and
-  // every appraisal here is already own + finalized/acknowledged.
+  // every appraisal here is already own + finalized.
   const actionLists = await Promise.all(
     ownHistoricalAppraisals.map((appraisal) =>
       listDevPlanItems(appraisal.id),

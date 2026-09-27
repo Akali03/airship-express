@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, FileText, X } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, X } from "lucide-react";
 import { Modal } from "@/performance-development-dashboard/components/ui/Modal";
 import { Tooltip } from "@/performance-development-dashboard/components/ui/Tooltip";
 import {
@@ -13,7 +13,7 @@ import { cn } from "@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/
 const VERIFY_EXPORT_API =
   "/performance-development-dashboard/api/performance/reports/verify-export";
 
-export type ExportFormat = "pdf" | "csv";
+export type ExportFormat = "pdf" | "csv" | "excel";
 
 type Props = {
   onClose: () => void;
@@ -23,12 +23,14 @@ type Props = {
 type Step = "format" | "password";
 
 function formatLabel(format: ExportFormat): string {
-  return format === "pdf" ? "PDF file" : "CSV file";
+  if (format === "pdf") return "PDF file";
+  if (format === "csv") return "CSV file";
+  return "Excel file";
 }
 
 /**
  * Two-step export dialog for Reports & Analytics: the user first picks a
- * format (PDF or CSV), then confirms their password. The password is verified
+ * format (PDF, CSV, or Excel), then confirms their password. The password is verified
  * against the authenticated account through the PerDev verify-export endpoint,
  * which resolves the identity server-side from the session. The password is
  * only held in local state for the duration of this dialog, never stored,
@@ -42,11 +44,12 @@ export function ExportReportModal({ onClose, onExport }: Props) {
   const [error, setError] = useState<string | null>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
   const csvRef = useRef<HTMLInputElement>(null);
+  const excelRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (step === "format") {
-      (format === "pdf" ? pdfRef : csvRef).current?.focus();
+      (format === "pdf" ? pdfRef : format === "csv" ? csvRef : excelRef).current?.focus();
     } else {
       passwordRef.current?.focus();
     }
@@ -177,7 +180,7 @@ export function ExportReportModal({ onClose, onExport }: Props) {
           {step === "format" ? (
             <fieldset>
               <legend className="sr-only">Export format</legend>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <label
                   htmlFor="export-format-pdf"
                   className={cn(
@@ -275,6 +278,56 @@ export function ExportReportModal({ onClose, onExport }: Props) {
                   </span>
                   <span className="mt-0.5 text-[11.5px] leading-snug text-muted">
                     Spreadsheet data downloaded as a .csv file
+                  </span>
+                </label>
+
+                <label
+                  htmlFor="export-format-excel"
+                  className={cn(
+                    "flex cursor-pointer flex-col rounded-xl border px-4 py-3 transition-colors hover:border-accent/50 focus-within:border-accent",
+                    format === "excel"
+                      ? "border-accent bg-accent/[0.06]"
+                      : "border-line dark:border-paper/15",
+                  )}
+                >
+                  <input
+                    id="export-format-excel"
+                    ref={excelRef}
+                    type="radio"
+                    name="export-format"
+                    value="excel"
+                    checked={format === "excel"}
+                    onChange={() => setFormat("excel")}
+                    className="sr-only"
+                  />
+                  <span className="flex items-center justify-between">
+                    <FileSpreadsheet
+                      size={18}
+                      strokeWidth={1.75}
+                      className={format === "excel" ? "text-accent" : "text-muted"}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded-full border-2",
+                        format === "excel" ? "border-accent" : "border-line",
+                      )}
+                    >
+                      {format === "excel" && (
+                        <span className="h-2 w-2 rounded-full bg-accent" />
+                      )}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-2.5 text-[13.5px] font-semibold",
+                      format === "excel" ? "text-ink" : "text-muted",
+                    )}
+                  >
+                    Excel
+                  </span>
+                  <span className="mt-0.5 text-[11.5px] leading-snug text-muted">
+                    Spreadsheet data downloaded as a .xlsx file
                   </span>
                 </label>
               </div>

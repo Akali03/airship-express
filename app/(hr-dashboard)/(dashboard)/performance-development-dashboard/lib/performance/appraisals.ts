@@ -24,6 +24,7 @@ import {
   BAD_REQUEST_RESPONSE,
   FORBIDDEN_RESPONSE,
   requireActiveEmployeeId,
+  requireNonEmptyText,
   requireValidUuid,
 } from "@/performance-development-dashboard/lib/performance/validation";
 import {
@@ -31,6 +32,7 @@ import {
   type CreatePerDevNotificationInput,
 } from "@/performance-development-dashboard/lib/performance/notifications";
 import { rejectIfDraftCycle } from "@/performance-development-dashboard/lib/performance/cycles";
+import { getWeightsForPosition } from "@/performance-development-dashboard/lib/performance/positionWeights";
 import {
   MAX_APPRAISAL_TEXT_LENGTH,
   MAX_REVIEW_PERIOD_LENGTH,
@@ -38,15 +40,21 @@ import {
 import {
   calculateScoring,
   isScoreRating,
+  isWeightedGoalWeight,
+  LEGACY_SCORING_COMPONENT_WEIGHTS,
+  partitionGoalsByWeight,
+  resolveComponentWeights,
   roundScore,
   SCORING_RATING_MAX,
   SCORING_RATING_MIN,
+  sumWeightedGoalWeights,
 } from "@/performance-development-dashboard/lib/performance/scoring";
 import {
   performanceRatingBandFromRank,
   type AppraisalCompetencyResult,
   type AppraisalGoalResult,
   type AppraisalScoringInputs,
+  type AppraisalScoringWeights,
   type AppraisalStatus,
   type PerformanceAppraisal,
 } from "@/performance-development-dashboard/types";
@@ -60,7 +68,13 @@ import {
  *
  * WORKFLOW (state-controlled via the existing `status` column):
  *
- *   draft ──► self_assessment ──► manager_assessment ──► finalized ──► acknowledged
+ *   draft ──► self_assessment ──► manager_assessment ──► acknowledged ──► finalized
+ *
+ * New appraisals are created as `draft`; the HR reviewer releases them with
+ * start-self-assessment. The employee acknowledges the submitted manager
+ * assessment BEFORE HR finalization; `finalized` is the terminal immutable
+ * state. An explicit HR override may finalize a submitted-but-unacknowledged
+ * manager assessment with a recorded reason (no separate status).
  *
  * The live `status` column is an unconstrained varchar (verified live: default
  * 'draft'; an inherited legacy row stores 'reviewed'). The status values above
@@ -116,7 +130,7 @@ import {
  */
 
 const APPRAISAL_SELECT =
-  "id, employee_id, reviewer_id, review_period, status, comments, strengths, improvements, created_at, updated_at, finalized_at, acknowledged_at, reviewer_hr_admin_id, cycle_id, final_score, performance_rating, evaluator_id, applicable_goal_ids_snapshot, applicable_competency_ids_snapshot";
+  "id, employee_id, reviewer_id, review_period, status, comments, strengths, improvements, created_at, updated_at, finalized_at, acknowledged_at, reviewer_hr_admin_id, cycle_id, final_score, performance_rating, evaluator_id, applicable_goal_ids_snapshot, applicable_competency_ids_snapshot, snapshot_job_position_id, snapshot_job_position_name, snapshot_goal_weight, snapshot_competency_weight, snapshot_department";
 
 const GOAL_RESULT_SELECT = "id, appraisal_id, goal_id, rating, created_at";
 const COMPETENCY_RESULT_SELECT =
@@ -126,6 +140,17 @@ export type ListAppraisalsQuery = Record<string, unknown>;
 export type CreateAppraisalInput = Record<string, unknown>;
 export type SubmitSelfAssessmentInput = Record<string, unknown>;
 export type SubmitManagerAssessmentInput = Record<string, unknown>;
+/**
+ * Optional input for HR finalization. Normal finalization requires an
+ * acknowledged appraisal and ignores these fields. The administrative
+ * override finalizes a submitted-but-unacknowledged manager assessment:
+ * `override_acknowledgment` must be exactly `true` and `override_reason`
+ * a non-empty reason recorded in the audit trail.
+ */
+export type FinalizeAppraisalInput = {
+  override_acknowledgment?: boolean;
+  override_reason?: string | null;
+};
 
 const APPRAISAL_NOT_FOUND_RESPONSE = () =>
   NextResponse.json(
@@ -385,6 +410,7 @@ async function loadScoringResults(appraisalId: string): Promise<{
 type ApplicableGoalRow = {
   id: string;
   title: string;
+  description: string | null;
   weight: number | null;
   status: string;
   progress_percent: number | null;
@@ -424,8 +450,11 @@ function scoringGoalMeasurementContext(goal: ApplicableGoalRow): {
  * to the appraisal cycle when one is set (`cycle_id`). Only OFFICIAL goals
  * (`approval_status = 'approved'`) are applicable: draft, pending, returned,
  * and rejected employee proposals never enter appraisal scoring or snapshots.
- * These are the goals that must all be rated and whose weights must total
- * exactly 100%.
+ *
+ * Weight partition (shared `partitionGoalsByWeight` rule): goals with a
+ * valid positive weight are quantitative KPIs that must all be rated and
+ * whose weights must total exactly 100%; NULL-weight goals are qualitative /
+ * developmental — visible everywhere, scored nowhere, never converted to 0.
  */
 async function loadApplicableGoals(
   employeeId: string,
@@ -434,7 +463,7 @@ async function loadApplicableGoals(
   let query = supabaseAdmin
     .from("hr3_performance_goals")
     .select(
-      "id, title, weight, status, progress_percent, progress_method, measurement_type, target_value, actual_value, measurement_unit"
+      "id, title, description, weight, status, progress_percent, progress_method, measurement_type, target_value, actual_value, measurement_unit"
     )
     .eq("employee_id", employeeId)
     .eq("approval_status", "approved");
@@ -1278,9 +1307,39 @@ export async function getAppraisal(
 }
 
 /**
+ * Resolves the Goals-vs-Competencies scoring composition for an appraisal
+ * as fractions summing to 1. Frozen position-weight snapshots win; legacy
+ * records without snapshots (NULL) continue on the 60/40 standard; corrupt
+ * snapshot values fail closed to the standard rather than inventing a mix.
+ * The SAME helper feeds manager validation, live preview (via scoring
+ * inputs), and finalization, so the three can never disagree.
+ */
+function resolveAppraisalScoringWeights(appraisal: {
+  snapshot_goal_weight: unknown;
+  snapshot_competency_weight: unknown;
+}): AppraisalScoringWeights {
+  const rawGoal = appraisal.snapshot_goal_weight;
+  const rawCompetency = appraisal.snapshot_competency_weight;
+  const goal =
+    rawGoal === null || rawGoal === undefined ? NaN : Number(rawGoal);
+  const competency =
+    rawCompetency === null || rawCompetency === undefined
+      ? NaN
+      : Number(rawCompetency);
+  if (Number.isFinite(goal) && Number.isFinite(competency)) {
+    const resolved = resolveComponentWeights({
+      goalWeight: goal / 100,
+      competencyWeight: competency / 100,
+    });
+    if (typeof resolved !== "string") return resolved;
+  }
+  return { ...LEGACY_SCORING_COMPONENT_WEIGHTS };
+}
+
+/**
  * Returns the scoring inventory a reviewer needs to fill in before
- * finalization: the applicable goals (with weights), the applicable
- * competencies, and any ratings already persisted for this appraisal.
+ * finalization: the applicable goals (with their weights) and applicable
+ * competencies, plus any ratings already persisted for this appraisal.
  *
  * Authorized for: the HR Admin reviewer OR the assigned evaluator.
  */
@@ -1332,7 +1391,7 @@ export async function getAppraisalScoringInputs(
       const { data: goalRows, error: goalRowsError } = await supabaseAdmin
         .from("hr3_performance_goals")
         .select(
-          "id, title, weight, status, progress_percent, progress_method, measurement_type, target_value, actual_value, measurement_unit"
+          "id, title, description, weight, status, progress_percent, progress_method, measurement_type, target_value, actual_value, measurement_unit"
         )
         .in("id", existing.applicable_goal_ids_snapshot!);
 
@@ -1406,22 +1465,28 @@ export async function getAppraisalScoringInputs(
 
     const results = await loadScoringResults(id);
 
-    const weightTotal = goals.reduce(
-      (sum, goal) => sum + (typeof goal.weight === "number" ? goal.weight : 0),
-      0,
-    );
+    // Weighted KPI total only — qualitative NULL weights contribute nothing
+    // (never converted to 0). Qualitative count lets the UI separate the
+    // unscored developmental section without re-deriving anything.
+    const weightTotal = sumWeightedGoalWeights(goals);
+    const qualitativeGoalCount = goals.filter(
+      (goal) => !isWeightedGoalWeight(goal.weight)
+    ).length;
 
     return {
       appraisal_id: id,
       goals: goals.map((goal) => ({
         goal_id: goal.id,
         title: goal.title,
+        description: goal.description,
         weight: goal.weight,
         status:
           goal.status as AppraisalScoringInputs["goals"][number]["status"],
         ...scoringGoalMeasurementContext(goal),
       })),
       weight_total: weightTotal,
+      qualitative_goal_count: qualitativeGoalCount,
+      weights: resolveAppraisalScoringWeights(existing),
       competencies: competencies.map((competency) => ({
         competency_id: competency.competency_id,
         name: competency.name,
@@ -1465,7 +1530,7 @@ export async function getAppraisalScoringInputs(
     const { data: goalRows, error: goalRowsError } = await supabaseAdmin
       .from("hr3_performance_goals")
       .select(
-        "id, title, weight, status, progress_percent, progress_method, measurement_type, target_value, actual_value, measurement_unit"
+        "id, title, description, weight, status, progress_percent, progress_method, measurement_type, target_value, actual_value, measurement_unit"
       )
       .in("id", existing.applicable_goal_ids_snapshot!);
 
@@ -1539,52 +1604,67 @@ export async function getAppraisalScoringInputs(
 
   const results = await loadScoringResults(id);
 
-  const weightTotal = goals.reduce(
-    (sum, goal) => sum + (typeof goal.weight === "number" ? goal.weight : 0),
-    0,
-  );
+  // Weighted KPI total only — qualitative NULL weights contribute nothing
+  // (never converted to 0). Qualitative count lets the UI separate the
+  // unscored developmental section without re-deriving anything.
+  const weightTotal = sumWeightedGoalWeights(goals);
+  const qualitativeGoalCount = goals.filter(
+    (goal) => !isWeightedGoalWeight(goal.weight)
+  ).length;
 
   return {
     appraisal_id: id,
     goals: goals.map((goal) => ({
       goal_id: goal.id,
       title: goal.title,
+      description: goal.description,
       weight: goal.weight,
       status: goal.status as AppraisalScoringInputs["goals"][number]["status"],
       ...scoringGoalMeasurementContext(goal),
     })),
     weight_total: weightTotal,
-    competencies: competencies.map((competency) => ({
-      competency_id: competency.competency_id,
-      name: competency.name,
-      category:
-        competency.category as AppraisalScoringInputs["competencies"][number]["category"],
-      current_level: competency.current_level,
-    })),
-    existing_goal_ratings: results.goalResults.map((result) => ({
-      goal_id: result.goal_id,
-      rating: result.rating,
-    })),
-    existing_competency_ratings: results.competencyResults.map((result) => ({
-      competency_id: result.competency_id,
-      rating: result.rating,
-    })),
-  };
-}
+    qualitative_goal_count: qualitativeGoalCount,
+      weights: resolveAppraisalScoringWeights(existing),
+      competencies: competencies.map((competency) => ({
+        competency_id: competency.competency_id,
+        name: competency.name,
+        category:
+          competency.category as AppraisalScoringInputs["competencies"][number]["category"],
+        current_level: competency.current_level,
+      })),
+      existing_goal_ratings: results.goalResults.map((result) => ({
+        goal_id: result.goal_id,
+        rating: result.rating,
+      })),
+      existing_competency_ratings: results.competencyResults.map((result) => ({
+        competency_id: result.competency_id,
+        rating: result.rating,
+      })),
+    };
+  }
 
-/**
- * Creates (initiates) an appraisal through HR administration scope.
+  /**
+   * Creates (initiates) an appraisal through HR administration scope.
  *
  * The server determines every identity:
  *   employee_id            subject (validated against hr1_employees)
  *   reviewer_id            the authenticating HR account's linked employee
  *   reviewer_hr_admin_id   the authenticating HR account id
  *
- * The client provides only `employee_id`, `review_period`, and an optional
- * `cycle_id`. The reviewer assignment is NOT a guess: it is the exact existing
- * account-linked identity of the HR admin who initiates the appraisal, stored
+ * The client provides `employee_id` and the authoritative review-period
+ * selector `cycle_id`. A legacy `review_period` text label is still accepted
+ * ONLY when `cycle_id` is absent (pre-cycle appraisals). When `cycle_id` is
+ * present, the review period is inherited server-side from the selected
+ * cycle's name — client-supplied text is ignored so a forged label can
+ * never disagree with the cycle that owns the period. The reviewer
+ * assignment is NOT a guess: it is the exact existing account-linked
+ * identity of the HR admin who initiates the appraisal, stored
  * the same way the inherited appraisal row stores it. No organizational
  * manager is invented.
+ *
+ * Creating an appraisal never changes the cycle: draft cycles stay draft
+ * (preparation while draft is supported), and opening/releasing a cycle
+ * happens only through the explicit cycle operations.
  */
 export async function createAppraisal(
   input: CreateAppraisalInput,
@@ -1598,10 +1678,13 @@ export async function createAppraisal(
   const employeeId = await requireActiveEmployeeId(input?.employee_id, "employee_id");
   if (employeeId instanceof NextResponse) return employeeId;
 
-  const reviewPeriod = requireReviewPeriod(input?.review_period);
-  if (reviewPeriod instanceof NextResponse) return reviewPeriod;
-
+  // Review-period ownership: the performance cycle owns name/start/end.
+  // Cycle-bound creation (the only UI path) inherits the selected cycle's
+  // name as the appraisal's review period; the appraisal stores the cycle
+  // id and displays the associated period through it. Legacy text labels
+  // remain accepted only when no cycle is referenced.
   let cycleId: string | null = null;
+  let reviewPeriod: string;
   if (
     input?.cycle_id !== undefined &&
     input?.cycle_id !== null &&
@@ -1610,10 +1693,99 @@ export async function createAppraisal(
     const parsedCycle = await requireExistingCycleId(input.cycle_id);
     if (parsedCycle instanceof NextResponse) return parsedCycle;
     cycleId = parsedCycle;
+
+    const { data: cycleRow, error: cycleError } = await supabaseAdmin
+      .from("hr3_performance_cycles")
+      .select("id, name")
+      .eq("id", cycleId)
+      .maybeSingle();
+
+    if (cycleError) {
+      console.error("createAppraisal: cycle query error:", cycleError);
+      return NextResponse.json(
+        { error: "Failed to resolve performance cycle" },
+        { status: 500 }
+      );
+    }
+    const cycleName =
+      (cycleRow as { name: string | null } | null)?.name?.trim() || null;
+    if (!cycleName) {
+      return BAD_REQUEST_RESPONSE(
+        "The selected performance cycle has no name to inherit as the review period."
+      );
+    }
+    reviewPeriod = cycleName;
+  } else {
+    const period = requireReviewPeriod(input?.review_period);
+    if (period instanceof NextResponse) return period;
+    reviewPeriod = period;
   }
 
   // Resolve evaluator from employee's current manager (server-side only).
   const evaluatorId = await resolveEvaluatorId(employeeId);
+
+  // Resolve the subject's current position, department, and scoring
+  // composition (server-side only). New appraisals REQUIRE all three:
+  // a missing position or a missing position-weight configuration fails
+  // with an actionable message — never a silent 60/40 fallback (reserved
+  // for legacy NULL-snapshot records). Snapshots freeze these values so
+  // later configuration changes cannot rewrite appraisal history.
+  const { data: subjectRow, error: subjectError } = await supabaseAdmin
+    .from("hr1_employees")
+    .select("job_position_id, department")
+    .eq("id", employeeId)
+    .maybeSingle();
+
+  if (subjectError) {
+    console.error("createAppraisal: subject query error:", subjectError);
+    return NextResponse.json(
+      { error: "Failed to resolve employee position" },
+      { status: 500 }
+    );
+  }
+
+  const subjectPositionId =
+    (subjectRow as { job_position_id: string | null } | null)
+      ?.job_position_id ?? null;
+  if (!subjectPositionId) {
+    return BAD_REQUEST_RESPONSE(
+      "This employee has no job position assigned. Assign a job position before creating an appraisal."
+    );
+  }
+
+  const { data: positionRow, error: positionError } = await supabaseAdmin
+    .from("hr1_job_positions")
+    .select("id, title")
+    .eq("id", subjectPositionId)
+    .maybeSingle();
+
+  if (positionError) {
+    console.error("createAppraisal: position query error:", positionError);
+    return NextResponse.json(
+      { error: "Failed to resolve employee position" },
+      { status: 500 }
+    );
+  }
+  if (!positionRow) {
+    return BAD_REQUEST_RESPONSE(
+      "The employee's job position could not be resolved. Assign a valid job position before creating an appraisal."
+    );
+  }
+
+  const positionWeights = await getWeightsForPosition(
+    (positionRow as { id: string }).id
+  );
+  if (!positionWeights) {
+    const positionTitle =
+      (positionRow as { title: string | null }).title ??
+      "this job position";
+    return BAD_REQUEST_RESPONSE(
+      `No appraisal weight configuration exists for the "${positionTitle}" position. Configure Goals/Competencies weights for this job position before creating an appraisal.`
+    );
+  }
+
+  const subjectDepartment =
+    (subjectRow as { department: string | null } | null)?.department ?? null;
 
   const { data, error } = await supabaseAdmin
     .from("hr3_performance_appraisals")
@@ -1622,9 +1794,18 @@ export async function createAppraisal(
       reviewer_id: identity.employeeUuid,
       reviewer_hr_admin_id: identity.hrAdminId,
       review_period: reviewPeriod,
-      status: "self_assessment",
+      // New appraisals start as DRAFT (planning). The HR reviewer releases
+      // the appraisal into self_assessment via startSelfAssessmentByHrAdmin;
+      // creation never auto-advances the lifecycle.
+      status: "draft",
       cycle_id: cycleId,
       evaluator_id: evaluatorId,
+      snapshot_job_position_id: (positionRow as { id: string }).id,
+      snapshot_job_position_name:
+        (positionRow as { title: string | null }).title ?? null,
+      snapshot_goal_weight: positionWeights.goalWeightPct,
+      snapshot_competency_weight: positionWeights.competencyWeightPct,
+      snapshot_department: subjectDepartment,
     })
     .select(APPRAISAL_SELECT)
     .single();
@@ -1652,6 +1833,9 @@ export async function createAppraisal(
       reviewer_hr_admin_id: created.reviewer_hr_admin_id,
       review_period: created.review_period,
       evaluator_id: created.evaluator_id,
+      snapshot_job_position_id: created.snapshot_job_position_id,
+      snapshot_goal_weight: created.snapshot_goal_weight,
+      snapshot_competency_weight: created.snapshot_competency_weight,
       ...(created.cycle_id ? { cycle_id: created.cycle_id } : {}),
     },
   });
@@ -1965,6 +2149,25 @@ export async function submitManagerAssessment(
     );
   }
 
+  // Weighted/qualitative partition: 1–5 ratings are required for weighted
+  // KPIs ONLY. Qualitative (NULL-weight) goals never take numerical ratings
+  // and no ignored result rows are created for them. Corrupt numeric weights
+  // (0, negative, NaN) fail closed here — they are never qualitative.
+  const { weightedGoals, invalidGoals } = partitionGoalsByWeight(goals);
+  if (invalidGoals.length > 0) {
+    const names = invalidGoals
+      .map((goal) => goal.title || "Untitled goal")
+      .join(", ");
+    return BAD_REQUEST_RESPONSE(
+      `Manager assessment cannot be submitted because ${invalidGoals.length === 1 ? "a goal has" : "goals have"} an invalid weight (${names}). HR must correct the goal configuration.`
+    );
+  }
+  if (weightedGoals.length === 0) {
+    return BAD_REQUEST_RESPONSE(
+      "No weighted KPI goals are configured for this appraisal."
+    );
+  }
+
   const competencies = await loadApplicableCompetencies(existing.employee_id);
   if (competencies instanceof NextResponse) return competencies;
   if (competencies.length === 0) {
@@ -1975,7 +2178,7 @@ export async function submitManagerAssessment(
 
   const goalSetError = requireExactRatingSet(
     goalParsed.values,
-    goals.map((goal) => goal.id),
+    weightedGoals.map((goal) => goal.id),
     "goal",
   );
   if (goalSetError) return goalSetError;
@@ -1987,14 +2190,16 @@ export async function submitManagerAssessment(
   );
   if (competencySetError) return competencySetError;
 
-  // Validate weight total is exactly 100%
+  // Validate weight total is exactly 100% (weighted KPIs only — qualitative
+  // goals never enter the math as NaN or 0).
   const goalEntries = goalParsed.values.map((rating) => {
-    const goal = goals.find((candidate) => candidate.id === rating.id);
+    const goal = weightedGoals.find((candidate) => candidate.id === rating.id);
     return { rating: rating.rating, weight: goal?.weight ?? Number.NaN };
   });
   const scoring = calculateScoring({
     goalEntries,
     competencyRatings: competencyParsed.values.map((rating) => rating.rating),
+    weights: resolveAppraisalScoringWeights(existing),
   });
   if (!scoring.ok) {
     return BAD_REQUEST_RESPONSE(scoring.error);
@@ -2153,6 +2358,7 @@ export async function submitManagerAssessment(
  */
 export async function finalizeAppraisal(
   appraisalId: string,
+  input?: FinalizeAppraisalInput,
 ): Promise<PerformanceAppraisal | NextResponse> {
   const id = requireValidUuid(appraisalId, "appraisal id");
   if (id instanceof NextResponse) return id;
@@ -2180,7 +2386,48 @@ export async function finalizeAppraisal(
 
   const identity = reviewerIdentity;
 
-  if (existing.status !== "manager_assessment") {
+  // Normal finalization requires an acknowledged appraisal. The
+  // administrative override finalizes a submitted-but-unacknowledged
+  // manager assessment instead: it requires an explicit flag plus a
+  // non-empty reason (both validated below), verified submitted results,
+  // and the same reviewer authority. No separate status exists for it.
+  let overrideReason: string | null = null;
+  if (existing.status === "acknowledged") {
+    // Normal path — override fields, if supplied, are ignored.
+  } else if (existing.status === "manager_assessment") {
+    const wantsOverride = input?.override_acknowledgment === true;
+    if (!wantsOverride) {
+      return NextResponse.json(
+        {
+          error:
+            "This appraisal must be acknowledged by the employee before HR finalization. To finalize without acknowledgment, submit an explicit override with a reason.",
+        },
+        { status: 409 },
+      );
+    }
+    const reason = requireNonEmptyText(
+      input?.override_reason,
+      "override_reason",
+      MAX_APPRAISAL_TEXT_LENGTH,
+    );
+    if (reason instanceof NextResponse) return reason;
+    // Override requires actually-submitted manager results, witnessed by
+    // the frozen applicability snapshots (persisted in the same transition
+    // as the result rows).
+    if (
+      existing.applicable_goal_ids_snapshot === null ||
+      existing.applicable_competency_ids_snapshot === null
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "The manager assessment must be submitted before this appraisal can be finalized, even with an override.",
+        },
+        { status: 409 },
+      );
+    }
+    overrideReason = reason;
+  } else {
     return STATE_CONFLICT_RESPONSE();
   }
 
@@ -2202,14 +2449,12 @@ export async function finalizeAppraisal(
     existing.applicable_competency_ids_snapshot !== null;
 
   let goals: ApplicableGoalRow[];
-  let goalIds: string[];
 
   if (useSnapshot) {
-    goalIds = existing.applicable_goal_ids_snapshot!;
     const { data: goalRows, error: goalRowsError } = await supabaseAdmin
       .from("hr3_performance_goals")
-      .select("id, title, weight, status")
-      .in("id", goalIds);
+      .select("id, title, description, weight, status")
+      .in("id", existing.applicable_goal_ids_snapshot!);
 
     if (goalRowsError) {
       console.error("finalizeAppraisal: snapshot goal query error:", goalRowsError);
@@ -2227,7 +2472,6 @@ export async function finalizeAppraisal(
     );
     if (result instanceof NextResponse) return result;
     goals = result;
-    goalIds = goals.map((goal) => goal.id);
   }
 
   if (goals.length === 0) {
@@ -2314,10 +2558,30 @@ export async function finalizeAppraisal(
     }),
   );
 
-  // Validate existing goal ratings cover exactly the applicable set
+  // Weighted-only reconstruction: persisted ratings must cover exactly the
+  // weighted KPIs — qualitative goals need no numerical rows and create
+  // none. The snapshot ID sets above stay FULL (history preserved); only
+  // scoring narrows. Corrupt numeric weights fail closed.
+  const { weightedGoals, invalidGoals } = partitionGoalsByWeight(goals);
+  if (invalidGoals.length > 0) {
+    const names = invalidGoals
+      .map((goal) => goal.title || "Untitled goal")
+      .join(", ");
+    return BAD_REQUEST_RESPONSE(
+      `Appraisal cannot be finalized because ${invalidGoals.length === 1 ? "a goal has" : "goals have"} an invalid weight (${names}). HR must correct the goal configuration.`
+    );
+  }
+  if (weightedGoals.length === 0) {
+    return BAD_REQUEST_RESPONSE(
+      "No weighted KPI goals are configured for this appraisal."
+    );
+  }
+  const weightedGoalIds = weightedGoals.map((goal) => goal.id);
+
+  // Validate existing goal ratings cover exactly the weighted KPI set
   const goalSetError = requireExactRatingSet(
     existingGoalRatings,
-    goalIds,
+    weightedGoalIds,
     "goal",
   );
   if (goalSetError) return goalSetError;
@@ -2331,13 +2595,14 @@ export async function finalizeAppraisal(
   if (competencySetError) return competencySetError;
 
   const goalEntries = existingGoalRatings.map((rating) => {
-    const goal = goals.find((candidate) => candidate.id === rating.id);
+    const goal = weightedGoals.find((candidate) => candidate.id === rating.id);
     return { rating: rating.rating, weight: goal?.weight ?? Number.NaN };
   });
 
   const scoring = calculateScoring({
     goalEntries,
     competencyRatings: existingCompetencyRatings.map((rating) => rating.rating),
+    weights: resolveAppraisalScoringWeights(existing),
   });
   if (!scoring.ok) {
     return BAD_REQUEST_RESPONSE(scoring.error);
@@ -2355,7 +2620,7 @@ export async function finalizeAppraisal(
       updated_at: finalizedAt,
     })
     .eq("id", id)
-    .eq("status", "manager_assessment")
+    .eq("status", existing.status)
     .select(APPRAISAL_SELECT)
     .maybeSingle();
 
@@ -2388,6 +2653,12 @@ export async function finalizeAppraisal(
       finalized_at: finalizedAt,
       final_score: scoring.calculation.finalScoreDisplay,
       performance_rating: scoring.calculation.band.rank,
+      ...(overrideReason !== null
+        ? {
+            override_acknowledgment: true,
+            override_reason: overrideReason,
+          }
+        : {}),
       goal_score: roundScore(scoring.calculation.goalScore, 2),
       competency_score: roundScore(scoring.calculation.competencyScore, 2),
       goal_ratings: existingGoalRatings,
@@ -2461,10 +2732,16 @@ async function removeScoringResults(
  * Employee Acknowledgement.
  *
  * ACKNOWLEDGEMENT ≠ AGREEMENT. It records that the subject employee has
- * received/reviewed the final evaluation (`acknowledged_at`); it does NOT
- * overwrite the evaluation content and carries no agreement/dispute semantics.
+ * received/reviewed the manager's submitted assessment
+ * (`acknowledged_at`); it does NOT overwrite any evaluation content and
+ * carries no agreement/dispute semantics.
  *
- * Employee-only, own record only, and only from `finalized`.
+ * Employee-only, own record only, and only AFTER the manager assessment has
+ * been submitted (persisted result rows, i.e. frozen applicability
+ * snapshots are present) while the appraisal is still in
+ * `manager_assessment`. Acknowledgment is once-only: a repeat request finds
+ * the record already past `manager_assessment` and receives a controlled
+ * conflict without touching `acknowledged_at`.
  */
 export async function acknowledgeAppraisal(
   appraisalId: string,
@@ -2481,15 +2758,31 @@ export async function acknowledgeAppraisal(
   const owned = await assertEmployeeOwnsRecord(existing);
   if (owned instanceof NextResponse) return owned;
 
-  if (existing.status !== "finalized") {
+  if (existing.status !== "manager_assessment") {
     return STATE_CONFLICT_RESPONSE();
+  }
+
+  // Acknowledgment requires a submitted manager assessment: the frozen
+  // applicability snapshots are the submission signal (they are persisted
+  // in the same transition as the result rows).
+  if (
+    existing.applicable_goal_ids_snapshot === null ||
+    existing.applicable_competency_ids_snapshot === null
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "The manager assessment must be submitted before this appraisal can be acknowledged.",
+      },
+      { status: 409 },
+    );
   }
 
   const acknowledgedAt = new Date().toISOString();
 
   const result = await transitionAppraisal({
     id,
-    expectedFrom: "finalized",
+    expectedFrom: "manager_assessment",
     nextTo: "acknowledged",
     updates: { acknowledged_at: acknowledgedAt },
     actor: identity,

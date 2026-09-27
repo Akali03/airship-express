@@ -20,6 +20,7 @@ import {
   PerformanceStatusBadge,
 } from "@/performance-development-dashboard/components/ui/performance";
 import { AssessEmployeeModal } from "@/performance-development-dashboard/components/competencies/AssessEmployeeModal";
+import { formatDateTime } from "@/performance-development-dashboard/lib/format/date";
 
 type Props = {
   profile: EmployeeCompetencyProfileItem[];
@@ -50,6 +51,14 @@ function gapStatus(item: EmployeeCompetencyProfileItem): {
   label: string;
   tone: string;
 } {
+  // A null current level means never assessed — an unknown level, never a
+  // zero. It is a distinct state from "assessed with no target".
+  if (item.current_level === null) {
+    return {
+      label: "Assessment Required",
+      tone: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    };
+  }
   if (item.gap === null) {
     return { label: "Not assigned", tone: "bg-line text-muted" };
   }
@@ -227,6 +236,13 @@ export function EmployeeCompetenciesTab({
           <ul className="mt-4 divide-y divide-line dark:divide-paper/10">
             {matching.map((item) => {
               const status = gapStatus(item);
+              // Provenance comes from the stored assessment row; names resolve
+              // through the existing employee directory, with a neutral
+              // fallback that invents no person. Never-assessed rows show no
+              // assessor/date at all.
+              const assessorName = item.assessed_by
+                ? (employeeNamesById[item.assessed_by] ?? "Recorded assessment")
+                : null;
               return (
                 <li
                   key={`${item.employee_id}:${item.competency_id}`}
@@ -244,21 +260,37 @@ export function EmployeeCompetenciesTab({
                       {status.label}
                     </PerformanceStatusBadge>
                   </div>
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="w-full max-w-[220px]">
-                      <PerformanceProgress
-                        value={
-                          (item.current_level / COMPETENCY_LEVEL_MAX) * 100
-                        }
-                        label={`Current level ${item.current_level} of ${COMPETENCY_LEVEL_MAX} for ${competenciesById[item.competency_id] ?? "competency"}`}
-                      />
+                  {item.current_level === null ? (
+                    <p className="mt-2 text-[12px] text-muted">
+                      Current Level: Not Assessed
+                    </p>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="w-full max-w-[220px]">
+                        <PerformanceProgress
+                          value={
+                            (item.current_level / COMPETENCY_LEVEL_MAX) * 100
+                          }
+                          label={`Current level ${item.current_level} of ${COMPETENCY_LEVEL_MAX} for ${competenciesById[item.competency_id] ?? "competency"}`}
+                        />
+                      </div>
+                      <span className="shrink-0 text-[12px] tabular-nums text-muted">
+                        Level {item.current_level}
+                      </span>
                     </div>
-                    <span className="shrink-0 text-[12px] tabular-nums text-muted">
-                      Level {item.current_level}
-                    </span>
-                  </div>
+                  )}
                   <p className="mt-1.5 text-[11.5px] text-muted">
                     Required: {requiredLabel(item)}
+                    {assessorName && (
+                      <>
+                        {" · "}Assessed by {assessorName}
+                      </>
+                    )}
+                    {item.assessed_at && (
+                      <>
+                        {" · "}Assessed {formatDateTime(item.assessed_at)}
+                      </>
+                    )}
                   </p>
                 </li>
               );
@@ -272,6 +304,8 @@ export function EmployeeCompetenciesTab({
           employees={employees}
           competencies={competencies}
           profile={profile}
+          positions={positions}
+          employeePositionById={employeePositionById}
           defaultEmployeeId={effectiveEmployeeId}
           submitting={submitting ?? false}
           onSubmit={async (input) => {

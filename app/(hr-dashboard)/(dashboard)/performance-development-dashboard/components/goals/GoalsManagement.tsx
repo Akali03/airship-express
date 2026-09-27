@@ -34,6 +34,7 @@ import {
   PERFORMANCE_GOAL_STATUS_LABELS,
 } from "@/performance-development-dashboard/types";
 import { useGoalApi } from "@/performance-development-dashboard/hooks/useGoalApi";
+import { sumWeightedGoalWeights } from "@/performance-development-dashboard/lib/performance/scoring";
 import { GoalCard } from "@/performance-development-dashboard/components/goals/GoalCard";
 import { CreateGoalModal } from "@/performance-development-dashboard/components/goals/CreateGoalModal";
 import { GoalDetailModal } from "@/performance-development-dashboard/components/goals/GoalDetailModal";
@@ -213,6 +214,27 @@ export function GoalsManagement({
     }
   }
 
+  /**
+   * Department-scoped assignment roster (HR only): while viewing the
+   * Department scope, the Set-a-Goal employee selector contains only active
+   * employees of the selected department (case-insensitive, matching the
+   * server membership rule). No department selected yields an empty roster
+   * so nothing outside the scope can be assigned. All other scopes keep the
+   * full roster; the server re-enforces membership on creation regardless.
+   */
+  const createEmployees = useMemo(() => {
+    if (!isHrAdmin || scope !== "department") return employees;
+    const selected = departmentFilter.trim().toLowerCase();
+    if (!selected) return [];
+    return employees.filter(
+      (employee) => (employee.department ?? "").trim().toLowerCase() === selected
+    );
+  }, [employees, isHrAdmin, scope, departmentFilter]);
+
+  /** True while the HR Department tab has no department to load. */
+  const needsDepartmentSelection =
+    isHrAdmin && scope === "department" && !departmentFilter;
+
   const selectedGoal =
     goals.find((goal) => goal.id === selectedGoalId) ?? null;
 
@@ -265,6 +287,13 @@ export function GoalsManagement({
   }, [goals, canReviewProposals, actorEmployeeId]);
 
   const loadGoals = useCallback(async () => {
+    // Department scope requires a selected department before any request:
+    // never issue scope=department without it (the server answers 400).
+    if (scope === "department" && isHrAdmin && !departmentFilter) {
+      setGoals([]);
+      setError(null);
+      return;
+    }
     const params: Record<string, string> = {};
     if (statusFilter) params.status = statusFilter;
     if (isHrAdmin && employeeFilter) params.employee_id = employeeFilter;
@@ -325,10 +354,9 @@ export function GoalsManagement({
       const fresh = await listGoals(params);
       return {
         goalCount: fresh.length,
-        weightTotal: fresh.reduce(
-          (total, goal) => total + (goal.weight ?? 0),
-          0
-        ),
+        // Weighted KPI total only — qualitative NULL weights contribute
+        // nothing (shared partition rule, never NULL→0).
+        weightTotal: sumWeightedGoalWeights(fresh),
       };
     },
     [listGoals]
@@ -337,7 +365,13 @@ export function GoalsManagement({
   async function handleCreate(input: GoalCreateInput) {
     setCreating(true);
     try {
-      const goal = await api.create(input);
+      // Department-scoped creation carries scope context so the server can
+      // enforce assignee membership; other scopes keep org-wide assignment.
+      const createParams =
+        isHrAdmin && scope === "department" && departmentFilter
+          ? { scope: "department", department: departmentFilter }
+          : undefined;
+      const goal = await api.create(input, createParams);
       setCreateOpen(false);
       toast.success(`Goal "${goal.title}" created and assigned.`);
       await loadGoals();
@@ -764,7 +798,12 @@ export function GoalsManagement({
         <PerformanceErrorBanner message={error} onRetry={handleRefresh} />
       )}
 
-      {refreshing ? (
+      {needsDepartmentSelection ? (
+        <PerformanceEmptyState
+          title="Select a department"
+          message="Choose a department above to view its goals. No request is made until a department is selected."
+        />
+      ) : refreshing ? (
         <div aria-busy="true" role="status">
           <span className="sr-only">Loading goals...</span>
           <SkeletonList rows={3} />
@@ -826,7 +865,7 @@ export function GoalsManagement({
 
       {createOpen && canCreateGoals && (
         <CreateGoalModal
-          employees={employees}
+          employees={createEmployees}
           cycles={cycles}
           defaultCycleId={defaultCycleId}
           assignerDisplayName={serverUser.fullName}

@@ -2,7 +2,10 @@
  * Performance scoring — authoritative calculation rules (approved).
  *
  *   Final Score =
- *     (Goal Score × 0.60) + (Competency Score × 0.40)   on a 1.00–5.00 scale
+ *     (Goal Score × goalWeight) + (Competency Score × competencyWeight)
+ *     on a 1.00–5.00 scale, where the composition defaults to the legacy
+ *     60/40 standard and may instead be resolved per appraisal from frozen
+ *     position-weight snapshots (see `resolveComponentWeights`).
  *
  *   Goal Score = Σ(goal rating × goal weight), weights as percentages (%) and
  *               required to total exactly 100%.
@@ -33,6 +36,50 @@ export const SCORING_WEIGHTS_TOTAL = 100;
 /** Floating-point tolerance for weight-total equality checks. */
 export const SCORING_WEIGHT_TOLERANCE = 1e-6;
 
+/**
+ * Goals-vs-Competencies scoring composition as fractions summing to 1.
+ * Defaults preserve the legacy 60/40 standard; resolved per appraisal from
+ * frozen position-weight snapshots (see appraisals.ts).
+ */
+export type ScoringComponentWeights = {
+  goalWeight: number;
+  competencyWeight: number;
+};
+
+export const LEGACY_SCORING_COMPONENT_WEIGHTS: ScoringComponentWeights = {
+  goalWeight: SCORING_GOALS_COMPONENT_WEIGHT,
+  competencyWeight: SCORING_COMPETENCIES_COMPONENT_WEIGHT,
+};
+
+/**
+ * Validates a resolved scoring composition. Returns the weights, or a
+ * human-readable validation message string on failure.
+ */
+export function resolveComponentWeights(
+  input: ScoringComponentWeights
+): ScoringComponentWeights | string {
+  const { goalWeight, competencyWeight } = input;
+  for (const [label, value] of [
+    ["goalWeight", goalWeight],
+    ["competencyWeight", competencyWeight],
+  ] as const) {
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > 1
+    ) {
+      return `${label} must be a number between 0 and 1.`;
+    }
+  }
+  if (
+    Math.abs(goalWeight + competencyWeight - 1) > SCORING_WEIGHT_TOLERANCE
+  ) {
+    return "Goal and competency component weights must total exactly 1.";
+  }
+  return { goalWeight, competencyWeight };
+}
+
 /** A formal 1–5 integer rating (used for both goals and competencies). */
 export function isScoreRating(value: unknown): value is number {
   return (
@@ -42,6 +89,55 @@ export function isScoreRating(value: unknown): value is number {
     value >= SCORING_RATING_MIN &&
     value <= SCORING_RATING_MAX
   );
+}
+
+/**
+ * Weighted KPI vs qualitative goal partition — the single shared definition
+ * used by validation, scoring-input assembly, submission, finalization,
+ * readiness, and UI display. Never duplicated ad hoc:
+ *
+ *   weighted KPI:      weight is a finite number > 0 (quantitative, scored)
+ *   qualitative goal:  weight is null/undefined (developmental, unscored)
+ *   invalid:           anything else (0, negative, NaN, malformed numerics)
+ *
+ * Invalid entries are corrupt data, never qualitative: they fail closed
+ * wherever they are evaluated. NULL is never converted to 0.
+ */
+export function isWeightedGoalWeight(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+export function isQualitativeGoalWeight(value: unknown): boolean {
+  return value === null || value === undefined;
+}
+
+export type WeightedGoalPartition<T> = {
+  weightedGoals: T[];
+  qualitativeGoals: T[];
+  invalidGoals: T[];
+};
+
+export function partitionGoalsByWeight<T extends { weight: unknown }>(
+  goals: T[]
+): WeightedGoalPartition<T> {
+  const weightedGoals: T[] = [];
+  const qualitativeGoals: T[] = [];
+  const invalidGoals: T[] = [];
+  for (const goal of goals) {
+    if (isWeightedGoalWeight(goal.weight)) weightedGoals.push(goal);
+    else if (isQualitativeGoalWeight(goal.weight)) qualitativeGoals.push(goal);
+    else invalidGoals.push(goal);
+  }
+  return { weightedGoals, qualitativeGoals, invalidGoals };
+}
+
+/** Sums WEIGHTED goal weights only — qualitative NULLs contribute nothing. */
+export function sumWeightedGoalWeights(goals: { weight: unknown }[]): number {
+  let total = 0;
+  for (const goal of goals) {
+    if (isWeightedGoalWeight(goal.weight)) total += goal.weight;
+  }
+  return total;
 }
 
 /** Rounds to `precision` decimals for persisted display values. */
@@ -128,11 +224,22 @@ export type ScoreCalculationResult =
  * Computes the complete official result. The band is resolved from the
  * UNROUNDED final score (display rounding never determines a band). The
  * persisted final score is rounded for a clean numeric column value.
+ * Component weights default to the legacy 60/40 standard; callers pass the
+ * appraisal-resolved composition so preview, validation, and finalization
+ * can never disagree.
  */
 export function calculateScoring(input: {
   goalEntries: GoalScoreEntry[];
   competencyRatings: number[];
+  weights?: ScoringComponentWeights;
 }): ScoreCalculationResult {
+  const resolvedWeights = resolveComponentWeights(
+    input.weights ?? LEGACY_SCORING_COMPONENT_WEIGHTS
+  );
+  if (typeof resolvedWeights === "string") {
+    return { ok: false, error: resolvedWeights };
+  }
+
   const goalScore = calculateGoalScore(input.goalEntries);
   if (typeof goalScore === "string") return { ok: false, error: goalScore };
 
@@ -142,8 +249,8 @@ export function calculateScoring(input: {
   }
 
   const finalScore =
-    goalScore * SCORING_GOALS_COMPONENT_WEIGHT +
-    competencyScore * SCORING_COMPETENCIES_COMPONENT_WEIGHT;
+    goalScore * resolvedWeights.goalWeight +
+    competencyScore * resolvedWeights.competencyWeight;
 
   // Normalize to 6 decimal places before band lookup to prevent
   // floating-point boundary misclassification (e.g. 3.499999999... → band 3).

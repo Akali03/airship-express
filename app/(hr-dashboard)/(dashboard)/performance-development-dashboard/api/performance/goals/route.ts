@@ -59,7 +59,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const goal = await createPerformanceGoal(rawBody as CreatePerformanceGoalInput);
+    // Department-scope context for creation (HR Department tab). Forwarded
+    // as input so createPerformanceGoal can enforce assignee membership
+    // server-side; absent scope preserves org-wide assignment.
+    const scopeParam = request.nextUrl.searchParams.get("scope");
+    const departmentParam = request.nextUrl.searchParams.get("department");
+    const input: CreatePerformanceGoalInput = { ...rawBody };
+    if (scopeParam !== null) input.scope = scopeParam;
+    if (departmentParam !== null) input.department = departmentParam;
+
+    const goal = await createPerformanceGoal(input);
     if (goal instanceof NextResponse) return goal;
 
     return NextResponse.json(goal, { status: 201 });

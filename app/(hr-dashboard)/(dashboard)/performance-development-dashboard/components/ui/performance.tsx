@@ -409,6 +409,77 @@ export function PerformanceEmptyState({
 }
 
 /* ------------------------------------------------------------------ */
+/* Chart card                                                        */
+/* ------------------------------------------------------------------ */
+
+type PerDevChartCardProps = {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  /**
+   * One-line contextual total rendered under the header (e.g. "12 finalized
+   * reviews"). Omit when there is nothing to total.
+   */
+  total?: string;
+  action?: ReactNode;
+  /**
+   * When true, `children` (the chart) is replaced with a polished empty
+   * state. The caller owns the condition (e.g. zero finalized results).
+   */
+  empty?: boolean;
+  emptyTitle?: string;
+  emptyMessage?: string;
+  children: ReactNode;
+};
+
+/**
+ * Standard dashboard chart card: the same `PerformancePanel` shell, section
+ * header, optional total line, chart slot, and an empty state. Presentation
+ * ONLY — data fetching, scope, and business rules stay in the caller's
+ * server service. Charts inside must remain readable, responsive, and
+ * accompanied by textual labels/legends (never color-only meaning).
+ */
+export function PerDevChartCard({
+  eyebrow,
+  title,
+  description,
+  total,
+  action,
+  empty = false,
+  emptyTitle = "No data yet",
+  emptyMessage = "There is nothing to visualize for the current scope.",
+  children,
+}: PerDevChartCardProps) {
+  return (
+    <PerformancePanel className="flex min-h-[320px] flex-col">
+      <PerformanceSectionHeader
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+        action={action}
+      />
+      {total ? (
+        <p className="mt-2 text-[12px] tabular-nums text-muted">{total}</p>
+      ) : null}
+      <div className="mt-4 flex-1">
+        {empty ? (
+          <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line px-6 py-10 text-center dark:border-paper/10">
+            <p className="font-bricolage text-[16px] font-medium tracking-tight text-ink">
+              {emptyTitle}
+            </p>
+            <p className="max-w-sm text-[12.5px] leading-relaxed text-muted">
+              {emptyMessage}
+            </p>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
+    </PerformancePanel>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Form controls                                                       */
 /* ------------------------------------------------------------------ */
 

@@ -432,9 +432,11 @@ function scoreAppraisals(input: {
 
   const totalAppraisals = scoped.length;
 
-  const official = scoped.filter(
-    (row) => row.status === "finalized" || row.status === "acknowledged",
-  );
+  // Officially completed = finalized records, detected via `finalized_at`
+  // (set exactly once at finalization, never cleared). Legacy acknowledged
+  // records carry it and stay included; acknowledged-but-unfinalized records
+  // stay excluded until HR finalizes.
+  const official = scoped.filter((row) => row.finalized_at !== null);
   const officiallyCompleted = official.length;
 
   const finalScores = official
@@ -835,6 +837,43 @@ async function resolveRecentActivity(
     });
     for (const admin of batches.flat()) {
       if (admin?.id && admin.full_name) names.set(admin.id, admin.full_name);
+    }
+
+    /**
+     * DISPLAY ONLY: actor-name rule — an HR-account action shows
+     * `hr_admin.full_name` (e.g. cap cap); a normal employee/manager action
+     * (audit `actor_id` = `hr1_employees.id`) shows the `hr1` employee name
+     * (e.g. Harry Manly). HR-account names always win; the employee lookup
+     * only fills ids with no HR-account match. All names are
+     * server-resolved; persisted actor ids are untouched.
+     */
+    const unresolvedIds = actorIds.filter((id) => !names.has(id));
+    if (unresolvedIds.length > 0) {
+      const employeeBatches = await chunkedIn(
+        unresolvedIds,
+        100,
+        async (chunk) => {
+          const { data, error } = await supabaseAdmin
+            .from("hr1_employees")
+            .select("id, first_name, last_name")
+            .in("id", chunk);
+          if (error) {
+            console.error(
+              "getPerformanceReports: employee actor name lookup error:",
+              error
+            );
+            return [];
+          }
+          return data ?? [];
+        }
+      );
+      for (const employee of employeeBatches.flat()) {
+        const fullName = [employee?.first_name, employee?.last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        if (employee?.id && fullName) names.set(employee.id, fullName);
+      }
     }
   }
 

@@ -26,7 +26,10 @@ type Props = {
   isHrAdmin: boolean;
   submitting?: boolean;
   onCreate: (input: CompetencyInput) => Promise<void>;
-  onUpdate: (id: string, input: CompetencyInput) => Promise<void>;
+  onUpdate: (
+    id: string,
+    input: CompetencyInput & { is_active?: boolean }
+  ) => Promise<void>;
 };
 
 export function CompetencyLibraryTab({
@@ -73,7 +76,9 @@ export function CompetencyLibraryTab({
     setModalOpen(true);
   }
 
-  async function handleSubmit(input: CompetencyInput) {
+  async function handleSubmit(
+    input: CompetencyInput & { is_active?: boolean }
+  ) {
     if (editing) {
       await onUpdate(editing.id, input);
     } else {

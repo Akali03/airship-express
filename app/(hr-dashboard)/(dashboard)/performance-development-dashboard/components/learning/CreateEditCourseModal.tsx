@@ -41,6 +41,9 @@ export function CreateEditCourseModal({
   const [competencyId, setCompetencyId] = useState(
     course?.competency_id ?? ""
   );
+  const [allowSelfEnrollment, setAllowSelfEnrollment] = useState(
+    course?.allow_self_enrollment ?? false
+  );
   const [formError, setFormError] = useState<string | null>(null);
 
   const competencyOptions = Object.entries(competenciesById).map(
@@ -66,6 +69,7 @@ export function CreateEditCourseModal({
           ? null
           : durationMinutes,
       competency_id: competencyId || null,
+      allow_self_enrollment: allowSelfEnrollment,
     };
 
     try {
@@ -75,6 +79,7 @@ export function CreateEditCourseModal({
       setPrimaryContentUrl("");
       setDurationMinutes(null);
       setCompetencyId("");
+      setAllowSelfEnrollment(false);
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Failed to save course."
@@ -210,6 +215,25 @@ export function CreateEditCourseModal({
               {description.length}/{MAX_COURSE_DESCRIPTION_LENGTH}
             </p>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line px-4 py-3 dark:border-paper/15">
+            <input
+              type="checkbox"
+              checked={allowSelfEnrollment}
+              onChange={(e) => setAllowSelfEnrollment(e.target.checked)}
+              disabled={submitting}
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
+            <span className="text-[12.5px] leading-relaxed">
+              <span className="font-medium text-ink">
+                Allow employee self-enrollment.
+              </span>{" "}
+              <span className="text-muted">
+                When enabled, employees may enroll themselves in this course
+                without HR assignment.
+              </span>
+            </span>
+          </label>
 
           {formError && (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">

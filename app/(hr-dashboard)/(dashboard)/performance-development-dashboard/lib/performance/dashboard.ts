@@ -25,6 +25,11 @@ import { getAuthenticatedActor } from "@/performance-development-dashboard/lib/a
 import { isPerDevHrAdminRole } from "@/performance-development-dashboard/lib/auth/hrIdentity";
 import { resolveManagerDirectReportUuids } from "@/performance-development-dashboard/lib/auth/access";
 import { chooseCurrentCycle } from "@/performance-development-dashboard/lib/performance/cycles";
+import {
+  PERFORMANCE_RATING_BANDS,
+  performanceRatingBandFromRank,
+  performanceRatingBandFromScore,
+} from "@/performance-development-dashboard/types";
 
 type StatusRow = { status: string | null };
 type AppraisalIdRow = { appraisal_id: string | null };
@@ -88,6 +93,13 @@ export type DirectReportSummary = {
   latestCheckIn: string | null;
 };
 
+export type DashboardRatingDistributionItem = {
+  key: string;
+  label: string;
+  rank: number;
+  count: number;
+};
+
 export type PerformanceDashboardSnapshot = {
   generatedAt: string;
   actorType: "hr_admin" | "manager" | "employee";
@@ -95,6 +107,16 @@ export type PerformanceDashboardSnapshot = {
   actionItems: DashboardActionItems;
   goals: DashboardStatusBreakdown;
   appraisals: DashboardStatusBreakdown;
+  /**
+   * PRESENTATION-ONLY derived slice for the Rating Distribution graph.
+   * Same authoritative definition as Reports `scoreAppraisals`: officially
+   * completed = `finalized_at !== null` (legacy acknowledged records carry
+   * it and stay included); band via persisted `performance_rating` rank
+   * first, `final_score` fallback. Scoped exactly like `appraisals` above.
+   * No scoring, lifecycle, or authorization change.
+   */
+  officiallyCompleted: number;
+  ratingDistribution: DashboardRatingDistributionItem[];
   competencyAndDevelopment: {
     competencies: number;
     positionRequirements: number | null;
@@ -176,7 +198,45 @@ async function resolveActorNames(
   });
 
   for (const admin of adminBatches.flat()) {
-    if (admin?.full_name) names.set(admin.id, admin.full_name);
+    if (admin?.id && admin?.full_name) names.set(admin.id, admin.full_name);
+  }
+
+  /**
+   * DISPLAY ONLY: actor-name rule — an HR-account action shows
+   * `hr_admin.full_name` (e.g. cap cap); a normal employee/manager action
+   * (audit `actor_id` = `hr1_employees.id`) shows the `hr1` employee name
+   * (e.g. Harry Manly). HR-account names always win when present; the
+   * employee lookup only fills ids with no HR-account match. All names are
+   * server-resolved; persisted actor ids are untouched.
+   */
+  const unresolvedIds = actorIds.filter((id) => !names.has(id));
+  if (unresolvedIds.length > 0) {
+    const employeeBatches = await chunkedIn(
+      unresolvedIds,
+      100,
+      async (chunk) => {
+        const { data, error } = await supabaseAdmin
+          .from("hr1_employees")
+          .select("id, first_name, last_name")
+          .in("id", chunk);
+        if (error) {
+          console.error(
+            "getPerformanceDashboard: employee actor names error:",
+            error
+          );
+          return [];
+        }
+        return data ?? [];
+      }
+    );
+
+    for (const employee of employeeBatches.flat()) {
+      const fullName = [employee?.first_name, employee?.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      if (employee?.id && fullName) names.set(employee.id, fullName);
+    }
   }
   return names;
 }
@@ -288,22 +348,37 @@ async function buildDirectReportSummaries(
  * `employeeIds` is provided, adds `.in("employee_id", employeeIds)`. When null,
  * no filter is added (org-wide).
  */
-function scopedQuery<T extends { in: Function; eq: Function }>(
-  query: T,
-  field: string,
-  employeeIds: string[] | null
-): T {
-  if (!employeeIds) return query;
-  if (employeeIds.length === 0) {
-    // Never-match sentinel: an empty array means the caller has no employee
-    // scope, so we must not leak org-wide data. Filtering on an impossible
-    // UUID guarantees zero rows are returned.
-    return query.eq(field, "00000000-0000-0000-0000-000000000000") as T;
-  }
-  if (employeeIds.length === 1) {
-    return query.eq(field, employeeIds[0]) as T;
-  }
-  return query.in(field, employeeIds) as T;
+/**
+ * Minimal filter-builder contract `scopedQuery` relies on: the Supabase
+ * `.in()` / `.eq()` modifiers with the column/value shapes this helper
+ * actually passes. Kept as a standalone structural type (instead of a
+ * generic constraint) because relating the installed postgrest-js filter
+ * methods â€” generic over conditional `ResolveFilterValue` machinery â€”
+ * against an inline constraint makes type instantiation explode
+ * (TS2589) at every call site for the untyped shared client.
+ */
+type EmployeeScopeFilter = {
+  in: (column: string, values: string[]) => unknown;
+  eq: (column: string, value: string) => unknown;
+};
+
+function scopedQuery<T extends object>(
+  query: T,
+  field: string,
+  employeeIds: string[] | null
+): T {
+  if (!employeeIds) return query;
+  const filter = query as EmployeeScopeFilter;
+  if (employeeIds.length === 0) {
+    // Never-match sentinel: an empty array means the caller has no employee
+    // scope, so we must not leak org-wide data. Filtering on an impossible
+    // UUID guarantees zero rows are returned.
+    return filter.eq(field, "00000000-0000-0000-0000-000000000000") as T;
+  }
+  if (employeeIds.length === 1) {
+    return filter.eq(field, employeeIds[0]) as T;
+  }
+  return filter.in(field, employeeIds) as T;
 }
 
 export async function getPerformanceDashboard(): Promise<PerformanceDashboardResult> {
@@ -381,9 +456,19 @@ export async function getPerformanceDashboard(): Promise<PerformanceDashboardRes
           scopedEmployeeIds
         )
       ),
-      requireRows<{ id: string; status: string | null }[]>("appraisals", () =>
+      requireRows<
+        {
+          id: string;
+          status: string | null;
+          finalized_at: string | null;
+          final_score: number | null;
+          performance_rating: number | null;
+        }[]
+      >("appraisals", () =>
         scopedQuery(
-          supabaseAdmin.from("hr3_performance_appraisals").select("id, status"),
+          supabaseAdmin
+            .from("hr3_performance_appraisals")
+            .select("id, status, finalized_at, final_score, performance_rating"),
           "employee_id",
           scopedEmployeeIds
         )
@@ -606,6 +691,39 @@ export async function getPerformanceDashboard(): Promise<PerformanceDashboardRes
         .filter((id): id is string => Boolean(id))
     ).size;
 
+    /**
+     * PRESENTATION ONLY: official-results distribution for the dashboard
+     * Rating Distribution graph. Mirrors the Reports `scoreAppraisals`
+     * definition exactly (finalized_at gate, rank-first/score-fallback
+     * banding) over the already-scoped appraisal rows above. Read-only
+     * grouping — scores and bands are never recalculated or reinterpreted.
+     */
+    const officialRows = appraisalStatusRows.filter(
+      (row) => row.finalized_at !== null
+    );
+    const ratingDistribution: DashboardRatingDistributionItem[] =
+      PERFORMANCE_RATING_BANDS.map((band) => ({
+        key: band.key,
+        label: band.label,
+        rank: band.rank,
+        count: 0,
+      }));
+    for (const row of officialRows) {
+      let bandKey: string | null = null;
+      if (typeof row.performance_rating === "number") {
+        bandKey =
+          performanceRatingBandFromRank(row.performance_rating)?.key ?? null;
+      }
+      if (!bandKey && typeof row.final_score === "number") {
+        bandKey =
+          performanceRatingBandFromScore(row.final_score)?.key ?? null;
+      }
+      if (bandKey) {
+        const entry = ratingDistribution.find((item) => item.key === bandKey);
+        if (entry) entry.count += 1;
+      }
+    }
+
     const recognitionPoints = recognitionPointRows.reduce(
       (sum, row) => sum + (row.points ?? 0),
       0
@@ -628,6 +746,8 @@ export async function getPerformanceDashboard(): Promise<PerformanceDashboardRes
       actionItems,
       goals: breakdown(goalStatusRows),
       appraisals: breakdown(appraisalStatusRows),
+      officiallyCompleted: officialRows.length,
+      ratingDistribution,
       competencyAndDevelopment: {
         competencies: competencyCount,
         positionRequirements: requirementCount,

@@ -21,7 +21,7 @@ import type { PostgrestBuilder } from "@supabase/postgrest-js";
  * @throws         Any Supabase / PostgREST error is propagated immediately.
  */
 export async function selectAll<Row>(
-  builder: PostgrestBuilder<any, Row[]>,
+  builder: PostgrestBuilder<{ PostgrestVersion?: string }, Row[]>,
   pageSize = 1_000,
 ): Promise<Row[]> {
   if (pageSize <= 0) {

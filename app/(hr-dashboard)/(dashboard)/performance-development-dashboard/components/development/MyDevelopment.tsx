@@ -34,6 +34,8 @@ import {
 
 const MY_DEVELOPMENT_API =
   "/performance-development-dashboard/api/performance/my-development";
+const DEV_PLAN_FOLLOW_THROUGH_API =
+  "/performance-development-dashboard/api/performance/development-plan-items";
 const LEARNING_AND_DEVELOPMENT_PATH =
   "/performance-development-dashboard/learning-development";
 
@@ -56,6 +58,17 @@ function devActionLabel(status: string): string {
   return (
     DEV_PLAN_ITEM_STATUS_LABELS[status as DevPlanItemStatus] ?? status
   );
+}
+
+/**
+ * Next follow-through step for a finalized development action. Null when
+ * terminal (completed) or on an unknown stored value — no button renders.
+ * Single-step forward only: not_started → in_progress → completed.
+ */
+function nextFollowThroughStatus(status: string): DevPlanItemStatus | null {
+  if (status === "not_started") return "in_progress";
+  if (status === "in_progress") return "completed";
+  return null;
 }
 
 function courseStatusTone(status: string | null | undefined): string {
@@ -105,6 +118,12 @@ export function MyDevelopment({ serverUser }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
+  const [followThroughPendingId, setFollowThroughPendingId] = useState<
+    string | null
+  >(null);
+  const [followThroughError, setFollowThroughError] = useState<string | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,6 +158,40 @@ export function MyDevelopment({ serverUser }: Props) {
     void load();
   }, [load]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  /**
+   * Employee follow-through: advance ONE finalized action one forward step.
+   * Content (action/target) is never sent — only the next status. The list is
+   * reloaded authoritatively on success so the badge and the Open Development
+   * Actions count reflect the server state.
+   */
+  const advanceFollowThrough = useCallback(
+    async (itemId: string, nextStatus: DevPlanItemStatus) => {
+      setFollowThroughPendingId(itemId);
+      setFollowThroughError(null);
+      try {
+        await perDevFetch(
+          `${DEV_PLAN_FOLLOW_THROUGH_API}/${encodeURIComponent(itemId)}/follow-through`,
+          {
+            method: "POST",
+            body: { status: nextStatus },
+            sessionExpiredMessage:
+              "Your session has expired. Please sign in again.",
+          },
+        );
+        await load();
+      } catch (err) {
+        setFollowThroughError(
+          err instanceof Error
+            ? err.message
+            : "Failed to update development action status.",
+        );
+      } finally {
+        setFollowThroughPendingId(null);
+      }
+    },
+    [load],
+  );
 
   return (
     <div className="space-y-6">
@@ -211,44 +264,78 @@ export function MyDevelopment({ serverUser }: Props) {
               <PerformanceSectionHeader
                 eyebrow="Follow-through"
                 title="Development Actions"
-                description="Development actions from your finalized appraisal history. Read-only — history is never edited here."
+                description="Development actions from your finalized appraisal history. History is immutable — only follow-through status can be advanced by you."
               />
+              {followThroughError && (
+                <div className="mt-3">
+                  <PerformanceErrorBanner
+                    message={followThroughError}
+                    onRetry={() => setFollowThroughError(null)}
+                  />
+                </div>
+              )}
               <div className="mt-4">
                 {data.developmentActions.length === 0 ? (
                   <EmptyState message="No development actions yet. Actions from finalized appraisals will appear here." />
                 ) : (
                   <ul className="divide-y divide-line dark:divide-paper/10">
-                    {data.developmentActions.map((item) => (
-                      <li
-                        key={item.id}
-                        className="py-3 first:pt-0 last:pb-0"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <p className="min-w-0 flex-1 font-medium text-[13.5px] leading-snug text-ink">
-                            {item.action}
+                    {data.developmentActions.map((item) => {
+                      const nextStatus = nextFollowThroughStatus(item.status);
+                      const isPending = followThroughPendingId === item.id;
+                      return (
+                        <li
+                          key={item.id}
+                          className="py-3 first:pt-0 last:pb-0"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <p className="min-w-0 flex-1 font-medium text-[13.5px] leading-snug text-ink">
+                              {item.action}
+                            </p>
+                            <PerformanceStatusBadge
+                              tone={devActionTone(item.status)}
+                            >
+                              {devActionLabel(item.status)}
+                            </PerformanceStatusBadge>
+                          </div>
+                          {item.target && (
+                            <p className="mt-1 text-[12px] text-muted">
+                              Target: {item.target}
+                            </p>
+                          )}
+                          <p className="mt-1 text-[11.5px] text-muted">
+                            From:{" "}
+                            {[
+                              item.appraisalReviewPeriod ?? "Unknown review",
+                              item.appraisalCycleName,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </p>
-                          <PerformanceStatusBadge
-                            tone={devActionTone(item.status)}
-                          >
-                            {devActionLabel(item.status)}
-                          </PerformanceStatusBadge>
-                        </div>
-                        {item.target && (
-                          <p className="mt-1 text-[12px] text-muted">
-                            Target: {item.target}
-                          </p>
-                        )}
-                        <p className="mt-1 text-[11.5px] text-muted">
-                          From:{" "}
-                          {[
-                            item.appraisalReviewPeriod ?? "Unknown review",
-                            item.appraisalCycleName,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </li>
-                    ))}
+                          {nextStatus && (
+                            <div className="mt-2">
+                              <PerformanceButton
+                                type="button"
+                                onClick={() =>
+                                  void advanceFollowThrough(item.id, nextStatus)
+                                }
+                                disabled={isPending || loading}
+                                aria-label={
+                                  nextStatus === "in_progress"
+                                    ? `Start action: ${item.action}`
+                                    : `Mark completed: ${item.action}`
+                                }
+                              >
+                                {isPending
+                                  ? "Saving…"
+                                  : nextStatus === "in_progress"
+                                    ? "Start action"
+                                    : "Mark completed"}
+                              </PerformanceButton>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
@@ -276,12 +363,19 @@ export function MyDevelopment({ serverUser }: Props) {
                           </p>
                           <p className="mt-0.5 text-[11.5px] text-muted">
                             {competency.competencyCategory ?? "Competency"}
-                            {" · "}Current level {competency.currentLevel}
+                            {" · "}Current level{" "}
+                            {competency.currentLevel === null
+                              ? "Not Assessed"
+                              : competency.currentLevel}
                             {" · "}Required{" "}
                             {competency.effectiveRequiredLevel ?? "—"}
                           </p>
                         </div>
-                        {competency.gap !== null && competency.gap > 0 ? (
+                        {competency.currentLevel === null ? (
+                          <span className="shrink-0 rounded-full bg-sky-500/10 px-2.5 py-0.5 text-[11.5px] font-medium text-sky-600 dark:text-sky-400">
+                            Assessment Required
+                          </span>
+                        ) : competency.gap !== null && competency.gap > 0 ? (
                           <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11.5px] font-medium text-amber-700 dark:text-amber-400">
                             Development gap +{competency.gap}
                           </span>

@@ -91,13 +91,6 @@ export function PerDevShell({ children }: { children: ReactNode }) {
   const reportsActive = pathname.startsWith(
     `${DASHBOARD_PATH}/reports-analytics`,
   );
-  const successionActive = pathname.startsWith(
-    `${DASHBOARD_PATH}/succession-planning`,
-  );
-  const rewardsActive = pathname.startsWith(
-    `${DASHBOARD_PATH}/recognition-rewards`,
-  );
-
   // PerDev administration capability, resolved server-side and delivered
   // with the session. Deliberately NOT `accountType === "hr_admin"`: HR
   // accounts without a PerDev role (non-PerDev HR) must not see HR-admin
@@ -115,7 +108,16 @@ export function PerDevShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="perdev-scope flex h-dvh w-full overflow-hidden bg-paper font-rethink text-ink dark:bg-paper">
+    <div className="perdev-scope flex h-dvh max-h-dvh w-full overflow-hidden bg-paper font-rethink text-ink dark:bg-paper">
+      {/* Fixed dashboard shell: the shell itself is exactly viewport height
+          (`h-dvh max-h-dvh overflow-hidden`) so the document/body never
+          scrolls inside PerDev. ONLY `main` (`flex-1 min-h-0 overflow-y-auto`)
+          scrolls page content. The sidebar is viewport-capped
+          (`sm:h-dvh sm:max-h-dvh`, `sm:bottom-auto` to release the mobile
+          `inset-y-0`, `sm:self-start` against flex stretch); only `nav`
+          (`flex-1 min-h-0 overflow-y-auto`) scrolls internally when its own
+          links exceed available height, so the profile/footer never leaves
+          the viewport. */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -131,12 +133,12 @@ export function PerDevShell({ children }: { children: ReactNode }) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 h-full shrink-0 -translate-x-full border-r border-line bg-paper transition-transform duration-300 ease-out sm:sticky sm:top-0 sm:z-0 sm:h-dvh sm:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 h-full shrink-0 -translate-x-full overflow-hidden border-r border-line bg-paper transition-transform duration-300 ease-out sm:sticky sm:bottom-auto sm:top-0 sm:z-0 sm:h-dvh sm:max-h-dvh sm:self-start sm:translate-x-0",
           isOpen && "translate-x-0",
         )}
       >
-        <div className="flex h-full w-72 flex-col sm:w-64">
-          <div className="flex h-16 items-center justify-between border-b border-line px-5 sm:justify-start">
+        <div className="flex h-full min-h-0 w-72 flex-col overflow-hidden sm:w-64">
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-line px-5 sm:justify-start">
             <Link
               href={DASHBOARD_PATH}
               className="flex min-w-0 items-center gap-3"
@@ -162,7 +164,7 @@ export function PerDevShell({ children }: { children: ReactNode }) {
             </Tooltip>
           </div>
 
-          <div className="px-5 pb-4">
+          <div className="shrink-0 px-5 pb-4">
             <p className="truncate text-[13px] font-semibold tracking-tight text-ink">
               Airship Express
             </p>
@@ -171,7 +173,7 @@ export function PerDevShell({ children }: { children: ReactNode }) {
             </p>
           </div>
 
-          <nav className="flex flex-1 flex-col gap-7 overflow-y-auto px-3 py-4">
+          <nav className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto px-3 py-4">
             <div>
               <p className="mb-2 px-3 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted">
                 Main
@@ -327,40 +329,45 @@ export function PerDevShell({ children }: { children: ReactNode }) {
                   Reports &amp; Analytics
                 </Link>
               )}
+              {/*
+                Future-development capabilities for this defense: labels stay
+                visible but are non-navigable and marked "Planned". Pages,
+                routes, data, and authorization are untouched.
+              */}
               {canAdministerPerDev && (
-                <Link
-                  href={`${DASHBOARD_PATH}/succession-planning`}
-                  onClick={close}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] font-medium transition-all",
-                    successionActive
-                      ? "bg-accent text-paper shadow-sm shadow-accent/25"
-                      : "text-muted hover:bg-ink/[0.04] hover:text-ink dark:hover:bg-paper/[0.06]",
-                  )}
+                <span
+                  aria-disabled="true"
+                  title="Succession Planning is planned — not yet available"
+                  className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] font-medium text-muted opacity-60"
                 >
                   <GitBranch size={17} strokeWidth={1.9} />
-                  Succession Planning
-                </Link>
+                  <span className="min-w-0 flex-1 truncate">
+                    Succession Planning
+                  </span>
+                  <span className="shrink-0 rounded-full bg-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    Planned
+                  </span>
+                </span>
               )}
               {canAdministerPerDev && (
-                <Link
-                  href={`${DASHBOARD_PATH}/recognition-rewards`}
-                  onClick={close}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] font-medium transition-all",
-                    rewardsActive
-                      ? "bg-accent text-paper shadow-sm shadow-accent/25"
-                      : "text-muted hover:bg-ink/[0.04] hover:text-ink dark:hover:bg-paper/[0.06]",
-                  )}
+                <span
+                  aria-disabled="true"
+                  title="Recognition & Rewards is planned — not yet available"
+                  className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] font-medium text-muted opacity-60"
                 >
                   <Trophy size={17} strokeWidth={1.9} />
-                  Recognition &amp; Rewards
-                </Link>
+                  <span className="min-w-0 flex-1 truncate">
+                    Recognition &amp; Rewards
+                  </span>
+                  <span className="shrink-0 rounded-full bg-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    Planned
+                  </span>
+                </span>
               )}
             </div>
           </nav>
 
-          <div className="mt-auto border-t border-line px-4 py-4">
+          <div className="mt-auto shrink-0 border-t border-line px-4 py-4">
             {loading ? (
               <div className="flex animate-pulse items-center gap-2.5">
                 <div className="h-8 w-8 rounded-full bg-line dark:bg-paper/10" />
@@ -387,8 +394,8 @@ export function PerDevShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex h-full min-w-0 flex-1 flex-col bg-paper">
-        <header className="sticky top-0 z-20 w-full border-b border-line bg-paper">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-paper">
+        <header className="z-20 w-full shrink-0 border-b border-line bg-paper">
           <div className="flex h-16 w-full items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
             <Tooltip label="Open menu">
               <button
@@ -464,7 +471,17 @@ export function PerDevShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="w-full min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:px-10">
+        {/* `main` is the SINGLE normal PerDev content scroll owner
+            (`flex-1 min-h-0 overflow-y-auto` inside the fixed-height right
+            column). The `min-h-0` chain (right column + main) is what lets
+            tall pages scroll INSIDE main instead of growing the shell or the
+            document. `relative` makes main the positioning context for page
+            content: without it, runtime measurement shows in-main content
+            inflating `documentElement.scrollHeight` (a phantom far-right
+            document scrollbar) even though no content box escapes the shell.
+            Dialogs keep their own internal scrolling, which is unrelated to
+            this layout. */}
+        <main className="relative w-full min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:px-10">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}

@@ -93,8 +93,14 @@ export function useAppraisalApi() {
   );
 
   const finalize = useCallback(
-    (id: string) =>
-      request(`${APPRAISALS_API}/${id}/finalize`, "POST") as Promise<
+    (
+      id: string,
+      input?: {
+        override_acknowledgment?: boolean;
+        override_reason?: string | null;
+      },
+    ) =>
+      request(`${APPRAISALS_API}/${id}/finalize`, "POST", input) as Promise<
         PerformanceAppraisal
       >,
     [request]
@@ -159,8 +165,13 @@ export function useAppraisalApi() {
         comments: string;
       }
     ) => run(() => submitManagerAssessment(id, input)),
-    runFinalize: (id: string) =>
-      run(() => finalize(id)),
+    runFinalize: (
+      id: string,
+      input?: {
+        override_acknowledgment?: boolean;
+        override_reason?: string | null;
+      },
+    ) => run(() => finalize(id, input)),
     runAcknowledge: (id: string) => run(() => acknowledge(id)),
     runStartSelfAssessment: (id: string) =>
       run(() => startSelfAssessment(id)),

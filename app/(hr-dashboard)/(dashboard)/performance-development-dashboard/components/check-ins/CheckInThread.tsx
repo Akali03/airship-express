@@ -204,16 +204,21 @@ export function CheckInThread({
     setReplyTarget(null);
   }
 
+  /**
+   * DISPLAY ONLY: actor-name rule — an HR-account-authored message shows
+   * the authenticated HR account name (`hr_admin.full_name`, e.g. cap cap);
+   * employee/manager messages show the `hr1` employee name (e.g. Harry
+   * Manly). The linked-employee name is never combined with the account
+   * name. Stored IDs (`author_employee_id`, `author_account_id`) and all
+   * authorization are untouched. `authorAccountName` is only present for
+   * HR readers (server-enforced), so non-HR readers always fall through
+   * to the employee name.
+   */
   function authorLine(message: PerformanceCheckInMessage): string {
-    const name = message.authorDisplayName ?? "Unknown employee";
-    if (
-      isHrAdmin &&
-      message.authorAccountName &&
-      message.authorAccountName !== message.authorDisplayName
-    ) {
-      return `${name} (${message.authorAccountName})`;
+    if (isHrAdmin && message.authorAccountName?.trim()) {
+      return message.authorAccountName;
     }
-    return name;
+    return message.authorDisplayName ?? "Unknown employee";
   }
 
   return (
@@ -421,7 +426,7 @@ export function CheckInThread({
           <div className="mt-5 border-t border-line pt-5 dark:border-paper/10">
             <CheckInCommentForm
               submitting={posting}
-              replyingTo={replyTarget?.authorDisplayName ?? null}
+              replyingTo={replyTarget ? authorLine(replyTarget) : null}
               onCancelReply={() => setReplyTarget(null)}
               onSubmit={handleSubmit}
             />

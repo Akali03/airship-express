@@ -86,7 +86,12 @@ function csvCell(value: unknown): string {
   return text;
 }
 
-function buildCsv(snapshot: PerformanceReportsSnapshot): string {
+/**
+ * Shared Section/Metric/Value rows behind every tabular export. Both the CSV
+ * download and the Excel workbook serialize these exact rows from the same
+ * server-authorized snapshot, so the two formats can never disagree.
+ */
+function buildReportRows(snapshot: PerformanceReportsSnapshot): string[][] {
   const rows: string[][] = [["Section", "Metric", "Value"]];
 
   const add = (section: string, metric: string, value: unknown) => {
@@ -95,7 +100,7 @@ function buildCsv(snapshot: PerformanceReportsSnapshot): string {
 
   const scores = snapshot.performanceScores;
   add("Performance Scores", "Total appraisals", scores.totalAppraisals);
-  add("Performance Scores", "Officially completed (finalized/acknowledged)", scores.officiallyCompleted);
+  add("Performance Scores", "Officially completed (finalized)", scores.officiallyCompleted);
   add("Performance Scores", "Average final score", fmt(scores.averageFinalScore));
   add("Performance Scores", "Completion rate", fmtPercent(scores.completionRate));
   for (const band of scores.distribution) {
@@ -172,9 +177,147 @@ function buildCsv(snapshot: PerformanceReportsSnapshot): string {
     add("Recognition & Rewards", `Redemption status · ${item.label}`, item.count);
   }
 
-  return "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  return rows;
 }
 
+function buildCsv(snapshot: PerformanceReportsSnapshot): string {
+  return "\uFEFF" + buildReportRows(snapshot).map((row) => row.map(csvCell).join(",")).join("\r\n");
+}
+
+/**
+ * Excel (.xlsx) export over the exact rows behind the CSV export.
+ *
+ * Data source: `buildReportRows(snapshot)` from the same server-authorized
+ * snapshot the page renders (department / position / cycle filters already
+ * applied server-side; tabs are view-only and never change the export
+ * dataset). Workbook generation uses the installed `xlsx-js-style`
+ * dependency through the same dynamic-import + `XLSX.writeFile` pattern the
+ * payroll compensation module uses. No new dependency, no new permission
+ * model: the password-verified export modal gates all three formats alike.
+ */
+async function exportReportsExcel(input: {
+  snapshot: PerformanceReportsSnapshot;
+  departmentLabel: string;
+  positionLabel: string;
+  cycleLabel: string;
+  fileName: string;
+}): Promise<void> {
+  const XLSX = await import("xlsx-js-style");
+
+  const rows = buildReportRows(input.snapshot);
+  const header = rows[0] ?? ["Section", "Metric", "Value"];
+  const dataRows = rows.slice(1);
+  const columnCount = header.length;
+
+  const blankRow = (): string[] => new Array<string>(columnCount).fill("");
+  const titleRowIdx = 0;
+  const metaRowIdx = 1;
+  const filterRowIdx = 2;
+  const headerRowIdx = 4;
+  const firstDataRowIdx = 5;
+
+  const wsData: string[][] = [
+    [`Performance Reports & Analytics`, ...blankRow().slice(1)],
+    [`Exported ${new Date().toLocaleString()}`, ...blankRow().slice(1)],
+    [
+      `Department: ${input.departmentLabel} | Position: ${input.positionLabel} | Cycle: ${input.cycleLabel}`,
+      ...blankRow().slice(1),
+    ],
+    blankRow(),
+    [...header],
+    ...dataRows,
+    blankRow(),
+    [`Total rows: ${dataRows.length}`, ...blankRow().slice(1)],
+  ];
+  const footerRowIdx = wsData.length - 1;
+  const lastDataRowIdx = footerRowIdx - 2;
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+
+  for (let r = range.s.r; r <= range.e.r; r += 1) {
+    for (let c = range.s.c; c <= range.e.c; c += 1) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { t: "s", v: "" };
+      const cell = ws[addr] as { s?: unknown };
+
+      if (r === titleRowIdx) {
+        cell.s = {
+          font: { name: "Calibri", sz: 14, bold: true, color: { rgb: "111827" } },
+          alignment: { vertical: "middle", horizontal: "left" },
+        };
+      } else if (r === metaRowIdx || r === filterRowIdx) {
+        cell.s = {
+          font: { name: "Calibri", sz: 10, italic: true, color: { rgb: "6B7280" } },
+          alignment: { vertical: "middle", horizontal: "left", wrapText: true },
+        };
+      } else if (r === headerRowIdx) {
+        cell.s = {
+          font: { name: "Calibri", sz: 10, bold: true, color: { rgb: "FFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: "111827" } },
+          alignment: { vertical: "middle", horizontal: "left", wrapText: true },
+          border: {
+            top: { style: "thin", color: { rgb: "111827" } },
+            bottom: { style: "thin", color: { rgb: "111827" } },
+            left: { style: "thin", color: { rgb: "111827" } },
+            right: { style: "thin", color: { rgb: "111827" } },
+          },
+        };
+      } else if (r >= firstDataRowIdx && r <= lastDataRowIdx) {
+        const isAlt = (r - firstDataRowIdx) % 2 === 1;
+        cell.s = {
+          font: { name: "Calibri", sz: 10, color: { rgb: "111827" } },
+          fill: isAlt
+            ? { patternType: "solid", fgColor: { rgb: "F8FAFC" } }
+            : { patternType: "solid", fgColor: { rgb: "FFFFFF" } },
+          alignment: { vertical: "middle", horizontal: "left", wrapText: true },
+          border: {
+            top: { style: "thin", color: { rgb: "E5E7EB" } },
+            bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+            left: { style: "thin", color: { rgb: "E5E7EB" } },
+            right: { style: "thin", color: { rgb: "E5E7EB" } },
+          },
+        };
+      } else if (r === footerRowIdx) {
+        cell.s = {
+          font: { name: "Calibri", sz: 9, color: { rgb: "9CA3AF" } },
+          alignment: { vertical: "middle", horizontal: "left" },
+        };
+      } else {
+        cell.s = {
+          font: { name: "Calibri", sz: 11, color: { rgb: "111827" } },
+          alignment: { vertical: "middle", horizontal: "left" },
+        };
+      }
+    }
+  }
+
+  ws["!cols"] = header.map((headerCell, c) => {
+    let max = headerCell.length;
+    for (const row of dataRows) {
+      const len = String(row[c] ?? "").length;
+      if (len > max) max = len;
+    }
+    return { wch: Math.min(Math.max(max + 4, 12), 60) };
+  });
+
+  if (columnCount > 1) {
+    ws["!merges"] = [
+      { s: { r: titleRowIdx, c: 0 }, e: { r: titleRowIdx, c: columnCount - 1 } },
+      { s: { r: metaRowIdx, c: 0 }, e: { r: metaRowIdx, c: columnCount - 1 } },
+      { s: { r: filterRowIdx, c: 0 }, e: { r: filterRowIdx, c: columnCount - 1 } },
+      { s: { r: footerRowIdx, c: 0 }, e: { r: footerRowIdx, c: columnCount - 1 } },
+    ];
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Report");
+
+  XLSX.writeFile(
+    wb,
+    input.fileName.endsWith(".xlsx") ? input.fileName : `${input.fileName}.xlsx`
+  );
+}
 function SectionHeading({
   icon,
   title,
@@ -309,6 +452,7 @@ export function ReportsAnalytics({ serverUser }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const fetchSnapshot = useCallback(
     async (filters: { department: string; positionId: string; cycleId: string }) => {
@@ -425,12 +569,38 @@ export function ReportsAnalytics({ serverUser }: Props) {
     window.print();
   };
 
+  const handleExportExcel = async () => {
+    if (!snapshot || exporting) return;
+    setExporting(true);
+    setError(null);
+    try {
+      const positionLabel =
+        (snapshot.filterOptions.positions ?? []).find((position) => position.id === positionId)?.title ??
+        "All positions";
+      const cycleLabel =
+        (snapshot.filterOptions.cycles ?? []).find((cycle) => cycle.id === cycleId)?.name ?? "All cycles";
+      await exportReportsExcel({
+        snapshot,
+        departmentLabel: department || "All departments",
+        positionLabel,
+        cycleLabel,
+        fileName: `reports-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export the report to Excel.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleExport = (format: ExportFormat) => {
     setExportModalOpen(false);
     if (format === "pdf") {
       window.setTimeout(() => handlePrint(), 0);
-    } else {
+    } else if (format === "csv") {
       handleExportCsv();
+    } else {
+      void handleExportExcel();
     }
   };
 
@@ -646,11 +816,11 @@ export function ReportsAnalytics({ serverUser }: Props) {
           <button
             type="button"
             onClick={() => setExportModalOpen(true)}
-            disabled={!snapshot}
+            disabled={!snapshot || exporting}
             className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[13px] font-medium text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 dark:border-paper/15"
           >
-            <Download size={14} strokeWidth={1.75} />
-            Export
+            <Download size={14} strokeWidth={1.75} className={exporting ? "animate-pulse" : ""} />
+            {exporting ? "Exporting..." : "Export"}
           </button>
           <button
             type="button"
@@ -880,13 +1050,13 @@ function SummaryMetrics({ snapshot }: { snapshot: PerformanceReportsSnapshot }) 
         sub={
           snapshot.performanceScores.officiallyCompleted === 0
             ? "No finalized appraisals available"
-            : "Based on finalized/acknowledged appraisals"
+            : "Based on finalized appraisals"
         }
       />
       <StatCard
         label="Appraisal Completion"
         value={fmtPercent(snapshot.performanceScores.completionRate)}
-        sub={`${snapshot.performanceScores.officiallyCompleted} of ${snapshot.performanceScores.totalAppraisals} finalized or acknowledged`}
+            sub={`${snapshot.performanceScores.officiallyCompleted} of ${snapshot.performanceScores.totalAppraisals} finalized`}
       />
       <StatCard
         label="Goal Progress"
@@ -985,12 +1155,12 @@ function PrintExecutiveSummary({ snapshot }: { snapshot: PerformanceReportsSnaps
       sub:
         snapshot.performanceScores.officiallyCompleted === 0
           ? "No finalized appraisals available"
-          : "Based on finalized/acknowledged appraisals",
+          : "Based on finalized appraisals",
     },
     {
       label: "Appraisal Completion",
       value: fmtPercent(snapshot.performanceScores.completionRate),
-      sub: `${snapshot.performanceScores.officiallyCompleted} of ${snapshot.performanceScores.totalAppraisals} finalized or acknowledged`,
+      sub: `${snapshot.performanceScores.officiallyCompleted} of ${snapshot.performanceScores.totalAppraisals} finalized`,
     },
     {
       label: "Goal Progress",
@@ -1118,7 +1288,7 @@ function PerformanceSection({ snapshot }: { snapshot: PerformanceReportsSnapshot
       <SectionHeading
         icon={<BarChart3 size={17} strokeWidth={1.75} />}
         title="Performance Scores"
-        subtitle="Only finalized and acknowledged appraisals contribute to official scores and the rating-band distribution."
+        subtitle="Only finalized appraisals contribute to official scores and the rating-band distribution."
       />
       <div className="mt-4">
         {scores.totalAppraisals === 0 ? (
@@ -1132,7 +1302,7 @@ function PerformanceSection({ snapshot }: { snapshot: PerformanceReportsSnapshot
                 sub="All statuses"
               />
               <StatCard
-                label="Finalized or acknowledged"
+                label="Finalized"
                 value={String(scores.officiallyCompleted)}
                 sub="Contribute to official scores"
               />

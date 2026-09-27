@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import type {
   CycleCreateInput,
   PerformanceCycle,
+  PerformanceCycleOpenReadiness,
   PerformanceCycleReadiness,
 } from "@/performance-development-dashboard/types";
 import { perDevFetch } from "@/performance-development-dashboard/lib/api/perDevFetch";
@@ -49,6 +50,14 @@ export function useCycleApi() {
     [request]
   );
 
+  const getOpenReadiness = useCallback(
+    (id: string) =>
+      request(
+        `${CYCLES_API}/${id}/open-readiness`
+      ) as Promise<PerformanceCycleOpenReadiness>,
+    [request]
+  );
+
   const close = useCallback(
     (id: string) =>
       request(`${CYCLES_API}/${id}/close`, "POST") as Promise<PerformanceCycle>,
@@ -77,6 +86,7 @@ export function useCycleApi() {
     open,
     advance,
     getReadiness,
+    getOpenReadiness,
     close,
     runAction,
     busy,

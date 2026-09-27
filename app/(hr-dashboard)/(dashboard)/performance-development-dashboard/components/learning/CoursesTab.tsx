@@ -15,6 +15,7 @@ import {
 import { CourseCard } from "@/performance-development-dashboard/components/learning/CourseCard";
 import { CourseDetailDialog } from "@/performance-development-dashboard/components/learning/CourseDetailDialog";
 import { CreateEditCourseModal } from "@/performance-development-dashboard/components/learning/CreateEditCourseModal";
+import { SelfEnrollCourseModal } from "@/performance-development-dashboard/components/learning/SelfEnrollCourseModal";
 
 type Props = {
   courses: Course[];
@@ -24,6 +25,8 @@ type Props = {
   submitting?: boolean;
   onCreate: (input: CourseInput) => Promise<void>;
   onUpdate: (id: string, input: CourseInput) => Promise<void>;
+  /** Employee self-enrollment (employee scope only; never rendered for HR). */
+  onSelfEnroll?: (courseId: string) => Promise<void>;
 };
 
 export function CoursesTab({
@@ -34,11 +37,20 @@ export function CoursesTab({
   submitting,
   onCreate,
   onUpdate,
+  onSelfEnroll,
 }: Props) {
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Course | null>(null);
   const [viewing, setViewing] = useState<Course | null>(null);
+  const [selfEnrolling, setSelfEnrolling] = useState<Course | null>(null);
+
+  // Server-scoped enrollments: for employees this is their own list, so a
+  // match means the viewer is enrolled (never another employee's state).
+  const enrolledCourseIds = useMemo(
+    () => new Set(enrollments.map((enrollment) => enrollment.course_id)),
+    [enrollments]
+  );
 
   const displayed = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -71,6 +83,12 @@ export function CoursesTab({
     }
     setModalOpen(false);
     setEditing(null);
+  }
+
+  async function handleSelfEnroll(courseId: string) {
+    if (!onSelfEnroll) return;
+    await onSelfEnroll(courseId);
+    setSelfEnrolling(null);
   }
 
   return (
@@ -146,9 +164,29 @@ export function CoursesTab({
               isHrAdmin={isHrAdmin}
               onView={() => setViewing(course)}
               onEdit={isHrAdmin ? () => openEdit(course) : undefined}
+              enrollmentState={
+                isHrAdmin || !onSelfEnroll
+                  ? null
+                  : enrolledCourseIds.has(course.id)
+                    ? "enrolled"
+                    : course.allow_self_enrollment
+                      ? "self_enrollable"
+                      : null
+              }
+              onSelfEnroll={() => setSelfEnrolling(course)}
+              selfEnrollDisabled={submitting}
             />
           ))}
         </div>
+      )}
+
+      {selfEnrolling && !isHrAdmin && onSelfEnroll && (
+        <SelfEnrollCourseModal
+          course={selfEnrolling}
+          submitting={submitting ?? false}
+          onSubmit={handleSelfEnroll}
+          onClose={() => setSelfEnrolling(null)}
+        />
       )}
 
       {viewing && (

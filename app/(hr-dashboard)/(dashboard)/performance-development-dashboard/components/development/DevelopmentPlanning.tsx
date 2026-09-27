@@ -533,6 +533,46 @@ export function DevelopmentPlanning({ serverUser, employees }: Props) {
             </div>
           </PerformancePanel>
 
+          {(profile.assessmentRequired?.length ?? 0) > 0 && (
+            <PerformancePanel>
+              <PerformanceSectionHeader
+                eyebrow="Assessment"
+                title={`Assessment Required (${profile.assessmentRequired.length})`}
+                description="Position-required competencies with no assessment on record. Record an assessment from the Competency Profile — no gap is calculated until assessed."
+              />
+              <div className="mt-4">
+                <ul className="divide-y divide-line dark:divide-paper/10">
+                  {profile.assessmentRequired.map((item) => (
+                    <li
+                      key={item.competencyId}
+                      className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-medium text-ink">
+                          {item.competencyName}
+                        </p>
+                        {item.competencyCategory && (
+                          <p className="mt-0.5 text-[11.5px] capitalize text-muted">
+                            {item.competencyCategory}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-3">
+                        <span className="text-[12px] tabular-nums text-muted">
+                          Current Not Assessed · Required{" "}
+                          {item.effectiveRequiredLevel}
+                        </span>
+                        <PerformanceStatusBadge tone="bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                          Assessment Required
+                        </PerformanceStatusBadge>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </PerformancePanel>
+          )}
+
           <PerformancePanel>
             <PerformanceSectionHeader
               eyebrow="Follow-through"

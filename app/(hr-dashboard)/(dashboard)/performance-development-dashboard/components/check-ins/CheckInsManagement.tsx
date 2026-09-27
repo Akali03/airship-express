@@ -172,10 +172,17 @@ export function CheckInsManagement({
       const givenByName = (
         resolvedEmployeeNamesById[checkIn.given_by] ?? ""
       ).toLowerCase();
+      // DISPLAY-ONLY consistency: the visible author is the HR-account name
+      // when present (e.g. cap cap), otherwise the employee name — search
+      // matches the same visible value.
+      const givenByAccountName = (
+        checkIn.givenByAccountName ?? ""
+      ).toLowerCase();
       return (
         checkIn.message.toLowerCase().includes(query) ||
         employeeName.includes(query) ||
-        givenByName.includes(query)
+        givenByName.includes(query) ||
+        givenByAccountName.includes(query)
       );
     });
   }, [checkIns, search, resolvedEmployeeNamesById, typeFilter, classifications]);

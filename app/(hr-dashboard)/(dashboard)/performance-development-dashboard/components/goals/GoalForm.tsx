@@ -182,12 +182,15 @@ export function GoalForm({
     };
   }, [weightContextEnabled, weightContextKey, onLoadWeightContext, employeeId, cycleId]);
 
-  useEffect(() => {
-    if (mode !== "create") return;
-    if (!defaultCycleId) return;
-    if (cycleId !== EMPTY_FIELD) return;
+  /**
+   * Late-arriving default cycle for new goals (render-phase adjustment with
+   * the exact previous conditions): create mode, a default is provided, and
+   * no cycle chosen yet. Converges immediately because the assignment makes
+   * the condition false on the re-render.
+   */
+  if (mode === "create" && defaultCycleId && cycleId === EMPTY_FIELD) {
     setCycleId(defaultCycleId);
-  }, [mode, defaultCycleId, cycleId]);
+  }
 
   /**
    * The goal's `role_id` (the job position it is aligned to) is a DB column
@@ -196,11 +199,17 @@ export function GoalForm({
    * employee's own `job_position_id`. Employees without a recorded position
    * keep the previous null default, like the old "No role" option.
    */
-  useEffect(() => {
-    if (mode !== "create") return;
-    const employee = employees.find((e) => e.id === employeeId);
-    setRoleId(employee?.job_position_id ?? EMPTY_FIELD);
-  }, [mode, employeeId, employees]);
+  // Role follows the selected employee in create mode (render-phase
+  // adjustment with the exact previous conditions). Guarded so steady
+  // state performs no update; edit mode never touches role state here.
+  if (mode === "create") {
+    const derivedRoleId =
+      employees.find((e) => e.id === employeeId)?.job_position_id ??
+      EMPTY_FIELD;
+    if (derivedRoleId !== roleId) {
+      setRoleId(derivedRoleId);
+    }
+  }
 
   const numericWeight = weight.trim() === EMPTY_FIELD ? null : Number(weight);
   const weightOutOfRange =
@@ -519,7 +528,7 @@ export function GoalForm({
             label="Weight"
             htmlFor="goal-weight"
             optional
-            hint="Percentage of the goal score. Evaluated goals must total 100%."
+            hint="Percentage of the goal score. Weighted KPIs must total 100%. Leave empty for a qualitative / developmental goal (unweighted, not scored)."
           >
             <div className="relative">
               <PerformanceTextInput

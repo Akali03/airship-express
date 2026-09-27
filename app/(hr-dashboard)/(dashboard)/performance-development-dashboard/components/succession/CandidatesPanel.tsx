@@ -98,7 +98,7 @@ export function CandidatesPanel({
           {displayed.map((candidate) => (
             <div
               key={candidate.id}
-              className="flex flex-col gap-2 rounded-2xl border border-line bg-paper p-4 dark:border-paper/10"
+              className="flex flex-col gap-2 rounded-2xl border border-line bg-paper px-5 py-5 dark:border-paper/10"
             >
               <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
                 Successor to · {candidate.positionTitle}

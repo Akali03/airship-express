@@ -181,6 +181,15 @@ export function LearningDevelopment({
     toast.success("Course enrollment created.");
   }
 
+  // Employee self-enrollment: identity is server-derived, so the caller can
+  // only ever enroll themselves. Authoritative refresh keeps the catalog,
+  // enrollment list/count, and HR view consistent from the same read.
+  async function handleSelfEnroll(courseId: string) {
+    await api.runSelfEnrollCourse(courseId);
+    await refreshAll();
+    toast.success("Enrolled in course.");
+  }
+
   async function handleUpdateCourseEnrollment(
     id: string,
     input: UpdateCourseEnrollmentInput
@@ -306,6 +315,7 @@ export function LearningDevelopment({
               submitting={api.busy}
               onCreate={handleCreateCourse}
               onUpdate={handleUpdateCourse}
+              onSelfEnroll={isHrAdmin ? undefined : handleSelfEnroll}
             />
           )}
 

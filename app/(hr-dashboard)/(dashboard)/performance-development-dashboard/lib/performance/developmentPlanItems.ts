@@ -88,10 +88,12 @@ async function loadDevPlanItem(
 
 async function loadAppraisalForDevPlan(
   appraisalId: string,
-): Promise<{ employee_id: string; status: string } | NextResponse> {
+): Promise<
+  { employee_id: string; status: string; finalized_at: string | null } | NextResponse
+> {
   const { data, error } = await supabaseAdmin
     .from("hr3_performance_appraisals")
-    .select("employee_id, status")
+    .select("employee_id, status, finalized_at")
     .eq("id", appraisalId)
     .maybeSingle();
 
@@ -149,7 +151,9 @@ async function resolveDevPlanActorScope(): Promise<
 async function loadAppraisalForDevPlanScoped(
   appraisalId: string,
   scope: DevPlanActorScope,
-): Promise<{ employee_id: string; status: string } | NextResponse> {
+): Promise<
+  { employee_id: string; status: string; finalized_at: string | null } | NextResponse
+> {
   if ("orgWide" in scope) {
     return loadAppraisalForDevPlan(appraisalId);
   }
@@ -160,7 +164,7 @@ async function loadAppraisalForDevPlanScoped(
 
   const { data, error } = await supabaseAdmin
     .from("hr3_performance_appraisals")
-    .select("employee_id, status")
+    .select("employee_id, status, finalized_at")
     .eq("id", appraisalId)
     .in("employee_id", scope.employeeIds)
     .maybeSingle();
@@ -261,7 +265,9 @@ export async function listDevPlanItems(
  * Create a new development plan item for an appraisal.
  *
  * Authorization: HR Admin, Manager (direct reports), or Employee (self).
- * The appraisal must not be finalized or acknowledged.
+ * The appraisal must not be finalized. Acknowledgment alone (which precedes
+ * finalization) does not lock items; finalization is detected via
+ * `finalized_at` so legacy acknowledged records stay locked.
  */
 export async function createDevPlanItem(
   appraisalId: string,
@@ -279,10 +285,10 @@ export async function createDevPlanItem(
   );
   if (appraisal instanceof NextResponse) return appraisal;
 
-  // Cannot add items to finalized/acknowledged appraisals
-  if (appraisal.status === "finalized" || appraisal.status === "acknowledged") {
+  // Cannot add items to finalized appraisals
+  if (appraisal.finalized_at !== null) {
     return badRequest(
-      "Cannot add development plan items to a finalized or acknowledged appraisal.",
+      "Cannot add development plan items to a finalized appraisal.",
     );
   }
 
@@ -348,7 +354,7 @@ export async function createDevPlanItem(
  * Update an existing development plan item.
  *
  * Authorization: HR Admin, Manager (direct reports), or Employee (self).
- * The appraisal must not be finalized or acknowledged.
+ * The appraisal must not be finalized (see create guard).
  */
 export async function updateDevPlanItem(
   itemId: string,
@@ -373,9 +379,9 @@ export async function updateDevPlanItem(
   );
   if (appraisal instanceof NextResponse) return appraisal;
 
-  if (appraisal.status === "finalized" || appraisal.status === "acknowledged") {
+  if (appraisal.finalized_at !== null) {
     return badRequest(
-      "Cannot edit development plan items on a finalized or acknowledged appraisal.",
+      "Cannot edit development plan items on a finalized appraisal.",
     );
   }
 
@@ -449,7 +455,7 @@ export async function updateDevPlanItem(
  * Delete a development plan item.
  *
  * Authorization: HR Admin, Manager (direct reports), or Employee (self).
- * The appraisal must not be finalized or acknowledged.
+ * The appraisal must not be finalized (see create guard).
  */
 export async function deleteDevPlanItem(itemId: string): Promise<NextResponse> {
   const itemIdValid = requireValidUuid(itemId, "development plan item id");
@@ -467,9 +473,9 @@ export async function deleteDevPlanItem(itemId: string): Promise<NextResponse> {
   );
   if (appraisal instanceof NextResponse) return appraisal;
 
-  if (appraisal.status === "finalized" || appraisal.status === "acknowledged") {
+  if (appraisal.finalized_at !== null) {
     return badRequest(
-      "Cannot delete development plan items on a finalized or acknowledged appraisal.",
+      "Cannot delete development plan items on a finalized appraisal.",
     );
   }
 

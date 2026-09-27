@@ -26,6 +26,7 @@ import { useCompetencyApi } from "@/performance-development-dashboard/hooks/useC
 import { CompetencyLibraryTab } from "@/performance-development-dashboard/components/competencies/CompetencyLibraryTab";
 import { PositionRequirementsTab } from "@/performance-development-dashboard/components/competencies/PositionRequirementsTab";
 import { EmployeeCompetenciesTab } from "@/performance-development-dashboard/components/competencies/EmployeeCompetenciesTab";
+import { PositionWeightsTab } from "@/performance-development-dashboard/components/competencies/PositionWeightsTab";
 
 type Props = {
   serverUser: CurrentPerDevUser;
@@ -44,7 +45,7 @@ type Props = {
   employeePositionById: Record<string, string | null>;
 };
 
-type TabKey = "library" | "requirements" | "employees";
+type TabKey = "library" | "requirements" | "employees" | "weights";
 
 export function CompetencyManagement({
   serverUser,
@@ -172,6 +173,9 @@ export function CompetencyManagement({
             count: requirements.length,
           },
           { key: "employees", label: "Profiles", count: profile.length },
+          ...(isHrAdmin
+            ? [{ key: "weights", label: "Position Weights" } as const]
+            : []),
         ]}
         active={activeTab}
         onChange={setActiveTab}
@@ -230,6 +234,10 @@ export function CompetencyManagement({
               submitting={api.busy}
               onAssess={handleAssessEmployee}
             />
+          )}
+
+          {activeTab === "weights" && isHrAdmin && (
+            <PositionWeightsTab positions={positions} isHrAdmin={isHrAdmin} />
           )}
         </>
       )}

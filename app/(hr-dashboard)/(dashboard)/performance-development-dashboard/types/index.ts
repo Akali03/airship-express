@@ -33,11 +33,226 @@ export type PerformanceCycle = {
   closed_at: string | null;
 };
 
+/**
+ * Standard review frequencies. Review frequency belongs to the Performance
+ * Cycle — never to Job Position (positions control only Goals % vs
+ * Competencies %). HR selects year + frequency (+ period for quarterly /
+ * semi-annual); the system generates the canonical name and dates.
+ * Historical custom cycles remain readable, but all NEW cycles are created
+ * through this rule.
+ */
+export const PERFORMANCE_CYCLE_FREQUENCIES = [
+  "quarterly",
+  "semi_annual",
+  "annual",
+] as const;
+
+export type PerformanceCycleFrequency =
+  (typeof PERFORMANCE_CYCLE_FREQUENCIES)[number];
+
+/** Human-readable frequency labels for cycle display. */
+export const PERFORMANCE_CYCLE_FREQUENCY_LABELS: Record<
+  PerformanceCycleFrequency,
+  string
+> = {
+  quarterly: "Quarterly",
+  semi_annual: "Semi-Annual",
+  annual: "Annual",
+};
+
+/** Quarterly periods (3 months each). */
+export const QUARTERLY_PERIODS = ["Q1", "Q2", "Q3", "Q4"] as const;
+
+export type QuarterlyPeriod = (typeof QUARTERLY_PERIODS)[number];
+
+/** Semi-annual periods (6 months each). */
+export const SEMI_ANNUAL_PERIODS = ["H1", "H2"] as const;
+
+export type SemiAnnualPeriod = (typeof SEMI_ANNUAL_PERIODS)[number];
+
+/**
+ * Standard-cycle creation input: descriptive HR-defined name + calendar
+ * year + controlled frequency enum + controlled period (required for
+ * quarterly/semi-annual, absent for annual). Arbitrary period strings are
+ * never accepted. The name is metadata only — schedule identity always
+ * derives from year + frequency + period.
+ */
 export type CycleCreateInput = {
+  name: string;
+  year: number;
+  frequency: PerformanceCycleFrequency;
+  period?: QuarterlyPeriod | SemiAnnualPeriod | null;
+};
+
+/** Practical bounds for a selectable cycle year (server-enforced). */
+export const CYCLE_YEAR_MIN = 2000;
+export const CYCLE_YEAR_MAX = 2100;
+
+export type StandardCyclePeriod = {
   name: string;
   period_start: string;
   period_end: string;
 };
+
+/**
+ * Canonical standard-cycle derivation (pure — safe for client preview AND
+ * server enforcement; the server always re-derives and never trusts client
+ * values). Returns null for invalid frequency/period combinations (the
+ * server rejects those with 400):
+ *
+ *   Q1 {year}: name `Q1 {year}`, {year}-01-01 through {year}-03-31
+ *   Q2 {year}: name `Q2 {year}`, {year}-04-01 through {year}-06-30
+ *   Q3 {year}: name `Q3 {year}`, {year}-07-01 through {year}-09-30
+ *   Q4 {year}: name `Q4 {year}`, {year}-10-01 through {year}-12-31
+ *   H1 {year}: name `H1 {year}`, {year}-01-01 through {year}-06-30
+ *   H2 {year}: name `H2 {year}`, {year}-07-01 through {year}-12-31
+ *   Annual:    name `Annual {year}`, {year}-01-01 through {year}-12-31
+ */
+export function deriveStandardCyclePeriod(
+  year: number,
+  frequency: PerformanceCycleFrequency,
+  period?: QuarterlyPeriod | SemiAnnualPeriod | null
+): StandardCyclePeriod | null {
+  if (frequency === "quarterly") {
+    switch (period) {
+      case "Q1":
+        return {
+          name: `Q1 ${year}`,
+          period_start: `${year}-01-01`,
+          period_end: `${year}-03-31`,
+        };
+      case "Q2":
+        return {
+          name: `Q2 ${year}`,
+          period_start: `${year}-04-01`,
+          period_end: `${year}-06-30`,
+        };
+      case "Q3":
+        return {
+          name: `Q3 ${year}`,
+          period_start: `${year}-07-01`,
+          period_end: `${year}-09-30`,
+        };
+      case "Q4":
+        return {
+          name: `Q4 ${year}`,
+          period_start: `${year}-10-01`,
+          period_end: `${year}-12-31`,
+        };
+      default:
+        return null;
+    }
+  }
+  if (frequency === "semi_annual") {
+    switch (period) {
+      case "H1":
+        return {
+          name: `H1 ${year}`,
+          period_start: `${year}-01-01`,
+          period_end: `${year}-06-30`,
+        };
+      case "H2":
+        return {
+          name: `H2 ${year}`,
+          period_start: `${year}-07-01`,
+          period_end: `${year}-12-31`,
+        };
+      default:
+        return null;
+    }
+  }
+  if (frequency === "annual") {
+    if (period !== undefined && period !== null) {
+      return null;
+    }
+    return {
+      name: `Annual ${year}`,
+      period_start: `${year}-01-01`,
+      period_end: `${year}-12-31`,
+    };
+  }
+  return null;
+}
+
+export type InferredCycleSchedule = {
+  frequency: PerformanceCycleFrequency;
+  period: QuarterlyPeriod | SemiAnnualPeriod | null;
+  /** Canonical period label (e.g. "Q3 2026", "H1 2026", "Annual 2026"). */
+  label: string;
+  year: number;
+};
+
+const SCHEDULE_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Infers the standard schedule identity of an EXISTING cycle purely from
+ * its stored `period_start` + `period_end` (the schema persists no
+ * frequency/period columns). The seven canonical month/day pairs are
+ * mutually distinct, so a match is unambiguous; anything else (custom or
+ * historical ranges) returns null and the UI falls back to name + dates.
+ * Pure — safe for client display and server duplicate messaging.
+ */
+export function inferStandardCycleSchedule(
+  periodStart: string | null | undefined,
+  periodEnd: string | null | undefined
+): InferredCycleSchedule | null {
+  if (!periodStart || !periodEnd) return null;
+  const startMatch = SCHEDULE_DATE_PATTERN.exec(periodStart.trim());
+  const endMatch = SCHEDULE_DATE_PATTERN.exec(periodEnd.trim());
+  if (!startMatch || !endMatch) return null;
+
+  const startYear = Number(startMatch[1]);
+  const endYear = Number(endMatch[1]);
+  if (startYear !== endYear) return null;
+
+  const startMd = `${startMatch[2]}-${startMatch[3]}`;
+  const endMd = `${endMatch[2]}-${endMatch[3]}`;
+  const range = `${startMd}/${endMd}`;
+
+  let frequency: PerformanceCycleFrequency | null = null;
+  let period: QuarterlyPeriod | SemiAnnualPeriod | null = null;
+  let label: string | null = null;
+  switch (range) {
+    case "01-01/03-31":
+      frequency = "quarterly";
+      period = "Q1";
+      label = `Q1 ${startYear}`;
+      break;
+    case "04-01/06-30":
+      frequency = "quarterly";
+      period = "Q2";
+      label = `Q2 ${startYear}`;
+      break;
+    case "07-01/09-30":
+      frequency = "quarterly";
+      period = "Q3";
+      label = `Q3 ${startYear}`;
+      break;
+    case "10-01/12-31":
+      frequency = "quarterly";
+      period = "Q4";
+      label = `Q4 ${startYear}`;
+      break;
+    case "01-01/06-30":
+      frequency = "semi_annual";
+      period = "H1";
+      label = `H1 ${startYear}`;
+      break;
+    case "07-01/12-31":
+      frequency = "semi_annual";
+      period = "H2";
+      label = `H2 ${startYear}`;
+      break;
+    case "01-01/12-31":
+      frequency = "annual";
+      period = null;
+      label = `Annual ${startYear}`;
+      break;
+    default:
+      return null;
+  }
+  return { frequency, period, label, year: startYear };
+}
 
 /**
  * A hard reason a cycle cannot advance to its next stage. `count` is the
@@ -93,6 +308,72 @@ export type PerformanceCycleClosureReadiness = {
   blockers: PerformanceCycleReadinessBlocker[];
 };
 
+/**
+ * Open-readiness for the draft → open release gate. Narrower than
+ * stage-advance readiness: every linked appraisal must be positioned,
+ * weighted, evaluated, with resolvable goals/competencies. Opening never
+ * releases individual draft appraisals (Option B). Returned by the
+ * read-only open-readiness endpoint and on open rejection (409), consumed
+ * by the open-confirmation UI.
+ */
+export type PerformanceCycleOpenReadiness = {
+  cycleId: string;
+  ready: boolean;
+  /** Linked appraisal counts for the "N of M appraisals ready" summary. */
+  totalAppraisals: number;
+  readyAppraisals: number;
+  blockers: PerformanceCycleReadinessBlocker[];
+  /**
+   * Aggregate validation checklist. Every entry is derived server-side from
+   * the same authoritative open-readiness calculation that produces
+   * `blockers` (plus server-computed goal-weight sums) — the client never
+   * invents PASS states and duplicates no readiness logic.
+   */
+  checks: CycleOpenReadinessCheck[];
+  /**
+   * Per-appraisal readiness, same source. `ready` is true only when no
+   * gate failure is attributable to the appraisal; `issues` carry the
+   * gate-derived reasons. Display values (composition, goal-weight total,
+   * evaluator) are server-derived facts, not verdicts, except where they
+   * restate a gate outcome.
+   */
+  appraisals: CycleOpenAppraisalReadiness[];
+};
+
+/**
+ * One aggregate open-readiness check for HR visibility. The
+ * `weighted_kpi_totals` row is a REAL gate (weighted KPI sums must total
+ * 100%); only the `qualitative_goals` row is informational (counts of
+ * unscored developmental goals, never blocking).
+ */
+export type CycleOpenReadinessCheck = {
+  code: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+};
+
+/** A gate-derived reason one appraisal needs attention. */
+export type CycleOpenReadinessIssue = {
+  code: string;
+  message: string;
+};
+
+export type CycleOpenAppraisalReadiness = {
+  appraisalId: string;
+  employeeId: string;
+  employeeName: string;
+  positionTitle: string | null;
+  ready: boolean;
+  /** Resolved Goals/Competencies composition (snapshot wins, else live). */
+  goalWeightPct: number | null;
+  competencyWeightPct: number | null;
+  /** SUM of WEIGHTED KPI weights only (qualitative NULLs excluded). */
+  goalWeightsTotal: number | null;
+  evaluatorName: string | null;
+  issues: CycleOpenReadinessIssue[];
+};
+
 export type CurrentPerDevUser = {
   fullName: string;
   role: string;
@@ -125,6 +406,129 @@ export const PERFORMANCE_CYCLE_STAGE_LABELS: Record<
   finalization: "Finalization",
   closed: "Closed",
 };
+
+/* =====================================================================
+ * ORGANIZATION CYCLE PHASES (final business process — display layer)
+ * ===================================================================== */
+
+/**
+ * Official Performance Cycle phases:
+ *
+ *   Planning → Monitoring → Reviewing → Rewarding & Developing
+ *
+ * CLOSED is the terminal cycle STATUS/end-state, not a fifth phase.
+ *
+ * Compatibility mapping over the persisted `stage` vocabulary (which is
+ * app-controlled and unchanged — no migration, no rewrite of existing
+ * cycles). The server transition map, readiness gates, and close rules keep
+ * operating on the legacy micro-stages; this layer only presents them as
+ * business phases:
+ *
+ *   goal_setting                        → Planning
+ *   goal_execution, check_in            → Monitoring
+ *   self_assessment, manager_assessment  → Reviewing
+ *   finalization                        → Rewarding & Developing
+ *   closed                              → Closed (terminal state, no phase)
+ *
+ * Unknown/legacy values map to null so rows stay readable with a fallback.
+ */
+export const PERFORMANCE_CYCLE_PHASES = [
+  "planning",
+  "monitoring",
+  "reviewing",
+  "rewarding_developing",
+] as const;
+
+export type PerformanceCyclePhase =
+  (typeof PERFORMANCE_CYCLE_PHASES)[number];
+
+export const PERFORMANCE_CYCLE_PHASE_LABELS: Record<
+  PerformanceCyclePhase,
+  string
+> = {
+  planning: "Planning",
+  monitoring: "Monitoring",
+  reviewing: "Reviewing",
+  rewarding_developing: "Rewarding & Developing",
+};
+
+/**
+ * One-sentence business meaning per phase, shown as coordination context.
+ * Reviewing describes the individual appraisal workflow without implying
+ * the cycle moves appraisals (it never does — appraisals advance only
+ * through their own actions).
+ */
+export const PERFORMANCE_CYCLE_PHASE_DESCRIPTIONS: Record<
+  PerformanceCyclePhase,
+  string
+> = {
+  planning:
+    "Cycle setup, period, position weights, competency preparation, draft appraisals, evaluator assignment, and readiness validation.",
+  monitoring:
+    "Goal execution, progress, evidence, check-ins, feedback, and operational performance tracking.",
+  reviewing:
+    "Individual appraisal workflow: Draft → HR Release → Employee Self-Assessment → Manager Assessment → Employee Acknowledgment → HR Finalization. Cycle advancement never changes an appraisal status.",
+  rewarding_developing:
+    "Official finalized results, development actions, competency gaps, My Development, Learning & Development, and development follow-through.",
+};
+
+/** Maps a persisted cycle stage to its business phase (null for Closed/unknown). */
+export function cyclePhaseForStage(stage: string): PerformanceCyclePhase | null {
+  switch (stage) {
+    case "goal_setting":
+      return "planning";
+    case "goal_execution":
+    case "check_in":
+      return "monitoring";
+    case "self_assessment":
+    case "manager_assessment":
+      return "reviewing";
+    case "finalization":
+      return "rewarding_developing";
+    default:
+      return null;
+  }
+}
+
+export type CycleNextAction =
+  | { kind: "advance-phase"; destination: PerformanceCyclePhase }
+  | { kind: "advance-within"; phase: PerformanceCyclePhase }
+  | { kind: "close" }
+  | { kind: "none" };
+
+/**
+ * Derives the HR next action from the persisted current stage and the next
+ * legacy stage (null when the cycle is Closed/terminal). Cross-phase moves
+ * name the destination phase; same-phase moves stay explicit ("within")
+ * instead of a contextless "Advance"; Rewarding & Developing offers Close.
+ */
+export function cycleNextActionForStages(
+  currentStage: string,
+  nextStage: string | null | undefined,
+): CycleNextAction {
+  if (!nextStage) return { kind: "none" };
+  if (nextStage === "closed") return { kind: "close" };
+  const currentPhase = cyclePhaseForStage(currentStage);
+  const nextPhase = cyclePhaseForStage(nextStage);
+  if (!currentPhase || !nextPhase) return { kind: "none" };
+  if (currentPhase !== nextPhase)
+    return { kind: "advance-phase", destination: nextPhase };
+  return { kind: "advance-within", phase: currentPhase };
+}
+
+/** Button/confirmation label for a derived next action (never contextless). */
+export function cycleNextActionLabel(action: CycleNextAction): string | null {
+  switch (action.kind) {
+    case "advance-phase":
+      return `Advance to ${PERFORMANCE_CYCLE_PHASE_LABELS[action.destination]}`;
+    case "advance-within":
+      return `Advance within ${PERFORMANCE_CYCLE_PHASE_LABELS[action.phase]}`;
+    case "close":
+      return "Close Cycle";
+    case "none":
+      return null;
+  }
+}
 
 export const PERFORMANCE_CYCLE_STATUS_LABELS: Record<
   PerformanceCycleStatus,
@@ -717,6 +1121,17 @@ export type PerformanceAppraisal = {
    */
   applicable_competency_ids_snapshot: string[] | null;
   /**
+   * Frozen pre-cycle configuration snapshot, written once at appraisal
+   * creation and never updated: the subject's job position, its resolved
+   * scoring composition, and department context. NULL on legacy appraisals,
+   * which continue on the standard 60/40 composition.
+   */
+  snapshot_job_position_id: string | null;
+  snapshot_job_position_name: string | null;
+  snapshot_goal_weight: number | null;
+  snapshot_competency_weight: number | null;
+  snapshot_department: string | null;
+  /**
    * Server-attached details (single-record reads only): the formal ratings
    * stored in `hr3_performance_appraisal_goal_results` /
    * `hr3_performance_appraisal_competency_results`.
@@ -795,7 +1210,15 @@ export const LEGACY_APPRAISAL_STATUS_TONES: Record<string, string> = {
 
 export type AppraisalCreateInput = {
   employee_id: string;
-  review_period: string;
+  /**
+   * Review-period label. REQUIRED when `cycle_id` is absent (legacy path);
+   * IGNORED when `cycle_id` is present — the server inherits the selected
+   * cycle's name authoritatively, so an appraisal can never carry a label
+   * that disagrees with the cycle that owns the period. The cycle owns
+   * name/start/end; the appraisal stores the cycle id and displays the
+   * associated period through it.
+   */
+  review_period?: string;
   cycle_id?: string;
 };
 
@@ -920,6 +1343,7 @@ export type AppraisalCompetencyRatingInput = {
 export type AppraisalScoringGoal = {
   goal_id: string;
   title: string;
+  description: string | null;
   weight: number | null;
   status: PerformanceGoalStatus;
   /** Read-only measurement context for measurable goals (never scored). */
@@ -947,10 +1371,98 @@ export type AppraisalScoringCompetency = {
 export type AppraisalScoringInputs = {
   appraisal_id: string;
   goals: AppraisalScoringGoal[];
+  /** SUM of WEIGHTED KPI weights only — qualitative NULLs contribute nothing. */
   weight_total: number;
+  /** Applicable goals with NULL weight (developmental, unscored). */
+  qualitative_goal_count: number;
   competencies: AppraisalScoringCompetency[];
   existing_goal_ratings: AppraisalGoalRatingInput[];
   existing_competency_ratings: AppraisalCompetencyRatingInput[];
+  /**
+   * Resolved scoring composition for this appraisal as fractions summing to
+   * 1: snapshot weights when the appraisal carries them, otherwise the
+   * legacy 0.6/0.4 standard. Authoritative for preview, manager validation,
+   * and finalization alike.
+   */
+  weights: AppraisalScoringWeights;
+};
+
+/**
+ * Goals-vs-Competencies scoring composition as fractions (sum = 1).
+ * Resolved per appraisal from frozen snapshots, falling back to the legacy
+ * standard composition for pre-configuration records.
+ */
+export type AppraisalScoringWeights = {
+  goalWeight: number;
+  competencyWeight: number;
+};
+
+/* =====================================================================
+ * PRE-CYCLE CONFIGURATION (Phase 2: position weights, library,
+ * applicability). All configuration is HR-admin-managed; snapshots on the
+ * appraisal row freeze history.
+ * ===================================================================== */
+
+/**
+ * HR-defined scoring composition for one job position, stored in
+ * `hr3_position_appraisal_weights`. Weights are percentages summing to 100.
+ */
+export type PositionAppraisalWeights = {
+  id: string;
+  job_position_id: string;
+  goal_weight: number;
+  competency_weight: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PositionAppraisalWeightsInput = {
+  job_position_id: string;
+  goal_weight: number;
+  competency_weight: number;
+};
+
+export type UpdatePositionAppraisalWeightsInput = {
+  goal_weight: number;
+  competency_weight: number;
+};
+
+export const LIBRARY_APPLICABILITY_SCOPES = [
+  "organization",
+  "department",
+  "individual",
+] as const;
+
+export type LibraryApplicabilityScope =
+  (typeof LIBRARY_APPLICABILITY_SCOPES)[number];
+
+/**
+ * One applicability assignment for a library competency in
+ * `hr3_competency_applicability`. Scope-shape is DB-enforced:
+ * organization carries neither department nor employee; department carries
+ * a trimmed department name; individual carries an employee id.
+ * (Goals are employee/cycle records, never library items.)
+ */
+export type CompetencyApplicability = {
+  id: string;
+  competency_id: string;
+  scope: LibraryApplicabilityScope;
+  department: string | null;
+  employee_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CompetencyApplicabilityInput = {
+  competency_id: string;
+  scope: LibraryApplicabilityScope;
+  department?: string | null;
+  employee_id?: string | null;
+};
+
+/** Deduplicated competency applicability resolution for one employee. */
+export type ResolvedCompetencyApplicability = {
+  competencyIds: string[];
 };
 
 export const COMPETENCY_CATEGORIES = ["technical", "behavioral"] as const;
@@ -980,6 +1492,8 @@ export type Competency = {
   name: string;
   description: string | null;
   category: CompetencyCategory;
+  /** Soft activation (defaults true). Absent on rows read without the column. */
+  is_active?: boolean | null;
   created_at: string;
 };
 
@@ -1050,8 +1564,14 @@ export type EmployeeCompetencyAssessmentInput = {
 };
 
 /**
- * Competency PROFILE item: the latest assessment per competency for an
- * employee, with a server-computed GAP.
+ * Competency PROFILE item: the union of the employee's position requirements
+ * and latest assessments per competency, with a server-computed GAP.
+ *
+ * Items with an assessment carry the latest row's `current_level` plus its
+ * provenance (`assessed_by`/`assessed_at`). Items for position-required
+ * competencies that were NEVER assessed carry `current_level: null` (shown
+ * as "Not Assessed") with null provenance — no fake row is created and no
+ * zero is invented. A missing level is unknown, never Level 0.
  *
  * Gap is computed ONLY because both `required_level` and `current_level` are
  * integers on the same live-validated 1..5 scale — a safe, comparable numeric
@@ -1064,13 +1584,13 @@ export type EmployeeCompetencyAssessmentInput = {
 export type EmployeeCompetencyProfileItem = {
   employee_id: string;
   competency_id: string;
-  current_level: number;
+  current_level: number | null;
   required_level: number | null;
   position_required_level: number | null;
   effective_required_level: number | null;
   gap: number | null;
-  assessed_by: string;
-  assessed_at: string;
+  assessed_by: string | null;
+  assessed_at: string | null;
 };
 
 export type PositionOption = {
@@ -1145,6 +1665,11 @@ export type Course = {
   primary_content_url: string | null;
   duration_minutes: number | null;
   competency_id: string | null;
+  /**
+   * Whether employees may enroll themselves without HR assignment.
+   * Defaults false; HR toggles per course. Server-enforced on self-enroll.
+   */
+  allow_self_enrollment: boolean;
   created_by: string;
   created_at: string;
 };
@@ -1155,6 +1680,7 @@ export type CourseInput = {
   primary_content_url?: string | null;
   duration_minutes?: number | null;
   competency_id?: string | null;
+  allow_self_enrollment?: boolean;
 };
 
 /** Server-side representation of `hr3_course_enrollments`. */
@@ -1724,10 +2250,23 @@ export type DevelopmentSuccessionContext = {
   developmentNotes: string | null;
 };
 
+/**
+ * One position-required competency that was never assessed. No numeric gap
+ * is fabricated: unknown level, "Assessment Required" status only.
+ */
+export type DevelopmentAssessmentRequired = {
+  competencyId: string;
+  competencyName: string;
+  competencyCategory: string | null;
+  effectiveRequiredLevel: number;
+};
+
 /** Full Development Planning profile for one employee. */
 export type DevelopmentProfile = {
   employee: DevelopmentEmployee;
   developmentNeeds: DevelopmentNeed[];
+  /** Position-required competencies with no assessment on record. */
+  assessmentRequired: DevelopmentAssessmentRequired[];
   /** Appraisal-derived development actions (read-only follow-through). */
   developmentActions: DevelopmentActionItem[];
   learning: {
@@ -1817,13 +2356,15 @@ export type DevelopmentActionItem = {
 /**
  * One competency in the employee's own development view. Narrow projection
  * of the existing profile model: display fields plus the server-derived
- * required level and gap. No assessor attribution, no other employees.
+ * required level and gap. `currentLevel` is null when the position-required
+ * competency was never assessed (shown as "Not Assessed"). No assessor
+ * attribution, no other employees.
  */
 export type MyDevelopmentCompetency = {
   competencyId: string;
   competencyName: string;
   competencyCategory: string | null;
-  currentLevel: number;
+  currentLevel: number | null;
   effectiveRequiredLevel: number | null;
   gap: number | null;
 };

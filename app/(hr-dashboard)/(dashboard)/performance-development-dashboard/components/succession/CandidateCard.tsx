@@ -20,7 +20,7 @@ export function CandidateCard({ candidate, submitting, onEdit, onRemove }: Props
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-4 dark:border-paper/10">
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper px-5 py-5 dark:border-paper/10">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="truncate font-bricolage text-[15px] font-medium tracking-tight text-ink">

@@ -25,6 +25,14 @@ type Props = {
   isHrAdmin: boolean;
   onView: () => void;
   onEdit?: () => void;
+  /**
+   * Employee self-enrollment affordance (never rendered for HR admins):
+   * "enrolled" shows a read-only badge; "self_enrollable" shows the
+   * Self-enroll action; null/undefined shows nothing.
+   */
+  enrollmentState?: "enrolled" | "self_enrollable" | null;
+  onSelfEnroll?: () => void;
+  selfEnrollDisabled?: boolean;
 };
 
 /**
@@ -38,6 +46,9 @@ export function CourseCard({
   isHrAdmin,
   onView,
   onEdit,
+  enrollmentState,
+  onSelfEnroll,
+  selfEnrollDisabled,
 }: Props) {
   return (
     <PerformancePanel>
@@ -77,6 +88,24 @@ export function CourseCard({
       )}
 
       <div className="mt-4 flex items-center justify-end gap-2">
+        {!isHrAdmin && enrollmentState === "enrolled" && (
+          <span
+            aria-label={`Enrolled in ${course.title}`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[12.5px] font-medium text-emerald-600 dark:text-emerald-400"
+          >
+            Enrolled
+          </span>
+        )}
+        {!isHrAdmin && enrollmentState === "self_enrollable" && onSelfEnroll && (
+          <button
+            type="button"
+            onClick={onSelfEnroll}
+            disabled={selfEnrollDisabled}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Self-enroll
+          </button>
+        )}
         <button
           type="button"
           onClick={onView}

@@ -283,8 +283,17 @@ export async function getDevelopmentProfile(
   const coursesById = new Map(courses.map((course) => [course.id, course]));
   const sessionsById = new Map(sessions.map((session) => [session.id, session]));
 
+  // A positive gap implies an assessed (numeric) current level: unassessed
+  // items always carry a null gap, so the predicate below is exact.
+  type AssessedGapItem = EmployeeCompetencyProfileItem & {
+    current_level: number;
+    gap: number;
+  };
   const developmentNeeds = profileItems
-    .filter((item) => item.gap !== null && item.gap > 0)
+    .filter(
+      (item): item is AssessedGapItem =>
+        item.gap !== null && item.gap > 0 && item.current_level !== null,
+    )
     .map((item) => {
       const competency = competenciesById.get(item.competency_id);
       return {
@@ -293,7 +302,29 @@ export async function getDevelopmentProfile(
         competencyCategory: competency?.category ?? null,
         currentLevel: item.current_level,
         effectiveRequiredLevel: item.effective_required_level,
-        gap: item.gap as number,
+        gap: item.gap,
+      };
+    })
+    .sort((a, b) => a.competencyName.localeCompare(b.competencyName));
+
+  // Position-required competencies with no assessment on record: shown as
+  // "Assessment Required" with no fabricated numeric gap.
+  type UnassessedRequiredItem = EmployeeCompetencyProfileItem & {
+    effective_required_level: number;
+  };
+  const assessmentRequired = profileItems
+    .filter(
+      (item): item is UnassessedRequiredItem =>
+        item.current_level === null &&
+        item.effective_required_level !== null,
+    )
+    .map((item) => {
+      const competency = competenciesById.get(item.competency_id);
+      return {
+        competencyId: item.competency_id,
+        competencyName: competency?.name ?? "Unknown competency",
+        competencyCategory: competency?.category ?? null,
+        effectiveRequiredLevel: item.effective_required_level,
       };
     })
     .sort((a, b) => a.competencyName.localeCompare(b.competencyName));
@@ -364,6 +395,7 @@ export async function getDevelopmentProfile(
   return {
     employee,
     developmentNeeds,
+    assessmentRequired,
     developmentActions,
     learning: {
       courseEnrollments: developmentCourseEnrollments,

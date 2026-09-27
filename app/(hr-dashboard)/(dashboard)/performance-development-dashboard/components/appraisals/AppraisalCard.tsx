@@ -39,18 +39,24 @@ export function AppraisalCard({
   const status = appraisal.status as AppraisalStatus;
   // User-facing lifecycle state. A submitted manager assessment still
   // carries database status manager_assessment, so the submitted flag
-  // distinguishes "awaiting manager" from "awaiting HR finalization".
-  // Finalized always awaits employee acknowledgment next.
+  // distinguishes "awaiting acknowledgment" from earlier manager work.
+  // Acknowledged awaits HR finalization; finalized is terminal.
   const displayLabel =
     status === "manager_assessment" && managerSubmitted === true
-      ? "Awaiting HR Finalization"
-      : status === "finalized"
-        ? "Finalized — Awaiting Employee Acknowledgment"
-        : (APPRAISAL_STATUS_LABELS[status] ?? appraisal.status ?? "Unknown stage");
+      ? "Awaiting Employee Acknowledgment"
+      : status === "acknowledged"
+        ? "Awaiting HR Finalization"
+        : status === "finalized"
+          ? "Finalized"
+          : (APPRAISAL_STATUS_LABELS[status] ?? appraisal.status ?? "Unknown stage");
   const displayTone =
     status === "manager_assessment" && managerSubmitted === true
-      ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-      : (APPRAISAL_STATUS_TONES[status] ?? "bg-line text-muted");
+      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      : status === "acknowledged"
+        ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+        : status === "finalized"
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          : (APPRAISAL_STATUS_TONES[status] ?? "bg-line text-muted");
 
   const finalized =
     appraisal.final_score !== null &&

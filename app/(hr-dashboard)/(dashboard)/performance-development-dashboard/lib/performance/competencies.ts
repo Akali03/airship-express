@@ -64,7 +64,10 @@ export type {
  *   EMPLOYEE COMPETENCY    → `hr3_employee_competency_scores` — the employee's
  *                            currently assessed state against a competency
  *                            (append-only assessment history; the profile is
- *                            the LATEST row per competency).
+ *                            the LATEST row per competency, unioned with
+ *                            position-required competencies that were never
+ *                            assessed — those carry a null current level and
+ *                            create no rows).
  *   APPRAISAL RESULT       → `hr3_performance_appraisal_competency_results` —
  *                            a formal appraisal-scoped result. Intentionally
  *                            UNTOUCHED here: it belongs to the future official
@@ -125,7 +128,7 @@ export {
   MAX_COMPETENCY_DESCRIPTION_LENGTH,
 } from "@/performance-development-dashboard/lib/constants";
 
-const COMPETENCY_SELECT = "id, name, description, category, created_at";
+const COMPETENCY_SELECT = "id, name, description, category, is_active, created_at";
 const REQUIREMENT_SELECT =
   "id, position_id, competency_id, required_level, created_at, updated_at";
 const SCORE_SELECT =
@@ -411,10 +414,14 @@ export async function createCompetency(
  * Updates editable library fields (name, category, description — all real
  * columns; `id`, `created_at` are never supplied by the client). HR scope only.
  * Mutation → audit (`competency.updated`).
+ *
+ * Optional `is_active` toggles soft activation: inactive competencies are
+ * excluded from future applicability resolution only; historical records
+ * (profiles, snapshots, results) are untouched.
  */
 export async function updateCompetency(
   competencyId: string,
-  input: CompetencyInput
+  input: CompetencyInput & { is_active?: boolean }
 ): Promise<Competency | NextResponse> {
   const admin = await assertHrAdminScope();
   if (admin instanceof NextResponse) return admin;
@@ -463,6 +470,13 @@ export async function updateCompetency(
     description,
   };
 
+  if (input?.is_active !== undefined) {
+    if (typeof input.is_active !== "boolean") {
+      return BAD_REQUEST_RESPONSE("is_active must be a boolean.");
+    }
+    updates.is_active = input.is_active;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("hr3_competencies")
     .update(updates)
@@ -490,6 +504,9 @@ export async function updateCompetency(
       name: updated.name,
       category: updated.category,
       description: updated.description,
+      ...(input?.is_active !== undefined
+        ? { is_active: updated.is_active ?? null }
+        : {}),
     },
   });
   if (auditError instanceof NextResponse) return auditError;
@@ -1005,9 +1022,37 @@ export async function listEmployeeCompetencies(
       new Map<string, number>();
 
     const employeeScores = scoresByEmployee.get(employee.id) ?? [];
+    const scoreByCompetency = new Map(
+      employeeScores.map((score) => [score.competency_id, score]),
+    );
 
-    for (const score of employeeScores) {
-      const positionRequired = positionRequirements.get(score.competency_id) ?? null;
+    // Effective profile = union of position-required competencies and
+    // assessed competencies. A required-but-never-assessed competency is
+    // returned WITHOUT a fabricated assessment row: null current level,
+    // null provenance, position requirement preserved, gap left null (an
+    // unknown level is never treated as 0).
+    const competencyIds = new Set<string>([
+      ...positionRequirements.keys(),
+      ...scoreByCompetency.keys(),
+    ]);
+
+    for (const competencyId of competencyIds) {
+      const score = scoreByCompetency.get(competencyId);
+      const positionRequired = positionRequirements.get(competencyId) ?? null;
+      if (!score) {
+        items.push({
+          employee_id: employee.id,
+          competency_id: competencyId,
+          current_level: null,
+          required_level: null,
+          position_required_level: positionRequired,
+          effective_required_level: positionRequired,
+          gap: null,
+          assessed_by: null,
+          assessed_at: null,
+        });
+        continue;
+      }
       const effectiveRequired = score.required_level ?? positionRequired;
       items.push({
         employee_id: employee.id,

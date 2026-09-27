@@ -13,7 +13,7 @@ import {
   type DevelopmentPlanItem,
   type PerformanceAppraisal,
 } from "@/performance-development-dashboard/types";
-import { calculateScoring, SCORING_WEIGHT_TOLERANCE } from "@/performance-development-dashboard/lib/performance/scoring";
+import { calculateScoring, partitionGoalsByWeight, SCORING_WEIGHT_TOLERANCE } from "@/performance-development-dashboard/lib/performance/scoring";
 import { Modal } from "@/performance-development-dashboard/components/ui/Modal";
 import { Skeleton } from "@/performance-development-dashboard/components/ui/Skeleton";
 import { AttendanceContextSection } from "@/performance-development-dashboard/components/appraisals/AttendanceContextSection";
@@ -30,8 +30,8 @@ const STAGE_ORDER: AppraisalStatus[] = [
   "draft",
   "self_assessment",
   "manager_assessment",
-  "finalized",
   "acknowledged",
+  "finalized",
 ];
 
 const RATING_OPTIONS = [1, 2, 3, 4, 5];
@@ -40,8 +40,8 @@ const STAGE_AWAITING_DESCRIPTIONS: Record<string, string> = {
   draft: "Draft — not yet active",
   self_assessment: "Awaiting employee self-assessment",
   manager_assessment: "Awaiting manager assessment",
-  finalized: "Awaiting employee acknowledgement",
-  acknowledged: "Completed",
+  acknowledged: "Awaiting HR finalization",
+  finalized: "Completed",
 };
 
 function formatWeight(weight: number | null): string {
@@ -98,9 +98,27 @@ type Props = {
     competencyRatings: { competency_id: string; rating: number }[];
     comments: string;
   }) => Promise<void>;
-  onFinalize: () => Promise<void>;
+  onFinalize: (input?: {
+    override_acknowledgment?: boolean;
+    override_reason?: string | null;
+  }) => Promise<void>;
   onAcknowledge: () => Promise<void>;
+  /**
+   * HR reviewer release of a draft appraisal into self-assessment. Optional:
+   * the release action renders only when provided AND the viewer is the
+   * HR reviewer on a draft record.
+   */
+  onStartSelfAssessment?: () => Promise<void>;
   onClose: () => void;
+  /**
+   * Historical read-only mode (closed-cycle inspection). Suppresses every
+   * mutation control — self/manager forms, finalize, acknowledge, release,
+   * development-plan editing — while keeping all display sections (frozen
+   * snapshots, persisted ratings, scores, comments, history). Backend
+   * authorization is unchanged; hidden actions stay unreachable because
+   * their buttons never render. Defaults to false (live workflow).
+   */
+  readOnly?: boolean;
 };
 
 export function AppraisalDetailModal({
@@ -118,8 +136,11 @@ export function AppraisalDetailModal({
   onManagerAssessment,
   onFinalize,
   onAcknowledge,
+  onStartSelfAssessment,
   onClose,
+  readOnly,
 }: Props) {
+  const readOnlyView = readOnly === true;
   const status = appraisal.status as AppraisalStatus;
   const statusLabel =
     APPRAISAL_STATUS_LABELS[status] ?? (appraisal.status || "Unknown stage");
@@ -131,18 +152,37 @@ export function AppraisalDetailModal({
   const isOwnRecord =
     !!currentUserEmployeeId && appraisal.employee_id === currentUserEmployeeId;
 
+  // Weighted/qualitative partition (shared rule — never re-derived ad hoc).
+  // Ratings are collected for weighted KPIs only; qualitative goals render
+  // in their own unscored section. Declared before the action gates below.
+  const goalPartition = useMemo(
+    () => partitionGoalsByWeight(scoringInputs?.goals ?? []),
+    [scoringInputs]
+  );
+  const weightedGoals = goalPartition.weightedGoals;
+  const qualitativeGoals = goalPartition.qualitativeGoals;
+  const invalidGoals = goalPartition.invalidGoals;
+  const hasInvalidGoalWeights = invalidGoals.length > 0;
+
   const canSelfAssess =
-    isOwnRecord && status === "self_assessment";
+    !readOnlyView && isOwnRecord && status === "self_assessment";
 
   // The manager has already submitted if persisted goal results exist.
   // The server uses the same check to prevent duplicate submission (409).
+  // Owner views never load scoring inputs (evaluator/HR scope only), but the
+  // single-record appraisal carries the same persisted goalResults — either
+  // signal proves submission. Result rows are created exclusively by manager
+  // submit, so this never invents a submitted state.
   const hasManagerSubmitted =
-    !!scoringInputs &&
-    scoringInputs.existing_goal_ratings.length > 0;
+    (!!scoringInputs && scoringInputs.existing_goal_ratings.length > 0) ||
+    (appraisal.goalResults !== undefined &&
+      appraisal.goalResults !== null &&
+      appraisal.goalResults.length > 0);
 
   // Manager assessment: assigned evaluator only (not HR Admin reviewer)
   // Hidden once the manager has already submitted (result rows persist).
   const canManagerAssess =
+    !readOnlyView &&
     !!appraisal.currentUserIsEvaluator &&
     status === "manager_assessment" &&
     !hasManagerSubmitted;
@@ -152,14 +192,19 @@ export function AppraisalDetailModal({
     !!appraisal.currentUserIsEvaluator &&
     status === "manager_assessment" &&
     hasManagerSubmitted;
-  // Finalization: HR Admin reviewer only (Manager cannot finalize)
+  // Finalization: HR Admin reviewer only (Manager cannot finalize).
+  // Normal path requires an acknowledged appraisal with complete ratings;
+  // the explicit override path (manager submitted, never acknowledged) is
+  // gated separately below and always requires a reason. Ratings are
+  // required for weighted KPIs only — qualitative goals create no rows.
   const canFinalize =
+    !readOnlyView &&
     isHrAdmin &&
     !!appraisal.currentUserIsHrReviewer &&
-    status === "manager_assessment" &&
+    status === "acknowledged" &&
     scoringInputs !== null &&
-    scoringInputs.goals.length > 0 &&
-    scoringInputs.goals.every((g) =>
+    weightedGoals.length > 0 &&
+    weightedGoals.every((g) =>
       scoringInputs!.existing_goal_ratings.some((r) => r.goal_id === g.goal_id),
     ) &&
     scoringInputs.competencies.length > 0 &&
@@ -168,13 +213,39 @@ export function AppraisalDetailModal({
         (r) => r.competency_id === c.competency_id,
       ),
     );
-  const ratingsIncomplete =
+  // Administrative override: HR reviewer may finalize a submitted-but-
+  // never-acknowledged manager assessment with an explicit reason.
+  // Display-only mirror of the server override rule.
+  const canFinalizeOverride =
+    !readOnlyView &&
     isHrAdmin &&
     !!appraisal.currentUserIsHrReviewer &&
     status === "manager_assessment" &&
-    !canFinalize;
+    hasManagerSubmitted;
+  const ratingsIncomplete =
+    !readOnlyView &&
+    isHrAdmin &&
+    !!appraisal.currentUserIsHrReviewer &&
+    status === "manager_assessment" &&
+    !hasManagerSubmitted;
+  // Acknowledgment: the owner acknowledges the SUBMITTED manager assessment
+  // (not a finalized record). Display-only mirror of the server rule.
   const canAcknowledge =
-    isOwnRecord && status === "finalized";
+    !readOnlyView &&
+    isOwnRecord &&
+    status === "manager_assessment" &&
+    hasManagerSubmitted;
+
+  // HR release: the assigned HR reviewer explicitly moves a draft appraisal
+  // into self-assessment (individual action — opening a cycle never does
+  // this). Display-only mirror of the startSelfAssessmentByHrAdmin rule:
+  // HR admin + reviewer match + draft. The server revalidates everything.
+  const canReleaseForSelfAssessment =
+    !readOnlyView &&
+    !!onStartSelfAssessment &&
+    isHrAdmin &&
+    !!appraisal.currentUserIsHrReviewer &&
+    status === "draft";
 
   const [strengths, setStrengths] = useState(appraisal.strengths ?? "");
   const [improvements, setImprovements] = useState(
@@ -182,6 +253,11 @@ export function AppraisalDetailModal({
   );
   const [comments, setComments] = useState(appraisal.comments ?? "");
   const [formError, setFormError] = useState<string | null>(null);
+  const [overrideArmed, setOverrideArmed] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [finalizeArmed, setFinalizeArmed] = useState(false);
+  const [releaseArmed, setReleaseArmed] = useState(false);
+  const [acknowledgeArmed, setAcknowledgeArmed] = useState(false);
 
   /* ── Development Plan Items state ───────────────────────────────── */
   const [devPlanItems, setDevPlanItems] = useState<DevelopmentPlanItem[]>([]);
@@ -202,9 +278,9 @@ export function AppraisalDetailModal({
     "/performance-development-dashboard/api/performance/development-plan-items";
 
   const canManageDevPlan =
+    !readOnlyView &&
     (canSelfAssess || !!appraisal.currentUserIsEvaluator || isHrAdmin) &&
-    status !== "finalized" &&
-    status !== "acknowledged";
+    appraisal.finalized_at == null;
 
   useEffect(() => {
     if (!appraisal.id) return;
@@ -338,9 +414,13 @@ export function AppraisalDetailModal({
   }
 
   const preview = useMemo(() => {
-    if (!scoringInputs || scoringInputs.goals.length === 0) return null;
+    if (!scoringInputs) return null;
+    const { weightedGoals: previewWeighted } = partitionGoalsByWeight(
+      scoringInputs.goals
+    );
+    if (previewWeighted.length === 0) return null;
 
-    const goalEntries = scoringInputs.goals.map((goal) => ({
+    const goalEntries = previewWeighted.map((goal) => ({
       rating: goalRatingById[goal.goal_id],
       weight: goal.weight,
     }));
@@ -362,18 +442,20 @@ export function AppraisalDetailModal({
         (competency) =>
           competencyRatingById[competency.competency_id] as number,
       ),
+      weights: scoringInputs.weights,
     });
   }, [scoringInputs, goalRatingById, competencyRatingById]);
 
   const weightTotal = scoringInputs?.weight_total ?? 0;
   const weightTotalOk =
-    scoringInputs === null ||
-    scoringInputs.goals.length === 0 ||
+    scoringInputs !== null &&
+    weightedGoals.length > 0 &&
+    !hasInvalidGoalWeights &&
     Math.abs(weightTotal - 100) < SCORING_WEIGHT_TOLERANCE;
   const allRatingsFilled =
     !!scoringInputs &&
-    scoringInputs.goals.length > 0 &&
-    scoringInputs.goals.every(
+    weightedGoals.length > 0 &&
+    weightedGoals.every(
       (goal) => goalRatingById[goal.goal_id] !== undefined,
     ) &&
     scoringInputs.competencies.length > 0 &&
@@ -409,7 +491,7 @@ export function AppraisalDetailModal({
     }
     if (!scoringInputs) return;
 
-    const goalRatings = scoringInputs.goals
+    const goalRatings = weightedGoals
       .filter((goal) => goalRatingById[goal.goal_id] !== undefined)
       .map((goal) => ({
         goal_id: goal.goal_id,
@@ -434,10 +516,14 @@ export function AppraisalDetailModal({
     }
   }
 
-  async function handleFinalize() {
+  async function handleFinalize(input?: {
+    override_acknowledgment?: boolean;
+    override_reason?: string | null;
+  }) {
     setFormError(null);
     try {
-      await onFinalize();
+      await onFinalize(input);
+      setFinalizeArmed(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to finalize.");
     }
@@ -447,9 +533,23 @@ export function AppraisalDetailModal({
     setFormError(null);
     try {
       await onAcknowledge();
+      setAcknowledgeArmed(false);
     } catch (err) {
       setFormError(
-        err instanceof Error ? err.message : "Failed to acknowledge.",
+        err instanceof Error ? err.message : "Failed to acknowledge."
+      );
+    }
+  }
+
+  async function handleRelease() {
+    if (!onStartSelfAssessment) return;
+    setFormError(null);
+    try {
+      await onStartSelfAssessment();
+      setReleaseArmed(false);
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to release appraisal."
       );
     }
   }
@@ -467,18 +567,22 @@ export function AppraisalDetailModal({
               <span
                 title={`Lifecycle state: ${
                   status === "manager_assessment" && hasManagerSubmitted
-                    ? "Awaiting HR Finalization"
-                    : status === "finalized"
-                      ? "Finalized — Awaiting Employee Acknowledgment"
-                      : statusLabel
+                    ? "Awaiting Employee Acknowledgment"
+                    : status === "acknowledged"
+                      ? "Awaiting HR Finalization"
+                      : status === "finalized"
+                        ? "Finalized"
+                        : statusLabel
                 }`}
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusTone}`}
               >
                 {status === "manager_assessment" && hasManagerSubmitted
-                  ? "Awaiting HR Finalization"
-                  : status === "finalized"
-                    ? "Finalized — Awaiting Employee Acknowledgment"
-                    : statusLabel}
+                  ? "Awaiting Employee Acknowledgment"
+                  : status === "acknowledged"
+                    ? "Awaiting HR Finalization"
+                    : status === "finalized"
+                      ? "Finalized"
+                      : statusLabel}
               </span>
               <span className="text-[12px] font-medium text-muted">
                 Created {formatDateTime(appraisal.created_at)}
@@ -499,6 +603,25 @@ export function AppraisalDetailModal({
                 ? ` · HR Admin: ${reviewerByAccountName}`
                 : ""}
               {cycleName ? ` · Cycle: ${cycleName}` : ""}
+            </p>
+            <p className="mt-1 text-[12px] tabular-nums text-muted">
+              {appraisal.snapshot_job_position_name ? (
+                <>
+                  Frozen at creation from position{" "}
+                  <span className="font-medium text-ink">
+                    {appraisal.snapshot_job_position_name}
+                  </span>
+                  {appraisal.snapshot_goal_weight !== null &&
+                  appraisal.snapshot_competency_weight !== null
+                    ? ` · Goals ${Math.round(appraisal.snapshot_goal_weight * 100) / 100}% · Competencies ${Math.round(appraisal.snapshot_competency_weight * 100) / 100}%`
+                    : ""}
+                </>
+              ) : (
+                <>
+                  Legacy record without a frozen position snapshot — scored with
+                  the legacy 60/40 split.
+                </>
+              )}
             </p>
           </div>
           <Tooltip label="Close" side="bottom">
@@ -528,7 +651,7 @@ export function AppraisalDetailModal({
             {STAGE_ORDER.map((stage, index) => {
               // Display-only progress position: a submitted manager
               // assessment still carries database status manager_assessment,
-              // so the stepper advances past it to awaiting HR finalization.
+              // so the stepper advances past it to awaiting acknowledgment.
               // Backend status and transitions are untouched.
               const displayIndex =
                 status === "manager_assessment" && hasManagerSubmitted
@@ -580,7 +703,7 @@ export function AppraisalDetailModal({
                       <span className="text-[9px] leading-none text-muted">
                         {status === "manager_assessment" &&
                         hasManagerSubmitted
-                          ? "Submitted — awaiting HR finalization"
+                          ? "Submitted — awaiting employee acknowledgment"
                           : STAGE_AWAITING_DESCRIPTIONS[stage]}
                       </span>
                     )}
@@ -621,6 +744,66 @@ export function AppraisalDetailModal({
             </dd>
           </div>
         </dl>
+
+        {canReleaseForSelfAssessment && (
+          <div className="mt-5 rounded-2xl border border-accent/25 bg-accent/[0.03] p-4">
+            {!releaseArmed ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[13px] font-medium text-ink">
+                    Release for Self-Assessment
+                  </p>
+                  <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
+                    This draft appraisal needs HR release before{" "}
+                    {employeeName ?? "the employee"} can begin
+                    self-assessment.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormError(null);
+                    setReleaseArmed(true);
+                  }}
+                  disabled={submitting}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Release for Self-Assessment
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-[13px] font-medium text-ink">
+                  Release for Self-Assessment?
+                </p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
+                  {employeeName ?? "The employee"} will be able to begin
+                  their self-assessment after this appraisal is released.
+                  This action moves the appraisal from Draft to
+                  Self-Assessment.
+                </p>
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReleaseArmed(false)}
+                    disabled={submitting}
+                    className="rounded-lg border border-line px-4 py-2 text-[13px] font-medium text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 dark:border-paper/15"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRelease}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? "Releasing..." : "Release"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {appraisal.scoreSummary && (
           <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-accent/25 bg-accent/[0.04] px-5 py-4">
@@ -1075,7 +1258,7 @@ export function AppraisalDetailModal({
                     Goal ratings
                     <span className="font-normal text-muted">
                       {" "}
-                      — weights must total exactly 100%
+                      — weighted KPIs must total exactly 100%
                     </span>
                   </p>
                   <p className="mb-2 text-[11.5px] text-muted">
@@ -1083,71 +1266,149 @@ export function AppraisalDetailModal({
                       ? `Only goals in the appraisal's cycle (${cycleName}) are scored; goals from other cycles are excluded.`
                       : "All of the employee's goals are scored."}
                   </p>
-                  {scoringInputs.goals.length === 0 ? (
-                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[12.5px] text-amber-700">
-                      This appraisal has no applicable goals. Assign goals to
-                      the employee
-                      {cycleName ? ` in the ${cycleName} cycle` : ""} before
-                      submitting the manager assessment.
-                    </p>
-                  ) : (
-                    <div className="overflow-hidden rounded-xl border border-line bg-paper dark:border-paper/10">
-                      {scoringInputs.goals.map((goal, index) => (
-                        <div
-                          key={goal.goal_id}
-                          className={`flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] ${
-                            index > 0
-                              ? "border-t border-line dark:border-paper/10"
-                              : ""
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-medium text-ink">
-                              {goal.title || "Untitled goal"}
-                            </p>
-                            <p className="text-[11.5px] text-muted">
-                              Weight {formatWeight(goal.weight)}
-                            </p>
-                            {(goal.progress_method ?? "manual") ===
-                              "measurable" && (
-                              <p className="text-[11.5px] tabular-nums text-muted">
-                                Progress {goal.progress_percent ?? 0}% ·{" "}
-                                {formatMeasuredPair(
-                                  goal.actual_value,
-                                  goal.target_value,
-                                  goal.measurement_type,
-                                  goal.measurement_unit
-                                )}
-                              </p>
-                            )}
-                          </div>
-                          <RatingSelect
-                            label={`Goal rating for ${goal.title || "goal"}`}
-                            value={goalRatingById[goal.goal_id]}
-                            onChange={(rating) =>
-                              setGoalRatingById((previous) => ({
-                                ...previous,
-                                [goal.goal_id]: rating,
-                              }))
-                            }
-                          />
-                        </div>
-                      ))}
+                  {hasInvalidGoalWeights && (
+                    <div
+                      aria-live="polite"
+                      className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5"
+                    >
+                      <p className="text-[12.5px] font-medium text-red-600">
+                        Manager assessment cannot be submitted because{" "}
+                        {invalidGoals.length === 1
+                          ? "a goal has"
+                          : "goals have"}{" "}
+                        an invalid weight:{" "}
+                        {invalidGoals
+                          .map((goal) => goal.title || "Untitled goal")
+                          .join(", ")}
+                        . HR must correct the goal configuration.
+                      </p>
                     </div>
                   )}
-                  {scoringInputs.goals.length > 0 && (
-                    <p
-                      className={`mt-1.5 text-[11.5px] ${
-                        weightTotalOk
-                          ? "text-muted"
-                          : "font-medium text-red-600"
-                      }`}
-                    >
-                      Weight total: {Math.round(weightTotal * 100) / 100}% —{" "}
-                      {weightTotalOk
-                        ? "valid (100%)."
-                        : "goal weights must total exactly 100%."}
+                  {weightedGoals.length === 0 ? (
+                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[12.5px] text-amber-700">
+                      {scoringInputs.goals.length === 0 ? (
+                        <>
+                          This appraisal has no applicable goals. Assign goals
+                          to the employee
+                          {cycleName ? ` in the ${cycleName} cycle` : ""}{" "}
+                          before submitting the manager assessment.
+                        </>
+                      ) : (
+                        <>
+                          No weighted KPI goals are configured for this
+                          appraisal. Qualitative goals alone cannot be scored
+                          — assign weighted goals before submitting the manager
+                          assessment.
+                        </>
+                      )}
                     </p>
+                  ) : (
+                    <>
+                      <p className="mb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-muted">
+                        Weighted KPIs — included in performance score
+                      </p>
+                      <div className="overflow-hidden rounded-xl border border-line bg-paper dark:border-paper/10">
+                        {weightedGoals.map((goal, index) => (
+                          <div
+                            key={goal.goal_id}
+                            className={`flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] ${
+                              index > 0
+                                ? "border-t border-line dark:border-paper/10"
+                                : ""
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-medium text-ink">
+                                {goal.title || "Untitled goal"}
+                              </p>
+                              <p className="text-[11.5px] text-muted">
+                                Weight {formatWeight(goal.weight)}
+                              </p>
+                              {(goal.progress_method ?? "manual") ===
+                                "measurable" && (
+                                <p className="text-[11.5px] tabular-nums text-muted">
+                                  Progress {goal.progress_percent ?? 0}% ·{" "}
+                                  {formatMeasuredPair(
+                                    goal.actual_value,
+                                    goal.target_value,
+                                    goal.measurement_type,
+                                    goal.measurement_unit
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                            <RatingSelect
+                              label={`Goal rating for ${goal.title || "goal"}`}
+                              value={goalRatingById[goal.goal_id]}
+                              onChange={(rating) =>
+                                setGoalRatingById((previous) => ({
+                                  ...previous,
+                                  [goal.goal_id]: rating,
+                                }))
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p
+                        className={`mt-1.5 text-[11.5px] ${
+                          weightTotalOk
+                            ? "text-muted"
+                            : "font-medium text-red-600"
+                        }`}
+                      >
+                        Weighted KPI total:{" "}
+                        {Math.round(weightTotal * 100) / 100}% —{" "}
+                        {weightTotalOk
+                          ? "valid (100%)."
+                          : "weighted KPIs must total exactly 100%."}
+                      </p>
+                    </>
+                  )}
+                  {qualitativeGoals.length > 0 && (
+                    <div className="mt-3">
+                      <p className="mb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-muted">
+                        Qualitative / developmental goals — not included in
+                        numerical performance score
+                      </p>
+                      <div className="overflow-hidden rounded-xl border border-line bg-paper dark:border-paper/10">
+                        {qualitativeGoals.map((goal, index) => (
+                          <div
+                            key={goal.goal_id}
+                            className={`px-4 py-2.5 text-[13px] ${
+                              index > 0
+                                ? "border-t border-line dark:border-paper/10"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <p className="min-w-0 flex-1 truncate font-medium text-ink">
+                                {goal.title || "Untitled goal"}
+                              </p>
+                              <span className="shrink-0 rounded-full bg-line px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted">
+                                Unweighted
+                              </span>
+                            </div>
+                            {goal.description && (
+                              <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[12px] leading-relaxed text-muted">
+                                {goal.description}
+                              </p>
+                            )}
+                            <p className="mt-0.5 text-[11.5px] text-muted">
+                              {goal.status
+                                ? `${goal.status.replace(/_/g, " ")}`
+                                : "No status"}
+                              {typeof goal.progress_percent === "number"
+                                ? ` · Progress ${goal.progress_percent}%`
+                                : ""}
+                              {" · "}Not included in numerical score — track
+                              outcomes via progress, completion, evidence, or
+                              feedback.
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1287,12 +1548,12 @@ export function AppraisalDetailModal({
                 Manager assessment — submitted
               </p>
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-amber-700">
-                Awaiting HR finalization
+                Awaiting employee acknowledgment
               </span>
             </div>
             <p className="text-[12.5px] leading-relaxed text-muted">
-              Your manager assessment has been submitted successfully. HR will
-              review and finalize this appraisal.
+              Your manager assessment has been submitted successfully. The
+              employee will review and acknowledge it before HR finalization.
             </p>
 
             {scoringLoading ? (
@@ -1430,7 +1691,7 @@ export function AppraisalDetailModal({
             controls. Never influences ratings or submission state. */}
         <AttendanceContextSection
           appraisalId={appraisal.id}
-          isFinalized={status === "finalized" || status === "acknowledged"}
+          isFinalized={appraisal.finalized_at != null}
         />
 
         {/* ── Leave Activity (supplemental external context) ── */}
@@ -1440,10 +1701,10 @@ export function AppraisalDetailModal({
             or submission state. */}
         <LeaveContextSection
           appraisalId={appraisal.id}
-          isFinalized={status === "finalized" || status === "acknowledged"}
+          isFinalized={appraisal.finalized_at != null}
         />
 
-        {canFinalize && (
+        {(canFinalize || canFinalizeOverride) && (
           <div className="mt-6 space-y-4 rounded-2xl border border-accent/25 bg-accent/[0.03] p-4">
             <p className="text-[13px] font-medium text-ink">
               Review and finalize this appraisal
@@ -1451,11 +1712,28 @@ export function AppraisalDetailModal({
             <p className="text-[12.5px] leading-relaxed text-muted">
               The Manager has submitted goal and competency ratings. Review the
               ratings below. Finalization computes the official result: Final
-              Score = (Goal Score × 60%) + (Competency Score × 40%), mapped to a
-              single rating band. This is locked in at finalization and is never
-              recalculated afterwards. Finalizing does not edit the
-              Manager&apos;s ratings.
+              Score = (Goal Score ×{" "}
+              {scoringInputs
+                ? Math.round(scoringInputs.weights.goalWeight * 100)
+                : 60}
+              %) + (Competency Score ×{" "}
+              {scoringInputs
+                ? Math.round(scoringInputs.weights.competencyWeight * 100)
+                : 40}
+              %), mapped to a single rating band. This is locked in at
+              finalization and is never recalculated afterwards. Finalizing
+              does not edit the Manager&apos;s ratings.
             </p>
+            {canFinalizeOverride && !canFinalize && (
+              <p
+                aria-live="polite"
+                className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] leading-relaxed text-amber-700 dark:text-amber-400"
+              >
+                The employee has not acknowledged this appraisal yet.
+                Finalization normally requires acknowledgment — or finalize
+                below with an explicit recorded override reason.
+              </p>
+            )}
 
             {scoringLoading ? (
               <div className="flex flex-col gap-3 py-1">
@@ -1619,15 +1897,101 @@ export function AppraisalDetailModal({
               </div>
             )}
             <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleFinalize}
-                disabled={submitting || !scoringInputs}
-                className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {submitting ? "Finalizing..." : "Finalize appraisal"}
-              </button>
+              {!finalizeArmed ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormError(null);
+                    setFinalizeArmed(true);
+                  }}
+                  disabled={submitting || !scoringInputs}
+                  className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Finalize appraisal
+                </button>
+              ) : (
+                <div className="w-full rounded-xl border border-accent/30 bg-accent/[0.05] px-4 py-3">
+                  <p className="text-[13px] font-medium text-ink">
+                    Finalize this appraisal?
+                  </p>
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
+                    Finalization locks the appraisal and its results — ratings,
+                    scores, and snapshots cannot be changed afterwards.
+                  </p>
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFinalizeArmed(false)}
+                      disabled={submitting}
+                      className="rounded-lg border border-line px-4 py-2 text-[13px] font-medium text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 dark:border-paper/15"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleFinalize(
+                          canFinalizeOverride &&
+                            !canFinalize &&
+                            overrideArmed
+                            ? {
+                                override_acknowledgment: true,
+                                override_reason: overrideReason,
+                              }
+                            : undefined,
+                        )
+                      }
+                      disabled={
+                        submitting ||
+                        !scoringInputs ||
+                        (canFinalizeOverride &&
+                          !canFinalize &&
+                          overrideArmed &&
+                          overrideReason.trim() === "")
+                      }
+                      className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {submitting ? "Finalizing..." : "Finalize"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+            {canFinalizeOverride && !canFinalize && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                <label className="flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={overrideArmed}
+                    onChange={(e) => setOverrideArmed(e.target.checked)}
+                    disabled={submitting}
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                  />
+                  <span className="text-[12.5px] leading-relaxed">
+                    <span className="font-medium text-ink">
+                      Finalize without employee acknowledgment.
+                    </span>{" "}
+                    <span className="text-muted">
+                      Use only when the employee cannot or will not
+                      acknowledge. A reason is required and will be
+                      audit-logged.
+                    </span>
+                  </span>
+                </label>
+                {overrideArmed && (
+                  <textarea
+                    aria-label="Override reason"
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    placeholder="Record why acknowledgment is being bypassed…"
+                    disabled={submitting}
+                    className="mt-2.5 w-full resize-none rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-accent dark:border-paper/15"
+                  />
+                )}
+              </div>
+            )}
             {ratingsIncomplete && (
               <p className="text-[12.5px] text-muted">
                 Ratings are incomplete. The manager must submit a full
@@ -1639,31 +2003,66 @@ export function AppraisalDetailModal({
 
         {canAcknowledge && (
           <div className="mt-6 space-y-4 rounded-2xl border border-accent/25 bg-accent/[0.03] p-4">
-            <p className="text-[13px] font-medium text-ink">
-              Acknowledge this appraisal
-            </p>
-            <p className="text-[12.5px] leading-relaxed text-muted">
-              Acknowledgement records that you have reviewed your final
-              evaluation. It does not alter the evaluation, and it does not
-              imply agreement.
-            </p>
-            {formError && (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
-                <p className="text-[12.5px] font-medium text-red-600">
-                  {formError}
+            {!acknowledgeArmed ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[13px] font-medium text-ink">
+                    Acknowledge performance review
+                  </p>
+                  <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
+                    Your manager&apos;s assessment is ready for your review.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormError(null);
+                    setAcknowledgeArmed(true);
+                  }}
+                  disabled={submitting}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Acknowledge performance review
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-[13px] font-medium text-ink">
+                  Acknowledge this appraisal?
                 </p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
+                  By acknowledging, you confirm that you have reviewed the
+                  completed performance assessment. Acknowledgment does not
+                  change the manager&apos;s ratings. HR will finalize the
+                  appraisal afterwards.
+                </p>
+                {formError && (
+                  <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+                    <p className="text-[12.5px] font-medium text-red-600">
+                      {formError}
+                    </p>
+                  </div>
+                )}
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAcknowledgeArmed(false)}
+                    disabled={submitting}
+                    className="rounded-lg border border-line px-4 py-2 text-[13px] font-medium text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 dark:border-paper/15"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAcknowledge}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? "Acknowledging..." : "Acknowledge"}
+                  </button>
+                </div>
               </div>
             )}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleAcknowledge}
-                disabled={submitting}
-                className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {submitting ? "Acknowledging..." : "Acknowledge appraisal"}
-              </button>
-            </div>
           </div>
         )}
       </div>

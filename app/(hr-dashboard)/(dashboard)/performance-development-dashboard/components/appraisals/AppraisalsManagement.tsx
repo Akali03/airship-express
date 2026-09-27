@@ -15,6 +15,8 @@ import type {
   PerformanceCycle,
 } from "@/performance-development-dashboard/types";
 import { useAppraisalApi } from "@/performance-development-dashboard/hooks/useAppraisalApi";
+import { usePositionWeightsApi } from "@/performance-development-dashboard/hooks/usePositionWeightsApi";
+import type { PositionAppraisalWeightsItem } from "@/performance-development-dashboard/lib/performance/positionWeights";
 import { SkeletonList } from "@/performance-development-dashboard/components/ui/Skeleton";
 import { FilterBar } from "@/performance-development-dashboard/components/ui/FilterBar";
 import {
@@ -53,6 +55,13 @@ export function AppraisalsManagement({
   defaultEmployeeId,
 }: Props) {
   const api = useAppraisalApi();
+  const positionWeightsApi = usePositionWeightsApi();
+  const [positionWeights, setPositionWeights] = useState<
+    PositionAppraisalWeightsItem[]
+  >([]);
+  const [positionWeightsError, setPositionWeightsError] = useState<
+    string | null
+  >(null);
 
   const [appraisals, setAppraisals] =
     useState<PerformanceAppraisal[]>(initialAppraisals);
@@ -148,10 +157,16 @@ export function AppraisalsManagement({
       const reviewerName = (
         resolvedEmployeeNamesById[appraisal.reviewer_id] ?? ""
       ).toLowerCase();
+      // DISPLAY-ONLY consistency: the visible HR reviewer is the HR-account
+      // name when present (e.g. cap cap) — search matches the same value.
+      const reviewerAccountName = (
+        appraisal.reviewerByAccountName ?? ""
+      ).toLowerCase();
       return (
         appraisal.review_period.toLowerCase().includes(query) ||
         employeeName.includes(query) ||
-        reviewerName.includes(query)
+        reviewerName.includes(query) ||
+        reviewerAccountName.includes(query)
       );
     });
   }, [appraisals, search, resolvedEmployeeNamesById]);
@@ -188,11 +203,16 @@ export function AppraisalsManagement({
       if (modalOpenRef.current) setScoringLoading(false);
     }
 
+    // Scoring inputs feed the manager form, the HR finalize review, and
+    // the submitted-state signals. HR reviewers need them on both
+    // manager_assessment (override review) and acknowledged (normal
+    // finalize) records; the server HR path has no status gate.
     if (
       (appraisal.status === "manager_assessment" &&
         !!appraisal.currentUserIsEvaluator) ||
       (isHrAdmin &&
-        appraisal.status === "manager_assessment" &&
+        (appraisal.status === "manager_assessment" ||
+          appraisal.status === "acknowledged") &&
         !!appraisal.currentUserIsHrReviewer)
     ) {
       setScoringLoading(true);
@@ -247,19 +267,49 @@ export function AppraisalsManagement({
 
   async function handleCreate(input: Record<string, unknown>) {
     setCreating(true);
-    await api
-      .runCreate({
+    try {
+      // Review period is the authoritative cycle UUID; the server inherits
+      // the cycle's name/dates. No review-period text is sent.
+      const created = await api.runCreate({
         employee_id: String(input.employee_id ?? ""),
         cycle_id: String(input.cycle_id ?? ""),
-        review_period: String(input.review_period ?? ""),
-      } satisfies AppraisalCreateInput)
-      .then((created) => {
-        setAppraisals((previous) => [created, ...previous]);
-        setCreateOpen(false);
-        toast.success("Appraisal created.");
-      })
-      .finally(() => setCreating(false));
+      } satisfies AppraisalCreateInput);
+      setAppraisals((previous) => [created, ...previous]);
+      setCreateOpen(false);
+      toast.success("Appraisal created.");
+    } finally {
+      setCreating(false);
+    }
   }
+
+  // Resolve-preview data for the create flow: position weights are loaded
+  // lazily when the create dialog opens so the dialog can show the scoring
+  // split that will be snapshotted — or warn before the server 400s.
+  useEffect(() => {
+    if (!createOpen || !isHrAdmin) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await positionWeightsApi.runListWeights();
+        if (!cancelled) {
+          setPositionWeights(rows);
+          setPositionWeightsError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPositionWeightsError(
+            err instanceof Error
+              ? err.message
+              : "Failed to load position weights."
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createOpen]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -307,9 +357,12 @@ export function AppraisalsManagement({
     }
   }
 
-  async function handleFinalize() {
+  async function handleFinalize(input?: {
+    override_acknowledgment?: boolean;
+    override_reason?: string | null;
+  }) {
     if (!selected) return;
-    const updated = await api.runFinalize(selected.id);
+    const updated = await api.runFinalize(selected.id, input);
     await replaceAndRefresh(updated);
     setScoringInputs(null);
     toast.success("Appraisal finalized.");
@@ -322,13 +375,23 @@ export function AppraisalsManagement({
     toast.success("Appraisal acknowledged.");
   }
 
+  // Individual HR release: draft → self_assessment for the selected
+  // appraisal only. Authoritative refresh (no client status mutation);
+  // the server enforces role, reviewer, draft, and cycle rules.
+  async function handleStartSelfAssessment() {
+    if (!selected) return;
+    const updated = await api.runStartSelfAssessment(selected.id);
+    await replaceAndRefresh(updated);
+    toast.success("Appraisal released for self assessment.");
+  }
+
   return (
     <div className="space-y-6">
       <PerformancePageHeader
         title="Appraisals"
         description={
           isHrAdmin
-            ? `Hello ${firstName}. Initiate formal evaluations and move each appraisal through its stages: self assessment, manager assessment, finalized, acknowledged.`
+            ? `Hello ${firstName}. Initiate formal evaluations and move each appraisal through its stages: self assessment, manager assessment, acknowledgment, finalized.`
             : isManager
               ? `Hello ${firstName}. Evaluate your direct reports by rating their Goals/KPI and Competencies and submitting the Manager Assessment.`
               : `Hello ${firstName}. Your formal appraisal record, from your self assessment through final acknowledgement.`
@@ -450,6 +513,8 @@ export function AppraisalsManagement({
           cycles={cycles}
           defaultEmployeeId={defaultEmployeeId}
           submitting={creating}
+          positionWeights={positionWeights}
+          positionWeightsError={positionWeightsError}
           onSubmit={handleCreate}
           onClose={() => setCreateOpen(false)}
         />
@@ -476,6 +541,7 @@ export function AppraisalsManagement({
           onManagerAssessment={handleManagerAssessment}
           onFinalize={handleFinalize}
           onAcknowledge={handleAcknowledge}
+          onStartSelfAssessment={handleStartSelfAssessment}
           onClose={() => {
             modalOpenRef.current = false;
             setSelected(null);

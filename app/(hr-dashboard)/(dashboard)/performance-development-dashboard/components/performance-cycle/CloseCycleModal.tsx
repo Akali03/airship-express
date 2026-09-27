@@ -3,6 +3,7 @@
 import { AlertCircle, Lock, X } from "lucide-react";
 import { Modal } from "@/performance-development-dashboard/components/ui/Modal";
 import { Tooltip } from "@/performance-development-dashboard/components/ui/Tooltip";
+import { ReviewRecords } from "@/performance-development-dashboard/components/performance-cycle/ReviewRecords";
 import type {
   PerformanceCycle,
   PerformanceCycleClosureReadiness,
@@ -19,6 +20,9 @@ type Props = {
   confirming: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  /** Employee directory for read-only verification rows (optional). */
+  employeeNamesById?: Record<string, string>;
+  employeeIdNumbersById?: Record<string, string>;
 };
 
 export function CloseCycleModal({
@@ -27,6 +31,8 @@ export function CloseCycleModal({
   confirming,
   onClose,
   onConfirm,
+  employeeNamesById = {},
+  employeeIdNumbersById = {},
 }: Props) {
   const blocked =
     closureReadiness !== null && !closureReadiness.ready;
@@ -47,7 +53,9 @@ export function CloseCycleModal({
               id="close-cycle-modal-title"
               className="mt-1 font-bricolage text-[20px] font-medium tracking-tight text-ink"
             >
-              {blocked ? "This cycle is not ready to close" : "Close cycle"}
+              {blocked
+                ? "This cycle is not ready to close"
+                : "Close this performance cycle?"}
             </h2>
           </div>
           <Tooltip label="Close" side="bottom">
@@ -73,10 +81,11 @@ export function CloseCycleModal({
               className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
             />
             <p className="text-[12.5px] leading-relaxed text-amber-700 dark:text-amber-400">
-              Closing this cycle is terminal under the current system.
-              Cycle-specific performance activity will be frozen, while
-              historical records remain available. Employee acknowledgment
-              of finalized appraisals may still occur afterward.
+              Closing this cycle is terminal under the existing cycle rules:
+              cycle-specific performance activity is frozen and the cycle
+              becomes historical and read-only. Historical records remain
+              available. Employee acknowledgment of finalized appraisals may
+              still occur afterward.
             </p>
           </div>
         )}
@@ -113,6 +122,14 @@ export function CloseCycleModal({
             ))}
           </div>
         )}
+
+        <ReviewRecords
+          cycle={cycle}
+          mode="close"
+          readiness={null}
+          employeeNamesById={employeeNamesById}
+          employeeIdNumbersById={employeeIdNumbersById}
+        />
 
         <p className="mt-4 text-[11.5px] text-muted">
           Readiness is based on records currently associated with this cycle.

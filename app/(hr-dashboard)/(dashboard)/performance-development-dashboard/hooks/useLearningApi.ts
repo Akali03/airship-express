@@ -115,6 +115,14 @@ export function useLearningApi() {
     [request]
   );
 
+  const selfEnrollCourse = useCallback(
+    (courseId: string) =>
+      request(`${COURSE_ENROLLMENTS_API}/self`, "POST", {
+        course_id: courseId,
+      }) as Promise<CourseEnrollment>,
+    [request]
+  );
+
   const updateCourseEnrollment = useCallback(
     (id: string, input: UpdateCourseEnrollmentInput) =>
       request(
@@ -239,6 +247,7 @@ export function useLearningApi() {
     updateCourse,
     listCourseEnrollments,
     createCourseEnrollment,
+    selfEnrollCourse,
     updateCourseEnrollment,
     listTrainingSessions,
     createTrainingSession,
@@ -255,6 +264,8 @@ export function useLearningApi() {
       run(() => updateCourse(id, input)),
     runCreateCourseEnrollment: (input: CourseEnrollmentInput) =>
       run(() => createCourseEnrollment(input)),
+    runSelfEnrollCourse: (courseId: string) =>
+      run(() => selfEnrollCourse(courseId)),
     runUpdateCourseEnrollment: (id: string, input: UpdateCourseEnrollmentInput) =>
       run(() => updateCourseEnrollment(id, input)),
     runCreateTrainingSession: (input: TrainingSessionInput) =>
