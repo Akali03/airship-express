@@ -51,8 +51,26 @@ const date = (value?: string) =>
 const label = (value?: string) =>
   (value ?? "Draft").replace(/\b\w/g, (x) => x.toUpperCase());
 
+type ApprovedPayable = {
+  id: string;
+  bill_number: string | null;
+  vendor_name: string | null;
+  total_amount: number | string | null;
+  amount_due: number | string | null;
+  amount_paid: number | string | null;
+  due_date: string | null;
+  status: string | null;
+  expense_category?: string | null;
+  description?: string | null;
+  payment_method?: string | null;
+};
+
+type DisbursementRow = Disbursement & {
+  payable_id?: string | null;
+};
+
 export default function DisbursementsPage() {
-  const [rows, setRows] = useState<Disbursement[]>([]);
+  const [rows, setRows] = useState<DisbursementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
@@ -62,6 +80,9 @@ export default function DisbursementsPage() {
   const [saving, setSaving] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [today] = useState(() => new Date());
+  const [approvedPayables, setApprovedPayables] = useState<ApprovedPayable[]>([]);
+  const [payablesLoading, setPayablesLoading] = useState(false);
+  const [selectedPayableId, setSelectedPayableId] = useState("");
 
   const [form, setForm] = useState<DisbursementFormData>({
     vendor_name: "",
@@ -82,6 +103,29 @@ export default function DisbursementsPage() {
     notes: "",
   });
 
+  const loadApprovedPayables = useCallback(async () => {
+    setPayablesLoading(true);
+
+    const { data, error } = await supabase
+      .from("accounts_payable")
+      .select(
+        "id,bill_number,vendor_name,total_amount,amount_due,amount_paid,due_date,status,expense_category,description,payment_method"
+      )
+      .eq("status", "approved")
+      .order("due_date", { ascending: true });
+
+    if (error) {
+      toast.error("Failed to load approved AP records", {
+        description: error.message,
+      });
+      setApprovedPayables([]);
+    } else {
+      setApprovedPayables((data ?? []) as ApprovedPayable[]);
+    }
+
+    setPayablesLoading(false);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
 
@@ -95,7 +139,7 @@ export default function DisbursementsPage() {
         description: error.message,
       });
     } else {
-      setRows((data ?? []) as Disbursement[]);
+      setRows((data ?? []) as DisbursementRow[]);
     }
 
     setLoading(false);
@@ -104,14 +148,15 @@ export default function DisbursementsPage() {
   useEffect(() => {
     queueMicrotask(() => {
       void load();
+      void loadApprovedPayables();
     });
-  }, [load]);
+  }, [load, loadApprovedPayables]);
 
   const visible = useMemo(
     () =>
       rows.filter(
         (r) =>
-          `${r.vendor_name} ${r.description} ${r.reference_number}`
+          `${r.vendor_name} ${r.description} ${r.reference_number} ${r.payable_id ?? ""}`
             .toLowerCase()
             .includes(query.toLowerCase()) &&
           (filter === "All" || label(r.status) === filter)
@@ -231,53 +276,119 @@ export default function DisbursementsPage() {
     }));
   }, [rows]);
 
+  const resetCreateForm = () => {
+    setSelectedPayableId("");
+    setForm({
+      vendor_name: "",
+      expense_category: "",
+      description: "",
+      amount: "",
+      due_date: "",
+      payment_method: "Bank Transfer",
+      reference_number: "",
+      notes: "",
+    });
+  };
+
+  const handlePayableSelect = (payableId: string) => {
+    setSelectedPayableId(payableId);
+
+    const payable = approvedPayables.find((item) => item.id === payableId);
+    if (!payable) {
+      resetCreateForm();
+      return;
+    }
+
+    const total = Number(payable.total_amount ?? payable.amount_due ?? 0);
+    const paid = Number(payable.amount_paid ?? 0);
+    const remaining = Math.max(0, total - paid);
+
+    setForm((current) => ({
+      ...current,
+      vendor_name: payable.vendor_name ?? "",
+      expense_category: payable.expense_category ?? current.expense_category,
+      description: payable.description ?? current.description,
+      amount: remaining > 0 ? String(remaining) : "",
+      due_date: payable.due_date ?? "",
+      payment_method: payable.payment_method ?? current.payment_method,
+    }));
+  };
+
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    if (!selectedPayableId) {
+      toast.error("Select an approved Accounts Payable record first.");
+      return;
+    }
+
+    const selectedPayable = approvedPayables.find(
+      (item) => item.id === selectedPayableId
+    );
+
+    if (!selectedPayable) {
+      toast.error("The selected Accounts Payable record could not be found.");
+      return;
+    }
+
     const amount = Number(form.amount);
 
-    if (
-      !form.vendor_name.trim() ||
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      !form.due_date
-    ) {
-      toast.error("Vendor, amount, and due date are required.");
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid positive disbursement amount.");
+      return;
+    }
+
+    const apTotal = Number(
+      selectedPayable.total_amount ?? selectedPayable.amount_due ?? 0
+    );
+    const apPaid = Number(selectedPayable.amount_paid ?? 0);
+    const apRemaining = Math.max(0, apTotal - apPaid);
+
+    if (amount > apRemaining) {
+      toast.error("Disbursement exceeds the remaining AP balance.", {
+        description: `Remaining AP balance: ${money(apRemaining)}`,
+      });
+      return;
+    }
+
+    if (!selectedPayable.vendor_name?.trim() || !selectedPayable.due_date) {
+      toast.error("The selected AP record is missing vendor or due-date information.");
       return;
     }
 
     setSaving(true);
 
-    const { error } = await supabase.rpc("create_disbursement", {
-      p_vendor_name: form.vendor_name,
+    const { data, error } = await supabase.rpc("create_disbursement", {
+      p_vendor_name: selectedPayable.vendor_name,
       p_expense_category: form.expense_category || null,
       p_description: form.description || null,
       p_amount: amount,
-      p_due_date: form.due_date,
+      p_due_date: selectedPayable.due_date,
       p_payment_method: form.payment_method,
       p_reference_number: form.reference_number || null,
       p_notes: form.notes || null,
+      p_payable_id: selectedPayable.id,
       p_status: "Draft",
     });
 
     setSaving(false);
 
-    if (error) {
-      toast.error("Disbursement was not created", { description: error.message });
-    } else {
-      toast.success("Disbursement created as draft");
-      setOpen(null);
-      await load();
-      setForm({
-        vendor_name: "",
-        expense_category: "",
-        description: "",
-        amount: "",
-        due_date: "",
-        payment_method: "Bank Transfer",
-        reference_number: "",
-        notes: "",
+    const result = data as
+      | { success?: boolean; error?: string; id?: string; payable_id?: string }
+      | null;
+
+    if (error || result?.success === false) {
+      toast.error("Disbursement was not created", {
+        description: error?.message || result?.error || "The database rejected the disbursement.",
       });
+    } else {
+      toast.success("Disbursement created and linked to AP", {
+        description: `AP Bill: ${selectedPayable.bill_number ?? selectedPayable.id}`,
+      });
+      setOpen(null);
+      resetCreateForm();
+      await load();
+      await loadApprovedPayables();
     }
   };
 
@@ -341,7 +452,7 @@ export default function DisbursementsPage() {
     }
   };
 
-  const columns: ColumnDef<Disbursement>[] = useMemo(
+  const columns: ColumnDef<DisbursementRow>[] = useMemo(
     () => [
       {
         header: "Voucher / No.",
@@ -354,6 +465,28 @@ export default function DisbursementsPage() {
               <span className="text-[10px] text-muted-foreground font-mono">
                 Ref: {r.reference_number}
               </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        header: "AP Reference",
+        accessor: (r) => (
+          <div className="flex flex-col max-w-[160px]">
+            {r.payable_id ? (
+              <>
+                <span className="font-mono font-bold text-[#e5167e] text-xs">
+                  {r.payable_id.slice(0, 8)}...
+                </span>
+                <span
+                  className="text-[10px] text-muted-foreground font-mono truncate"
+                  title={r.payable_id}
+                >
+                  {r.payable_id}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">Not linked</span>
             )}
           </div>
         ),
@@ -888,16 +1021,77 @@ export default function DisbursementsPage() {
       {/* New Disbursement Modal */}
       <Modal
         isOpen={open === "create"}
-        onClose={() => setOpen(null)}
+        onClose={() => {
+          if (!saving) {
+            setOpen(null);
+            resetCreateForm();
+          }
+        }}
         title="New Disbursement Voucher"
         maxWidth="max-w-xl"
       >
-        <DisbursementForm
-          formData={form}
-          setFormData={setForm}
-          onSubmit={create}
-          isSubmitting={saving}
-        />
+        <div className="space-y-4">
+          <div className="rounded-xl border border-[#e5167e]/20 bg-[#e5167e]/5 p-4">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <label className="text-xs font-extrabold uppercase tracking-wider text-foreground">
+                Accounts Payable Source
+              </label>
+              {selectedPayableId && (
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  AP LINKED
+                </span>
+              )}
+            </div>
+
+            <select
+              value={selectedPayableId}
+              onChange={(e) => handlePayableSelect(e.target.value)}
+              disabled={payablesLoading || saving}
+              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm font-semibold text-foreground outline-none transition focus:border-[#e5167e] focus:ring-2 focus:ring-[#e5167e]/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">
+                {payablesLoading
+                  ? "Loading approved AP records..."
+                  : approvedPayables.length === 0
+                    ? "No approved AP records available"
+                    : "Select an approved AP bill"}
+              </option>
+              {approvedPayables.map((ap) => {
+                const total = Number(ap.total_amount ?? ap.amount_due ?? 0);
+                const paid = Number(ap.amount_paid ?? 0);
+                const remaining = Math.max(0, total - paid);
+
+                return (
+                  <option key={ap.id} value={ap.id}>
+                    {ap.bill_number ?? ap.id.slice(0, 8)} — {ap.vendor_name ?? "Unknown Vendor"} — {money(remaining)} remaining
+                  </option>
+                );
+              })}
+            </select>
+
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Only approved Accounts Payable records can be linked to a new disbursement.
+            </p>
+
+            {selectedPayableId && (
+              <div className="mt-3 rounded-lg border border-border bg-card/80 p-3 text-xs space-y-1">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">AP ID</span>
+                  <span className="font-mono font-semibold text-foreground break-all text-right">
+                    {selectedPayableId}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DisbursementForm
+            formData={form}
+            setFormData={setForm}
+            onSubmit={create}
+            isSubmitting={saving || payablesLoading}
+          />
+        </div>
       </Modal>
 
       {/* Record Payment Modal */}
