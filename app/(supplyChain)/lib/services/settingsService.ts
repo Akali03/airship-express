@@ -2,7 +2,7 @@
 
 import { supabase } from './client/supabase';
 
-export type UserRole = 'Admin' | 'Executive' | 'Manager' | 'Operator' | 'Staff' | 'Employee';
+export type UserRole = 'Admin' | 'Executive' | 'Manager' | 'Operator' | 'Staff' | 'Employee' | 'Supplier';
 
 export interface InactivitySettings {
     enabled: boolean;
@@ -40,7 +40,7 @@ export const DEFAULT_CONCURRENCY_SLOTS: ConcurrencySlotSettings = {
     employeeSlots: 70,
 };
 
-export const ALL_ROLES: UserRole[] = ['Executive', 'Admin', 'Manager', 'Operator', 'Staff', 'Employee'];
+export const ALL_ROLES: UserRole[] = ['Executive', 'Admin', 'Manager', 'Operator', 'Staff', 'Employee', 'Supplier'];
 
 export const DEFAULT_ROLE_REDIRECTS: Record<UserRole, string> = {
     'Executive': '/executive',
@@ -49,6 +49,7 @@ export const DEFAULT_ROLE_REDIRECTS: Record<UserRole, string> = {
     'Operator': '/warehousing',
     'Staff': '/documents',
     'Employee': '/documents',
+    'Supplier': '/suppliers_page/purchase-orders',
 };
 
 export const DEFAULT_PAGE_PERMISSIONS: PagePermission[] = [
@@ -135,6 +136,27 @@ export const DEFAULT_PAGE_PERMISSIONS: PagePermission[] = [
         description: 'Inactivity timeouts, role access policies, and system preferences',
         section: 'Others',
         allowedRoles: ['Executive', 'Admin'],
+    },
+    {
+        route: '/suppliers_page',
+        label: 'Supplier Portal',
+        description: 'Supplier dashboard, purchase orders, and communications',
+        section: 'Supplier Portal',
+        allowedRoles: ['Supplier'],
+    },
+    {
+        route: '/suppliers_page/purchase-orders',
+        label: 'Supplier Purchase Orders',
+        description: 'Supplier purchase order tracking and order fulfillment',
+        section: 'Supplier Portal',
+        allowedRoles: ['Supplier'],
+    },
+    {
+        route: '/suppliers_page/messages',
+        label: 'Supplier Messages',
+        description: 'Direct communications with supply chain management',
+        section: 'Supplier Portal',
+        allowedRoles: ['Supplier'],
     },
 ];
 
@@ -395,7 +417,7 @@ class SettingsService {
             }
         }
 
-        return fallbackRoles || ['Executive', 'Admin', 'Manager', 'Operator', 'Staff', 'Employee'];
+        return fallbackRoles || ['Executive', 'Admin', 'Manager', 'Operator', 'Staff', 'Employee', 'Supplier'];
     }
 
     /**

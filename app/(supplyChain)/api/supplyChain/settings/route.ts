@@ -59,8 +59,18 @@ export async function GET() {
             .maybeSingle();
 
         if (error) {
-            console.error('Error fetching sc_system_settings:', error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.warn('Warning: fallback to default sc_system_settings due to:', error.message);
+            return NextResponse.json({
+                ok: true,
+                data: {
+                    inactivity: DEFAULT_INACTIVITY,
+                    concurrencySlots: DEFAULT_CONCURRENCY_SLOTS,
+                    pagePermissions: DEFAULT_PAGE_PERMISSIONS,
+                    roleRedirects: { ...DEFAULT_ROLE_REDIRECTS, 'Supplier': '/suppliers_page/purchase-orders' },
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: 'Fallback Default'
+                }
+            });
         }
 
         if (!data) {
@@ -111,8 +121,18 @@ export async function GET() {
             },
         });
     } catch (err: any) {
-        console.error('Failed to get sc_system_settings:', err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
+        console.warn('Failed to get sc_system_settings, returning defaults:', err?.message);
+        return NextResponse.json({
+            ok: true,
+            data: {
+                inactivity: DEFAULT_INACTIVITY,
+                concurrencySlots: DEFAULT_CONCURRENCY_SLOTS,
+                pagePermissions: DEFAULT_PAGE_PERMISSIONS,
+                roleRedirects: { ...DEFAULT_ROLE_REDIRECTS, 'Supplier': '/suppliers_page/purchase-orders' },
+                updatedAt: new Date().toISOString(),
+                updatedBy: 'Fallback Default'
+            }
+        });
     }
 }
 

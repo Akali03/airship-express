@@ -20,6 +20,7 @@ import { StatusBadge } from "../ui/StatusBadge";
 import { ChangePasswordModal } from "../modals/ChangePasswordModal";
 import { user } from "../../lib/services/Class/user";
 import { settingsService } from "../../lib/services/settingsService";
+import { SupplierMessengerDrawer } from "./SupplierMessengerDrawer";
 import '@fortawesome/fontawesome-free/css/all.min.css';
 interface NavItem {
     id: string;
@@ -408,6 +409,8 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
     const { openChat, isOpen: isAIOpen, isRobotThinking, isRobotResponding } = useAI();
     const [isOpen, setIsOpen] = useState(false);
     const [isHovering, setIsHovering] = useState(false);
+    const [isMessengerOpen, setIsMessengerOpen] = useState(false);
+
     useEffect(() => {
         if (isAIOpen) {
             setIsOpen(false);
@@ -443,40 +446,67 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
     }, [isHovering]);
 
     return (
-        <div className="flex items-end gap-3 pointer-events-auto">
-            <AnimatePresence>
-                {isOpen && (<motion.div key="dock-panel" initial={{ x: 50, opacity: 0, scale: 0.95 }} animate={{ x: 0, opacity: 1, scale: 1 }} exit={{ x: 50, opacity: 0, scale: 0.95 }} transition={{
-                type: "spring",
-                stiffness: 300,
-                damping: 25,
-                duration: 0.3
-            }}>
-                        <div className="flex items-center gap-2 rounded-2xl 
-                                border border-pink-200/90 dark:border-[#67224c] 
-                                bg-white dark:bg-[#1c1d25] 
-                                p-2 shadow-[0_16px_45px_rgba(0,0,0,0.14),inset_0_1px_0_#ffffff] dark:shadow-[0_20px_50px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md">
+        <>
+            <SupplierMessengerDrawer 
+                isOpen={isMessengerOpen} 
+                onClose={() => setIsMessengerOpen(false)} 
+            />
 
-                            <Link href="/warehousing" className="group relative rounded-xl 
-                                   border border-slate-200/80 dark:border-[#353746] 
-                                   bg-slate-50 dark:bg-slate-900/60 
-                                   p-2 transition-all duration-150 
-                                   hover:border-pink-300 dark:hover:border-[#67224c] 
-                                   hover:bg-[#ffe6f0] dark:hover:bg-[#341427] 
-                                   shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]
-                                   active:scale-95 cursor-pointer" title="Warehousing">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-slate-600 dark:text-slate-300 
-                                       transition-colors duration-200 
-                                       group-hover:text-pink-600 dark:group-hover:text-pink-300">
-                                    <rect x="3" y="3" width="7" height="7" rx="1"/>
-                                    <rect x="14" y="3" width="7" height="7" rx="1"/>
-                                    <rect x="3" y="14" width="7" height="7" rx="1"/>
-                                    <rect x="14" y="14" width="7" height="7" rx="1"/>
-                                </svg>
-                            </Link>
+            <div className="flex items-end gap-3 pointer-events-auto">
+                <AnimatePresence>
+                    {isOpen && (<motion.div key="dock-panel" initial={{ x: 50, opacity: 0, scale: 0.95 }} animate={{ x: 0, opacity: 1, scale: 1 }} exit={{ x: 50, opacity: 0, scale: 0.95 }} transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 25,
+                    duration: 0.3
+                }}>
+                            <div className="flex items-center gap-2 rounded-2xl 
+                                    border border-pink-200/90 dark:border-[#67224c] 
+                                    bg-white dark:bg-[#1c1d25] 
+                                    p-2 shadow-[0_16px_45px_rgba(0,0,0,0.14),inset_0_1px_0_#ffffff] dark:shadow-[0_20px_50px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md">
 
-                            <div className="h-7 w-px bg-pink-200/60 dark:bg-[#67224c]"/>
+                                <Link href="/warehousing" className="group relative rounded-xl 
+                                       border border-slate-200/80 dark:border-[#353746] 
+                                       bg-slate-50 dark:bg-slate-900/60 
+                                       p-2 transition-all duration-150 
+                                       hover:border-pink-300 dark:hover:border-[#67224c] 
+                                       hover:bg-[#ffe6f0] dark:hover:bg-[#341427] 
+                                       shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]
+                                       active:scale-95 cursor-pointer" title="Warehousing">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-slate-600 dark:text-slate-300 
+                                           transition-colors duration-200 
+                                           group-hover:text-pink-600 dark:group-hover:text-pink-300">
+                                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                    </svg>
+                                </Link>
 
-                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsMessengerOpen(true);
+                                        setIsOpen(false);
+                                    }}
+                                    className="group relative rounded-xl 
+                                           border border-slate-200/80 dark:border-[#353746] 
+                                           bg-slate-50 dark:bg-slate-900/60 
+                                           p-2 transition-all duration-150 
+                                           hover:border-pink-300 dark:hover:border-[#67224c] 
+                                           hover:bg-[#ffe6f0] dark:hover:bg-[#341427] 
+                                           shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]
+                                           active:scale-95 cursor-pointer"
+                                    title="Supplier Messenger"
+                                >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-pink-600 dark:group-hover:text-pink-300">
+                                        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+                                    </svg>
+                                </button>
+
+                                <div className="h-7 w-px bg-pink-200/60 dark:bg-[#67224c]"/>
+
+                                <div className="relative">
                                 <button onClick={() => {
                 openChat();
                 setIsOpen(false);
@@ -579,7 +609,8 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                         </motion.span>)}
                 </AnimatePresence>
             </motion.button>
-        </div>
+            </div>
+        </>
     );
 }
 

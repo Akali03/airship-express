@@ -9,6 +9,7 @@ interface SuppliersHeaderProps {
     totalSuppliers: number;
     activeSuppliers: number;
     selectedCount: number;
+    totalUnreadMessages?: number;
     onBulkDelete: () => void;
     onNewSupplier: () => void;
 }
@@ -17,6 +18,7 @@ export function SuppliersHeader({
     totalSuppliers,
     activeSuppliers,
     selectedCount,
+    totalUnreadMessages = 0,
     onBulkDelete,
     onNewSupplier,
 }: SuppliersHeaderProps) {
@@ -44,6 +46,12 @@ export function SuppliersHeader({
                     <span className="text-slate-400 dark:text-slate-500 font-medium sm:border-l sm:border-slate-300/60 dark:sm:border-slate-700 sm:pl-2 sm:ml-0.5 truncate max-w-[180px] sm:max-w-none">
                         {activeSuppliers} active
                     </span>
+                    {totalUnreadMessages > 0 && (
+                        <span className="inline-flex items-center gap-1 sm:border-l sm:border-slate-300/60 dark:sm:border-slate-700 sm:pl-2 sm:ml-0.5 font-bold text-pink-600 dark:text-pink-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
+                            {totalUnreadMessages} unread message{totalUnreadMessages > 1 ? "s" : ""}
+                        </span>
+                    )}
                 </div>
             </div>
 

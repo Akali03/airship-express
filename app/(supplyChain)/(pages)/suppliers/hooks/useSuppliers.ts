@@ -64,6 +64,9 @@ export function useSuppliers() {
         notes: "",
     });
 
+    const [unreadMessageCounts, setUnreadMessageCounts] = useState<Record<number, number>>({});
+    const [totalUnreadMessages, setTotalUnreadMessages] = useState<number>(0);
+
     // po detail modal state
     const [selectedPurchaseOrder, setSelectedPurchaseOrder] = useState<PurchaseOrder | null>(null);
     const [showPurchaseOrderModal, setShowPurchaseOrderModal] = useState(false);
@@ -90,10 +93,82 @@ export function useSuppliers() {
         }
     }, []);
 
-    // fetch initial data
+    // fetch unread messages sent by suppliers
+    const fetchUnreadMessageCounts = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("messages")
+                .select("supplier_id")
+                .eq("sender_type", "supplier")
+                .eq("is_read", false);
+
+            if (error) throw error;
+
+            const counts: Record<number, number> = {};
+            let total = 0;
+            if (data) {
+                data.forEach((m: any) => {
+                    if (m.supplier_id) {
+                        const sId = Number(m.supplier_id);
+                        counts[sId] = (counts[sId] || 0) + 1;
+                        total++;
+                    }
+                });
+            }
+            setUnreadMessageCounts(counts);
+            setTotalUnreadMessages(total);
+        } catch (error) {
+            console.error("Error fetching unread message counts:", error);
+        }
+    };
+
+    // Mark unread messages for a specific supplier as read optimistically and in DB
+    const markSupplierMessagesAsRead = async (supplierId: number) => {
+        setUnreadMessageCounts((prev) => {
+            if (!prev[supplierId]) return prev;
+            const countToSubtract = prev[supplierId] || 0;
+            const next = { ...prev };
+            delete next[supplierId];
+            setTotalUnreadMessages((t) => Math.max(0, t - countToSubtract));
+            return next;
+        });
+
+        try {
+            await supabase
+                .from("messages")
+                .update({ is_read: true })
+                .eq("supplier_id", supplierId)
+                .eq("sender_type", "supplier")
+                .eq("is_read", false);
+        } catch (err) {
+            console.error("Error marking messages as read:", err);
+        }
+    };
+
+    // fetch initial data and subscribe to message updates
     useEffect(() => {
         fetchSuppliers();
         fetchPurchaseOrders();
+        fetchUnreadMessageCounts();
+
+        const channel = supabase
+            .channel(`all_suppliers_realtime_channel_${Date.now()}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "messages",
+                },
+                () => {
+                    fetchUnreadMessageCounts();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     // reset pagination on search or category filter change
@@ -611,7 +686,8 @@ export function useSuppliers() {
         if (suppliers.length === 0) return;
 
         const categoryData = suppliers.reduce((acc: Record<string, number>, s) => {
-            acc[s.category] = (acc[s.category] || 0) + 1;
+            const cat = (s.category && s.category.trim()) ? s.category.trim() : "Uncategorized";
+            acc[cat] = (acc[cat] || 0) + 1;
             return acc;
         }, {});
 
@@ -680,7 +756,7 @@ export function useSuppliers() {
                         const category = labels[index];
                         if (category) {
                             const suppliersInCategory = suppliers.filter(
-                                (s) => s.category === category
+                                (s) => (s.category?.trim() || "Uncategorized") === category
                             );
                             setSelectedChartData({
                                 category: category,
@@ -698,11 +774,13 @@ export function useSuppliers() {
     useEffect(() => {
         if (isLoading) return;
         const timer = setTimeout(() => {
-            if (activityChartRef.current && categoryChartRef.current) {
+            if (activityChartRef.current) {
                 createActivityChart();
+            }
+            if (categoryChartRef.current) {
                 createCategoryChart();
             }
-        }, 500);
+        }, 150);
         return () => clearTimeout(timer);
     }, [suppliers, purchaseOrders, isLoading]);
 
@@ -785,6 +863,10 @@ export function useSuppliers() {
         topSupplier,
         topCategory,
         supplierStats,
+        unreadMessageCounts,
+        totalUnreadMessages,
+        markSupplierMessagesAsRead,
+        fetchUnreadMessageCounts,
         fetchSuppliers,
         fetchPurchaseOrders,
         handleAddSupplier,

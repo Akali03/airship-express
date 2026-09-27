@@ -53,12 +53,15 @@ export async function POST(request: Request) {
             .order('created_at', { ascending: false })
             .limit(1);
 
-        if (email && userId) {
-            otpQuery = otpQuery.or(`user_id.eq.${userId},email.eq.${email}`);
+        const isValidUuid = (str?: string | null) => !!str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+        const validUserId = isValidUuid(userId) ? userId : null;
+
+        if (email && validUserId) {
+            otpQuery = otpQuery.or(`user_id.eq.${validUserId},email.eq.${email}`);
         } else if (email) {
             otpQuery = otpQuery.eq('email', email);
-        } else {
-            otpQuery = otpQuery.eq('user_id', userId);
+        } else if (validUserId) {
+            otpQuery = otpQuery.eq('user_id', validUserId);
         }
 
         const { data: otpRecords, error: otpError } = await otpQuery;
@@ -72,12 +75,12 @@ export async function POST(request: Request) {
                 .order('created_at', { ascending: false })
                 .limit(1);
 
-            if (email && userId) {
-                expiredQuery = expiredQuery.or(`user_id.eq.${userId},email.eq.${email}`);
+            if (email && validUserId) {
+                expiredQuery = expiredQuery.or(`user_id.eq.${validUserId},email.eq.${email}`);
             } else if (email) {
                 expiredQuery = expiredQuery.eq('email', email);
-            } else {
-                expiredQuery = expiredQuery.eq('user_id', userId);
+            } else if (validUserId) {
+                expiredQuery = expiredQuery.eq('user_id', validUserId);
             }
 
             const { data: matchingExpired } = await expiredQuery;
@@ -100,12 +103,12 @@ export async function POST(request: Request) {
                 .order('created_at', { ascending: false })
                 .limit(1);
 
-            if (email && userId) {
-                recentQuery = recentQuery.or(`user_id.eq.${userId},email.eq.${email}`);
+            if (email && validUserId) {
+                recentQuery = recentQuery.or(`user_id.eq.${validUserId},email.eq.${email}`);
             } else if (email) {
                 recentQuery = recentQuery.or(`email.eq.${email}`);
-            } else {
-                recentQuery = recentQuery.eq('user_id', userId);
+            } else if (validUserId) {
+                recentQuery = recentQuery.eq('user_id', validUserId);
             }
 
             const { data: recentRecords } = await recentQuery;
@@ -412,7 +415,8 @@ export async function POST(request: Request) {
                 'Staff': '/documents',
                 'Employee': '/documents',
                 'Operator': '/warehousing?tab=incoming',
-                'Executive': '/executive'
+                'Executive': '/executive',
+                'Supplier': '/suppliers_page/purchase-orders',
             };
 
             return NextResponse.json({
@@ -420,7 +424,7 @@ export async function POST(request: Request) {
                 userExists: true,
                 userId: existingUser.id,
                 session_token: sessionToken,
-                redirect_url: roleRedirects[existingUser.role] || '/documents',
+                redirect_url: roleRedirects[existingUser.role] || '/suppliers_page/purchase-orders',
                 role: existingUser.role,
                 employee: {
                     email: email,
@@ -429,6 +433,38 @@ export async function POST(request: Request) {
                 }
             });
         } else {
+            // Check if this is a Supplier account logging in
+            if (employeeRole === 'Supplier' || !hrData) {
+                const { data: supplierAcc } = await supabase
+                    .from('suppliers_account')
+                    .select('*, suppliers(name)')
+                    .eq('email', email)
+                    .maybeSingle();
+
+                if (supplierAcc) {
+                    const tempToken = generateTemporaryToken();
+                    const companyName = supplierAcc.suppliers?.name || 'Supplier Company';
+                    const displayName = supplierAcc.contact_name || companyName;
+
+                    return NextResponse.json({
+                        verified: true,
+                        userExists: false,
+                        tempToken: tempToken,
+                        hrHasPassword: !!supplierAcc.password_hash,
+                        hrPassword: supplierAcc.password_hash || null,
+                        employee: {
+                            id: targetUserId || supplierAcc.id,
+                            email: email,
+                            display_name: displayName,
+                            role: 'Supplier',
+                            employee_id: `SUP-${supplierAcc.supplier_id || String(supplierAcc.id).slice(0, 5)}`,
+                            department: companyName,
+                            position: 'Authorized Supplier Representative',
+                        }
+                    });
+                }
+            }
+
             // user doesn't exist - return temp token for password setup
             const tempToken = generateTemporaryToken();
 

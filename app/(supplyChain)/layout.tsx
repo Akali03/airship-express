@@ -6,7 +6,7 @@ import AIChatbot from "./ai/services/AIChatbot";
 import { SessionGuard } from "./components/server/SessionGuard";
 import { OfflineDetector } from "./components/global/OfflineDetector";
 import { useEffect, useState, useRef, createContext, useContext } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Lenis from "lenis";
 import CustomCursor from "./components/global/CustomCursor";
@@ -26,14 +26,18 @@ export const useNavVisibility = () => useContext(NavVisibilityContext);
 function AIChatbotWrapper() {
     const { isOpen, closeChat } = useAI();
     const { isNavHidden } = useNavVisibility();
-    if (isNavHidden) return null;
+    const pathname = usePathname();
+    const isPortal = pathname?.startsWith('/suppliers_page') || pathname?.startsWith('/supplier-portal');
+    if (isNavHidden || isPortal) return null;
     return <AIChatbot isOpen={isOpen} onClose={closeChat}/>;
 }
 
 function AnimatedTopNavbar() {
     const { isOpen: isAIOpen } = useAI();
     const { isNavHidden } = useNavVisibility();
-    if (isNavHidden) return null;
+    const pathname = usePathname();
+    const isPortal = pathname?.startsWith('/suppliers_page') || pathname?.startsWith('/supplier-portal');
+    if (isNavHidden || isPortal) return null;
     return (
         <motion.div
             key="supplychain-navbar-wrapper"
@@ -59,7 +63,9 @@ function AnimatedTopNavbar() {
 function AnimatedBottomNav() {
     const { isOpen: isAIOpen } = useAI();
     const { isNavHidden } = useNavVisibility();
-    if (isNavHidden) return null;
+    const pathname = usePathname();
+    const isPortal = pathname?.startsWith('/suppliers_page') || pathname?.startsWith('/supplier-portal');
+    if (isNavHidden || isPortal) return null;
     return (
         <motion.div
             key="supplychain-shaduibar-wrapper"
@@ -85,7 +91,9 @@ function AnimatedBottomNav() {
 
 function FooterWrapper() {
     const { isNavHidden } = useNavVisibility();
-    if (isNavHidden) return null;
+    const pathname = usePathname();
+    const isPortal = pathname?.startsWith('/suppliers_page') || pathname?.startsWith('/supplier-portal');
+    if (isNavHidden || isPortal) return null;
     return <SupplyChainFooter />;
 }
 
@@ -97,6 +105,8 @@ function LayoutContent({ children }: {
     const containerRef = useRef<HTMLDivElement>(null);
     const lenisRef = useRef<Lenis | null>(null);
     const router = useRouter();
+    const pathname = usePathname();
+    const isPortal = pathname?.startsWith('/suppliers_page') || pathname?.startsWith('/supplier-portal');
 
     // check for active session token
     useEffect(() => {
@@ -175,7 +185,7 @@ function LayoutContent({ children }: {
             <OfflineDetector autoReconnect={true} reconnectInterval={30000} blurAmount={4}>
                 <div ref={containerRef} className="supplychain-container relative overflow-x-hidden font-rethink bg-[#FCFBF9] dark:bg-ink min-h-screen flex flex-col justify-between">
                     {/* Ambient decorative background glows & geometric shapes */}
-                    {!isNavHidden && (
+                    {!isNavHidden && !isPortal && (
                         <>
                             <div aria-hidden className="pointer-events-none fixed -top-32 -left-32 h-72 w-72 rounded-full bg-accent/10 blur-3xl z-0" />
                             <div aria-hidden className="pointer-events-none fixed -top-20 -right-24 h-72 w-72 rounded-full blur-3xl transition-colors duration-500 bg-ink/5 dark:bg-paper/5 z-0" />
@@ -193,7 +203,7 @@ function LayoutContent({ children }: {
 
                     <FooterWrapper />
 
-                    <main className={`relative z-10 flex-1 flex flex-col ${isNavHidden ? 'mt-0 pb-0' : 'mt-18 pb-16'}`}>
+                    <main className={`relative z-10 flex-1 flex flex-col ${isNavHidden || isPortal ? 'mt-0 pb-0' : 'mt-18 pb-16'}`}>
                         {children}
                     </main>
 
@@ -209,7 +219,7 @@ export default function SupplyChainLayout({ children, }: {
     children: React.ReactNode;
 }) {
     return (
-        <SessionGuard requiredRole={['Admin', 'Manager', 'Staff', 'Employee', 'Operator', 'Executive']}>
+        <SessionGuard requiredRole={['Admin', 'Manager', 'Staff', 'Employee', 'Operator', 'Executive', 'Supplier']}>
             <AIProvider>
                 <LayoutContent>{children}</LayoutContent>
             </AIProvider>

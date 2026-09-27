@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../lib/services/client/supabase';
 
-const VALID_ROLES = ['Admin', 'Manager', 'Staff', 'Employee', 'Executive', 'Operator'];
+const VALID_ROLES = ['Admin', 'Manager', 'Staff', 'Employee', 'Executive', 'Operator', 'Supplier'];
 
 export async function GET(request: Request) {
     try {

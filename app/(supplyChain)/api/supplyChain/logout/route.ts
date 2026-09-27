@@ -31,8 +31,8 @@ export async function POST(request: Request) {
 
         if (!sessionToken) {
             return NextResponse.json(
-                { message: 'No session found' },
-                { status: 400 }
+                { message: 'No active session', deactivated: true },
+                { status: 200 }
             );
         }
 

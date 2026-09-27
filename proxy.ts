@@ -30,6 +30,8 @@ export const SUBDOMAIN_PORTALS: SubdomainPortal[] = [
       "/trash",
       "/user-activity",
       "/settings",
+      "/suppliers_page/purchase-orders",
+      "/suppliers_page/messages",
     ],
   },
   {

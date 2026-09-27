@@ -92,10 +92,15 @@ export async function sendSupplyChainEmail(
         throw new Error('No valid recipient email address provided');
     }
 
-    const brevoApiKey = process.env.BREVO_SUPPLYCHAIN_API_KEY || process.env.BREVO_API_KEY;
+    const brevoApiKey = (
+        process.env.BREVO_SUPPLYCHAIN_API_KEY || 
+        process.env.BREVO_API_KEY || 
+        process.env.BREVO_KEY
+    )?.trim();
+
     // Verified Brevo sender registered under Brevo account
-    const brevoSenderEmail = process.env.BREVO_SUPPLYCHAIN_SENDER || 'supplychain.airshipexpress@gmail.com';
-    const fallbackEmail = process.env.EMAIL_SUPPLYCHAIN_USER || 'supplychain.airshipexpress@gmail.com';
+    const brevoSenderEmail = process.env.BREVO_SUPPLYCHAIN_SENDER || process.env.BREVO_SENDER || 'supplychain.airshipexpress@gmail.com';
+    const fallbackEmail = process.env.EMAIL_SUPPLYCHAIN_USER || process.env.EMAIL_USER || process.env.EMAIL_FROM || 'supplychain.airshipexpress@gmail.com';
     const activeReplyTo = replyTo || senderEmail || fallbackEmail;
 
     // 1. Primary Method: Brevo REST API
@@ -141,7 +146,7 @@ export async function sendSupplyChainEmail(
                 method: 'POST',
                 headers: {
                     'accept': 'application/json',
-                    'api-key': brevoApiKey.trim(),
+                    'api-key': brevoApiKey,
                     'content-type': 'application/json',
                 },
                 body: JSON.stringify(brevoPayload),
@@ -164,8 +169,8 @@ export async function sendSupplyChainEmail(
     }
 
     // 2. Fallback Method: Nodemailer SMTP
-    const smtpUser = process.env.EMAIL_SUPPLYCHAIN_USER;
-    const smtpPass = process.env.EMAIL_SUPPLYCHAIN_PASS;
+    const smtpUser = process.env.EMAIL_SUPPLYCHAIN_USER || process.env.EMAIL_USER || process.env.EMAIL_FROM || process.env.SMTP_USER;
+    const smtpPass = process.env.EMAIL_SUPPLYCHAIN_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASS;
 
     if (smtpUser && smtpPass) {
         try {
@@ -214,7 +219,7 @@ export async function sendSupplyChainEmail(
             };
         } catch (smtpErr: any) {
             console.error('SMTP fallback error:', smtpErr);
-            throw new Error(`Failed to send email: ${smtpErr.message || 'Unknown error'}`);
+            throw new Error(`Failed to send email via SMTP: ${smtpErr.message || 'Unknown error'}`);
         }
     }
 

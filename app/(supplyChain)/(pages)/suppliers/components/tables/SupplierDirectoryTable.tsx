@@ -19,6 +19,7 @@ interface SupplierDirectoryTableProps {
     filteredSuppliers: Supplier[];
     paginatedSuppliers: Supplier[];
     selectedSuppliers: Set<number>;
+    unreadMessageCounts?: Record<number, number>;
     currentPage: number;
     totalPages: number;
     itemsPerPage: number;
@@ -31,6 +32,8 @@ interface SupplierDirectoryTableProps {
     onViewSupplier: (supplier: Supplier) => void;
     onEditSupplier: (supplier: Supplier) => void;
     onDeleteSupplier: (id: number, name: string) => void;
+    onMessageSupplier?: (supplier: Supplier) => void;
+    onManageAccount?: (supplier: Supplier) => void;
 }
 
 export function SupplierDirectoryTable({
@@ -43,6 +46,7 @@ export function SupplierDirectoryTable({
     filteredSuppliers,
     paginatedSuppliers,
     selectedSuppliers,
+    unreadMessageCounts,
     currentPage,
     totalPages,
     itemsPerPage,
@@ -55,6 +59,8 @@ export function SupplierDirectoryTable({
     onViewSupplier,
     onEditSupplier,
     onDeleteSupplier,
+    onMessageSupplier,
+    onManageAccount,
 }: SupplierDirectoryTableProps) {
     return (
         <div className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col">
@@ -178,66 +184,89 @@ export function SupplierDirectoryTable({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60">
-                                {paginatedSuppliers.map((supplier) => (
-                                    <tr
-                                        key={supplier.id}
-                                        onClick={() => onViewSupplier(supplier)}
-                                        className="hover:bg-white/50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
-                                    >
-                                        <td data-label="Select" className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex items-center justify-between md:justify-center w-full">
-                                                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedSuppliers.has(supplier.id)}
-                                                        onChange={() => onToggleSelect(supplier.id)}
-                                                        aria-label={`Select ${supplier.name}`}
-                                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer accent-pink-600"
+                                {paginatedSuppliers.map((supplier) => {
+                                    const unreadCount = unreadMessageCounts?.[supplier.id] || 0;
+                                    return (
+                                        <tr
+                                            key={supplier.id}
+                                            onClick={() => onViewSupplier(supplier)}
+                                            className="hover:bg-white/50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                                        >
+                                            <td data-label="Select" className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-between md:justify-center w-full">
+                                                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedSuppliers.has(supplier.id)}
+                                                            onChange={() => onToggleSelect(supplier.id)}
+                                                            aria-label={`Select ${supplier.name}`}
+                                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-pink-500 focus:ring-pink-500 dark:focus:ring-offset-slate-900 cursor-pointer accent-pink-600"
+                                                        />
+                                                        <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select Supplier</span>
+                                                    </label>
+                                                    <span className="md:hidden font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+                                                        SUP-{String(supplier.id).padStart(3, '0')}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td data-label="Supplier ID" className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 text-right sm:text-left">
+                                                SUP-{String(supplier.id).padStart(3, '0')}
+                                            </td>
+                                            <td data-label="Supplier Name" className="py-3 px-4">
+                                                <div className="text-right sm:text-left min-w-0 max-w-[220px] sm:max-w-none ml-auto sm:ml-0">
+                                                    <div className="flex items-center gap-1.5 justify-end sm:justify-start">
+                                                        <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{supplier.name}</span>
+                                                        {unreadCount > 0 && (
+                                                            <span className="px-1.5 py-0.2 rounded-md bg-pink-500/10 text-pink-600 dark:text-pink-400 font-bold text-[9px] border border-pink-500/20 shrink-0 inline-flex items-center gap-1">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
+                                                                {unreadCount} unread
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{supplier.email}</div>
+                                                </div>
+                                            </td>
+                                            <td data-label="Category" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium text-right sm:text-left">
+                                                {supplier.category}
+                                            </td>
+                                            <td data-label="Contact" className="py-3 px-4">
+                                                <div className="text-right sm:text-left min-w-0 max-w-[220px] sm:max-w-none ml-auto sm:ml-0">
+                                                    <div className="text-slate-800 dark:text-slate-200 font-medium truncate">{supplier.contact_person}</div>
+                                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{supplier.phone}</div>
+                                                </div>
+                                            </td>
+                                            <td data-label="Location" className="py-3 px-4 text-slate-700 dark:text-slate-300 text-right sm:text-left truncate max-w-[200px] sm:max-w-none ml-auto sm:ml-0">
+                                                {supplier.location}
+                                            </td>
+                                            <td data-label="Status" className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex justify-end sm:justify-start">
+                                                    <StatusBadge
+                                                        tone={supplier.is_active ? 'emerald' : 'neutral'}
+                                                        dot
+                                                        size="xs"
+                                                        interactive
+                                                        onClick={() => onToggleActive(supplier.id, supplier.is_active)}
+                                                        title={`Click to set ${supplier.name} as ${supplier.is_active ? 'Inactive' : 'Active'}`}
+                                                    >
+                                                        {supplier.is_active ? 'Active' : 'Inactive'}
+                                                    </StatusBadge>
+                                                </div>
+                                            </td>
+                                            <td data-label="Action" className="py-3 px-4 text-right sm:w-[190px] sm:min-w-[190px] w-full" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-1.5 w-full sm:w-auto">
+                                                    <CrudActionButton
+                                                        action="message"
+                                                        label="Message"
+                                                        ariaLabel={`Message ${supplier.name}`}
+                                                        badgeCount={unreadCount}
+                                                        onClick={() => onMessageSupplier?.(supplier)}
                                                     />
-                                                    <span className="md:hidden text-xs font-semibold text-slate-700 dark:text-slate-200">Select Supplier</span>
-                                                </label>
-                                                <span className="md:hidden font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
-                                                    SUP-{String(supplier.id).padStart(3, '0')}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td data-label="Supplier ID" className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 text-right sm:text-left">
-                                            SUP-{String(supplier.id).padStart(3, '0')}
-                                        </td>
-                                        <td data-label="Supplier Name" className="py-3 px-4">
-                                            <div className="text-right sm:text-left min-w-0 max-w-[220px] sm:max-w-none ml-auto sm:ml-0">
-                                                <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">{supplier.name}</div>
-                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{supplier.email}</div>
-                                            </div>
-                                        </td>
-                                        <td data-label="Category" className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium text-right sm:text-left">
-                                            {supplier.category}
-                                        </td>
-                                        <td data-label="Contact" className="py-3 px-4">
-                                            <div className="text-right sm:text-left min-w-0 max-w-[220px] sm:max-w-none ml-auto sm:ml-0">
-                                                <div className="text-slate-800 dark:text-slate-200 font-medium truncate">{supplier.contact_person}</div>
-                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{supplier.phone}</div>
-                                            </div>
-                                        </td>
-                                        <td data-label="Location" className="py-3 px-4 text-slate-700 dark:text-slate-300 text-right sm:text-left truncate max-w-[200px] sm:max-w-none ml-auto sm:ml-0">
-                                            {supplier.location}
-                                        </td>
-                                        <td data-label="Status" className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex justify-end sm:justify-start">
-                                                <StatusBadge
-                                                    tone={supplier.is_active ? 'emerald' : 'neutral'}
-                                                    dot
-                                                    size="xs"
-                                                    interactive
-                                                    onClick={() => onToggleActive(supplier.id, supplier.is_active)}
-                                                    title={`Click to set ${supplier.name} as ${supplier.is_active ? 'Inactive' : 'Active'}`}
-                                                >
-                                                    {supplier.is_active ? 'Active' : 'Inactive'}
-                                                </StatusBadge>
-                                            </div>
-                                        </td>
-                                        <td data-label="Action" className="py-3 px-4 text-right sm:w-[150px] sm:min-w-[150px] w-full" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex items-center justify-end gap-2.5 w-full sm:w-auto">
+                                                <CrudActionButton
+                                                    action="account"
+                                                    label="Account"
+                                                    ariaLabel={`Manage account for ${supplier.name}`}
+                                                    onClick={() => onManageAccount?.(supplier)}
+                                                />
                                                 <CrudActionButton
                                                     action="view"
                                                     ariaLabel={`View ${supplier.name}`}
@@ -256,7 +285,8 @@ export function SupplierDirectoryTable({
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                );
+                            })}
                             </tbody>
                         </table>
                     </div>

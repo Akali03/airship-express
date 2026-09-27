@@ -15,7 +15,9 @@ import { SupplierEditModal } from "./components/modals/SupplierEditModal";
 import { PurchaseOrderDetailModal } from "./components/modals/PurchaseOrderDetailModal";
 import { SupplierActivityDetailModal } from "./components/modals/SupplierActivityDetailModal";
 import { SupplierCategoryDetailModal } from "./components/modals/SupplierCategoryDetailModal";
-import { ITEMS_PER_PAGE, PO_ITEMS_PER_PAGE } from "./types";
+import { SupplierAccountModal } from "./components/modals/SupplierAccountModal";
+import { SupplierMessageModal } from "./components/modals/SupplierMessageModal";
+import { ITEMS_PER_PAGE, PO_ITEMS_PER_PAGE, Supplier } from "./types";
 
 export default function SuppliersContentWrapper() {
     const {
@@ -65,6 +67,9 @@ export default function SuppliersContentWrapper() {
         topSupplier,
         topCategory,
         supplierStats,
+        unreadMessageCounts,
+        totalUnreadMessages,
+        markSupplierMessagesAsRead,
         handleAddSupplier,
         handleUpdateSupplier,
         handleDeleteSupplier,
@@ -75,6 +80,12 @@ export default function SuppliersContentWrapper() {
         handleViewPurchaseOrder,
     } = useSuppliers();
 
+    const [showAccountModal, setShowAccountModal] = React.useState(false);
+    const [accountSupplier, setAccountSupplier] = React.useState<Supplier | null>(null);
+
+    const [showMessageModal, setShowMessageModal] = React.useState(false);
+    const [messageSupplier, setMessageSupplier] = React.useState<Supplier | null>(null);
+
     return (
         <div className="main-shell bgCard">
             <div className="p-6 space-y-6 fade-in">
@@ -83,6 +94,7 @@ export default function SuppliersContentWrapper() {
                     totalSuppliers={suppliers.length}
                     activeSuppliers={activeSuppliers}
                     selectedCount={selectedSuppliers.size}
+                    totalUnreadMessages={totalUnreadMessages}
                     onBulkDelete={handleBulkDelete}
                     onNewSupplier={() => setShowNewSupplierModal(true)}
                 />
@@ -118,6 +130,7 @@ export default function SuppliersContentWrapper() {
                     filteredSuppliers={filteredSuppliers}
                     paginatedSuppliers={paginatedSuppliers}
                     selectedSuppliers={selectedSuppliers}
+                    unreadMessageCounts={unreadMessageCounts}
                     currentPage={currentPage}
                     totalPages={totalPages}
                     itemsPerPage={ITEMS_PER_PAGE}
@@ -136,6 +149,17 @@ export default function SuppliersContentWrapper() {
                         setShowEditSupplierModal(true);
                     }}
                     onDeleteSupplier={handleDeleteSupplier}
+                    onMessageSupplier={(supplier) => {
+                        setMessageSupplier(supplier);
+                        setShowMessageModal(true);
+                        if (supplier?.id) {
+                            markSupplierMessagesAsRead(supplier.id);
+                        }
+                    }}
+                    onManageAccount={(supplier) => {
+                        setAccountSupplier(supplier);
+                        setShowAccountModal(true);
+                    }}
                 />
 
                 {/* recent purchase history table (view only) */}
@@ -187,6 +211,27 @@ export default function SuppliersContentWrapper() {
                     setEditingSupplier(null);
                 }}
                 onSubmit={handleUpdateSupplier}
+            />
+
+            {/* supplier account modal */}
+            <SupplierAccountModal
+                isOpen={showAccountModal}
+                supplier={accountSupplier}
+                onClose={() => {
+                    setShowAccountModal(false);
+                    setAccountSupplier(null);
+                }}
+            />
+
+            {/* supplier message modal */}
+            <SupplierMessageModal
+                isOpen={showMessageModal}
+                supplier={messageSupplier}
+                onMessagesRead={markSupplierMessagesAsRead}
+                onClose={() => {
+                    setShowMessageModal(false);
+                    setMessageSupplier(null);
+                }}
             />
 
             {/* purchase order detail modal */}

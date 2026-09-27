@@ -168,19 +168,28 @@ export async function POST(request: Request) {
             console.error('supabase sign in error:', authError);
         }
 
-        // query mock_employees to fetch exact position and department
+        // query mock_employees or suppliers_account to fetch exact position and department
         const { data: hrEmployee } = await supabase
             .from('mock_employees')
             .select('position, department, role')
             .eq('email', email)
             .maybeSingle();
 
-        const userPosition = hrEmployee?.position || null;
-        const userDepartment = hrEmployee?.department || null;
+        const { data: supplierAcc } = !hrEmployee ? await supabase
+            .from('suppliers_account')
+            .select('*, suppliers(name)')
+            .eq('email', email)
+            .maybeSingle() : { data: null };
+
+        const supplierCompanyName = supplierAcc?.suppliers?.name || 'Supplier Partner';
+        const userPosition = hrEmployee?.position || (supplierAcc ? 'Authorized Supplier Representative' : null);
+        const userDepartment = hrEmployee?.department || (supplierAcc ? supplierCompanyName : null);
 
         // Resolve accurate role based on position
         let effectiveRole = role;
-        if (userPosition && role !== 'Admin' && role !== 'Executive') {
+        if (supplierAcc || role === 'Supplier') {
+            effectiveRole = 'Supplier';
+        } else if (userPosition && role !== 'Admin' && role !== 'Executive') {
             const p = userPosition.trim().toUpperCase().replace(/\s+/g, ' ');
             if (
                 p === 'OFFICE-IN-CHARGE' ||
@@ -299,7 +308,8 @@ export async function POST(request: Request) {
             'Staff': '/documents',
             'Employee': '/documents',
             'Operator': '/warehousing?tab=incoming',
-            'Executive': '/executive'
+            'Executive': '/executive',
+            'Supplier': '/suppliers_page/purchase-orders',
         };
 
         const redirectUrl = roleRedirects[role] || '/documents';

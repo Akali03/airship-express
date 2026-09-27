@@ -161,7 +161,12 @@ export default function EmployeeSelectionModal({
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
-    const isAdminOrExec = loggedInUser?.role === 'Admin' || loggedInUser?.role === 'Executive';
+    const userRole = (loggedInUser?.role || '').toLowerCase();
+    const isSupplier = userRole === 'supplier';
+    const isAdmin = userRole === 'admin';
+    const isExec = userRole === 'executive';
+    const isAdminOrExec = isAdmin || isExec || isSupplier;
+    const isSpecialRole = isSupplier || isAdmin || isExec;
 
     const filteredEmployees = useMemo(() => {
         // Exclude Drop-Off Pick-Up Riders / Drivers from the selection modal
@@ -195,7 +200,7 @@ export default function EmployeeSelectionModal({
                         <div className="border-b border-white/60 dark:border-white/[0.06] p-4 sm:p-6 flex justify-between items-center bg-[#EEF2F6] dark:bg-[#161A23] shrink-0 transition-colors">
                             <div className="flex items-center gap-3 sm:gap-3.5">
                                 <div className="p-2 sm:p-2.5 rounded-2xl bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] border border-accent/20 text-accent shrink-0">
-                                    {isAdminOrExec ? (
+                                    {isSpecialRole ? (
                                         <Lock size={20} className="text-accent sm:w-[22px] sm:h-[22px]" />
                                     ) : (
                                         <Building size={20} className="text-accent sm:w-[22px] sm:h-[22px]" />
@@ -203,19 +208,23 @@ export default function EmployeeSelectionModal({
                                 </div>
                                 <div>
                                     <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-bricolage tracking-tight">
-                                        {loggedInUser?.role === 'Admin'
-                                            ? 'Select Admin Account'
-                                            : loggedInUser?.role === 'Executive'
-                                                ? 'Select Executive Account'
-                                                : 'Select Employee from HR System'}
+                                        {isSupplier
+                                            ? 'Select Supplier Account'
+                                            : isAdmin
+                                                ? 'Select Admin Account'
+                                                : isExec
+                                                    ? 'Select Executive Account'
+                                                    : 'Select Employee from HR System'}
                                     </h3>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400">
-                                            {loggedInUser?.role === 'Admin'
-                                                ? 'Admin Directory'
-                                                : loggedInUser?.role === 'Executive'
-                                                    ? 'Executive Directory'
-                                                    : 'HR System Directory'}
+                                            {isSupplier
+                                                ? 'Active Supplier Directory'
+                                                : isAdmin
+                                                    ? 'Admin Directory'
+                                                    : isExec
+                                                        ? 'Executive Directory'
+                                                        : 'HR System Directory'}
                                         </p>
                                     </div>
                                 </div>
@@ -242,7 +251,7 @@ export default function EmployeeSelectionModal({
                                 </span>
                             </div>
                             <span className="text-slate-500 dark:text-slate-400 hidden sm:inline-block font-medium">
-                                {isAdminOrExec ? 'Select an account to verify' : 'Select an employee to verify'}
+                                {isSupplier ? 'Select a supplier account to verify' : isSpecialRole ? 'Select an account to verify' : 'Select an employee to verify'}
                             </span>
                         </div>
 
@@ -347,7 +356,13 @@ export default function EmployeeSelectionModal({
                                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 shrink-0 pointer-events-none" size={18} />
                                         <input
                                             type="text"
-                                            placeholder={isAdminOrExec ? "Search account by name, ID, or email..." : "Search employee by name, ID, or email..."}
+                                            placeholder={
+                                                isSupplier
+                                                    ? "Search supplier account by company, contact, or email..."
+                                                    : isSpecialRole
+                                                        ? "Search account by name, ID, or email..."
+                                                        : "Search employee by name, ID, or email..."
+                                            }
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                             className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] border border-transparent focus:border-accent/40 rounded-xl text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
@@ -375,7 +390,11 @@ export default function EmployeeSelectionModal({
                                         <div className="text-center py-10 sm:py-14">
                                             <Loader2 className="animate-spin text-accent mx-auto" size={32} />
                                             <p className="mt-2.5 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium">
-                                                {isAdminOrExec ? 'Fetching accounts...' : 'Fetching directory from HR system...'}
+                                                {isSupplier
+                                                    ? 'Fetching active supplier accounts...'
+                                                    : isSpecialRole
+                                                        ? 'Fetching accounts...'
+                                                        : 'Fetching directory from HR system...'}
                                             </p>
                                         </div>
                                     ) : filteredEmployees.length === 0 ? (
@@ -384,7 +403,11 @@ export default function EmployeeSelectionModal({
                                                 <User size={24} />
                                             </div>
                                             <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
-                                                {isAdminOrExec ? 'No matching accounts found' : 'No matching employees found'}
+                                                {isSupplier
+                                                    ? 'No matching supplier accounts found'
+                                                    : isSpecialRole
+                                                        ? 'No matching accounts found'
+                                                        : 'No matching employees found'}
                                             </p>
                                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Try adjusting your search terms</p>
                                         </div>

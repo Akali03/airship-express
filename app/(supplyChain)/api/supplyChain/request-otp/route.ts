@@ -36,12 +36,24 @@ export async function POST(request: Request) {
             );
         }
 
+        const isValidUuid = (str?: string | null) => !!str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+        const validUserId = isValidUuid(effectiveLoggedInUserId) ? effectiveLoggedInUserId : (isValidUuid(effectiveUserId) ? effectiveUserId : null);
+
         // rate limiting - max 3 per hour
-        const { count, error: countError } = await supabase
+        let countQuery = supabase
             .from('otp_codes')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', effectiveLoggedInUserId)
             .gte('created_at', new Date(Date.now() - 3600000).toISOString());
+
+        if (validUserId && email) {
+            countQuery = countQuery.or(`user_id.eq.${validUserId},email.eq.${email}`);
+        } else if (validUserId) {
+            countQuery = countQuery.eq('user_id', validUserId);
+        } else {
+            countQuery = countQuery.eq('email', email);
+        }
+
+        const { count, error: countError } = await countQuery;
 
         if (countError) {
             console.error('Rate limit check error:', countError);
@@ -64,7 +76,7 @@ export async function POST(request: Request) {
             supabase
                 .from('otp_codes')
                 .insert({
-                    user_id: effectiveLoggedInUserId,
+                    user_id: validUserId,
                     code_hash: hashedOTP,
                     expires_at: expiresAt.toISOString(),
                     attempts: 0,

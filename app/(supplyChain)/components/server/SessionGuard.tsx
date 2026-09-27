@@ -31,7 +31,7 @@ interface SessionBackup {
     backed_up_at?: string;
     checksum?: string;
 }
-const VALID_ROLES = ['Admin', 'Manager', 'Staff', 'Employee', 'Operator', 'Executive'];
+const VALID_ROLES = ['Admin', 'Manager', 'Staff', 'Employee', 'Operator', 'Executive', 'Supplier'];
 const CACHE_DURATION = 60 * 1000;
 const TAMPER_POLL_INTERVAL = 30 * 1000;
 const OFFLINE_RETRY_DELAY = 5000;

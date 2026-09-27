@@ -21,6 +21,53 @@ export async function GET(request: Request) {
             );
         }
 
+        // If Supplier role, fetch active accounts from suppliers_account
+        if (role.toLowerCase() === 'supplier') {
+            const { data: accounts, error: accError } = await supabase
+                .from('suppliers_account')
+                .select(`
+                    id,
+                    supplier_id,
+                    email,
+                    contact_name,
+                    status,
+                    password_hash,
+                    suppliers (
+                        id,
+                        name,
+                        category,
+                        location
+                    )
+                `)
+                .eq('status', 'Active')
+                .order('contact_name', { ascending: true });
+
+            if (accError) {
+                console.error('Error fetching suppliers_account:', accError);
+                return NextResponse.json([]);
+            }
+
+            const supplierList = (accounts || []).map((acc: any) => {
+                const companyName = acc.suppliers?.name || 'Supplier Partner';
+                const displayName = acc.contact_name ? `${acc.contact_name} (${companyName})` : companyName;
+                return {
+                    id: acc.id,
+                    supplier_id: acc.supplier_id,
+                    display_name: displayName,
+                    email: acc.email,
+                    role: 'Supplier',
+                    department: companyName,
+                    position: 'Authorized Supplier Representative',
+                    employee_id: `SUP-${acc.supplier_id || String(acc.id).slice(0, 5)}`,
+                    has_hr_password: !!acc.password_hash,
+                    remembered: false,
+                    is_active: true
+                };
+            });
+
+            return NextResponse.json(supplierList);
+        }
+
         // If Admin or Executive, fetch directly from users table
         if (role === 'Admin' || role === 'Executive') {
             const { data: dbUsers, error: userError } = await supabase

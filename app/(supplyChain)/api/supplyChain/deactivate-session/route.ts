@@ -15,88 +15,31 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 
 export async function POST(request: Request) {
     try {
-        let sessionToken;
+        let sessionToken = request.headers.get('x-session-token');
+        let body: any = {};
         try {
-            const body = await request.json();
-            sessionToken = body.sessionToken;
+            body = await request.json();
+            if (!sessionToken && (body?.sessionToken || body?.session_token)) {
+                sessionToken = body.sessionToken || body.session_token;
+            }
         } catch (e) {
-            // no body or invalid json
+            // ignore
         }
 
         if (!sessionToken) {
-            sessionToken = request.headers.get('x-session-token');
+            return NextResponse.json({ ok: false, message: 'No session token' }, { status: 400 });
         }
 
-        if (!sessionToken) {
-            return NextResponse.json(
-                { message: 'Session token is required' },
-                { status: 400 }
-            );
-        }
-
-        // find the session
-        const { data: session, error: findError } = await supabaseAdmin
-            .from('sessions')
-            .select('id, user_id')
-            .eq('session_token', sessionToken)
-            .maybeSingle();
-
-        if (findError || !session) {
-            return NextResponse.json(
-                { message: 'Session not found' },
-                { status: 404 }
-            );
-        }
-
-        // deactivate the session
-        const { error: updateError } = await supabaseAdmin
+        await supabaseAdmin
             .from('sessions')
             .update({
                 is_active: false,
                 updated_at: new Date().toISOString()
             })
-            .eq('id', session.id);
+            .eq('session_token', sessionToken);
 
-        if (updateError) {
-            console.error('Failed to deactivate session:', updateError);
-            return NextResponse.json(
-                { message: 'Failed to deactivate session' },
-                { status: 500 }
-            );
-        }
-
-        // log activity
-        try {
-            await supabaseAdmin
-                .from('user_activity')
-                .insert({
-                    user_id: session.user_id,
-                    action: 'SESSION_DEACTIVATED',
-                    module: 'Authentication',
-                    description: 'Session deactivated via API',
-                    ip_address: request.headers.get('x-forwarded-for') || 'Unknown',
-                    user_agent: request.headers.get('user-agent') || 'Unknown',
-                    created_at: new Date().toISOString(),
-                });
-        } catch (activityError) {
-            // non-critical
-        }
-
-        return NextResponse.json({
-            success: true,
-            message: 'Session deactivated successfully',
-            session_id: session.id
-        });
-    } catch (error) {
-        console.error('Error deactivating session:', error);
-        return NextResponse.json(
-            { message: 'Failed to deactivate session' },
-            { status: 500 }
-        );
+        return NextResponse.json({ ok: true, message: 'Session deactivated' });
+    } catch (error: any) {
+        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
-}
-
-// support preflight
-export async function OPTIONS() {
-    return NextResponse.json({}, { status: 200 });
 }

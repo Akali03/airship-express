@@ -100,12 +100,14 @@ export async function POST(request: Request) {
                 .eq('email', normalizedEmail)
                 .maybeSingle();
 
-            const effectiveUserId = existingUser?.id || hrUser?.id || normalizedEmail;
+            const isValidUuid = (str?: string | null) => !!str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+            const rawId = existingUser?.id || hrUser?.id;
+            const validUserId = isValidUuid(rawId) ? rawId : null;
             const displayName = employeeName || existingUser?.display_name || hrUser?.employee_name || 'User';
 
             // rate limit check - max 5 in past hour
             const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
-            const { count } = await supabase
+            const { count } = await supabaseAdmin
                 .from('otp_codes')
                 .select('*', { count: 'exact', head: true })
                 .eq('email', normalizedEmail)
@@ -120,7 +122,7 @@ export async function POST(request: Request) {
 
             // 60-second cooldown check - max 1 request per 60 seconds
             const sixtySecondsAgo = new Date(Date.now() - 60000).toISOString();
-            const { data: recentOtp } = await supabase
+            const { data: recentOtp } = await supabaseAdmin
                 .from('otp_codes')
                 .select('created_at')
                 .eq('email', normalizedEmail)
@@ -143,11 +145,11 @@ export async function POST(request: Request) {
             const hashedOTP = hashOTP(otp);
             const expiresAt = new Date(Date.now() + 5 * 60000); // 5 minutes
 
-            // store otp code
-            const { error: insertError } = await supabase
+            // store otp code using supabaseAdmin
+            const { error: insertError } = await supabaseAdmin
                 .from('otp_codes')
                 .insert({
-                    user_id: effectiveUserId,
+                    user_id: validUserId,
                     code_hash: hashedOTP,
                     expires_at: expiresAt.toISOString(),
                     attempts: 0,

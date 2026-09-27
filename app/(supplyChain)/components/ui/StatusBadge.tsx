@@ -193,8 +193,9 @@ export function getPOStatusTone(status: string): BadgeTone {
     case "Confirmed":
       return "purple";
     case "Delivered":
-      return "pink";
+      return "emerald";
     case "Cancelled":
+    case "Rejected":
       return "rose";
     case "Approved":
       return "emerald";

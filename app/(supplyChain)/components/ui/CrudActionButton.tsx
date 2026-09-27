@@ -31,6 +31,10 @@ export type CrudActionType =
   | "approve"
   | "reject"
   | "respond"
+  | "message"
+  | "account"
+  | "lock"
+  | "unlock"
   | "custom";
 
 export type CrudActionVariant = "auto" | "pink" | "neutral";
@@ -44,6 +48,7 @@ export interface CrudActionButtonProps
   ariaLabel?: string;
   className?: string;
   size?: "sm" | "md";
+  badgeCount?: number;
 }
 
 const ACTION_CONFIG: Record<
@@ -63,6 +68,10 @@ const ACTION_CONFIG: Record<
   approve: { label: "Approve", icon: Check },
   reject: { label: "Reject", icon: X },
   respond: { label: "Respond", icon: Send },
+  message: { label: "Message", icon: Send },
+  account: { label: "Account", icon: Plus },
+  lock: { label: "Disable", icon: X },
+  unlock: { label: "Enable", icon: Check },
 };
 
 const VARIANT_STYLES: Record<"pink" | "neutral", string> = {
@@ -104,6 +113,7 @@ export const CrudActionButton = React.forwardRef<
       size = "sm",
       type = "button",
       disabled,
+      badgeCount,
       onClick,
       ...restProps
     },
@@ -169,6 +179,13 @@ export const CrudActionButton = React.forwardRef<
             {label}
           </span>
         </button>
+
+        {/* Unread / Notification Count Badge */}
+        {badgeCount !== undefined && badgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-pink-600 text-white font-black text-[9px] shadow-sm border border-white dark:border-[#191a24] pointer-events-none z-30 animate-pulse">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        )}
       </div>
     );
   }
