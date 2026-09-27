@@ -6,6 +6,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        ink: "var(--color-ink)",
+        paper: "var(--color-paper)",
+        muted: "var(--color-muted)",
+        accent: "var(--color-accent)",
+        "accent-dark": "var(--color-accent-dark)",
+        line: "var(--color-line)",
         surface: "#f6faff",
         "surface-dim": "#d2dbe4",
         "surface-bright": "#f6faff",
@@ -58,6 +64,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["Hanken Grotesk", "system-ui", "sans-serif"],
+        bricolage: ["var(--font-bricolage)", "sans-serif"],
+        rethink: ["var(--font-rethink)", "sans-serif"],
       },
       fontSize: {
         "display-lg": ["64px", { lineHeight: "1.1", letterSpacing: "-0.02em", fontWeight: "800" }],

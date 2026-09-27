@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import NestedFtmAuthPage from "../../(ftm)/web/app/ftmAuth/page";
+import CursorHost from "../../(ftm)/web/app/components/CursorHost";
 
 function EyeIcon({ size = 20, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
   return (
@@ -454,7 +455,8 @@ export default function FtmAuthPage() {
     <FtmSettingsProvider>
     <FtmLoadingProvider>
       <FtmSecurityProvider>
-            <NestedFtmAuthPage />
+                <CursorHost />
+                <NestedFtmAuthPage />
       </FtmSecurityProvider>
     </FtmLoadingProvider>
     </FtmSettingsProvider>

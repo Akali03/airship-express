@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Bricolage_Grotesque, Rethink_Sans } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import CursorHost from "./components/CursorHost";
@@ -8,6 +9,16 @@ import FtmLoadingProvider from "./components/FtmLoadingProvider";
 import FtmSecurityProvider from "./components/FtmSecurityProvider";
 import FtmChatbotGate from "./components/FtmChatbotGate";
 import { FtmProfileAvatarProvider } from "./components/FtmProfileAvatarProvider";
+
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+});
+
+const rethink = Rethink_Sans({
+  variable: "--font-rethink",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: "Airship Express - Fleet & Transport Suite",
@@ -20,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${bricolage.variable} ${rethink.variable}`}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

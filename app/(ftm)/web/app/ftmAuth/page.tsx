@@ -40,6 +40,94 @@ function LockIcon({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+function FtmLoginVideo({ compact = false }: { compact?: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isHovering, setIsHovering] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.playsInline = true;
+    video.disablePictureInPicture = true;
+    video.controls = false;
+    video.setAttribute("controlsList", "nodownload noplaybackrate");
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("preload", "metadata");
+
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => undefined);
+    }
+  }, []);
+
+  const handleVideoPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!video.paused) video.pause();
+    setIsHovering(true);
+  };
+
+  const handleVideoResume = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(() => undefined);
+      }
+    }
+    setIsHovering(false);
+  };
+
+  return (
+    <div
+      className={`group relative -translate-x-3 -translate-y-2 rotate-[-7deg] ${compact ? "w-40 sm:w-44" : "w-full max-w-[272px]"}`}
+      onMouseEnter={handleVideoPause}
+      onMouseLeave={handleVideoResume}
+      onFocus={handleVideoPause}
+      onBlur={handleVideoResume}
+    >
+      <div className="absolute -inset-1 rounded-[28px] border border-white/20 bg-white/5 shadow-[0_18px_38px_rgba(24,24,39,0.08)]" />
+
+      <div className="relative overflow-hidden rounded-[26px] border border-[#f7dfe7] bg-[#f8edf2] p-2.5 shadow-[0_14px_28px_rgba(0,0,0,0.08)]">
+        <div className="mb-2 flex items-center gap-2 px-1 pt-0.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#f86c7f]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#f0b03d]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#5ad28c]" />
+        </div>
+
+        <div className="relative overflow-hidden rounded-[18px] border border-[#f3ccd9] bg-[#120b13]">
+          <video
+            ref={videoRef}
+            aria-label="Airship Express fleet operations"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            tabIndex={-1}
+            onClick={(event) => event.preventDefault()}
+            onContextMenu={(event) => event.preventDefault()}
+            className="block aspect-video w-full object-cover opacity-90 pointer-events-none select-none"
+          >
+            <source src="/bg-login.mp4" type="video/mp4" />
+          </video>
+
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_52%)]" />
+        </div>
+      </div>
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-2 top-1/2 z-10 h-8 -translate-y-1/2 rounded-full opacity-0"
+      />
+    </div>
+  );
+}
 import { OtpVerificationModal, PasskeyVerificationModal } from "../components/AuthVerificationModals";
 import {
   canRegisterPasskeyForDevice,
@@ -267,24 +355,29 @@ export default function AuthPage() {
           </motion.div>
 
           <motion.div
-            className="max-w-lg"
+            className="flex w-full max-w-5xl flex-col gap-8 xl:flex-row xl:items-start xl:justify-between"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: "easeOut", delay: 0.1 }}
           >
-            <p className="font-rethink text-[13px] font-medium uppercase tracking-[0.2em] text-accent">
-              Secure Access
-            </p>
-            <h1 className="mt-5 font-bricolage text-[44px] font-medium leading-[1.05] tracking-tight text-ink dark:text-paper">
-              Fleet & Transport
-              <br />
-              Management
-              <br />
-              Portal
-            </h1>
-            <p className="mt-5 text-[15px] leading-relaxed text-muted dark:text-paper/70">
-              Securely manage dispatch, fleet operations, compliance, and customer movement across the full transport network.
-            </p>
+            <div className="max-w-sm pt-3">
+              <p className="font-rethink text-[13px] font-medium uppercase tracking-[0.2em] text-accent">
+                Secure Access
+              </p>
+              <h1 className="mt-5 font-bricolage text-[44px] font-medium leading-[1.05] tracking-tight text-ink dark:text-paper">
+                Fleet & Transport
+                <br />
+                Management
+                <br />
+                Portal
+              </h1>
+              <p className="mt-5 text-[15px] leading-relaxed text-muted dark:text-paper/70">
+                Securely manage dispatch, fleet operations, compliance, and customer movement across the full transport network.
+              </p>
+            </div>
+            <div className="hidden shrink-0 translate-x-[-42px] -translate-y-12 justify-center xl:flex">
+              <FtmLoginVideo />
+            </div>
           </motion.div>
 
           <div className="flex items-center gap-2 text-[12px] text-muted dark:text-paper/60">
@@ -310,7 +403,9 @@ export default function AuthPage() {
                 priority
               />
             </div>
-
+            <div className="mb-5 xl:hidden">
+              <FtmLoginVideo compact />
+            </div>
             <p className="font-rethink text-[12px] sm:text-[13px] font-medium uppercase tracking-[0.2em] text-accent">
               Welcome back
             </p>

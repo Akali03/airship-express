@@ -65,8 +65,22 @@ export const SUBDOMAIN_PORTALS: SubdomainPortal[] = [
     subdomains: ["ftm"],
     primarySubdomain: "ftm",
     loginPath: "/ftmAuth",
-    authPaths: ["/ftmAuth"],
-    routes: ["/ftm"],
+    authPaths: ["/ftmAuth", "/auth", "/passkey-enroll"],
+    routes: [
+      "/ftm",
+      "/dashboard",
+      "/alerts",
+      "/bookings",
+      "/cost",
+      "/driver",
+      "/fuel",
+      "/fvm",
+      "/history",
+      "/users",
+      "/vrds",
+      "/account",
+      "/unauthorized",
+    ],
   },
   {
     name: "FMS",
@@ -450,14 +464,27 @@ export function proxy(request: NextRequest) {
       const isAllowedAuthPath = currentPortal.authPaths?.some(
         (p) => normalizedPath === p || normalizedPath.startsWith(p + "/")
       );
-      if (isAllowedAuthPath) {
-        return applySecurityHeaders(NextResponse.next(), protocol);
-      }
-
       const isValidPortalRoute = currentPortal.routes.some(
         (route) =>
           normalizedPath === route || normalizedPath.startsWith(route + "/")
       );
+
+      const shouldRewriteFtmRoute =
+        currentPortal.primarySubdomain === "ftm" &&
+        normalizedPath !== "/ftmAuth" &&
+        (isAllowedAuthPath || isValidPortalRoute);
+
+      if (shouldRewriteFtmRoute) {
+        const rewriteUrl = new URL(
+          `/web/app${normalizedPath}${search}`,
+          request.url
+        );
+        return applySecurityHeaders(NextResponse.rewrite(rewriteUrl), protocol);
+      }
+
+      if (isAllowedAuthPath) {
+        return applySecurityHeaders(NextResponse.next(), protocol);
+      }
 
       const isForeignRoute = SUBDOMAIN_PORTALS.some((otherPortal) => {
         if (otherPortal === currentPortal) return false;
