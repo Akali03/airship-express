@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const { getAuthSupabase, getSupabase, getServiceSupabase } = require('../config/db');
+const { getSupabase, getServiceSupabase } = require('../config/db');
 const { normalizeUser } = require('../models/User');
 const failedLogins = new Map();
 const otpStore = new Map();
@@ -367,13 +367,8 @@ async function loginDriver(req, res) {
     return res.status(423).json({ error: 'Account temporarily locked after repeated failed login attempts.', retryAfterSeconds: Math.ceil((lock.lockedUntil - Date.now()) / 1000) });
   }
 
-  const supabase = getAuthSupabase();
-  if (!supabase) {
-    const error = process.env.FTM_AUTH_PROVIDER === 'hr'
-      ? 'HR Supabase auth is enabled but not configured on the FTM backend.'
-      : 'Auth not configured';
-    return res.status(501).json({ error });
-  }
+  const supabase = getSupabase();
+  if (!supabase) return res.status(501).json({ error: 'Auth not configured' });
 
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
