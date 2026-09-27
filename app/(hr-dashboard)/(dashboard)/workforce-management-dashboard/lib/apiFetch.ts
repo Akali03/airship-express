@@ -56,6 +56,20 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
               (existing as any).is_manual_override = true;
               (existing as any).manual_override_reason = body.manual_override_reason;
               (existing as any).manual_override_notes = body.manual_override_notes;
+              
+              // Dynamically recalculate the timesheet for this employee based on the new clock out
+              const ts = MOCK_DB.timesheets.find((t: any) => t.employee_id === emp.id);
+              if (ts) {
+                const allLogs = MOCK_DB.attendance.filter(a => a.employee_id === emp.id && a.time_in && a.time_out);
+                let totalH = 0;
+                allLogs.forEach(log => {
+                  const diff = (new Date(log.time_out!).getTime() - new Date(log.time_in!).getTime()) / (1000 * 60 * 60) - 1; // -1 hr break
+                  totalH += Math.max(0, diff);
+                });
+                (ts as any).total_hours = parseFloat(totalH.toFixed(2));
+                (ts as any).overtime_hours = parseFloat(Math.max(0, totalH - 40).toFixed(2));
+                if (totalH > 45) (ts as any).status = 'Flagged Overtime';
+              }
             }
           }
           resolve({ data: { success: true } } as any);
