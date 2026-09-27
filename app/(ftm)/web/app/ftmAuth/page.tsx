@@ -52,7 +52,7 @@ import {
   signOut,
   verifyEmailMfaCode,
 } from "../lib/auth";
-import { getDashboardRouteForRole, normalizeRole } from "../lib/roleAccess";
+import { getDashboardRouteForRole, normalizeRole, type AppRole } from "../lib/roleAccess";
 import { supabase } from "../lib/supabaseClient";
 
 type SecurityStep = "otp" | "passkey" | null;
@@ -64,12 +64,12 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<SecurityStep>(null);
-  const [pendingRole, setPendingRole] = useState<any>(null);
+  const [pendingRole, setPendingRole] = useState<AppRole | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [otpBusy, setOtpBusy] = useState(false);
   const [otpExpiresAt, setOtpExpiresAt] = useState(0);
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
   const [passkeyMode, setPasskeyMode] = useState<"verify" | "register">("verify");
   const [passkeyBusy, setPasskeyBusy] = useState(false);
@@ -82,7 +82,7 @@ export default function AuthPage() {
     return () => window.clearInterval(timer);
   }, [step]);
 
-  const finishLogin = (role: any) => {
+  const finishLogin = (role: AppRole) => {
     setPasskeyBusy(false);
     setStep(null);
     window.dispatchEvent(
@@ -141,8 +141,12 @@ export default function AuthPage() {
       const { verified } = await verifyEmailMfaCode(email.trim(), otpCode);
       if (!verified) throw new Error("The verification code is invalid or expired.");
       await openPasskey();
-    } catch (err: any) {
-      const remaining = Number(err?.attemptsRemaining);
+    } catch (err: unknown) {
+      const remaining = Number(
+        typeof err === "object" && err !== null && "attemptsRemaining" in err
+          ? err.attemptsRemaining
+          : NaN
+      );
       if (Number.isFinite(remaining)) setAttemptsRemaining(remaining);
       setError(getUserFriendlyAuthError(err, "otp"));
     } finally {
@@ -151,7 +155,7 @@ export default function AuthPage() {
   };
 
   const verifyPasskey = async () => {
-    if (passkeyInFlight.current || !pendingUserId) return;
+    if (passkeyInFlight.current || !pendingUserId || !pendingRole) return;
     passkeyInFlight.current = true;
     setPasskeyBusy(true);
     setError("");
@@ -177,7 +181,7 @@ export default function AuthPage() {
   };
 
   const registerPasskey = async () => {
-    if (passkeyInFlight.current || !pendingUserId) return;
+    if (passkeyInFlight.current || !pendingUserId || !pendingRole) return;
     if (!canRegisterPasskeyForDevice(pendingUserId)) {
       setError(getPasskeyDeviceLimitMessage());
       return;
@@ -206,11 +210,6 @@ export default function AuthPage() {
       passkeyInFlight.current = false;
       setPasskeyBusy(false);
     }
-  };
-
-  const useExistingPasskey = () => {
-    setError("");
-    setPasskeyMode("verify");
   };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
