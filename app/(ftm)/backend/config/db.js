@@ -8,6 +8,7 @@ let supabase = null;
 let serviceSupabase = null;
 let anonSupabase = null;
 let hrSupabase = null;
+let hrAuthSupabase = null;
 let authSupabase = null;
 
 const initSupabase = () => {
@@ -34,6 +35,7 @@ const initSupabase = () => {
 
   const hrUrl = process.env.HR_SUPABASE_URL || process.env.NEXT_PUBLIC_HR_SUPABASE_URL;
   const hrServiceKey = process.env.HR_SUPABASE_SERVICE_ROLE_KEY;
+  const hrAnonKey = process.env.HR_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_HR_SUPABASE_ANON_KEY;
   if (hrUrl && hrServiceKey) {
     hrSupabase = createClient(hrUrl, hrServiceKey);
     console.log('HR Supabase client initialized');
@@ -41,7 +43,11 @@ const initSupabase = () => {
     console.warn('HR Supabase env vars not configured. HR bridge endpoints will return 503.');
   }
 
-  authSupabase = process.env.FTM_AUTH_PROVIDER === 'hr' ? hrSupabase : supabase;
+  if (hrUrl && (hrServiceKey || hrAnonKey)) {
+    hrAuthSupabase = hrSupabase || createClient(hrUrl, hrAnonKey);
+  }
+
+  authSupabase = process.env.FTM_AUTH_PROVIDER === 'hr' ? hrAuthSupabase : supabase;
   console.log('Supabase URL:', supabaseUrl);
   console.log('Supabase client initialized');
   return supabase;
@@ -50,7 +56,12 @@ const initSupabase = () => {
 const getSupabase = () => supabase;
 const getServiceSupabase = () => serviceSupabase || supabase;
 const getHrSupabase = () => hrSupabase;
-const getAuthSupabase = () => authSupabase || supabase;
+const getAuthSupabase = () => {
+  if (process.env.FTM_AUTH_PROVIDER === 'hr' && !hrAuthSupabase) {
+    return process.env.NODE_ENV === 'production' ? null : supabase;
+  }
+  return authSupabase || supabase;
+};
 
 // Parcels may be hosted in a separate Supabase project. Provide a helper
 // to return a parcels-specific client when PARCELS_SUPABASE_* env vars are
