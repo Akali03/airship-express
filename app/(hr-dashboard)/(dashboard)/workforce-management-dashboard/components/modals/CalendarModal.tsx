@@ -113,7 +113,17 @@ export function CalendarModal({ open, onClose, shifts = [], onShiftClick }: Cale
                         
                         {/* Actual Shift Pills */}
                         {shifts
-                          .filter(s => parseInt(s.shift_date.split('-')[2]) === day && isCurrentMonth)
+                          .filter(s => {
+                            if (!isCurrentMonth) return false;
+                            if (s.is_recurring) {
+                              const dayIndex = i % 7;
+                              const dayCodes = ['Su', 'M', 'Tu', 'We', 'Th', 'F', 'Sa'];
+                              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                              const recDays = s.recurring_days || [];
+                              return recDays.includes(dayCodes[dayIndex]) || recDays.includes(dayNames[dayIndex]);
+                            }
+                            return parseInt(s.shift_date?.split('-')[2] || '0', 10) === day;
+                          })
                           .map(shift => (
                             <div
                               key={shift.id}

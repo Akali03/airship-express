@@ -36,6 +36,17 @@ create table public.hr1_employees (
   constraint hr1_employees_position_id_fkey foreign key (position_id) references public.hr1_job_positions (id) on delete set null
 ) TABLESPACE pg_default;
 
+-- 12. Hardware Telemetry Logs (IoT Ledger)
+create table public.hr2_hardware_telemetry_logs (
+    id uuid not null default gen_random_uuid(),
+    device_id text not null,
+    status text not null check (status in ('ONLINE', 'OFFLINE')),
+    logged_at timestamp with time zone not null default now(),
+    constraint hr2_hardware_telemetry_logs_pkey primary key (id)
+) TABLESPACE pg_default;
+
+create index idx_hr2_hardware_telemetry_logs_device on public.hr2_hardware_telemetry_logs (device_id, logged_at DESC);
+
 -- ==================================================================================================
 -- HR2 WORKFORCE MANAGEMENT
 -- ==================================================================================================
@@ -72,6 +83,14 @@ insert into public.hr2_system_settings (setting_key, setting_value, description)
 on conflict (setting_key) do nothing;
 
 -- 4. Attendance Logs
+create type public.attendance_override_reason as ENUM (
+  'HARDWARE_OFFLINE', 
+  'NETWORK_LATENCY', 
+  'LOST_BADGE', 
+  'MAINTENANCE', 
+  'OTHER'
+);
+
 create table public.hr2_attendance_logs (
   id uuid not null default gen_random_uuid (),
   employee_id uuid not null,
@@ -84,14 +103,27 @@ create table public.hr2_attendance_logs (
   time_in timestamp with time zone null default now(),
   time_out timestamp with time zone null,
   is_deleted boolean not null default false,
+  
+  -- Audit Trail for Manual Overrides
+  is_manual_override boolean not null default false,
+    is_late boolean not null default false,
+    is_early_out boolean not null default false,
+    is_unscheduled boolean not null default false,
+  manual_override_by uuid null,
+  manual_override_at timestamp with time zone null,
+  manual_override_reason public.attendance_override_reason null,
+  manual_override_notes text null,
+  
   constraint hr2_attendance_logs_pkey primary key (id),
   constraint hr2_attendance_logs_employee_id_fkey foreign key (employee_id) references public.hr1_employees (id) on delete CASCADE,
+  constraint hr2_attendance_logs_override_by_fkey foreign key (manual_override_by) references auth.users (id) on delete set null,
   constraint hr2_attendance_logs_status_check check (
-    status in ('On-Shift', 'On-Break', 'Tardy', 'Absent', 'Clocked Out')
+    status in ('On-Shift', 'On-Break', 'Tardy', 'Absent', 'Clocked Out', 'HALF_DAY_ABSENT', 'MISSED_PUNCH_OUT')
   )
 ) TABLESPACE pg_default;
 
 create index idx_hr2_attendance_employee on public.hr2_attendance_logs using btree (employee_id);
+create index idx_attendance_manual_overrides on public.hr2_attendance_logs(is_manual_override) where is_manual_override = true;
 
 -- 5. Leave Requests
 create table public.hr2_leave_requests (
@@ -263,3 +295,113 @@ CREATE TRIGGER hr1_employee_transfer_trigger
 AFTER UPDATE ON public.hr1_employees
 FOR EACH ROW
 EXECUTE FUNCTION public.handle_employee_transfer();
+
+
+-- =========================================================================
+-- ENTERPRISE ATTENDANCE & AWOL CRON SWEEP
+-- =========================================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+CREATE OR REPLACE FUNCTION public.run_daily_attendance_sweep()
+RETURNS void AS 
+DECLARE
+    manila_now timestamp;
+    manila_today date;
+    awol_threshold int;
+    rec record;
+    absence_count int;
+BEGIN
+    manila_now := (now() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila');
+    manila_today := manila_now::date;
+
+    SELECT COALESCE((setting_value)::int, 3) INTO awol_threshold 
+    FROM public.hr2_system_settings 
+    WHERE setting_key = 'awol_consecutive_days';
+
+    UPDATE public.hr2_attendance_logs
+    SET status = 'MISSED_PUNCH_OUT'
+    WHERE time_out IS NULL 
+      AND (time_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = manila_today
+      AND status IN ('On-Shift', 'Tardy');
+
+    FOR rec IN 
+        SELECT s.employee_id, s.id as shift_id, s.shift_start, s.shift_end
+        FROM public.hr2_shifts s
+        LEFT JOIN public.hr2_attendance_logs a 
+               ON s.employee_id = a.employee_id 
+              AND (a.time_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = manila_today
+        WHERE s.shift_date = manila_today
+          AND a.id IS NULL
+    LOOP
+        INSERT INTO public.hr2_attendance_logs (
+            employee_id, status, shift_start, shift_end, terminal, created_at
+        ) VALUES (
+            rec.employee_id, 'Absent', rec.shift_start, rec.shift_end, 'SYSTEM_CRON', now()
+        );
+
+        SELECT COUNT(*) INTO absence_count
+        FROM (
+            SELECT a.status
+            FROM public.hr2_shifts s
+            LEFT JOIN public.hr2_attendance_logs a 
+                   ON s.employee_id = a.employee_id 
+                  AND (a.time_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = s.shift_date
+            WHERE s.employee_id = rec.employee_id
+              AND s.shift_date <= manila_today
+            ORDER BY s.shift_date DESC
+            LIMIT awol_threshold
+        ) AS recent_shifts
+        WHERE recent_shifts.status = 'Absent';
+
+        IF absence_count >= awol_threshold THEN
+            UPDATE public.hr2_rfid_bind SET card_status = 'Suspended' WHERE employee_id = rec.employee_id;
+            BEGIN
+                UPDATE public.hr1_employees SET status = 'AWOL' WHERE id = rec.employee_id;
+            EXCEPTION WHEN OTHERS THEN
+            END;
+        END IF;
+    END LOOP;
+END;
+ LANGUAGE plpgsql SECURITY DEFINER;
+
+SELECT cron.schedule('daily_attendance_sweep_pht', '59 15 * * *', 'SELECT public.run_daily_attendance_sweep()');
+
+-- ==========================================
+-- HR2 LEAVE & FATIGUE MANAGEMENT EXTENSION
+-- ==========================================
+
+-- 1. Comprehensive Balances Ledger
+CREATE TABLE IF NOT EXISTS public.hr2_leave_balances (
+    employee_id UUID PRIMARY KEY REFERENCES public.hr1_employees(id) ON DELETE CASCADE,
+    
+    -- Annual Accruals (Reset yearly)
+    vacation_total INT DEFAULT 15,
+    vacation_used INT DEFAULT 0,
+    sick_total INT DEFAULT 15,
+    sick_used INT DEFAULT 0,
+    
+    -- Event-Based Caps
+    maternity_total INT DEFAULT 105,
+    maternity_used INT DEFAULT 0,
+    paternity_total INT DEFAULT 7,
+    paternity_used INT DEFAULT 0,
+    bereavement_total INT DEFAULT 3,
+    bereavement_used INT DEFAULT 0,
+    
+    last_annual_reset DATE DEFAULT CURRENT_DATE
+);
+
+-- 2. Fatigue Management Columns
+ALTER TABLE public.hr1_employees 
+ADD COLUMN IF NOT EXISTS fatigue_status VARCHAR(50) DEFAULT 'OK',
+ADD COLUMN IF NOT EXISTS hours_worked_7d NUMERIC(5,2) DEFAULT 0.00,
+ADD COLUMN IF NOT EXISTS last_rest_duration_hours NUMERIC(5,2) DEFAULT 24.00;
+
+-- ==========================================
+-- HR2 SHIFTS: RECURRING SCHEDULE EXTENSION
+-- ==========================================
+ALTER TABLE public.hr2_shifts 
+ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS recurring_days TEXT[] NULL;
+

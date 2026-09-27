@@ -1,27 +1,32 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Clock, Radio, Key, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, ArrowRightCircle, Users } from 'lucide-react';
+import { Clock, Radio, Key, CheckCircle, AlertCircle, RefreshCw, LogIn, LogOut, ArrowRightCircle, Users, Monitor } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Table, THead, TBody, TR, TH, TD } from '../../components/ui/Table';
+import { ManualAttendanceModal } from '../../components/modals/ManualAttendanceModal';
+import { useRouter } from 'next/navigation';
 import { useRealtimeAttendance } from '../../hooks/useRealtime';
 import { useAuth } from '../../hooks/useAuth';
 import { ATTENDANCE_BADGE } from '../../utils/constants';
 import { canManageAttendance } from '../../utils/rbac';
 import { apiFetch } from '../../lib/apiFetch';
 import { workforceApi } from '../../lib/workforceApi';
+import { reactivateRfidCard, revertEmployeeAwol } from '../../actions/employeeActions';
 import type { AttendanceLog, AttendanceStatus, Employee } from '../../types/workforce';
 
 export default function AttendancePage() {
+  const router = useRouter();
   const { attendance, connected, refetch } = useRealtimeAttendance();
   const { role } = useAuth();
   const [filter, setFilter] = useState('');
   const [activeTab, setActiveTab] = useState<'live_scans' | 'roster'>('live_scans');
   const [profiles, setProfiles] = useState<Employee[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
 
   const [pairingModalOpen, setPairingModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
@@ -37,7 +42,29 @@ export default function AttendancePage() {
     deviceOnline: false,
   });
 
+
+  const handleReactivate = async (empId: string) => {
+    const res = await reactivateRfidCard(empId);
+    if (res.success) {
+      alert("Card Reactivated successfully!");
+      loadProfiles();
+    } else {
+      alert("Error: " + res.error);
+    }
+  };
+
+  const handleRegularize = async (empId: string) => {
+    const res = await revertEmployeeAwol(empId);
+    if (res.success) {
+      alert("Employee status reverted to Active.");
+      loadProfiles();
+    } else {
+      alert("Error: " + res.error);
+    }
+  };
+
   const loadProfiles = async () => {
+
     try {
       setLoadingProfiles(true);
       const data = await apiFetch<Employee[]>('/api/profiles');
@@ -220,11 +247,24 @@ export default function AttendancePage() {
           <p className="text-xs text-muted mt-1">Real-time biometric & RFID terminal scanner logs synced to Supabase database.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => { refetch(); loadProfiles(); }} variant="secondary" className="flex items-center gap-1.5 text-xs py-2 px-3">
-            <RefreshCw size={14} /> Refresh
+          <Button onClick={() => setManualModalOpen(true)} variant="primary" className="flex items-center gap-1.5 text-xs py-2 px-3">
+            <Users size={14} /> Manual Add
+          </Button>
+          <Button onClick={() => router.push('/workforce-management-dashboard/attendance/kiosk')} variant="secondary" className="flex items-center gap-1.5 text-xs py-2 px-3 group hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors">
+            <Monitor size={14} className="group-hover:text-emerald-500" /> Screen Mode
           </Button>
         </div>
       </div>
+
+      {/* Hardware Offline Warning Banner */}
+      {(!telemetry.gatewayOnline || !telemetry.deviceOnline) && (
+        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-600 px-4 py-3 rounded-2xl text-sm font-medium flex items-center gap-2 mb-2 animate-pulse">
+          <AlertCircle size={18} className="shrink-0" />
+          {telemetry.gatewayOnline && !telemetry.deviceOnline
+            ? 'RFID Scanner is currently offline. You may need to manually clock in employees using the Manual Add button.'
+            : 'Gateway is currently offline. Realtime scans will not be processed. Please manually clock in employees.'}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-paper border border-line p-4 rounded-2xl shadow-sm">
@@ -450,10 +490,20 @@ export default function AttendancePage() {
                   <TD className="text-emerald-600 dark:text-emerald-400 font-mono text-xs font-semibold">{formatScan(row.time_in || row.last_scan)}</TD>
                   <TD className="text-rose-600 dark:text-rose-400 font-mono text-xs font-semibold">{row.time_out ? formatScan(row.time_out) : <span className="text-muted font-normal">--:--:--</span>}</TD>
                   <TD>
-                    <button onClick={() => cycleStatus(row)} disabled={!canManageAttendance(role)} title={canManageAttendance(role) ? 'Click to cycle status' : undefined} className={canManageAttendance(role) ? 'cursor-pointer' : 'cursor-default'}>
-                      <Badge className={ATTENDANCE_BADGE[row.status]}>{row.status}</Badge>
-                    </button>
-                  </TD>
+                    <div className="flex flex-col gap-1 items-start">
+                        <Badge className={ATTENDANCE_BADGE[row.status]}>{row.status}</Badge>
+                        {row.is_unscheduled && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 bg-slate-500/10 px-1.5 py-0.5 rounded border border-slate-500/20 mt-1">
+                            Unscheduled
+                          </span>
+                        )}
+                      {row.is_manual_override && (
+                        <span title={`Reason: ${row.manual_override_reason}\nNotes: ${row.manual_override_notes}`} className="text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                          Manual
+                        </span>
+                      )}
+                    </div>
+                    </TD>
                 </TR>
               ))}
             </TBody>
@@ -471,34 +521,51 @@ export default function AttendancePage() {
               {filteredRoster.map((emp) => (
                 <TR key={emp.id}>
                   <TD className="font-semibold text-ink">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-accent/15 text-accent font-bold text-xs flex items-center justify-center">
-                        {emp.avatar_initials || emp.full_name?.charAt(0) || 'E'}
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-accent/15 text-accent font-bold text-xs flex items-center justify-center">
+                          {emp.avatar_initials || emp.full_name?.charAt(0) || 'E'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm">{emp.full_name}</span>
+                          {emp.employee_status === 'AWOL' && (
+                            <span className="text-[10px] bg-red-500/10 text-red-600 px-1.5 py-0.5 rounded uppercase font-bold w-max mt-0.5">AWOL</span>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-sm">{emp.full_name}</span>
-                    </div>
-                  </TD>
+                    </TD>
                   <TD className="text-xs text-muted font-medium">{emp.role}</TD>
                   <TD className="text-xs text-muted font-semibold">{emp.department || 'Unassigned'}</TD>
                   <TD>
                     {emp.rfid_uid ? (
-                      <div className="flex items-center gap-1.5 font-mono text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-lg font-bold w-max">
-                        <Key size={12} /> {emp.rfid_uid}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted italic">Unassigned</span>
-                    )}
+                        <div className={`flex items-center gap-1.5 font-mono text-xs border px-2 py-0.5 rounded-lg font-bold w-max ${emp.card_status === 'Suspended' ? 'bg-red-500/10 border-red-500/20 text-red-600' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'}`}>
+                          <Key size={12} /> {emp.rfid_uid}
+                          {emp.card_status === 'Suspended' && <span className="ml-1 text-[10px] uppercase">(Suspended)</span>}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted italic">Unassigned</span>
+                      )}
                   </TD>
                   <TD className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <Button variant="secondary" onClick={() => startPairing(emp)} className="text-xs py-1 px-3 flex items-center gap-1">
-                        <Key size={12} className="text-accent" /><span>{emp.rfid_uid ? 'Re-assign' : 'Assign RFID'}</span>
-                      </Button>
-                      {emp.rfid_uid && (
-                        <Button variant="danger" onClick={() => handleUnbind(emp.id)} className="text-xs py-1 px-2.5">
-                          Unbind
-                        </Button>
-                      )}
+                      {emp.card_status === 'Suspended' ? (
+                          <Button variant="danger" onClick={() => handleReactivate(emp.id)} className="text-xs py-1 px-3 flex items-center gap-1">
+                            Reactivate Access
+                          </Button>
+                        ) : (
+                          <Button variant="secondary" onClick={() => startPairing(emp)} className="text-xs py-1 px-3 flex items-center gap-1">
+                            <Key size={12} className="text-accent" /><span>{emp.rfid_uid ? 'Re-assign' : 'Assign RFID'}</span>
+                          </Button>
+                        )}
+                        {emp.employee_status === 'AWOL' && (
+                          <Button variant="primary" onClick={() => handleRegularize(emp.id)} className="text-xs py-1 px-3 bg-amber-500 hover:bg-amber-600 text-white border-0">
+                            Regularize
+                          </Button>
+                        )}
+                        {emp.rfid_uid && emp.card_status !== 'Suspended' && (
+                          <Button variant="danger" onClick={() => handleUnbind(emp.id)} className="text-xs py-1 px-2.5">
+                            Unbind
+                          </Button>
+                        )}
                     </div>
                   </TD>
                 </TR>
@@ -514,6 +581,14 @@ export default function AttendancePage() {
           <p className="text-xs text-muted text-center py-8">No matching roster employees found.</p>
         )}
       </Card>
+      {manualModalOpen && (
+        <ManualAttendanceModal 
+          isOpen={manualModalOpen} 
+          onClose={() => setManualModalOpen(false)} 
+          profiles={profiles}
+          onSuccess={refetch}
+        />
+      )}
     </>
 
   );
@@ -523,5 +598,5 @@ function formatScan(iso: string): string {
   if (!iso) return 'N/A';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleTimeString([], {  hour: '2-digit', minute: '2-digit', second: '2-digit' , hour12: true });
 }

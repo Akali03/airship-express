@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, Activity, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
-import { Card2PerformanceDoughnut } from '../components/analytics/Card2PerformanceDoughnut';
+import { Users, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { CardShiftSnapshot } from '../components/analytics/CardShiftSnapshot';
 import { Card4RealtimeAttendance } from '../components/analytics/Card4RealtimeAttendance';
 import { ExportPrintDropdown } from '../components/ui/ExportPrintDropdown';
 import { useRealtimeAttendance } from '../hooks/useRealtime';
@@ -11,11 +11,10 @@ import {
   computeMomGrowthPct,
   computeOnShiftUtilization,
 } from '../lib/analytics';
-import type { WorkforceForecast, PerformanceMetrics } from '../types/workforce';
+import type { WorkforceForecast } from '../types/workforce';
 
 interface AnalyticsData {
   forecast: WorkforceForecast[];
-  performance: PerformanceMetrics | null;
   workforce: number;
 }
 
@@ -23,7 +22,6 @@ export default function DashboardPage() {
   const { attendance, connected } = useRealtimeAttendance();
   const [data, setData] = useState<AnalyticsData>({
     forecast: [],
-    performance: null,
     workforce: 0,
   });
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -37,7 +35,6 @@ export default function DashboardPage() {
   const totalWorkforce = data.workforce || attendance.length;
   const growthPct = computeMomGrowthPct(data.forecast);
   const onShift = attendance.filter((a) => a.status === 'On-Shift').length;
-  const utilization = computeOnShiftUtilization(attendance, totalWorkforce);
 
   return (
     <>
@@ -87,19 +84,16 @@ export default function DashboardPage() {
           }
         />
         <MetricTile
-          label="On-Shift Utilization"
-          value={`${utilization}%`}
+          label="Workforce Deployed"
+          value={`${onShift}`}
           icon={<Activity size={16} />}
-          footer={<span className="text-muted">{onShift} drivers dispatched now</span>}
+          footer={<span className="text-muted">{onShift} of {totalWorkforce} active right now</span>}
         />
       </div>
 
       {/* 2-card grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card2PerformanceDoughnut
-          evaluatedCount={totalWorkforce}
-          performance={data.performance}
-        />
+        <CardShiftSnapshot />
         <Card4RealtimeAttendance attendance={attendance} connected={connected} />
       </div>
     </>
@@ -134,5 +128,3 @@ function MetricTile({
     </div>
   );
 }
-
-

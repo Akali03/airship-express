@@ -10,7 +10,7 @@ interface CreateShiftModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateShiftPayload | UpdateShiftPayload) => Promise<void>;
-  drivers: Array<{ id: string; full_name: string; role?: string; department?: string }>;
+  drivers: Array<{ id: string; full_name: string; role?: string; department?: string; fatigue_status?: 'OK'|'Warning'|'Critical'; hours_worked_7d?: number }>;
   initialData?: Shift | null;
 }
 
@@ -84,7 +84,18 @@ export function CreateShiftModal({ open, onClose, onSubmit, drivers, initialData
         setDriverId(initialData.employee_id || '');
         setShiftTitle(initialData.title || '');
         setSingleDate(initialData.shift_date || '');
-        setDateMode('single');
+        if (initialData.is_recurring) {
+          setDateMode('recurring');
+          if (initialData.recurring_days) {
+            const dayLabels = ['Su', 'M', 'Tu', 'We', 'Th', 'F', 'Sa'];
+            const indices = initialData.recurring_days
+              .map(d => dayLabels.indexOf(d))
+              .filter(i => i >= 0);
+            setRecurringDays(indices);
+          }
+        } else {
+          setDateMode('single');
+        }
         setStatus(initialData.status || 'Scheduled');
         setOverrideReason(initialData.override_reason || '');
 
@@ -149,7 +160,12 @@ export function CreateShiftModal({ open, onClose, onSubmit, drivers, initialData
     setError(null);
     try {
       let datesToCreate: string[] = [];
-      if (initialData || dateMode === 'single') {
+      const dayLabels = ['Su', 'M', 'Tu', 'We', 'Th', 'F', 'Sa'];
+
+      if (dateMode === 'recurring') {
+        if (!singleDate) throw new Error("Please select a start date.");
+        if (recurringDays.length === 0) throw new Error("Please select at least one day for the recurring schedule.");
+      } else if (initialData || dateMode === 'single') {
         if (!singleDate) throw new Error("Please select a date.");
         datesToCreate = [singleDate];
       } else if (dateMode === 'range') {
@@ -159,30 +175,17 @@ export function CreateShiftModal({ open, onClose, onSubmit, drivers, initialData
         if (curr > end) throw new Error("Start date must be before end date.");
         
         while (curr <= end) {
-          datesToCreate.push(curr.toISOString().split('T')[0]);
-          curr.setDate(curr.getDate() + 1);
-        }
-      } else if (dateMode === 'recurring') {
-        if (!singleDate) throw new Error("Please select a start date.");
-        if (recurringDays.length === 0) throw new Error("Please select at least one day for the recurring schedule.");
-        
-        let curr = new Date(singleDate);
-        const end = new Date(curr);
-        end.setDate(end.getDate() + 28); // 4 weeks range
-        
-        while (curr <= end) {
-          if (recurringDays.includes(curr.getDay())) {
+          if (recurringDays.length === 0 || recurringDays.includes(curr.getDay())) {
             datesToCreate.push(curr.toISOString().split('T')[0]);
           }
           curr.setDate(curr.getDate() + 1);
         }
+        if (datesToCreate.length === 0) throw new Error("No dates match your selection.");
       }
-
-      if (datesToCreate.length === 0) throw new Error("No dates match your selection.");
 
       const basePayload: Partial<CreateShiftPayload> = {
         title: shiftTitle || (mode === 'office' ? (selectedDriver?.role || 'Office Shift') : 'Rider Dispatch'),
-        driver_id: driverId || null,
+        employee_id: driverId || null,
       };
 
       if (mode === 'office') {
@@ -225,19 +228,31 @@ export function CreateShiftModal({ open, onClose, onSubmit, drivers, initialData
         const payload: UpdateShiftPayload = {
           ...(basePayload as CreateShiftPayload),
           id: initialData.id,
-          shift_date: datesToCreate[0],
+          shift_date: singleDate,
+          is_recurring: dateMode === 'recurring',
+          recurring_days: dateMode === 'recurring' ? recurringDays.map(i => dayLabels[i]) : undefined,
           override_reason: overrideReason,
           status: status,
         };
         await onSubmit(payload);
+      } else if (dateMode === 'recurring') {
+        // EXACTLY 1 ROW: A recurring schedule starting on singleDate with active recurring days
+        const payload: CreateShiftPayload = {
+          ...(basePayload as CreateShiftPayload),
+          shift_date: singleDate,
+          is_recurring: true,
+          recurring_days: recurringDays.map(i => dayLabels[i]),
+        };
+        await onSubmit(payload);
       } else {
-        for (const date of datesToCreate) {
-          const payload: CreateShiftPayload = {
-            ...(basePayload as CreateShiftPayload),
-            shift_date: date,
-          };
-          await onSubmit(payload);
-        }
+        // Single date or bounded range
+        const payload: CreateShiftPayload = {
+          ...(basePayload as CreateShiftPayload),
+          shift_date: datesToCreate[0],
+          dates: datesToCreate.length > 1 ? datesToCreate : undefined,
+          is_recurring: false,
+        };
+        await onSubmit(payload);
       }
 
       onClose();
@@ -568,46 +583,66 @@ export function CreateShiftModal({ open, onClose, onSubmit, drivers, initialData
                   className="w-full bg-white dark:bg-paper border border-line rounded-lg p-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all shadow-sm"
                 />
               ) : dateMode === 'range' ? (
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="date" 
-                    required
-                    value={startDate} 
-                    onChange={e => setStartDate(e.target.value)} 
-                    className="w-full bg-white dark:bg-paper border border-line rounded-lg p-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all shadow-sm"
-                  />
-                  <span className="text-muted text-[10px] uppercase font-bold">to</span>
-                  <input 
-                    type="date" 
-                    required
-                    value={endDate} 
-                    onChange={e => setEndDate(e.target.value)} 
-                    className="w-full bg-white dark:bg-paper border border-line rounded-lg p-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all shadow-sm"
-                  />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-muted text-[10px] uppercase font-semibold">Start generating 4 weeks from:</p>
-                  <input 
-                    type="date" 
-                    required
-                    value={singleDate} 
-                    onChange={e => setSingleDate(e.target.value)} 
-                    className="w-full bg-white dark:bg-paper border border-line rounded-lg p-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all shadow-sm"
-                  />
-                  <div className="flex items-center justify-between pt-2">
-                    {['Su', 'M', 'Tu', 'We', 'Th', 'F', 'Sa'].map((day, i) => (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => setRecurringDays(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i].sort())}
-                        className={`h-8 w-8 rounded-full text-[10px] font-bold border transition-colors ${recurringDays.includes(i) ? 'bg-accent text-white border-accent' : 'bg-transparent border-line text-muted hover:border-accent/50 hover:text-ink'}`}
-                      >
-                        {day}
-                      </button>
-                    ))}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="date" 
+                        required
+                        value={startDate} 
+                        onChange={e => setStartDate(e.target.value)} 
+                        className="w-full bg-white dark:bg-paper border border-line rounded-lg p-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all shadow-sm"
+                      />
+                      <span className="text-muted text-[10px] uppercase font-bold">to</span>
+                      <input 
+                        type="date" 
+                        required
+                        value={endDate} 
+                        onChange={e => setEndDate(e.target.value)} 
+                        className="w-full bg-white dark:bg-paper border border-line rounded-lg p-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all shadow-sm"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-muted text-[10px] font-medium mb-2">Filter Days (Leave empty for everyday)</p>
+                      <div className="flex items-center justify-between">
+                        {['Su', 'M', 'Tu', 'We', 'Th', 'F', 'Sa'].map((day, i) => (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => setRecurringDays(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i].sort())}
+                            className={`h-8 w-8 rounded-full text-[10px] font-bold border transition-colors ${recurringDays.includes(i) ? 'bg-accent text-white border-accent' : 'bg-transparent border-line text-muted hover:border-accent/50 hover:text-ink'}`}
+                          >
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-muted text-[10px] uppercase font-semibold">Start Date (Unlimited Contract):</p>
+                    <input 
+                      type="date" 
+                      required
+                      value={singleDate} 
+                      onChange={e => setSingleDate(e.target.value)} 
+                      className="w-full bg-white dark:bg-paper border border-line rounded-lg p-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all shadow-sm"
+                    />
+                    <div>
+                      <p className="text-muted text-[10px] font-medium mb-2">Select Active Days</p>
+                      <div className="flex items-center justify-between">
+                        {['Su', 'M', 'Tu', 'We', 'Th', 'F', 'Sa'].map((day, i) => (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => setRecurringDays(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i].sort())}
+                            className={`h-8 w-8 rounded-full text-[10px] font-bold border transition-colors ${recurringDays.includes(i) ? 'bg-accent text-white border-accent' : 'bg-transparent border-line text-muted hover:border-accent/50 hover:text-ink'}`}
+                          >
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
               )}
             </div>
 

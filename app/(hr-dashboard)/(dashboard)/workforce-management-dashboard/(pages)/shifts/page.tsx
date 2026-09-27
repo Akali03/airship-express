@@ -18,7 +18,7 @@ import type { CreateShiftPayload } from '../../types/api';
 export default function ShiftsPage() {
   const { role } = useAuth();
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [drivers, setDrivers] = useState<Array<{ id: string; full_name: string; role?: string; department?: string }>>([]);
+  const [drivers, setDrivers] = useState<Array<{ id: string; full_name: string; role?: string; department?: string; fatigue_status?: 'OK'|'Warning'|'Critical'; hours_worked_7d?: number }>>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function ShiftsPage() {
 
   useEffect(() => {
     load();
-    apiFetch<Array<{ id: string; full_name: string; role?: string; department?: string }>>('/api/drivers')
+    apiFetch<Array<{ id: string; full_name: string; role?: string; department?: string; fatigue_status?: 'OK'|'Warning'|'Critical'; hours_worked_7d?: number }>>('/api/drivers')
       .then(res => setDrivers(res || []))
       .catch(() => setDrivers([]));
   }, [load]);
@@ -96,6 +96,22 @@ export default function ShiftsPage() {
             Break: {shift.break_time}
           </span>
         ) : null}
+      </div>
+      <div className="flex items-center justify-between text-[11px] text-muted pt-0.5">
+        {shift.is_recurring && shift.recurring_days && shift.recurring_days.length > 0 ? (
+          <div className="flex items-center gap-1.5 font-medium text-accent">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+            <span>Recurring: {shift.recurring_days.join(' · ')}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <CalendarDays size={12} className="text-muted" />
+            <span>{shift.shift_date}</span>
+          </div>
+        )}
+        <span className="text-[10px] text-muted">
+          {shift.is_recurring ? `From ${shift.shift_date}` : 'Single Shift'}
+        </span>
       </div>
       {shift.override_reason && (
         <p className="text-[10px] text-amber-600/80 italic mt-2">Override: {shift.override_reason}</p>

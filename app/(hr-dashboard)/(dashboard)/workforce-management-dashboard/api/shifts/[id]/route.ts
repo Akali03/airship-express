@@ -8,26 +8,22 @@ const formatShift = (row: any) => {
   const emp = row.employee;
   const mappedEmployee = emp
     ? {
-        id: emp.id,
-        email: emp.email || "",
-        full_name:
-          `${emp.first_name || ""} ${emp.last_name || ""}`.trim() || "Employee",
-        role: emp.job_position?.title || emp.department || "Staff",
-        avatar_initials:
-          `${emp.first_name?.[0] || ""}${
-            emp.last_name?.[0] || ""
+      id: emp.id,
+      email: emp.email || "",
+      full_name:
+        `${emp.first_name || ""} ${emp.last_name || ""}`.trim() || "Employee",
+      role: emp.job_position?.title || emp.department || "Staff",
+      avatar_initials:
+        `${emp.first_name?.[0] || ""}${emp.last_name?.[0] || ""
           }`.toUpperCase() || "E",
-        department: emp.department || "HQ",
-        created_at: emp.date_hired || row.created_at,
-      }
+      department: emp.department || "HQ",
+      created_at: emp.date_hired || row.created_at,
+    }
     : undefined;
   return { ...row, employee: mappedEmployee };
 };
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const auth = await getRequestProfileAppRouter();
   if (!canCreateShifts(auth.role)) {
     return NextResponse.json(
@@ -35,22 +31,8 @@ export async function PATCH(
       { status: 403 }
     );
   }
-
-  const { id } = await params;
-
   const body = await request.json();
-  const {
-    title,
-    employee_id,
-    shift_date,
-    shift_time,
-    break_time,
-    status,
-    override_reason,
-    is_deleted,
-    gate_in,
-    gate_out,
-  } = body;
+  const { title, employee_id, shift_date, shift_time, break_time, status, override_reason, is_deleted, gate_in, gate_out } = body;
 
   const updates: any = {};
   if (title !== undefined) updates.title = title;
@@ -63,15 +45,15 @@ export async function PATCH(
   if (is_deleted !== undefined) updates.is_deleted = is_deleted;
   if (gate_in !== undefined) updates.gate_in = gate_in;
   if (gate_out !== undefined) updates.gate_out = gate_out;
+  if (is_recurring !== undefined) updates.is_recurring = is_recurring;
+  if (recurring_days !== undefined) updates.recurring_days = recurring_days;
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("hr2_shifts")
     .update(updates)
-    .eq("id", id)
-    .select(
-      "*, employee:hr1_employees(*, job_position:hr1_job_positions(title))"
-    )
+    .eq('id', params.id)
+    .select('*, employee:hr1_employees(*, job_position:hr1_job_positions(title))')
     .single();
 
   if (error)
@@ -79,10 +61,7 @@ export async function PATCH(
   return NextResponse.json({ data: formatShift(data) });
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   const auth = await getRequestProfileAppRouter();
   if (!canCreateShifts(auth.role)) {
     return NextResponse.json(
@@ -90,16 +69,11 @@ export async function DELETE(
       { status: 403 }
     );
   }
-
-  const { id } = await params;
-
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
     .from("hr2_shifts")
     .update({ is_deleted: true })
-    .eq("id", id);
-
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    .eq('id', params.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

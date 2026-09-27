@@ -1,97 +1,114 @@
 'use client';
 
 import React from 'react';
-import { X, Calendar as CalendarIcon, Check, ShieldAlert } from 'lucide-react';
-import { UniversalCalendar, CalendarEvent } from '../ui/UniversalCalendar';
+import { X, Check, ShieldAlert } from 'lucide-react';
+import { approveLeaveRequest, rejectLeaveRequest } from '../../actions/leaveActions';
+import { useState } from 'react';
 
 interface LeaveRequestReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  request: any; // Using any for mock prototype
+  request: any;
 }
 
 export function LeaveRequestReviewModal({ isOpen, onClose, request }: LeaveRequestReviewModalProps) {
+  const [loading, setLoading] = useState(false);
   if (!isOpen || !request) return null;
 
-  // Mock events for the calendar to cross-reference
-  const events: CalendarEvent[] = [
-    {
-      id: '1',
-      title: `${request.name} (Leave)`,
-      date: new Date(), // Today for prototype simplicity
-      type: 'leave',
-      description: request.type,
-    },
-    {
-      id: '2',
-      title: 'Dave Wilson (Shift)',
-      date: new Date(),
-      type: 'shift',
-      description: 'MNL-CEB Route',
-    }
-  ];
+  const empName = request.employee?.full_name || 'Unknown Employee';
+  const empRole = request.employee?.role || request.employee?.department || 'Staff';
+  const leaveType = request.leave_type || 'Leave';
+  const daysCount = request.days_count || 1;
+  const startDate = request.start_date || '';
+  const endDate = request.end_date || '';
+  const reason = request.reason || 'No reason provided.';
+  const balanceRemaining = request.balance_remaining ?? '—';
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-paper text-ink rounded-3xl border border-line shadow-2xl w-full max-w-4xl p-6 flex flex-col h-[85vh] animate-modal">
-        <div className="flex items-center justify-between border-b border-line pb-4 shrink-0">
+      <div className="bg-paper text-ink rounded-3xl border border-line shadow-2xl w-full max-w-lg p-6 flex flex-col gap-5 animate-modal">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-line pb-4">
           <div>
             <h3 className="text-lg font-bold text-ink">Review Leave Request</h3>
-            <p className="text-xs text-muted mt-1">Cross-reference schedules before approval.</p>
+            <p className="text-xs text-muted mt-1">Approve or reject the request below.</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full text-muted hover:bg-line/50 hover:text-ink transition-colors">
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex flex-1 gap-6 mt-6 overflow-hidden">
-          {/* Left Panel: Request Details */}
-          <div className="w-1/3 flex flex-col gap-4 overflow-y-auto pr-2">
-            <div className="p-4 rounded-xl bg-ink/5 dark:bg-paper/5 border border-line">
-              <h4 className="text-sm font-semibold text-ink">{request.name}</h4>
-              <p className="text-xs text-muted">{request.role}</p>
-              
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted">Type:</span>
-                  <span className="font-medium">{request.type}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted">Duration:</span>
-                  <span className="font-medium">{request.duration}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted">Remaining Balance:</span>
-                  <span className="font-medium text-accent">{request.balance} Days</span>
-                </div>
-              </div>
+        {/* Employee Info */}
+        <div className="p-4 rounded-xl bg-ink/5 dark:bg-paper/5 border border-line space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-ink">{empName}</p>
+            <p className="text-xs text-muted">{empRole}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-line/50">
+            <div>
+              <span className="text-muted block">Leave Type</span>
+              <span className="font-semibold text-ink">{leaveType} Leave</span>
             </div>
-
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
-              <div className="flex items-start gap-2">
-                <ShieldAlert size={16} className="mt-0.5" />
-                <p className="text-xs font-medium">
-                  Approving this leave will reduce the available active workforce on {request.duration}. Please check the calendar for shift conflicts.
-                </p>
-              </div>
+            <div>
+              <span className="text-muted block">Duration</span>
+              <span className="font-semibold text-ink">{daysCount} day{daysCount !== 1 ? 's' : ''}</span>
             </div>
-
-            <div className="mt-auto space-y-2 pt-4">
-              <button onClick={onClose} className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors">
-                <Check size={16} />
-                Approve Request
-              </button>
-              <button onClick={onClose} className="w-full flex items-center justify-center gap-2 py-2.5 bg-rose-500/10 text-rose-500 rounded-xl text-sm font-semibold hover:bg-rose-500/20 transition-colors">
-                <X size={16} />
-                Reject
-              </button>
+            <div>
+              <span className="text-muted block">Start Date</span>
+              <span className="font-semibold text-ink">{startDate}</span>
+            </div>
+            <div>
+              <span className="text-muted block">End Date</span>
+              <span className="font-semibold text-ink">{endDate}</span>
             </div>
           </div>
+          {reason && (
+            <div className="pt-2 border-t border-line/50 text-xs">
+              <span className="text-muted block mb-0.5">Reason</span>
+              <span className="text-ink">{reason}</span>
+            </div>
+          )}
+        </div>
 
-          {/* Right Panel: Universal Calendar */}
-          <div className="flex-1 flex flex-col h-full overflow-hidden border border-line rounded-2xl">
-            <UniversalCalendar events={events} readOnly />
-          </div>
+        {/* Warning */}
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-start gap-2">
+          <ShieldAlert size={15} className="mt-0.5 shrink-0" />
+          <p className="text-xs font-medium">
+            Approving will reduce available workforce for {daysCount} day{daysCount !== 1 ? 's' : ''} and deduct from the employee's {leaveType} leave balance.
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-2 border-t border-line/50">
+          <button
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              await rejectLeaveRequest(request.id);
+              setLoading(false);
+              onClose();
+            }}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-rose-500/10 text-rose-500 rounded-xl text-sm font-semibold hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+          >
+            <X size={15} /> Reject
+          </button>
+          <button
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              await approveLeaveRequest(
+                request.id,
+                request.employee_id,
+                request.leave_type,
+                request.days_count
+              );
+              setLoading(false);
+              onClose();
+            }}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
+          >
+            <Check size={15} /> {loading ? 'Processing...' : 'Approve'}
+          </button>
         </div>
       </div>
     </div>

@@ -76,15 +76,20 @@ export interface Employee {
   terminal: string;
   created_at: string;
   rfid_uid?: string | null;
+  employee_status?: string;
+  card_status?: string;
 }
 
 // Attendance log interface (matches attendance_logs table)
+export type OverrideReason = 'HARDWARE_OFFLINE' | 'NETWORK_LATENCY' | 'LOST_BADGE' | 'MAINTENANCE' | 'OTHER';
+
 export interface AttendanceLog {
   id: string;
   employee_id: string;
   action?: 'TIME_IN' | 'TIME_OUT';
   status: AttendanceStatus;
   time_in?: string | null;
+  is_unscheduled?: boolean;
   time_out?: string | null;
   shift_start: string;
   shift_end: string;
@@ -92,6 +97,13 @@ export interface AttendanceLog {
   last_scan: string;
   created_at: string;
   employee?: Employee; // Joined employee data
+  
+  // Audit Trail for Manual Overrides
+  is_manual_override?: boolean;
+  manual_override_by?: string;
+  manual_override_at?: string;
+  manual_override_reason?: OverrideReason;
+  manual_override_notes?: string;
 }
 
 // Core Schedule Interface (replaces raw Shift)
@@ -106,6 +118,10 @@ export interface Shift {
   break_duration_minutes?: number; // e.g. 0, 30, 60
   break_time?: string; // e.g. 12:00 PM - 01:00 PM
   
+  // Recurring Schedule
+  is_recurring?: boolean;
+  recurring_days?: string[];
+
   // Rider Specific
   gate_in?: string | null;
   gate_out?: string | null;

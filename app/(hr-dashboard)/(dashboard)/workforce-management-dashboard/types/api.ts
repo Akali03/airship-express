@@ -5,8 +5,11 @@ export type ApiResponse<T> = { data: T } | { error: string };
 // Payload for creating a shift (POST /api/shifts)
 export interface CreateShiftPayload {
   title: string;
-  driver_id: string | null;
+  employee_id: string | null;
   shift_date: string;
+  dates?: string[]; // For batch recurring inserts
+  is_recurring?: boolean;
+  recurring_days?: string[];
   
   // Office fields
   shift_time?: string;
@@ -37,7 +40,7 @@ export interface UpdateLoadPayload {
 
 // Payload for creating a leave request (POST /api/leave)
 export interface CreateLeavePayload {
-  leave_type: 'Mandatory Fatigue Rest' | 'Paid Time Off (PTO)' | 'Medical Leave' | 'Unpaid Leave';
+  leave_type: string; employee_id?: string;
   start_date: string;
   end_date: string;
   reason?: string;
