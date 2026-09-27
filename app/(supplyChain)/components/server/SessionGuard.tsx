@@ -19,6 +19,18 @@ interface AuthResponse {
     };
     session_cleared?: boolean;
 }
+interface SessionBackup {
+    session_token: string;
+    user_role?: string;
+    user_name?: string;
+    user_email?: string;
+    user_agent?: string;
+    user_ip?: string;
+    session_expires?: string;
+    user_id?: string;
+    backed_up_at?: string;
+    checksum?: string;
+}
 const VALID_ROLES = ['Admin', 'Manager', 'Staff', 'Employee', 'Operator', 'Executive'];
 const CACHE_DURATION = 60 * 1000;
 const TAMPER_POLL_INTERVAL = 30 * 1000;
@@ -37,7 +49,7 @@ const backupSessionData = () => {
             return;
         }
         const currentUser = user.getUser();
-        const backup = {
+        const backup: SessionBackup = {
             session_token: sessionToken,
             user_role: currentUser.role || '',
             user_name: currentUser.name || '',
@@ -66,8 +78,8 @@ const backupSessionData = () => {
 // try to restore session from backup
 const restoreSessionFromBackup = (): boolean => {
     try {
-        let backupData = null;
-        let backup = null;
+        let backupData: string | null = null;
+        let backup: SessionBackup | null = null;
         const backupLocations = [
             () => localStorage.getItem(BACKUP_KEYS.PRIMARY),
             () => sessionStorage.getItem('session_backup'),

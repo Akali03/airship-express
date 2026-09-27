@@ -1306,11 +1306,10 @@ export default function PurchaseOrders() {
     useEffect(() => {
         if (loading)
             return;
-        let isMounted = true;
-        let animationFrameId: number;
+
+        let timerId: NodeJS.Timeout;
+
         const createChart = () => {
-            if (!isMounted)
-                return;
             const canvas = poChartRef.current;
             if (!canvas)
                 return;
@@ -1323,7 +1322,27 @@ export default function PurchaseOrders() {
             }
             if (!Chart || datasetOrders.length === 0)
                 return;
-            const statusData: Record<string, number> = {};
+
+            const normalizeStatus = (rawStatus?: string): string => {
+                if (!rawStatus) return 'Draft';
+                const s = rawStatus.trim().toLowerCase();
+                if (s === 'draft') return 'Draft';
+                if (s === 'sent') return 'Sent';
+                if (s === 'confirmed') return 'Confirmed';
+                if (s === 'delivered') return 'Delivered';
+                if (s === 'cancelled' || s === 'canceled') return 'Cancelled';
+                if (s === 'pending') return 'Sent';
+                if (s === 'approved') return 'Confirmed';
+                return rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
+            };
+
+            const statusData: Record<string, number> = {
+                'Draft': 0,
+                'Sent': 0,
+                'Confirmed': 0,
+                'Delivered': 0,
+                'Cancelled': 0
+            };
             const statusOrders: Record<string, PurchaseOrder[]> = {
                 'Draft': [],
                 'Sent': [],
@@ -1331,29 +1350,37 @@ export default function PurchaseOrders() {
                 'Delivered': [],
                 'Cancelled': []
             };
+
             datasetOrders.forEach(order => {
-                statusData[order.status] = (statusData[order.status] || 0) + 1;
-                if (statusOrders[order.status]) {
-                    statusOrders[order.status].push(order);
+                const normalized = normalizeStatus(order.status);
+                statusData[normalized] = (statusData[normalized] || 0) + 1;
+                if (!statusOrders[normalized]) {
+                    statusOrders[normalized] = [];
                 }
+                statusOrders[normalized].push(order);
             });
-            // init statuses
-            const allStatuses = ['Draft', 'Sent', 'Confirmed', 'Delivered', 'Cancelled'];
-            allStatuses.forEach(status => {
-                if (!statusData[status])
-                    statusData[status] = 0;
-            });
-            const sortedLabels = allStatuses.filter(st => (statusData[st] || 0) > 0 || allStatuses.indexOf(st) < 5);
+
+            const standardStatuses = ['Draft', 'Sent', 'Confirmed', 'Delivered', 'Cancelled'];
+            const allKeys = Array.from(new Set([...standardStatuses, ...Object.keys(statusData)]));
+            const hasAnyData = Object.values(statusData).some(count => count > 0);
+            const sortedLabels = hasAnyData
+                ? allKeys.filter(key => (statusData[key] || 0) > 0)
+                : standardStatuses;
+
             const sortedData = sortedLabels.map(label => statusData[label] || 0);
+
             // color mapping
             const colorMap: Record<string, string> = {
-                'Draft': '#64748B', // Slate
-                'Sent': '#6366F1', // Indigo
-                'Confirmed': '#8B5CF6', // Violet / Purple
-                'Delivered': '#EC4899', // Vibrant Pink
-                'Cancelled': '#E11D48' // Rose
+                'Draft': '#64748B',      // Slate
+                'Sent': '#6366F1',       // Indigo
+                'Confirmed': '#8B5CF6',  // Violet / Purple
+                'Delivered': '#EC4899',  // Vibrant Pink
+                'Cancelled': '#F43F5E',  // Rose
+                'Pending': '#F59E0B',    // Amber
+                'Approved': '#10B981'    // Emerald
             };
             const backgroundColor = sortedLabels.map((label: string) => colorMap[label] || '#94A3B8');
+
             poChartInstance.current = new Chart(ctx, {
                 type: "doughnut",
                 data: {
@@ -1394,7 +1421,7 @@ export default function PurchaseOrders() {
                                 label: function (context: any) {
                                     const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
                                     const count = context.parsed;
-                                    const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+                                    const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
                                     return ` ${context.label}: ${count} (${percentage}%)`;
                                 }
                             }
@@ -1421,13 +1448,11 @@ export default function PurchaseOrders() {
                 },
             });
         };
-        // wait for render
-        animationFrameId = requestAnimationFrame(() => {
-            setTimeout(createChart, 100);
-        });
+
+        timerId = setTimeout(createChart, 50);
+
         return () => {
-            isMounted = false;
-            cancelAnimationFrame(animationFrameId);
+            clearTimeout(timerId);
             if (poChartInstance.current) {
                 poChartInstance.current.destroy();
                 poChartInstance.current = null;
@@ -1625,7 +1650,9 @@ export default function PurchaseOrders() {
                             </div>
                             <span className="text-xs font-bold text-slate-700 dark:text-slate-200">No order data available</span>
                             <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Status metrics will display once orders are created</span>
-                        </div>) : (<canvas ref={poChartRef} className="w-full h-full max-h-60 cursor-pointer" />)}
+                        </div>) : (<div className="w-full h-full relative">
+                            <canvas ref={poChartRef} className="w-full h-full cursor-pointer" />
+                        </div>)}
                     </div>
                 </div>
 
@@ -2533,6 +2560,16 @@ export default function PurchaseOrders() {
                 setIsDocViewerOpen(false);
                 setViewingDocData(null);
             }} data={viewingDocData} />
+
+            {/* chart detail modal */}
+            <ChartDetailModal
+                isOpen={chartDetailModal.isOpen}
+                onClose={() => setChartDetailModal(prev => ({ ...prev, isOpen: false }))}
+                month={chartDetailModal.month}
+                monthIndex={chartDetailModal.monthIndex}
+                orders={chartDetailModal.orders}
+                totalAmount={chartDetailModal.totalAmount}
+            />
         </div>
     </SessionGuard>);
 }
