@@ -4,31 +4,25 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
-    Plus,
-    Eye,
-    PlayCircle,
-    Ban,
-    Loader2,
-    ClipboardList,
-    AlertTriangle,
-    Trash2,
+    Plus, Eye, PlayCircle, Ban, Loader2, ClipboardList, AlertTriangle,
+    Trash2, Send, Mail, ShieldCheck, FileText, Bell, MessageSquareWarning,
 } from 'lucide-react';
 import { Button } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Button';
 import { Modal } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Modal';
-import { Card, CardBody } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Card';
+import { CardBody } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Card';
 import { Alert } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Alert';
 import { Pagination } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/components/ui/Pagination';
 import { useApi, ApiError } from '@/app/(hr-dashboard)/(dashboard)/payroll-benefits-dashboard/hooks/api/useApi';
 
 const PAGE_SIZE = 8;
+const MAX_SENDS = 3;
 
-const STATUS_STYLES: Record<string, string> = {
-    draft: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800',
-    processing: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800',
-    approved: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-300 dark:border-purple-800',
-    completed: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800',
-    cancelled: 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700',
-    voided: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800',
+const APPROVAL_STYLES: Record<string, { label: string; cls: string }> = {
+    draft: { label: 'Draft', cls: 'bg-gray-50 text-gray-600 ring-gray-200 dark:bg-gray-800/30 dark:text-gray-400 dark:ring-gray-700' },
+    pending_approval: { label: 'Pending Approval', cls: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-800/40' },
+    approved: { label: 'Approved', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-800/40' },
+    rejected: { label: 'Rejected', cls: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-800/40' },
+    distributed: { label: 'Distributed', cls: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:ring-blue-800/40' },
 };
 
 const PAY_SCHEDULE_LABELS: Record<string, string> = {
@@ -43,11 +37,7 @@ const EMPTY_FORM = { period_start: '', period_end: '', pay_schedule: 'semi_month
 const formatDate = (value: string) => {
     if (!value) return '';
     try {
-        return new Date(value).toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        });
+        return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     } catch {
         return value;
     }
@@ -63,11 +53,48 @@ interface PayrollRunManagerProps {
     onOpenBankModal?: () => void;
 }
 
-const PayrollRunManager = ({
-    onViewPayslips,
-    bankStatus,
-    onOpenBankModal,
-}: PayrollRunManagerProps) => {
+interface ActionButtonProps {
+    title: string;
+    onClick: () => void;
+    disabled?: boolean;
+    className: string;
+    children: React.ReactNode;
+}
+
+function ActionButton({ title, onClick, disabled, className, children }: ActionButtonProps) {
+    return (
+        <div className="relative group/tip">
+            <button
+                type="button"
+                onClick={onClick}
+                disabled={disabled}
+                aria-label={title}
+                className={`flex h-8 w-8 items-center justify-center rounded-md border transition-all duration-150 hover:scale-105 hover:shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 ${className}`}
+            >
+                {children}
+            </button>
+            <span
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2.5 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 dark:bg-ink/90"
+            >
+                {title}
+                <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-ink dark:border-t-ink/90" />
+            </span>
+        </div>
+    );
+}
+
+function ApprovalBadge({ status }: { status: string | null }) {
+    const s = status || 'draft';
+    const conf = APPROVAL_STYLES[s] || APPROVAL_STYLES.draft;
+    return (
+        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium ring-1 ${conf.cls}`}>
+            {conf.label}
+        </span>
+    );
+}
+
+const PayrollRunManager = ({ onViewPayslips, bankStatus, onOpenBankModal }: PayrollRunManagerProps) => {
     const [runs, setRuns] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -79,11 +106,15 @@ const PayrollRunManager = ({
     const [isVoiding, setIsVoiding] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<any>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [submitTarget, setSubmitTarget] = useState<any>(null);
+    const [distributeTarget, setDistributeTarget] = useState<any>(null);
+    const [distributeResult, setDistributeResult] = useState<any>(null);
+    const [isDistributing, setIsDistributing] = useState(false);
+    const [isWorking, setIsWorking] = useState(false);
+    const [detailTarget, setDetailTarget] = useState<any>(null);
     const [currentPage, setCurrentPage] = useState(1);
 
-    const { fetchData, postData, putData, deleteData } = useApi(
-        '/payroll-benefits-dashboard/api/payroll/runs'
-    );
+    const { fetchData, postData, putData, deleteData, patchData } = useApi('/payroll-benefits-dashboard/api/payroll/runs');
 
     useEffect(() => {
         loadRuns();
@@ -96,10 +127,7 @@ const PayrollRunManager = ({
             setRuns(data || []);
             setCurrentPage(1);
         } catch (error: any) {
-            console.error('Load runs error:', error);
-            toast.error(
-                error?.message || 'Unable to load payroll runs. Please try again.'
-            );
+            toast.error(error?.message || 'Unable to load payroll runs.');
         } finally {
             setLoading(false);
         }
@@ -108,9 +136,7 @@ const PayrollRunManager = ({
     const handleNewRunClick = () => {
         const affected = bankStatus?.total_affected ?? 0;
         if (affected > 0) {
-            if (onOpenBankModal) {
-                onOpenBankModal();
-            }
+            onOpenBankModal?.();
             return;
         }
         setForm(EMPTY_FORM);
@@ -119,29 +145,22 @@ const PayrollRunManager = ({
 
     const handleCreate = async () => {
         if (!form.period_start || !form.period_end) {
-            toast.error('Please select both a period start and end date.');
+            toast.error('Select both period dates.');
             return;
         }
-
         if (new Date(form.period_start) > new Date(form.period_end)) {
-            toast.error(
-                'The period start date must be earlier than the period end date.'
-            );
+            toast.error('Start must be before end.');
             return;
         }
-
         setIsSaving(true);
         try {
             await postData('', form);
-            toast.success('Payroll run has been created as a draft.');
+            toast.success('Payroll run created as draft.');
             setIsModalOpen(false);
             setForm(EMPTY_FORM);
             loadRuns();
         } catch (error: any) {
-            console.error('Create error:', error);
-            toast.error(
-                error?.message || 'Unable to create the payroll run. Please try again.'
-            );
+            toast.error(error?.message || 'Unable to create.');
         } finally {
             setIsSaving(false);
         }
@@ -152,33 +171,15 @@ const PayrollRunManager = ({
         setIsProcessing(true);
         try {
             await postData(`/${processingTarget.id}/process`, {});
-            toast.success('Payroll run processed successfully. Payslips have been generated.');
+            toast.success('Run processed. Payslips generated.');
             setProcessingTarget(null);
             loadRuns();
         } catch (error: any) {
-            console.error('Process error:', error);
-
-            if (
-                error instanceof ApiError &&
-                error.response?.employees_with_incomplete_bank
-            ) {
-                const incomplete = error.response.employees_with_incomplete_bank;
-                const count = incomplete.length;
-                const names = incomplete
-                    .slice(0, 3)
-                    .map((e: any) => e.employee_name)
-                    .join(', ');
-                const more = count > 3 ? ` and ${count - 3} more` : '';
-
-                toast.error(
-                    `Payroll processing is unavailable: ${count} employee${count === 1 ? ' has' : 's have'
-                    } incomplete bank information (${names}${more}). Please update the affected records in the Bank Accounts module before proceeding.`,
-                    { duration: 8000 }
-                );
+            if (error instanceof ApiError && error.response?.employees_with_incomplete_bank) {
+                const n = error.response.employees_with_incomplete_bank.length;
+                toast.error(`${n} employee(s) missing bank info. Update Bank Accounts first.`, { duration: 8000 });
             } else {
-                toast.error(
-                    error?.message || 'Unable to process the payroll run. Please try again.'
-                );
+                toast.error(error?.message || 'Unable to process.');
             }
         } finally {
             setIsProcessing(false);
@@ -190,14 +191,11 @@ const PayrollRunManager = ({
         setIsVoiding(true);
         try {
             await putData(`/${voidTarget.id}`, { status: 'voided' });
-            toast.success('Payroll run has been voided.');
+            toast.success('Run voided.');
             setVoidTarget(null);
             loadRuns();
-        } catch (error: any) {
-            console.error('Void error:', error);
-            toast.error(
-                error?.message || 'Unable to void the payroll run. Please try again.'
-            );
+        } catch (e: any) {
+            toast.error(e?.message || 'Unable to void.');
         } finally {
             setIsVoiding(false);
         }
@@ -208,60 +206,122 @@ const PayrollRunManager = ({
         setIsDeleting(true);
         try {
             await deleteData(`/${deleteTarget.id}`);
-            toast.success('Payroll run has been deleted successfully.');
+            toast.success('Run deleted.');
             setDeleteTarget(null);
             loadRuns();
-        } catch (error: any) {
-            console.error('Delete error:', error);
-            toast.error(
-                error?.message || 'Unable to delete the payroll run. Please try again.'
-            );
+        } catch (e: any) {
+            toast.error(e?.message || 'Unable to delete.');
         } finally {
             setIsDeleting(false);
         }
     };
 
-    const sortedRuns = useMemo(() => {
-        return [...runs].sort((a, b) => {
-            if (!a.period_start || !b.period_start) return 0;
-            return new Date(b.period_start).getTime() - new Date(a.period_start).getTime();
-        });
-    }, [runs]);
+    const confirmSubmit = async () => {
+        if (!submitTarget) return;
+        setIsWorking(true);
+        try {
+            await patchData(`/${submitTarget.id}`, { action: 'submit' });
+            toast.success('Run submitted to Financial.');
+            setSubmitTarget(null);
+            loadRuns();
+        } catch (e: any) {
+            toast.error(e?.message || 'Unable to submit.');
+        } finally {
+            setIsWorking(false);
+        }
+    };
+
+    const confirmDistribute = async () => {
+        if (!distributeTarget) return;
+        setIsDistributing(true);
+        try {
+            const res: any = await postData(`/${distributeTarget.id}/distribute`, {});
+            setDistributeResult(res);
+            toast.success(`Sent ${res.sent} payslip email(s). ${res.remaining_sends} send(s) remaining.`);
+            loadRuns();
+        } catch (e: any) {
+            const payload = e?.response;
+            if (payload?.send_count !== undefined) {
+                toast.error(payload.error || 'Distribution limit reached.', { duration: 8000 });
+            } else {
+                toast.error(e?.message || 'Unable to distribute.');
+            }
+        } finally {
+            setIsDistributing(false);
+        }
+    };
+
+    const sortedRuns = useMemo(
+        () => [...runs].sort((a, b) => new Date(b.period_start || 0).getTime() - new Date(a.period_start || 0).getTime()),
+        [runs]
+    );
 
     const totalPages = Math.max(1, Math.ceil(sortedRuns.length / PAGE_SIZE));
-
-    const paginatedRuns = useMemo(() => {
-        const start = (currentPage - 1) * PAGE_SIZE;
-        return sortedRuns.slice(start, start + PAGE_SIZE);
-    }, [sortedRuns, currentPage]);
+    const paginatedRuns = useMemo(
+        () => sortedRuns.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+        [sortedRuns, currentPage]
+    );
 
     useEffect(() => {
         if (currentPage > totalPages) setCurrentPage(totalPages);
     }, [totalPages, currentPage]);
 
-    const formatCurrency = (amount: number) =>
-        `₱${Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    const formatCurrency = (n: number) =>
+        `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+    const pendingCount = runs.filter((r) => r.approval_status === 'pending_approval').length;
+    const approvedCount = runs.filter((r) => r.approval_status === 'approved').length;
+    const rejectedCount = runs.filter((r) => r.approval_status === 'rejected').length;
+
+    const sendCountFor = (run: any) => Number(run?.distribute_count ?? 0);
+    const canSendMore = (run: any) => sendCountFor(run) < MAX_SENDS;
 
     return (
         <div className="space-y-5">
+            {pendingCount > 0 && (
+                <div className="relative flex items-start gap-3 overflow-hidden rounded-xl border border-line border-l-4 border-l-amber-500 bg-amber-50/70 p-3.5 dark:border-paper/10 dark:bg-amber-950/20">
+                    <Bell size={72} className="pointer-events-none absolute -bottom-3 -right-3 text-amber-500 opacity-[0.06]" />
+                    <Bell className="relative h-4 w-4 shrink-0 text-amber-600 mt-0.5 animate-pulse" />
+                    <div className="relative text-[12px] text-amber-800 dark:text-amber-300 font-rethink leading-relaxed">
+                        <p className="font-semibold">{pendingCount} run(s) awaiting Financial approval</p>
+                        <p className="mt-0.5">Financial will review and approve or reject each submitted run.</p>
+                    </div>
+                </div>
+            )}
+
+            {approvedCount > 0 && (
+                <div className="relative flex items-start gap-3 overflow-hidden rounded-xl border border-line border-l-4 border-l-emerald-500 bg-emerald-50/70 p-3.5 dark:border-paper/10 dark:bg-emerald-950/20">
+                    <ShieldCheck size={72} className="pointer-events-none absolute -bottom-3 -right-3 text-emerald-500 opacity-[0.06]" />
+                    <ShieldCheck className="relative h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                    <div className="relative text-[12px] text-emerald-800 dark:text-emerald-300 font-rethink leading-relaxed">
+                        <p className="font-semibold">{approvedCount} approved run(s) ready to distribute</p>
+                        <p className="mt-0.5">Click the mail icon to email locked payslip links. Max 3 sends per run.</p>
+                    </div>
+                </div>
+            )}
+
+            {rejectedCount > 0 && (
+                <div className="relative flex items-start gap-3 overflow-hidden rounded-xl border border-line border-l-4 border-l-red-500 bg-red-50/70 p-3.5 dark:border-paper/10 dark:bg-red-950/20">
+                    <MessageSquareWarning size={72} className="pointer-events-none absolute -bottom-3 -right-3 text-red-500 opacity-[0.06]" />
+                    <MessageSquareWarning className="relative h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div className="relative text-[12px] text-red-800 dark:text-red-300 font-rethink leading-relaxed">
+                        <p className="font-semibold">{rejectedCount} run(s) rejected by Financial</p>
+                        <p className="mt-0.5">Open the detail modal to see the reason, revise, and resubmit.</p>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 border border-accent/20">
+                    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line border-l-4 border-l-accent bg-paper dark:border-paper/10">
                         <ClipboardList className="h-4.5 w-4.5 text-accent" />
                     </div>
                     <div className="min-w-0">
-                        <h3 className="text-base font-semibold font-bricolage text-ink leading-tight">
-                            Payroll Runs
-                        </h3>
-                        <p className="text-xs text-muted font-rethink">
-                            {runs.length} run{runs.length === 1 ? '' : 's'} on record
-                        </p>
+                        <h3 className="text-base font-semibold font-bricolage text-ink leading-tight">Payroll Runs</h3>
+                        <p className="text-xs text-muted font-rethink">{runs.length} run{runs.length === 1 ? '' : 's'} on record</p>
                     </div>
                 </div>
-                <Button
-                    onClick={handleNewRunClick}
-                    className="shrink-0 font-rethink"
-                >
+                <Button onClick={handleNewRunClick} title="Create a new payroll run draft" className="shrink-0 font-rethink">
                     <span className="inline-flex flex-row items-center gap-1.5 whitespace-nowrap">
                         <Plus className="h-4 w-4 shrink-0" />
                         <span>New Payroll Run</span>
@@ -269,105 +329,155 @@ const PayrollRunManager = ({
                 </Button>
             </div>
 
-            <Card variant="default" padding="none" className="bg-paper border-line overflow-hidden dark:border-line/30">
+            <div className="relative overflow-hidden rounded-xl border border-line border-l-4 border-l-accent bg-paper dark:border-paper/10">
+                <ClipboardList size={96} className="pointer-events-none absolute -bottom-4 -right-4 text-accent opacity-[0.04]" />
                 {loading ? (
-                    <div className="flex items-center justify-center gap-3 py-14 text-sm text-muted font-rethink">
-                        <Loader2 className="h-5 w-5 animate-spin text-accent" />
-                        Loading payroll runs…
+                    <div className="relative flex items-center justify-center gap-3 py-14 text-sm text-muted font-rethink">
+                        <Loader2 className="h-5 w-5 animate-spin text-accent" /> Loading payroll runs…
                     </div>
                 ) : runs.length === 0 ? (
-                    <CardBody className="p-6 sm:p-8">
-                        <Alert variant="info" message="No payroll runs have been created yet. Create one to begin processing payslips." />
+                    <CardBody className="relative p-6 sm:p-8">
+                        <Alert variant="info" message="No payroll runs yet. Create one to begin." />
                     </CardBody>
                 ) : (
                     <>
-                        <div className="hidden md:block overflow-x-auto">
+                        <div className="relative hidden md:block overflow-visible">
                             <table className="w-full border-collapse">
                                 <thead>
-                                    <tr className="border-b-2 border-line bg-paper dark:border-line/30">
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Period</th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Schedule</th>
-                                        <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Status</th>
-                                        <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Payslips</th>
-                                        <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Total Net Pay</th>
-                                        <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Actions</th>
+                                    <tr className="border-b-2 border-line">
+                                        <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Period</th>
+                                        <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Schedule</th>
+                                        <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Approval</th>
+                                        <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Payslips</th>
+                                        <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Total Net</th>
+                                        <th className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted font-rethink">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <AnimatePresence initial={false}>
-                                        {paginatedRuns.map((run: any) => (
-                                            <motion.tr
-                                                key={run.id}
-                                                layout
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                transition={{ duration: 0.15 }}
-                                                className="group border-b border-line last:border-b-0 transition-colors hover:bg-ink/[0.015] dark:border-line/30 dark:hover:bg-ink/[0.05]"
-                                            >
-                                                <td className="px-5 py-3.5 whitespace-nowrap">
-                                                    <p className="text-sm font-medium text-ink font-rethink">
-                                                        {formatDate(run.period_start)} – {formatDate(run.period_end)}
-                                                    </p>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-sm text-ink/80 font-rethink whitespace-nowrap">
-                                                    {PAY_SCHEDULE_LABELS[run.pay_schedule] || run.pay_schedule}
-                                                </td>
-                                                <td className="px-5 py-3.5 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium capitalize font-rethink ${STATUS_STYLES[run.status] || 'bg-ink/5 text-ink/70 border-line dark:bg-ink/10 dark:border-line/30'}`}>
-                                                        {run.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right text-sm font-mono tabular-nums text-ink/80 whitespace-nowrap">
-                                                    {run.payslip_count ?? 0}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right text-sm font-mono font-semibold tabular-nums text-ink whitespace-nowrap">
-                                                    {formatCurrency(run.total_net_pay ?? 0)}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex justify-end gap-1.5">
-                                                        <button
-                                                            onClick={() => onViewPayslips(run)}
-                                                            className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-paper text-ink/70 hover:bg-ink/5 transition-colors dark:border-line/30"
-                                                            aria-label="View payslips"
-                                                        >
-                                                            <Eye className="h-3.5 w-3.5" />
-                                                        </button>
-                                                        {run.status === 'draft' && (
-                                                            <button
-                                                                onClick={() => setProcessingTarget(run)}
-                                                                className="flex h-7 w-7 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 transition-colors dark:border-emerald-800/30 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
-                                                                aria-label="Process payroll run"
+                                        {paginatedRuns.map((run: any) => {
+                                            const approval = run.approval_status || 'draft';
+                                            const isDraft = run.status === 'draft';
+                                            const isCompleted = run.status === 'completed';
+                                            const sends = sendCountFor(run);
+                                            const canSend = canSendMore(run);
+                                            const isDistributed = approval === 'distributed';
+
+                                            return (
+                                                <motion.tr
+                                                    key={run.id}
+                                                    layout
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    transition={{ duration: 0.15 }}
+                                                    className="group border-b border-line last:border-b-0 transition-colors hover:bg-accent/[0.03]"
+                                                >
+                                                    <td className="px-4 py-3.5 whitespace-nowrap">
+                                                        <p className="text-sm font-medium text-ink font-rethink">
+                                                            {formatDate(run.period_start)} – {formatDate(run.period_end)}
+                                                        </p>
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-sm text-ink/80 font-rethink whitespace-nowrap">
+                                                        {PAY_SCHEDULE_LABELS[run.pay_schedule] || run.pay_schedule}
+                                                    </td>
+                                                    <td className="px-4 py-3.5 whitespace-nowrap">
+                                                        <ApprovalBadge status={approval} />
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-right text-sm font-mono tabular-nums text-ink/80 whitespace-nowrap">
+                                                        {run.payslip_count ?? 0}
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-right text-sm font-mono font-semibold tabular-nums text-ink whitespace-nowrap">
+                                                        {formatCurrency(run.total_net_pay ?? 0)}
+                                                    </td>
+                                                    <td className="px-4 py-3.5">
+                                                        <div className="flex justify-end gap-1.5">
+                                                            <ActionButton
+                                                                title="View run details and approval trail"
+                                                                onClick={() => setDetailTarget(run)}
+                                                                className="border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50"
                                                             >
-                                                                <PlayCircle className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        )}
-                                                        {(run.status === 'draft' || run.status === 'processing') && (
-                                                            <button
-                                                                onClick={() => setVoidTarget(run)}
-                                                                className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors dark:border-red-800/30 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                                                                aria-label="Void payroll run"
+                                                                <FileText className="h-3.5 w-3.5" />
+                                                            </ActionButton>
+
+                                                            <ActionButton
+                                                                title="View payslips for this run"
+                                                                onClick={() => onViewPayslips(run)}
+                                                                className="border-line bg-paper text-ink/70 hover:bg-ink/5 hover:text-ink dark:border-line/30"
                                                             >
-                                                                <Ban className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() => setDeleteTarget(run)}
-                                                            className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors dark:border-red-800/30 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                                                            aria-label="Delete payroll run"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </motion.tr>
-                                        ))}
+                                                                <Eye className="h-3.5 w-3.5" />
+                                                            </ActionButton>
+
+                                                            {isDraft && (
+                                                                <ActionButton
+                                                                    title="Process run to generate payslips"
+                                                                    onClick={() => setProcessingTarget(run)}
+                                                                    className="border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 dark:border-emerald-800/30 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                                                                >
+                                                                    <PlayCircle className="h-3.5 w-3.5" />
+                                                                </ActionButton>
+                                                            )}
+
+                                                            {isCompleted && (approval === 'draft' || approval === 'rejected') && (
+                                                                <ActionButton
+                                                                    title="Submit run to Financial for approval"
+                                                                    onClick={() => setSubmitTarget(run)}
+                                                                    className="border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-800/30 dark:bg-indigo-950/30 dark:text-indigo-400 dark:hover:bg-indigo-950/50"
+                                                                >
+                                                                    <Send className="h-3.5 w-3.5" />
+                                                                </ActionButton>
+                                                            )}
+
+                                                            {(approval === 'approved' || isDistributed) && (
+                                                                <ActionButton
+                                                                    title={
+                                                                        canSend
+                                                                            ? `Email locked payslip links to all employees (${sends}/${MAX_SENDS} sends used)`
+                                                                            : `Send limit reached (${sends}/${MAX_SENDS}). No more sends allowed.`
+                                                                    }
+                                                                    onClick={() => {
+                                                                        setDistributeTarget(run);
+                                                                        setDistributeResult(null);
+                                                                    }}
+                                                                    disabled={!canSend}
+                                                                    className={
+                                                                        canSend
+                                                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 dark:border-emerald-800/30 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50'
+                                                                            : 'border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-800/30 dark:text-gray-500'
+                                                                    }
+                                                                >
+                                                                    <Mail className="h-3.5 w-3.5" />
+                                                                </ActionButton>
+                                                            )}
+
+                                                            {(run.status === 'draft' || run.status === 'processing') && (
+                                                                <ActionButton
+                                                                    title="Void this payroll run"
+                                                                    onClick={() => setVoidTarget(run)}
+                                                                    className="border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 hover:border-amber-300 dark:border-amber-800/30 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-amber-950/50"
+                                                                >
+                                                                    <Ban className="h-3.5 w-3.5" />
+                                                                </ActionButton>
+                                                            )}
+
+                                                            <ActionButton
+                                                                title="Delete this payroll run permanently"
+                                                                onClick={() => setDeleteTarget(run)}
+                                                                className="border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 dark:border-red-800/30 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </ActionButton>
+                                                        </div>
+                                                    </td>
+                                                </motion.tr>
+                                            );
+                                        })}
                                     </AnimatePresence>
                                 </tbody>
                             </table>
                         </div>
 
-                        <div className="md:hidden space-y-2.5 p-3">
+                        <div className="relative md:hidden space-y-2.5 p-3">
                             <AnimatePresence initial={false}>
                                 {paginatedRuns.map((run: any) => (
                                     <motion.div
@@ -384,50 +494,47 @@ const PayrollRunManager = ({
                                                 <p className="text-sm font-medium text-ink font-rethink">
                                                     {formatDate(run.period_start)} – {formatDate(run.period_end)}
                                                 </p>
-                                                <span className={`mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize font-rethink ${STATUS_STYLES[run.status] || 'bg-ink/5 text-ink/70 border-line dark:bg-ink/10 dark:border-line/30'}`}>
-                                                    {run.status}
-                                                </span>
+                                                <div className="mt-1">
+                                                    <ApprovalBadge status={run.approval_status} />
+                                                </div>
                                             </div>
-                                            <p className="shrink-0 text-sm font-mono font-semibold tabular-nums text-ink whitespace-nowrap">
+                                            <p className="shrink-0 text-sm font-mono font-semibold text-ink whitespace-nowrap">
                                                 {formatCurrency(run.total_net_pay ?? 0)}
                                             </p>
                                         </div>
                                         <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-line pt-2.5 dark:border-line/30">
-                                            <Button size="sm" variant="outline" onClick={() => onViewPayslips(run)} className="flex-1 min-w-[60px]">
-                                                <Eye className="h-3.5 w-3.5 mr-1.5" />
-                                                View
+                                            <Button size="sm" variant="outline" onClick={() => onViewPayslips(run)} title="View payslips">
+                                                <Eye className="h-3.5 w-3.5 mr-1" /> View
                                             </Button>
                                             {run.status === 'draft' && (
+                                                <Button size="sm" variant="outline" onClick={() => setProcessingTarget(run)} title="Process run">
+                                                    <PlayCircle className="h-3.5 w-3.5 mr-1" /> Process
+                                                </Button>
+                                            )}
+                                            {run.status === 'completed' && (run.approval_status === 'draft' || run.approval_status === 'rejected') && (
+                                                <Button size="sm" variant="outline" onClick={() => setSubmitTarget(run)} title="Submit to Financial">
+                                                    <Send className="h-3.5 w-3.5 mr-1" /> Submit
+                                                </Button>
+                                            )}
+                                            {(run.approval_status === 'approved' || run.approval_status === 'distributed') && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    onClick={() => setProcessingTarget(run)}
-                                                    className="flex-1 min-w-[60px] border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:border-emerald-800/30 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                                                    onClick={() => {
+                                                        setDistributeTarget(run);
+                                                        setDistributeResult(null);
+                                                    }}
+                                                    disabled={!canSendMore(run)}
+                                                    title={
+                                                        canSendMore(run)
+                                                            ? `Distribute (${sendCountFor(run)}/${MAX_SENDS} sent)`
+                                                            : `Send limit reached (${sendCountFor(run)}/${MAX_SENDS})`
+                                                    }
                                                 >
-                                                    <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
-                                                    Process
+                                                    <Mail className="h-3.5 w-3.5 mr-1" />
+                                                    {canSendMore(run) ? `Distribute (${sendCountFor(run)}/${MAX_SENDS})` : 'Limit reached'}
                                                 </Button>
                                             )}
-                                            {(run.status === 'draft' || run.status === 'processing') && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => setVoidTarget(run)}
-                                                    className="flex-1 min-w-[60px] border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-800/30 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                                                >
-                                                    <Ban className="h-3.5 w-3.5 mr-1.5" />
-                                                    Void
-                                                </Button>
-                                            )}
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => setDeleteTarget(run)}
-                                                className="flex-1 min-w-[60px] border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-800/30 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                                                Delete
-                                            </Button>
                                         </div>
                                     </motion.div>
                                 ))}
@@ -435,16 +542,31 @@ const PayrollRunManager = ({
                         </div>
 
                         {totalPages > 1 && (
-                            <div className="border-t border-line px-4 py-3 sm:px-5 dark:border-line/30">
+                            <div className="relative border-t border-line px-4 py-3 dark:border-line/30">
                                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                             </div>
                         )}
                     </>
                 )}
-            </Card>
+            </div>
 
             {isModalOpen && (
-                <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Payroll Run" className="max-w-lg" accent="blue" icon={ClipboardList}>
+                <Modal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    title="New Payroll Run"
+                    className="max-w-lg"
+                    accent="blue"
+                    icon={ClipboardList}
+                    footer={
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
+                            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSaving} className="w-full sm:w-auto font-rethink">Cancel</Button>
+                            <Button type="button" onClick={handleCreate} disabled={isSaving} className="w-full sm:w-auto font-rethink">
+                                {isSaving ? 'Creating…' : 'Create Run'}
+                            </Button>
+                        </div>
+                    }
+                >
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                             <div>
@@ -453,7 +575,7 @@ const PayrollRunManager = ({
                                     type="date"
                                     value={form.period_start}
                                     onChange={(e) => setForm((f) => ({ ...f, period_start: e.target.value }))}
-                                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-rethink text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-colors dark:border-line/30"
+                                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-rethink text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 dark:border-line/30"
                                 />
                             </div>
                             <div>
@@ -462,7 +584,7 @@ const PayrollRunManager = ({
                                     type="date"
                                     value={form.period_end}
                                     onChange={(e) => setForm((f) => ({ ...f, period_end: e.target.value }))}
-                                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-rethink text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-colors dark:border-line/30"
+                                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-rethink text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 dark:border-line/30"
                                 />
                             </div>
                         </div>
@@ -471,7 +593,7 @@ const PayrollRunManager = ({
                             <select
                                 value={form.pay_schedule}
                                 onChange={(e) => setForm((f) => ({ ...f, pay_schedule: e.target.value }))}
-                                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-rethink text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-colors dark:border-line/30"
+                                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-rethink text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 dark:border-line/30"
                             >
                                 <option value="monthly">Monthly</option>
                                 <option value="semi_monthly">Semi-monthly</option>
@@ -479,109 +601,275 @@ const PayrollRunManager = ({
                                 <option value="bi_weekly">Bi-Weekly</option>
                             </select>
                         </div>
-
-                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 pt-2">
-                            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSaving} className="w-full sm:w-auto font-rethink">
-                                Cancel
-                            </Button>
-                            <Button type="button" onClick={handleCreate} disabled={isSaving} className="w-full sm:w-auto font-rethink">
-                                {isSaving ? (
-                                    <>
-                                        <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                        Creating…
-                                    </>
-                                ) : (
-                                    'Create Run'
-                                )}
-                            </Button>
-                        </div>
                     </div>
                 </Modal>
             )}
 
             {processingTarget && (
-                <Modal isOpen={!!processingTarget} onClose={() => setProcessingTarget(null)} title="Process Payroll Run" className="max-w-md" accent="green" icon={PlayCircle}>
-                    <div className="space-y-5">
-                        <div className="flex items-start gap-4 rounded-xl border border-emerald-200/60 bg-emerald-50/50 px-4 py-4 dark:border-emerald-800/30 dark:bg-emerald-950/30">
-                            <PlayCircle className="h-5 w-5 shrink-0 text-emerald-600 mt-0.5 dark:text-emerald-400" />
-                            <p className="text-sm text-emerald-800/90 font-rethink leading-relaxed dark:text-emerald-300/90">
-                                Generate payslips for {formatDate(processingTarget.period_start)} – {formatDate(processingTarget.period_end)}? This computes SSS, PhilHealth, and Pag-IBIG contributions for every active employee based on their attendance.
-                            </p>
-                        </div>
-
-                        <div className="flex items-start gap-3 rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2.5 dark:border-amber-800/30 dark:bg-amber-950/30">
-                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5 dark:text-amber-400" />
-                            <p className="text-xs text-amber-800/90 dark:text-amber-300/90 font-rethink leading-snug">
-                                All active employees are required to have complete bank information on file before this payroll run can be processed.
-                            </p>
-                        </div>
-
+                <Modal
+                    isOpen={!!processingTarget}
+                    onClose={() => setProcessingTarget(null)}
+                    title="Process Payroll Run"
+                    className="max-w-md"
+                    accent="green"
+                    icon={PlayCircle}
+                    footer={
                         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
-                            <Button type="button" variant="outline" onClick={() => setProcessingTarget(null)} disabled={isProcessing} className="w-full sm:w-auto font-rethink">
-                                Cancel
-                            </Button>
-                            <Button type="button" onClick={confirmProcess} disabled={isProcessing} className="w-full sm:w-auto font-rethink">
+                            <Button variant="outline" onClick={() => setProcessingTarget(null)} disabled={isProcessing} className="w-full sm:w-auto font-rethink">Cancel</Button>
+                            <Button onClick={confirmProcess} disabled={isProcessing} className="w-full sm:w-auto font-rethink">
                                 {isProcessing ? 'Processing…' : 'Process Run'}
                             </Button>
                         </div>
+                    }
+                >
+                    <div className="space-y-3">
+                        <p className="text-sm text-ink font-rethink">
+                            Generate payslips for <strong>{formatDate(processingTarget.period_start)} – {formatDate(processingTarget.period_end)}</strong>?
+                        </p>
+                        <Alert variant="warning" message="All active employees must have complete bank details before processing." />
                     </div>
+                </Modal>
+            )}
+
+            {submitTarget && (
+                <Modal
+                    isOpen={!!submitTarget}
+                    onClose={() => setSubmitTarget(null)}
+                    title="Submit to Financial"
+                    className="max-w-md"
+                    accent="pink"
+                    icon={Send}
+                    footer={
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
+                            <Button variant="outline" onClick={() => setSubmitTarget(null)} disabled={isWorking} className="w-full sm:w-auto font-rethink">Cancel</Button>
+                            <Button onClick={confirmSubmit} disabled={isWorking} className="w-full sm:w-auto font-rethink">
+                                {isWorking ? 'Submitting…' : 'Submit to Financial'}
+                            </Button>
+                        </div>
+                    }
+                >
+                    <p className="text-sm text-ink font-rethink">
+                        Submit the run for <strong>{formatDate(submitTarget.period_start)} – {formatDate(submitTarget.period_end)}</strong> to Financial for review?
+                    </p>
+                </Modal>
+            )}
+
+            {distributeTarget && (
+                <Modal
+                    isOpen={!!distributeTarget}
+                    onClose={() => {
+                        setDistributeTarget(null);
+                        setDistributeResult(null);
+                    }}
+                    title="Distribute Payslips"
+                    className="max-w-lg"
+                    accent="pink"
+                    icon={Mail}
+                    footer={
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setDistributeTarget(null);
+                                    setDistributeResult(null);
+                                }}
+                                disabled={isDistributing}
+                                className="w-full sm:w-auto font-rethink"
+                            >
+                                {distributeResult ? 'Close' : 'Cancel'}
+                            </Button>
+                            {!distributeResult && (
+                                <Button
+                                    onClick={confirmDistribute}
+                                    disabled={isDistributing || sendCountFor(distributeTarget) >= MAX_SENDS}
+                                    className="w-full sm:w-auto font-rethink"
+                                >
+                                    {isDistributing
+                                        ? 'Sending…'
+                                        : `Send to All Employees (${sendCountFor(distributeTarget)}/${MAX_SENDS} sent)`}
+                                </Button>
+                            )}
+                        </div>
+                    }
+                >
+                    {!distributeResult ? (
+                        <div className="space-y-3">
+                            <p className="text-sm text-ink font-rethink">
+                                Email payslips to all {distributeTarget.payslip_count || 'employees'} for{' '}
+                                <strong>{formatDate(distributeTarget.period_start)} – {formatDate(distributeTarget.period_end)}</strong>?
+                            </p>
+                            <div className="rounded-lg border border-amber-200/60 bg-amber-50 px-3 py-2 dark:border-amber-800/30 dark:bg-amber-950/30">
+                                <p className="text-[11px] text-amber-800 dark:text-amber-300 font-rethink">
+                                    <strong>Send limit:</strong> {sendCountFor(distributeTarget)} of {MAX_SENDS} used.
+                                    Each employee receives a locked link. They must enter their 6-digit birthdate (MMDDYY) to view.
+                                </p>
+                            </div>
+                            <div className="rounded-lg border border-line bg-ink/[0.02] px-3 py-2 dark:border-line/30">
+                                <p className="text-[11px] text-ink font-rethink">
+                                    <strong>Remaining sends after this:</strong>{' '}
+                                    {Math.max(0, MAX_SENDS - sendCountFor(distributeTarget) - 1)} more.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-lg border border-emerald-200/40 bg-emerald-50 p-3 dark:border-emerald-800/30 dark:bg-emerald-950/30">
+                                    <p className="text-[10px] uppercase tracking-wide text-emerald-600 font-rethink">Sent</p>
+                                    <p className="text-lg font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                                        {distributeResult.sent}
+                                    </p>
+                                </div>
+                                <div className={`rounded-lg border p-3 ${distributeResult.failed > 0 ? 'border-red-200/40 bg-red-50 dark:border-red-800/30 dark:bg-red-950/30' : 'border-line bg-ink/[0.02]'}`}>
+                                    <p className={`text-[10px] uppercase tracking-wide font-rethink ${distributeResult.failed > 0 ? 'text-red-600' : 'text-muted'}`}>
+                                        Failed
+                                    </p>
+                                    <p className={`text-lg font-mono font-semibold ${distributeResult.failed > 0 ? 'text-red-700 dark:text-red-400' : 'text-ink'}`}>
+                                        {distributeResult.failed}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-line bg-ink/[0.02] px-3 py-2 dark:border-line/30">
+                                <p className="text-[11px] text-ink font-rethink">
+                                    <strong>Send {distributeResult.send_count} of {distributeResult.max_sends} complete.</strong>{' '}
+                                    {distributeResult.remaining_sends > 0
+                                        ? `${distributeResult.remaining_sends} more send(s) allowed.`
+                                        : 'No more sends allowed for this run.'}
+                                </p>
+                            </div>
+                            {distributeResult.failedList?.length > 0 && (
+                                <div className="max-h-40 overflow-y-auto rounded-lg border border-red-200/40 bg-red-50/50 p-2 dark:border-red-800/30 dark:bg-red-950/30">
+                                    {distributeResult.failedList.map((f: any, i: number) => (
+                                        <div key={i} className="text-[11px] text-red-700 dark:text-red-300 font-rethink">
+                                            {f.name} · {f.email} — {f.reason}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </Modal>
             )}
 
             {voidTarget && (
-                <Modal isOpen={!!voidTarget} onClose={() => setVoidTarget(null)} title="Void Payroll Run" className="max-w-md" accent="red" icon={AlertTriangle}>
-                    <div className="space-y-5">
-                        <div className="flex items-start gap-4 rounded-xl border border-red-200/60 bg-red-50/50 px-4 py-4 dark:border-red-800/30 dark:bg-red-950/30">
-                            <AlertTriangle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
-                            <p className="text-sm text-red-800/90 font-rethink leading-relaxed dark:text-red-300/90">
-                                Void the run for {formatDate(voidTarget.period_start)} – {formatDate(voidTarget.period_end)}? This action will mark the run as voided and cannot be undone.
-                            </p>
-                        </div>
+                <Modal
+                    isOpen={!!voidTarget}
+                    onClose={() => setVoidTarget(null)}
+                    title="Void Payroll Run"
+                    className="max-w-md"
+                    accent="red"
+                    icon={AlertTriangle}
+                    footer={
                         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
-                            <Button type="button" variant="outline" onClick={() => setVoidTarget(null)} disabled={isVoiding} className="w-full sm:w-auto font-rethink">
-                                Cancel
-                            </Button>
-                            <Button type="button" variant="danger" onClick={confirmVoid} disabled={isVoiding} className="w-full sm:w-auto font-rethink">
+                            <Button variant="outline" onClick={() => setVoidTarget(null)} disabled={isVoiding} className="w-full sm:w-auto font-rethink">Cancel</Button>
+                            <Button variant="danger" onClick={confirmVoid} disabled={isVoiding} className="w-full sm:w-auto font-rethink">
                                 {isVoiding ? 'Voiding…' : 'Void Run'}
                             </Button>
                         </div>
-                    </div>
+                    }
+                >
+                    <p className="text-sm text-ink font-rethink">
+                        Void the run for <strong>{formatDate(voidTarget.period_start)} – {formatDate(voidTarget.period_end)}</strong>? This cannot be undone.
+                    </p>
                 </Modal>
             )}
 
             {deleteTarget && (
-                <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Payroll Run" className="max-w-md" accent="red" icon={AlertTriangle}>
-                    <div className="space-y-5">
-                        <div className="flex items-start gap-4 rounded-xl border border-red-200/60 bg-red-50/50 px-4 py-4 dark:border-red-800/30 dark:bg-red-950/30">
-                            <AlertTriangle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
-                            <div className="space-y-1">
-                                <p className="text-sm text-red-800/90 font-rethink leading-relaxed dark:text-red-300/90">
-                                    Delete the payroll run for {formatDate(deleteTarget.period_start)} – {formatDate(deleteTarget.period_end)}?
+                <Modal
+                    isOpen={!!deleteTarget}
+                    onClose={() => setDeleteTarget(null)}
+                    title="Delete Payroll Run"
+                    className="max-w-md"
+                    accent="red"
+                    icon={AlertTriangle}
+                    footer={
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
+                            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting} className="w-full sm:w-auto font-rethink">Cancel</Button>
+                            <Button variant="danger" onClick={confirmDelete} disabled={isDeleting} className="w-full sm:w-auto font-rethink">
+                                {isDeleting ? 'Deleting…' : 'Delete Permanently'}
+                            </Button>
+                        </div>
+                    }
+                >
+                    <p className="text-sm text-red-800 dark:text-red-300 font-rethink">
+                        Delete the run for <strong>{formatDate(deleteTarget.period_start)} – {formatDate(deleteTarget.period_end)}</strong>? All payslips and distribution logs will be deleted. This cannot be undone.
+                    </p>
+                </Modal>
+            )}
+
+            {detailTarget && (
+                <Modal
+                    isOpen={!!detailTarget}
+                    onClose={() => setDetailTarget(null)}
+                    title={`Run — ${formatDate(detailTarget.period_start)} to ${formatDate(detailTarget.period_end)}`}
+                    className="max-w-lg"
+                    accent="pink"
+                    icon={ClipboardList}
+                    footer={<Button variant="outline" onClick={() => setDetailTarget(null)} className="font-rethink">Close</Button>}
+                >
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-ink font-rethink">Approval Status</span>
+                            <ApprovalBadge status={detailTarget.approval_status} />
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-line bg-ink/[0.02] p-3">
+                                <p className="text-[10px] uppercase tracking-wide text-muted font-rethink">Payslips</p>
+                                <p className="text-sm font-mono font-semibold text-ink mt-0.5">{detailTarget.payslip_count ?? 0}</p>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200/40 bg-emerald-50 p-3 dark:border-emerald-800/30 dark:bg-emerald-950/30">
+                                <p className="text-[10px] uppercase tracking-wide text-emerald-600 font-rethink">Total Net Pay</p>
+                                <p className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                                    {formatCurrency(detailTarget.total_net_pay ?? 0)}
                                 </p>
-                                {deleteTarget.status !== 'draft' && (
-                                    <p className="text-xs text-amber-600/80 dark:text-amber-400/80 font-rethink">
-                                        This run is currently marked as <strong>{deleteTarget.status}</strong>. It will be voided first, then permanently deleted.
-                                    </p>
-                                )}
-                                <p className="text-xs text-red-600/80 dark:text-red-400/80 font-rethink">
-                                    This action <strong>cannot be undone</strong>. All payslips associated with this run will also be deleted.
+                            </div>
+                            <div className={`rounded-lg border p-3 ${sendCountFor(detailTarget) >= MAX_SENDS ? 'border-red-200/40 bg-red-50 dark:border-red-800/30 dark:bg-red-950/30' : 'border-blue-200/40 bg-blue-50 dark:border-blue-800/30 dark:bg-blue-950/30'}`}>
+                                <p className={`text-[10px] uppercase tracking-wide font-rethink ${sendCountFor(detailTarget) >= MAX_SENDS ? 'text-red-600' : 'text-blue-600'}`}>
+                                    Sends Used
+                                </p>
+                                <p className={`text-sm font-mono font-semibold mt-0.5 ${sendCountFor(detailTarget) >= MAX_SENDS ? 'text-red-700 dark:text-red-400' : 'text-blue-700 dark:text-blue-400'}`}>
+                                    {sendCountFor(detailTarget)} / {MAX_SENDS}
                                 </p>
                             </div>
                         </div>
-                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5">
-                            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting} className="w-full sm:w-auto font-rethink">
-                                Cancel
-                            </Button>
-                            <Button type="button" variant="danger" onClick={confirmDelete} disabled={isDeleting} className="w-full sm:w-auto font-rethink">
-                                {isDeleting ? (
-                                    <>
-                                        <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                        Deleting…
-                                    </>
-                                ) : (
-                                    'Delete Permanently'
-                                )}
-                            </Button>
+                        <div className="space-y-2 text-xs">
+                            {detailTarget.submitted_for_approval_at && (
+                                <div className="flex items-center justify-between rounded-lg border border-amber-200/40 bg-amber-50 px-3 py-2 dark:border-amber-800/30 dark:bg-amber-950/30">
+                                    <span className="text-amber-700 dark:text-amber-300 font-rethink">Submitted</span>
+                                    <span className="text-amber-800 dark:text-amber-200 font-rethink">
+                                        {formatDate(detailTarget.submitted_for_approval_at)}
+                                    </span>
+                                </div>
+                            )}
+                            {detailTarget.approved_by_name && (
+                                <div className="flex items-center justify-between rounded-lg border border-emerald-200/40 bg-emerald-50 px-3 py-2 dark:border-emerald-800/30 dark:bg-emerald-950/30">
+                                    <span className="text-emerald-700 dark:text-emerald-300 font-rethink">Approved by</span>
+                                    <span className="text-emerald-800 dark:text-emerald-200 font-rethink">
+                                        {detailTarget.approved_by_name} · {formatDate(detailTarget.approved_at || '')}
+                                    </span>
+                                </div>
+                            )}
+                            {detailTarget.rejected_by_name && (
+                                <div className="rounded-lg border border-red-200/40 bg-red-50 p-3 dark:border-red-800/30 dark:bg-red-950/30">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[10px] uppercase tracking-wide text-red-600 font-rethink">Rejected by</p>
+                                        <p className="text-[11px] text-red-700 dark:text-red-300 font-rethink">
+                                            {detailTarget.rejected_by_name} · {formatDate(detailTarget.rejected_at || '')}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-red-800 dark:text-red-300 font-rethink mt-1.5">
+                                        {detailTarget.rejection_reason}
+                                    </p>
+                                </div>
+                            )}
+                            {detailTarget.distributed_at && (
+                                <div className="flex items-center justify-between rounded-lg border border-blue-200/40 bg-blue-50 px-3 py-2 dark:border-blue-800/30 dark:bg-blue-950/30">
+                                    <span className="text-blue-700 dark:text-blue-300 font-rethink">Last distributed</span>
+                                    <span className="text-blue-800 dark:text-blue-200 font-rethink">
+                                        {formatDate(detailTarget.distributed_at)} · {detailTarget.distributed_by_name}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </Modal>

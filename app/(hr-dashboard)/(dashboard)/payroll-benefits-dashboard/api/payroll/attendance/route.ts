@@ -6,6 +6,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(request: NextRequest) {
   try {
     const authResult = await requireAdmin(request);
@@ -13,33 +16,34 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get("employee_id");
-    const date = searchParams.get("date");
-
-    if (!employeeId) {
-      return NextResponse.json(
-        { error: "employee_id is required" },
-        { status: 400 }
-      );
-    }
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
 
     let query = supabaseAdmin
       .from("hr2_attendance_logs")
       .select(
-        "id, employee_id, status, shift_start, shift_end, terminal, created_at"
+        "id, employee_id, status, shift_start, shift_end, terminal, time_in, time_out, last_scan, created_at, is_deleted, is_late, is_early_out, is_unscheduled"
       )
-      .eq("employee_id", employeeId)
-      .order("created_at", { ascending: false });
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: true });
 
-    if (date) {
-      query = query
-        .gte("created_at", `${date}T00:00:00`)
-        .lte("created_at", `${date}T23:59:59`);
+    if (employeeId) {
+      if (!UUID_RE.test(employeeId)) {
+        return NextResponse.json(
+          { error: "Invalid employee_id" },
+          { status: 400 }
+        );
+      }
+      query = query.eq("employee_id", employeeId);
     }
+
+    if (from) query = query.gte("created_at", `${from}T00:00:00`);
+    if (to) query = query.lte("created_at", `${to}T23:59:59`);
 
     const { data, error } = await query;
 
     if (error) {
-      console.error("Error fetching attendance history:", error);
+      console.error("GET /attendance error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

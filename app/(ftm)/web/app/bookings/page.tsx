@@ -137,7 +137,7 @@ export default function VrdsBookingsPage() {
     const vehicleOverCapacity = vehicle && vehicle.capacityKg < booking.totalWeightKg;
     const vehicleCourierMismatch = Boolean(vehicle && !isVehicleForCourier(vehicle, bookingCourier));
     if (driverUnavailable || vehicleUnavailable || vehicleOverCapacity || vehicleCourierMismatch) {
-      const unavailableResources = [];
+      const unavailableResources: string[] = [];
       if (driverUnavailable) unavailableResources.push("driver");
       if (vehicleUnavailable || vehicleOverCapacity) unavailableResources.push("vehicle");
       setErrorFor({
@@ -146,9 +146,9 @@ export default function VrdsBookingsPage() {
           ? `No available vehicle can carry ${booking.totalWeightKg} kg.`
           : vehicleCourierMismatch
             ? `The selected driver and vehicle do not match courier ${bookingCourier}.`
-          : bookingCourier
-            ? `No available vehicle matched courier ${bookingCourier} for this assignment.`
-            : `No available ${unavailableResources.join(" or ")} for this assignment.`,
+            : bookingCourier
+              ? `No available vehicle matched courier ${bookingCourier} for this assignment.`
+              : `No available ${unavailableResources.join(" or ")} for this assignment.`,
       });
       return;
     }
@@ -257,34 +257,34 @@ export default function VrdsBookingsPage() {
   // Fallback 1: if no parcels found by bookingId but booking has parcelIds, try to lookup by ID
   const fallbackParcels = selectedBooking && selectedParcels.length === 0 && selectedBooking.parcelIds.length > 0
     ? selectedBooking.parcelIds
-        .map(parcelId => parcels.find(p => String(p.id) === String(parcelId)))
-        .filter((p): p is typeof parcels[0] => p !== undefined)
+      .map(parcelId => parcels.find(p => String(p.id) === String(parcelId)))
+      .filter((p): p is typeof parcels[0] => p !== undefined)
     : [];
 
   // Fallback 2: if still no parcels, create synthetic placeholders from parcelIds or parcelCount
-  const syntheticCount = selectedBooking && selectedParcels.length === 0 && fallbackParcels.length === 0 
+  const syntheticCount = selectedBooking && selectedParcels.length === 0 && fallbackParcels.length === 0
     ? (selectedBooking.parcelIds?.length || selectedBooking.parcelCount || 0)
     : 0;
-    
+
   const syntheticParcels = syntheticCount > 0
     ? Array.from({ length: syntheticCount }, (_, i) => ({
-        id: `${selectedBooking!.id}-parcel-${i + 1}`,
-        trackingNumber: "",
-        senderName: "Unknown",
-        senderPhone: "",
-        recipientName: "Unknown",
-        recipientPhone: "",
-        destinationAddress: "",
-        destLat: 0,
-        destLng: 0,
-        parcelType: "E-commerce Package" as const,
-        courier: undefined as any,
-        weightKg: 0,
-        notes: undefined,
-        status: "PICKED_UP" as const,
-        receivedAt: new Date().toISOString(),
-        bookingId: selectedBooking!.id,
-      }))
+      id: `${selectedBooking!.id}-parcel-${i + 1}`,
+      trackingNumber: "",
+      senderName: "Unknown",
+      senderPhone: "",
+      recipientName: "Unknown",
+      recipientPhone: "",
+      destinationAddress: "",
+      destLat: 0,
+      destLng: 0,
+      parcelType: "E-commerce Package" as const,
+      courier: undefined as any,
+      weightKg: 0,
+      notes: undefined,
+      status: "PICKED_UP" as const,
+      receivedAt: new Date().toISOString(),
+      bookingId: selectedBooking!.id,
+    }))
     : [];
 
   // Use whatever parcels we have: real parcels by bookingId, by ID lookup, or synthetic placeholders
@@ -333,7 +333,7 @@ export default function VrdsBookingsPage() {
 
       {/* Main Container - Full Width Expansion */}
       <main className="flex-1 w-full max-w-[1800px] mx-auto px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-        
+
         {/* Header Banner */}
         <section className="bg-white border border-rose-100 rounded-2xl p-6 shadow-xs">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -402,7 +402,7 @@ export default function VrdsBookingsPage() {
 
         {/* Master / Detail Grid */}
         <div className="mt-6 grid gap-6 lg:grid-cols-12 items-start">
-          
+
           {/* LEFT: Booking Queue List */}
           <section className="lg:col-span-7 xl:col-span-8 2xl:col-span-9 bg-white border border-rose-100 rounded-2xl p-5 shadow-xs space-y-5">
             {/* Queue Header & Filters */}
@@ -453,11 +453,11 @@ export default function VrdsBookingsPage() {
                   const bookingParcels = parcels.filter((p) => p.bookingId === booking.id);
                   const fallbackBookingParcels = bookingParcels.length === 0 && booking.parcelIds.length > 0
                     ? booking.parcelIds
-                        .map(parcelId => parcels.find(p => String(p.id) === String(parcelId)))
-                        .filter((p): p is typeof parcels[0] => p !== undefined)
+                      .map(parcelId => parcels.find(p => String(p.id) === String(parcelId)))
+                      .filter((p): p is typeof parcels[0] => p !== undefined)
                     : [];
                   const displayBookingParcels = bookingParcels.length > 0 ? bookingParcels : fallbackBookingParcels;
-                  
+
                   const isSelected = selectedBooking?.id === booking.id;
                   const vehicle = vehicles.find((v) => v.id === booking.vehicleId);
                   const overCapacity = vehicle ? booking.totalWeightKg > vehicle.capacityKg : false;
@@ -467,11 +467,10 @@ export default function VrdsBookingsPage() {
                     <div
                       key={booking.id}
                       onClick={() => setSelectedBookingId(booking.id)}
-                      className={`group relative cursor-pointer rounded-xl border p-4 transition-all duration-150 ${
-                        isSelected
+                      className={`group relative cursor-pointer rounded-xl border p-4 transition-all duration-150 ${isSelected
                           ? "border-rose-500 bg-pink-50/40 ring-1 ring-rose-500 shadow-xs"
                           : "border-rose-100/80 bg-white hover:border-pink-300 hover:shadow-xs"
-                      }`}
+                        }`}
                     >
                       {/* Top Row: ID, Route, Status */}
                       <div className="flex items-start justify-between gap-3">
@@ -498,16 +497,14 @@ export default function VrdsBookingsPage() {
 
                         {/* Status Tag */}
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                            booking.status === "DRIVER_VEHICLE_ASSIGNED"
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${booking.status === "DRIVER_VEHICLE_ASSIGNED"
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
                               : "bg-amber-50 text-amber-700 border border-amber-200/60"
-                          }`}
+                            }`}
                         >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              booking.status === "DRIVER_VEHICLE_ASSIGNED" ? "bg-emerald-500" : "bg-amber-500"
-                            }`}
+                            className={`w-1.5 h-1.5 rounded-full ${booking.status === "DRIVER_VEHICLE_ASSIGNED" ? "bg-emerald-500" : "bg-amber-500"
+                              }`}
                           />
                           {BOOKING_STATUS_LABEL[booking.status]}
                         </span>
@@ -560,7 +557,7 @@ export default function VrdsBookingsPage() {
           {/* RIGHT: Sticky Detail Sidebar */}
           <aside className="lg:col-span-5 xl:col-span-4 2xl:col-span-3 sticky top-6 space-y-5">
             <div className="bg-white border border-rose-100 rounded-2xl p-5 shadow-xs space-y-5">
-              
+
               {/* Header */}
               <div className="border-b border-rose-100/80 pb-3 flex items-center justify-between">
                 <div>
@@ -581,8 +578,8 @@ export default function VrdsBookingsPage() {
                   {/* Route & Metadata Overview */}
                   <div className="bg-pink-50/40 border border-pink-100/80 rounded-xl p-3.5 space-y-2">
                     <p className="text-xs text-slate-500 font-medium">Route Target</p>
-<p className="text-sm font-bold text-slate-900">{selectedBooking ? getBookingRouteLabel(selectedBooking, parcels) : "No selection"}</p>
-                    
+                    <p className="text-sm font-bold text-slate-900">{selectedBooking ? getBookingRouteLabel(selectedBooking, parcels) : "No selection"}</p>
+
                     {/* Vehicle Weight Capacity Progress Bar */}
                     {selectedBooking.vehicleId && (
                       <div className="pt-2 border-t border-rose-100 mt-2">
@@ -602,9 +599,8 @@ export default function VrdsBookingsPage() {
                               </div>
                               <div className="w-full bg-rose-100/80 h-2 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full transition-all duration-300 ${
-                                    isOver ? "bg-rose-600" : ratio > 85 ? "bg-amber-500" : "bg-emerald-500"
-                                  }`}
+                                  className={`h-full transition-all duration-300 ${isOver ? "bg-rose-600" : ratio > 85 ? "bg-amber-500" : "bg-emerald-500"
+                                    }`}
                                   style={{ width: `${ratio}%` }}
                                 />
                               </div>
@@ -745,7 +741,7 @@ export default function VrdsBookingsPage() {
   );
 }
 
-{/* Sub-components */}
+{/* Sub-components */ }
 
 function MetricCard({
   label,
@@ -809,7 +805,7 @@ function DriverVehicleSelect({
   );
 }
 
-{/* SVG Icons */}
+{/* SVG Icons */ }
 
 function IconTruck({ className = "w-4 h-4" }: { className?: string }) {
   return (

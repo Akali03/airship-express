@@ -1,19 +1,54 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, AlertCircle } from 'lucide-react';
-import { ExportPrintDropdown } from '../../components/ui/ExportPrintDropdown';
+import { getSystemSettings, saveSystemSettings } from '../../actions/settingsActions';
 
 export default function SettingsPage() {
   const [lateThreshold, setLateThreshold] = useState('15');
+  const [maxLateThreshold, setMaxLateThreshold] = useState('240');
+  const [earlyOutThreshold, setEarlyOutThreshold] = useState('15');
   const [absentThreshold, setAbsentThreshold] = useState('120');
   const [awolThreshold, setAwolThreshold] = useState('3');
   const [isSaved, setIsSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = () => {
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
+  useEffect(() => {
+    async function loadSettings() {
+      const res = await getSystemSettings();
+      if (res.success && res.settings) {
+        setLateThreshold(res.settings['late_threshold_minutes'] || '15');
+        setMaxLateThreshold(res.settings['max_late_minutes'] || '240');
+        setEarlyOutThreshold(res.settings['early_out_threshold_minutes'] || '15');
+        setAbsentThreshold(res.settings['absent_threshold_minutes'] || '120');
+        setAwolThreshold(res.settings['awol_consecutive_days'] || '3');
+      }
+      setLoading(false);
+    }
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    const settings = {
+      'late_threshold_minutes': lateThreshold,
+      'max_late_minutes': maxLateThreshold,
+      'early_out_threshold_minutes': earlyOutThreshold,
+      'absent_threshold_minutes': absentThreshold,
+      'awol_consecutive_days': awolThreshold
+    };
+    
+    const res = await saveSystemSettings(settings);
+    if (res.success) {
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } else {
+      alert("Failed to save settings.");
+    }
   };
+
+  if (loading) {
+    return <div className="p-8 text-center text-muted">Loading settings...</div>;
+  }
 
   return (
     <>
@@ -23,9 +58,6 @@ export default function SettingsPage() {
           <p className="text-xs text-muted mt-1">
             Configure workforce thresholds and backend parameters.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ExportPrintDropdown />
         </div>
       </div>
 
@@ -46,7 +78,7 @@ export default function SettingsPage() {
                 onChange={(e) => {
                   if (typeof window !== 'undefined') {
                     localStorage.setItem('simulation_mode', e.target.checked ? 'true' : 'false');
-                    window.location.reload(); // Reload to re-fetch data instantly
+                    window.location.reload(); 
                   }
                 }}
               />
@@ -71,6 +103,28 @@ export default function SettingsPage() {
               type="number"
               value={lateThreshold}
               onChange={(e) => setLateThreshold(e.target.value)}
+              className="w-full max-w-xs bg-ink/5 dark:bg-paper/5 border border-line rounded-xl px-4 py-2 text-sm text-ink focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <label className="text-sm font-medium text-ink">Max Late / Half-Day (Minutes)</label>
+            <p className="text-[10px] text-muted">Minutes past schedule before an employee is tagged as Half-Day Absent.</p>
+            <input
+              type="number"
+              value={maxLateThreshold}
+              onChange={(e) => setMaxLateThreshold(e.target.value)}
+              className="w-full max-w-xs bg-ink/5 dark:bg-paper/5 border border-line rounded-xl px-4 py-2 text-sm text-ink focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <label className="text-sm font-medium text-ink">Early Out Threshold (Minutes)</label>
+            <p className="text-[10px] text-muted">Minutes before shift end allowed for clock out.</p>
+            <input
+              type="number"
+              value={earlyOutThreshold}
+              onChange={(e) => setEarlyOutThreshold(e.target.value)}
               className="w-full max-w-xs bg-ink/5 dark:bg-paper/5 border border-line rounded-xl px-4 py-2 text-sm text-ink focus:outline-none focus:border-accent transition-colors"
             />
           </div>
@@ -116,4 +170,3 @@ export default function SettingsPage() {
     </>
   );
 }
-

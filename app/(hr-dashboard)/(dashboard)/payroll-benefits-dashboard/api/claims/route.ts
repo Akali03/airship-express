@@ -9,6 +9,8 @@ export const fetchCache = "force-no-store";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const hasClaimAiColumns = true;
+
 function normalizeId(raw: any): string {
   if (raw === null || raw === undefined) return "";
   const s = String(raw).trim();
@@ -32,7 +34,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: claimsError.message }, { status: 500 });
     }
 
-    const claims = claimsRaw ?? [];
+    const claims = (claimsRaw ?? []).filter((c: any) => {
+      const id = normalizeId(c.id);
+      if (!id || !UUID_RE.test(id)) {
+        console.warn("[claims GET] dropping row with invalid id:", c.id);
+        return false;
+      }
+      return true;
+    });
 
     const employeeUuids = Array.from(
       new Set(claims.map((c: any) => c.employee_id).filter(Boolean))
@@ -75,46 +84,64 @@ export async function GET(request: NextRequest) {
       (admins ?? []).forEach((a: any) => adminsMap.set(a.id, a.full_name));
     }
 
-    const enriched = claims
-      .filter((c: any) => {
-        const id = normalizeId(c.id);
-        if (!id || !UUID_RE.test(id)) {
-          console.warn("[claims GET] dropping row with invalid id:", c.id);
-          return false;
-        }
-        return true;
-      })
-      .map((c: any) => {
-        const emp = employeesMap.get(c.employee_id);
-        const type = claimTypesMap.get(c.claim_type_id);
-        const employee_name = emp
-          ? `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim()
-          : null;
+    const claimIds = claims.map((c: any) => normalizeId(c.id));
+    const verificationsByClaim: Record<string, any> = {};
 
-        return {
-          id: normalizeId(c.id),
-          employee_id: c.employee_id,
-          employee_name,
-          employee_id_number: emp?.employee_id_number ?? null,
-          claim_type_id: c.claim_type_id,
-          claim_type_name: type?.name ?? null,
-          amount: Number(c.amount ?? 0),
-          description: c.description,
-          receipt_url: c.receipt_url,
-          status: c.status,
-          submitted_at: c.submitted_at,
-          reviewed_by: c.reviewed_by,
-          reviewed_at: c.reviewed_at,
-          reviewed_by_name: c.reviewed_by
-            ? adminsMap.get(c.reviewed_by) ?? null
-            : null,
-          review_notes: c.review_notes,
-          payroll_run_id: c.payroll_run_id,
-          reimbursed_at: c.reimbursed_at,
-          created_at: c.created_at,
-          updated_at: c.updated_at,
-        };
-      });
+    if (claimIds.length > 0) {
+      const { data: verifs, error: verifErr } = await supabaseAdmin
+        .from("hr4_claim_receipt_verifications")
+        .select("*")
+        .in("claim_id", claimIds)
+        .order("verified_at", { ascending: false });
+
+      if (verifErr) {
+        console.warn("[claims GET] verifications error:", verifErr);
+      } else {
+        (verifs ?? []).forEach((v: any) => {
+          if (v.claim_id && !verificationsByClaim[v.claim_id]) {
+            verificationsByClaim[v.claim_id] = v;
+          }
+        });
+      }
+    }
+
+    const enriched = claims.map((c: any) => {
+      const emp = employeesMap.get(c.employee_id);
+      const type = claimTypesMap.get(c.claim_type_id);
+      const employee_name = emp
+        ? `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim()
+        : null;
+      const id = normalizeId(c.id);
+
+      return {
+        id,
+        employee_id: c.employee_id,
+        employee_name,
+        employee_id_number: emp?.employee_id_number ?? null,
+        claim_type_id: c.claim_type_id,
+        claim_type_name: type?.name ?? null,
+        amount: Number(c.amount ?? 0),
+        description: c.description,
+        receipt_url: c.receipt_url,
+        status: c.status,
+        submitted_at: c.submitted_at,
+        reviewed_by: c.reviewed_by,
+        reviewed_at: c.reviewed_at,
+        reviewed_by_name: c.reviewed_by
+          ? adminsMap.get(c.reviewed_by) ?? null
+          : null,
+        review_notes: c.review_notes,
+        payroll_run_id: c.payroll_run_id,
+        reimbursed_at: c.reimbursed_at,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+        ai_verdict: c.ai_verdict ?? null,
+        ai_confidence: c.ai_confidence != null ? Number(c.ai_confidence) : null,
+        ai_notes: c.ai_notes ?? null,
+        ai_override: c.ai_override === true,
+        verification: verificationsByClaim[id] ?? null,
+      };
+    });
 
     return NextResponse.json(enriched);
   } catch (error: any) {
@@ -130,6 +157,12 @@ export async function POST(request: NextRequest) {
   try {
     const authResult = await requireAdmin(request);
     if (authResult instanceof NextResponse) return authResult;
+    const admin = authResult as {
+      id?: string;
+      email?: string;
+      fullName?: string;
+      role?: string;
+    };
 
     let body: any = {};
     try {
@@ -144,28 +177,18 @@ export async function POST(request: NextRequest) {
     const employeeId = normalizeId(body?.employee_id);
     const claimTypeIdRaw = body?.claim_type_id;
     const amountRaw = body?.amount;
+    const receiptUrlRaw = body?.receipt_url;
+    const descriptionRaw = body?.description;
 
     if (!employeeId || !UUID_RE.test(employeeId)) {
-      console.error(
-        "[claims POST] invalid employee_id:",
-        JSON.stringify(body?.employee_id)
-      );
       return NextResponse.json(
-        {
-          error:
-            "Invalid employee. Please select a valid employee from the list and try again.",
-          received_employee_id: body?.employee_id ?? null,
-        },
+        { error: "Invalid employee. Please select a valid employee." },
         { status: 400 }
       );
     }
 
     const claimTypeId = Number(claimTypeIdRaw);
     if (!Number.isFinite(claimTypeId) || claimTypeId <= 0) {
-      console.error(
-        "[claims POST] invalid claim_type_id:",
-        JSON.stringify(claimTypeIdRaw)
-      );
       return NextResponse.json(
         { error: "Invalid claim type. Please select a valid claim type." },
         { status: 400 }
@@ -174,32 +197,164 @@ export async function POST(request: NextRequest) {
 
     const amount = Number(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) {
-      console.error("[claims POST] invalid amount:", JSON.stringify(amountRaw));
       return NextResponse.json(
         { error: "Amount must be a number greater than zero." },
         { status: 400 }
       );
     }
 
-    const { data, error } = await supabaseAdmin
+    if (!receiptUrlRaw || typeof receiptUrlRaw !== "string") {
+      return NextResponse.json(
+        {
+          error:
+            "Receipt is required. Upload a receipt image before submitting.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const aiVerdict = body?.ai_verdict;
+    const aiConfidence = body?.ai_confidence;
+    const aiNotes = body?.ai_notes;
+    const aiOverride = body?.ai_override === true;
+    const aiOverrideReason =
+      typeof body?.ai_override_reason === "string"
+        ? body.ai_override_reason.trim()
+        : "";
+
+    if (
+      aiVerdict !== "approve" &&
+      aiVerdict !== "review" &&
+      aiVerdict !== "reject"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Receipt has not been verified yet. Run the AI scan before submitting.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (aiVerdict === "reject" && !aiOverride) {
+      return NextResponse.json(
+        {
+          error:
+            "AI rejected this receipt. Fix the issue or check the override box before submitting.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const insertPayload: Record<string, any> = {
+      employee_id: employeeId,
+      claim_type_id: claimTypeId,
+      amount,
+      description: descriptionRaw ?? null,
+      receipt_url: receiptUrlRaw,
+      status: "pending",
+    };
+
+    if (hasClaimAiColumns) {
+      insertPayload.ai_verdict = aiVerdict;
+      insertPayload.ai_confidence =
+        typeof aiConfidence === "number" ? aiConfidence : null;
+      insertPayload.ai_notes = aiNotes ?? null;
+      insertPayload.ai_override = aiOverride;
+    }
+
+    const { data: claim, error: claimErr } = await supabaseAdmin
       .from("hr4_claims")
-      .insert({
-        employee_id: employeeId,
-        claim_type_id: claimTypeId,
-        amount,
-        description: body.description ?? null,
-        receipt_url: body.receipt_url ?? null,
-        status: "pending",
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (error) {
-      console.error("[claims POST] insert error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (claimErr || !claim) {
+      console.error("[claims POST] insert error:", claimErr);
+      return NextResponse.json(
+        { error: claimErr?.message || "Failed to create claim" },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json(data, { status: 201 });
+    const verifiedAt = new Date().toISOString();
+
+    const { data: orphans } = await supabaseAdmin
+      .from("hr4_claim_receipt_verifications")
+      .select("id, raw_response")
+      .eq("employee_id", employeeId)
+      .eq("claimed_amount", amount)
+      .is("claim_id", null)
+      .order("verified_at", { ascending: false })
+      .limit(1);
+
+    const orphan = orphans?.[0];
+
+    if (orphan?.id) {
+      const mergedRawResponse = {
+        ...(orphan.raw_response ?? {}),
+        override: aiOverride,
+        override_reason: aiOverride ? aiOverrideReason || null : null,
+        overridden_at: aiOverride ? verifiedAt : null,
+      };
+
+      const { error: updateErr } = await supabaseAdmin
+        .from("hr4_claim_receipt_verifications")
+        .update({
+          claim_id: claim.id,
+          receipt_url: receiptUrlRaw,
+          claimed_description: descriptionRaw ?? null,
+          claimed_claim_type: String(claimTypeId),
+          raw_response: mergedRawResponse,
+        })
+        .eq("id", orphan.id);
+
+      if (updateErr) {
+        console.error("[claims POST] verification link error:", updateErr);
+      }
+    } else {
+      const { error: verifErr } = await supabaseAdmin
+        .from("hr4_claim_receipt_verifications")
+        .insert({
+          claim_id: claim.id,
+          employee_id: employeeId,
+          receipt_url: receiptUrlRaw,
+          claimed_amount: amount,
+          claimed_description: descriptionRaw ?? null,
+          claimed_claim_type: String(claimTypeId),
+          verdict: aiVerdict,
+          confidence: typeof aiConfidence === "number" ? aiConfidence : 0,
+          notes: aiNotes ?? null,
+          provider: body?.ai_provider ?? "unknown",
+          model: body?.ai_model ?? "unknown",
+          raw_response: {
+            override: aiOverride,
+            override_reason: aiOverride ? aiOverrideReason || null : null,
+            overridden_at: aiOverride ? verifiedAt : null,
+          },
+          verified_by: admin.id ?? null,
+        });
+
+      if (verifErr) {
+        console.error("[claims POST] verification insert error:", verifErr);
+      }
+    }
+
+    const { data: verification } = await supabaseAdmin
+      .from("hr4_claim_receipt_verifications")
+      .select("*")
+      .eq("claim_id", claim.id)
+      .order("verified_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return NextResponse.json(
+      {
+        ...claim,
+        verification: verification ?? null,
+      },
+      { status: 201 }
+    );
   } catch (error: any) {
     console.error("[claims POST] unexpected error:", error);
     return NextResponse.json(

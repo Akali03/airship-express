@@ -23,7 +23,9 @@ export type UserRole =
   | 'HR Officer'
   | 'Marketing/Admin Staff'
   | 'Drop-Off Pick-Up Rider'
-  | 'Manila Rider';
+  | 'Manila Rider'
+  | 'Delivery Rider'
+  | 'Courier Driver';
 
 // Attendance status enum
 export type AttendanceStatus = 'On-Shift' | 'On-Break' | 'Tardy' | 'Absent' | 'Clocked Out';
@@ -50,25 +52,44 @@ export type LeaveStatus = 'Pending HR Review' | 'Approved' | 'Rejected';
 // Leave type enum
 export type LeaveType = 'Mandatory Fatigue Rest' | 'Paid Time Off (PTO)' | 'Medical Leave' | 'Unpaid Leave';
 
+// Employee grouping classification
+export type EmployeeGroup = 'Office' | 'Employed Rider' | 'Third-Party Rider';
+
+export function getEmployeeGroup(role: UserRole | string | undefined): EmployeeGroup {
+  if (!role) return 'Office';
+  if (role === 'Courier Driver') return 'Third-Party Rider';
+  if (role === 'Delivery Rider') return 'Employed Rider';
+  // Fallbacks for other mock roles if they sneak in
+  if (role.includes('JNT') || role.includes('3rd Party')) return 'Third-Party Rider';
+  if (role.toLowerCase().includes('rider') || role.toLowerCase().includes('driver')) return 'Employed Rider';
+  return 'Office';
+}
+
 // Employee/Profile interface
 export interface Employee {
   id: string;
   email: string;
   full_name: string;
   role: UserRole;
+  department: string;
   avatar_initials: string;
   terminal: string;
   created_at: string;
   rfid_uid?: string | null;
+  employee_status?: string;
+  card_status?: string;
 }
 
 // Attendance log interface (matches attendance_logs table)
+export type OverrideReason = 'HARDWARE_OFFLINE' | 'NETWORK_LATENCY' | 'LOST_BADGE' | 'MAINTENANCE' | 'OTHER';
+
 export interface AttendanceLog {
   id: string;
   employee_id: string;
   action?: 'TIME_IN' | 'TIME_OUT';
   status: AttendanceStatus;
   time_in?: string | null;
+  is_unscheduled?: boolean;
   time_out?: string | null;
   shift_start: string;
   shift_end: string;
@@ -76,20 +97,46 @@ export interface AttendanceLog {
   last_scan: string;
   created_at: string;
   employee?: Employee; // Joined employee data
+  
+  // Audit Trail for Manual Overrides
+  is_manual_override?: boolean;
+  manual_override_by?: string;
+  manual_override_at?: string;
+  manual_override_reason?: OverrideReason;
+  manual_override_notes?: string;
 }
 
-// Shift interface (matches shifts table)
+// Core Schedule Interface (replaces raw Shift)
 export interface Shift {
   id: string;
-  title: string;
-  driver_id: string | null;
-  vehicle: string;
+  title?: string;
+  employee_id: string; // Rename driver_id to employee_id
   shift_date: string;
-  shift_time: string;
+  
+  // Office Specific
+  shift_time?: string; 
+  break_duration_minutes?: number; // e.g. 0, 30, 60
+  break_time?: string; // e.g. 12:00 PM - 01:00 PM
+  
+  // Recurring Schedule
+  is_recurring?: boolean;
+  recurring_days?: string[];
+
+  // Rider Specific
+  gate_in?: string | null;
+  gate_out?: string | null;
+  
+  // Mapped Fleet Data (Read-only, fetched from Fleet DB)
+  fleet_data?: {
+    vehicle: string;
+    expected_arrival: string;
+    priority: 'Normal' | 'High' | 'Critical';
+  };
+
   status: ShiftStatus;
-  priority: ShiftPriority;
+  override_reason?: string;
   created_at: string;
-  driver?: Employee; // Joined driver data
+  employee?: Employee; 
 }
 
 // Timesheet interface (matches timesheets table)

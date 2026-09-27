@@ -10,7 +10,7 @@ export async function GET() {
   ] = await Promise.all([
     admin
       .from('hr1_employees')
-      .select('id, first_name, last_name, department, job_position:hr1_job_positions(title)')
+      .select('id, first_name, last_name, department, job_position:hr1_job_positions(title), fatigue_status, hours_worked_7d')
       .order('first_name'),
     admin.from('hr2_attendance_logs').select('employee_id').eq('status', 'On-Shift'),
   ]);
@@ -28,8 +28,11 @@ export async function GET() {
       id: emp.id,
       full_name: fullName,
       role,
+      department: emp.department || 'Operations',
       terminal: emp.department || 'HQ',
       on_shift: onShift.has(emp.id),
+      fatigue_status: emp.fatigue_status || 'OK',
+      hours_worked_7d: emp.hours_worked_7d || 0,
     };
   });
 

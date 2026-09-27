@@ -26,7 +26,7 @@ export default function AnalyticsPage() {
     loadData();
   }, []);
 
-  const filteredEmployees = employeesData.filter(e => e.name?.toLowerCase().includes(filter.toLowerCase()));
+  const filteredEmployees = employeesData.filter(e => (e.full_name || e.name || '').toLowerCase().includes(filter.toLowerCase()));
   const tardyEmployees = filteredEmployees.filter(e => e.category === 'Tardy');
   const onTimeEmployees = filteredEmployees.filter(e => e.category === 'On-Time');
 
@@ -93,10 +93,10 @@ export default function AnalyticsPage() {
                     }`}
                   >
                     <div className="w-8 h-8 rounded-full bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0">
-                      {emp.avatar}
+                      {emp.avatar_initials || emp.avatar}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate">{emp.name}</p>
+                      <p className="text-sm font-semibold text-ink truncate">{emp.full_name || emp.name}</p>
                       <p className="text-[10px] text-muted truncate">{emp.role}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -122,10 +122,10 @@ export default function AnalyticsPage() {
                     }`}
                   >
                     <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-xs shrink-0">
-                      {emp.avatar}
+                      {emp.avatar_initials || emp.avatar}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate">{emp.name}</p>
+                      <p className="text-sm font-semibold text-ink truncate">{emp.full_name || emp.name}</p>
                       <p className="text-[10px] text-muted truncate">{emp.role}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -164,10 +164,10 @@ export default function AnalyticsPage() {
             <div className="bg-paper border border-line p-5 rounded-2xl shrink-0 shadow-sm">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-12 h-12 rounded-full bg-accent/10 text-accent flex items-center justify-center font-bold text-lg">
-                  {selectedEmployee.avatar}
+                  {selectedEmployee.avatar_initials || selectedEmployee.avatar}
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-ink">{selectedEmployee.name}</h2>
+                  <h2 className="text-lg font-bold text-ink">{selectedEmployee.full_name || selectedEmployee.name}</h2>
                   <p className="text-xs text-muted">{selectedEmployee.role}</p>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/(hr-dashboard)/supabase/admin-client";
 import { requireAdmin } from "../../../lib/auth/requireAdmin";
+import { resolveAdminIdentity } from "../../../lib/auth/adminIdentity";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,6 +84,8 @@ export async function POST(request: NextRequest) {
     const authResult = await requireAdmin(request);
     if (authResult instanceof NextResponse) return authResult;
 
+    const admin = await resolveAdminIdentity(authResult);
+
     const body = await request.json();
     const {
       job_position_id,
@@ -106,15 +109,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const payload = {
+      job_position_id,
+      daily_rate: Number(daily_rate),
+      hours_per_day: Number(hours_per_day) || 8,
+      break_hours: Number(break_hours) || 1,
+      overtime_rate: Number(overtime_rate) || 1.25,
+      last_modified_by: admin.id,
+      last_modified_by_name: admin.name,
+      last_modified_by_email: admin.email,
+      updated_at: new Date().toISOString(),
+    };
+
     const { data, error } = await supabaseAdmin
       .from("hr4_job_position_settings")
-      .insert({
-        job_position_id,
-        daily_rate: Number(daily_rate),
-        hours_per_day: Number(hours_per_day) || 8,
-        break_hours: Number(break_hours) || 1,
-        overtime_rate: Number(overtime_rate) || 1.25,
-      })
+      .insert(payload)
       .select()
       .single();
 
@@ -126,7 +135,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data, { status: 201 });
+    await supabaseAdmin.from("hr4_rate_change_log").insert({
+      scope: "position",
+      job_position_id,
+      admin_id: admin.id,
+      admin_name: admin.name,
+      admin_email: admin.email,
+      action: "rate_created",
+      previous_daily_rate: null,
+      new_daily_rate: Number(daily_rate),
+      reason: null,
+    });
+
+    return NextResponse.json(
+      { ...data, basic_salary: Number(daily_rate) * 24, edited_by: admin.name },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("POST /job-settings error:", error);
     return NextResponse.json(

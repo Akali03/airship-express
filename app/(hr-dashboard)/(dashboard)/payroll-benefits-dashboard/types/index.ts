@@ -12,7 +12,22 @@ export type HR1EmployeeStatus =
   | "terminated"
   | "resigned";
 
-export type HR2AttendanceStatus = "On-Shift" | "On-Break" | "Tardy" | "Absent";
+export type HR2AttendanceStatus =
+  | "On-Shift"
+  | "On-Break"
+  | "Tardy"
+  | "Absent"
+  | "Clocked Out"
+  | "HALF_DAY_ABSENT"
+  | "MISSED_PUNCH_OUT";
+
+export type HR2WorkedStatus =
+  | "On-Shift"
+  | "On-Break"
+  | "Tardy"
+  | "Clocked Out"
+  | "MISSED_PUNCH_OUT"
+  | "HALF_DAY_ABSENT";
 
 export type HR4PaySchedule =
   | "semi_monthly"
@@ -82,11 +97,14 @@ export interface HR4JobPositionSettings {
 
 export interface HR4JobPositionSettingsWithPosition
   extends HR4JobPositionSettings {
-  hr1_job_positions: {
-    id: string;
-    title: string;
-    department: string;
-  };
+  title: string;
+  department: string;
+  basic_salary: number;
+  is_active: boolean;
+  last_modified_by: string | null;
+  last_modified_by_name: string | null;
+  last_modified_by_email: string | null;
+  edited_by?: string | null;
 }
 
 export interface SSSBracket {
@@ -203,6 +221,11 @@ export interface HR4Payslip {
 export interface HR4PayslipWithEmployee extends HR4Payslip {
   employee_name: string | null;
   employee_id_number: string | null;
+  job_title: string | null;
+  department: string | null;
+  pay_schedule: HR4PaySchedule | null;
+  period_start: string | null;
+  period_end: string | null;
 }
 
 export interface PayrollComputationResult {
@@ -432,6 +455,16 @@ export interface EmployeePayrollInfoRow {
   updated_at: string | null;
 }
 
+export interface EmployeePayrollInfoRowWithMeta extends EmployeePayrollInfoRow {
+  has_bank: boolean;
+  has_active_bank: boolean;
+  bank_verified: boolean;
+  attendance_last_scan: string | null;
+  payslips_ytd: number;
+  last_payslip_net_pay: number | null;
+  last_payslip_period: string | null;
+}
+
 export interface JobPositionSettingsRow {
   id: string;
   job_position_id: string;
@@ -611,4 +644,87 @@ export interface HR4ClaimFormatted extends HR4Claim {
   employee_id_number: string | null;
   claim_type_name: string | null;
   reviewed_by_name: string | null;
+}
+
+export interface HR4CompenSalaryGrade {
+  id: number;
+  grade_code: string;
+  grade_name: string;
+  grade_level: number;
+  min_salary: number;
+  mid_salary: number;
+  max_salary: number;
+  step_increment: number | null;
+  market_reference: string | null;
+  description: string | null;
+  is_active: boolean | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  last_modified_by: string | null;
+  last_modified_by_name: string | null;
+  last_modified_by_email: string | null;
+}
+
+export interface HR4CompenPayStep {
+  id: number;
+  grade_id: number;
+  step_number: number;
+  step_amount: number;
+  effective_date: string;
+  expiry_date: string | null;
+  is_active: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface HR4ClaimsSummary {
+  pending: number;
+  approved: number;
+  rejected: number;
+  reimbursed: number;
+  pending_total: number;
+  approved_total: number;
+}
+
+export interface HR4BankStatusSummary {
+  total_active: number;
+  with_bank: number;
+  no_account: number;
+  inactive: number;
+  incomplete: number;
+  total_affected: number;
+  affected_employees: Array<{
+    employee_id: string;
+    employee_name: string;
+    employee_id_number: string;
+    category: "no_account" | "inactive" | "incomplete";
+    reason: string;
+  }>;
+}
+
+export interface AiryBriefingSnapshot {
+  pending_approvals: number;
+  approved_not_distributed: number;
+  rejected_runs: number;
+  open_draft_runs: number;
+  active_employees: number;
+  unique_departments: number;
+  total_positions: number;
+  open_for_hiring: number;
+  today_attendance: number;
+  attendance_rate: number;
+  ytd_net_pay: number;
+  ytd_gross_pay: number;
+  last_run_net_pay: number;
+  missing_bank: number;
+  with_bank: number;
+  pending_claims: number;
+  approved_claims: number;
+  claims_pending_amount: number;
+  this_month_planned: number;
+  this_month_actual: number;
+  current_month: number;
+  current_year: number;
+  time_of_day: "morning" | "afternoon" | "evening";
 }

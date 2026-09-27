@@ -47,7 +47,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const auth = await getRequestProfileAppRouter();
   const body = await request.json();
-  const { leave_type, start_date, end_date, reason } = body as CreateLeavePayload;
+  const { employee_id, leave_type, start_date, end_date, reason } = body as any;
   if (!leave_type || !start_date || !end_date) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('hr2_leave_requests')
     .insert({
-      employee_id: auth.userId,
+      employee_id: employee_id || auth.userId,
       leave_type,
       start_date,
       end_date,
