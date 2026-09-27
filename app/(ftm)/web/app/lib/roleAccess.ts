@@ -89,6 +89,8 @@ export function hasPathAccess(role: AppRole | string | null | undefined, pathnam
 export function getDashboardRouteForRole(role?: AppRole | string | null): string {
   const normalized = normalizeRole(role ?? "");
 
+  // Keep these values aligned to the real FTM app routes so the portal redirects
+  // land on the correct dashboard after successful authentication.
   switch (normalized) {
     case "fleet_manager":
       return "/fvm";

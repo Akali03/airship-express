@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -39,30 +39,56 @@ export default function FleetContext() {
     }
   });
 
-  return (
-    <group>
-      {/* Base platform ring */}
-      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.08, 0]}>
-        <ringGeometry args={[0.85, 0.98, 48]} />
-        <meshBasicMaterial color={ROBOT_COLORS.accent} transparent opacity={0.28} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Route line */}
-      <Line points={routePoints} color={ROBOT_COLORS.accent} lineWidth={1.4} transparent opacity={0.5} />
-
-      {/* Drifting vehicle hologram */}
-      <mesh ref={vehicleRef} position={routePoints[0]}>
-        <boxGeometry args={[0.08, 0.05, 0.04]} />
-        <meshStandardMaterial color={ROBOT_COLORS.accent} emissive={ROBOT_COLORS.accent} emissiveIntensity={1} toneMapped={false} />
-      </mesh>
-
-      {/* GPS pin */}
-      <group position={[0.75, -0.85, -0.2]}>
-        <mesh ref={gpsRef}>
-          <coneGeometry args={[0.05, 0.11, 12]} />
-          <meshStandardMaterial color={ROBOT_COLORS.eyeSuccess} emissive={ROBOT_COLORS.eyeSuccess} emissiveIntensity={1} toneMapped={false} />
-        </mesh>
-      </group>
-    </group>
+  return React.createElement(
+    React.Fragment,
+    null,
+    React.createElement(
+      "group",
+      null,
+      React.createElement(
+        "mesh",
+        { ref: ringRef, rotation: [-Math.PI / 2, 0, 0], position: [0, -1.08, 0] },
+        React.createElement("ringGeometry", { args: [0.85, 0.98, 48] }),
+        React.createElement("meshBasicMaterial", {
+          color: ROBOT_COLORS.accent,
+          transparent: true,
+          opacity: 0.28,
+          side: THREE.DoubleSide,
+        })
+      ),
+      React.createElement(Line, {
+        points: routePoints,
+        color: ROBOT_COLORS.accent,
+        lineWidth: 1.4,
+        transparent: true,
+        opacity: 0.5,
+      }),
+      React.createElement(
+        "mesh",
+        { ref: vehicleRef, position: routePoints[0] },
+        React.createElement("boxGeometry", { args: [0.08, 0.05, 0.04] }),
+        React.createElement("meshStandardMaterial", {
+          color: ROBOT_COLORS.accent,
+          emissive: ROBOT_COLORS.accent,
+          emissiveIntensity: 1,
+          toneMapped: false,
+        })
+      ),
+      React.createElement(
+        "group",
+        { position: [0.75, -0.85, -0.2] },
+        React.createElement(
+          "mesh",
+          { ref: gpsRef },
+          React.createElement("coneGeometry", { args: [0.05, 0.11, 12] }),
+          React.createElement("meshStandardMaterial", {
+            color: ROBOT_COLORS.eyeSuccess,
+            emissive: ROBOT_COLORS.eyeSuccess,
+            emissiveIntensity: 1,
+            toneMapped: false,
+          })
+        )
+      )
+    )
   );
 }

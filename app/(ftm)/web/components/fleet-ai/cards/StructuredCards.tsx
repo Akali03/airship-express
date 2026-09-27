@@ -248,7 +248,7 @@ function IncidentCreatedCard({ data }: { data: any }) {
   );
 }
 
-const RENDERERS: Record<string, (props: { data: any }) => React.JSX.Element> = {
+const RENDERERS: Record<string, (props: { data: any }) => React.ReactNode> = {
   fleet_summary: FleetSummaryCard,
   vehicle_list: VehicleListCard,
   vehicle: VehicleCard,

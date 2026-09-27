@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import Robot3D from "./Robot3D";
 import FleetContext from "./FleetContext";
@@ -59,21 +59,23 @@ export default function RobotScene({ state, active }: { state: RobotState; activ
   if (!webglOk) return <RobotFallback state={state} />;
   if (!active) return null; // don't keep the WebGL context alive while closed
 
-  return (
-    <Canvas
-      dpr={[1, 1.6]}
-      camera={{ position: [0, 0.1, 3.1], fov: 32 }}
-      gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
-      frameloop="always"
-      aria-label="Fleet AI 3D robot assistant"
-    >
-      <ambientLight intensity={0.65} />
-      <directionalLight position={[2, 3, 2]} intensity={1.1} castShadow={false} />
-      <directionalLight position={[-2, 1, -2]} intensity={0.35} color="#8ecbff" />
-      <Suspense fallback={null}>
-        <Robot3D state={state} />
-        <FleetContext />
-      </Suspense>
-    </Canvas>
+  return React.createElement(
+    Canvas,
+    {
+      dpr: [1, 1.6],
+      camera: { position: [0, 0.1, 3.1], fov: 32 },
+      gl: { antialias: true, alpha: true, powerPreference: "low-power" },
+      frameloop: "always",
+      "aria-label": "Fleet AI 3D robot assistant",
+    },
+    React.createElement("ambientLight", { intensity: 0.65 }),
+    React.createElement("directionalLight", { position: [2, 3, 2], intensity: 1.1, castShadow: false }),
+    React.createElement("directionalLight", { position: [-2, 1, -2], intensity: 0.35, color: "#8ecbff" }),
+    React.createElement(
+      Suspense,
+      { fallback: null },
+      React.createElement(Robot3D, { state }),
+      React.createElement(FleetContext)
+    )
   );
 }
