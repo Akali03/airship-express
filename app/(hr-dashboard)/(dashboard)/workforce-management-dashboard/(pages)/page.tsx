@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { Users, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { CardShiftSnapshot } from '../components/analytics/CardShiftSnapshot';
 import { Card4RealtimeAttendance } from '../components/analytics/Card4RealtimeAttendance';
-import { ExportPrintDropdown } from '../components/ui/ExportPrintDropdown';
 import { useRealtimeAttendance } from '../hooks/useRealtime';
 import { apiFetch } from '../lib/apiFetch';
 import {
@@ -50,9 +49,6 @@ export default function DashboardPage() {
           <p className="text-xs text-muted mt-1">
             Integrated real-time workforce intelligence for driver retention and attendance tracking.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ExportPrintDropdown />
         </div>
       </div>
 

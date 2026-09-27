@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Save, AlertCircle } from 'lucide-react';
-import { ExportPrintDropdown } from '../../components/ui/ExportPrintDropdown';
 import { getSystemSettings, saveSystemSettings } from '../../actions/settingsActions';
 
 export default function SettingsPage() {
@@ -59,9 +58,6 @@ export default function SettingsPage() {
           <p className="text-xs text-muted mt-1">
             Configure workforce thresholds and backend parameters.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ExportPrintDropdown />
         </div>
       </div>
 
