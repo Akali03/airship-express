@@ -7,6 +7,7 @@ import Custom404 from '../global/Custom404';
 import { WifiOff, RefreshCw, Clock } from 'lucide-react';
 import { user } from '../../lib/services/Class/user';
 import { settingsService } from '../../lib/services/settingsService';
+import { supabase } from '../../lib/services/client/supabase';
 interface SessionGuardProps {
     children: React.ReactNode;
     requiredRole?: string[];
@@ -1023,6 +1024,73 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
         hasShownSessionClearedToastRef.current = false;
         hasShownInvalidToastRef.current = false;
     }, [pathname]);
+
+    // Realtime Supabase listener: Instant device block & session termination
+    useEffect(() => {
+        if (guardState !== 'authorized') return;
+
+        const currentSessionToken = getSessionToken();
+        const currentUser = user.getUser();
+        const currentUserId = currentUser?.userId || '';
+        const currentEmail = (currentUser?.email || '').toLowerCase().trim();
+        const currentUserAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+
+        const channelId = `session_guard_live_${Math.random().toString(36).substring(2, 9)}`;
+        const channel = supabase
+            .channel(channelId)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'blocked_devices' },
+                (payload) => {
+                    if (isBlockedRef.current || isLoggingOutRef.current) return;
+                    const newRecord = payload.new as any;
+                    if (!newRecord || newRecord.status !== 'blocked') return;
+
+                    const recordEmail = (newRecord.email || '').toLowerCase().trim();
+                    const recordUserId = newRecord.user_id || '';
+                    const recordUserAgent = newRecord.user_agent || '';
+
+                    let isMatch = false;
+                    if (recordUserId && currentUserId && recordUserId === currentUserId) {
+                        isMatch = true;
+                    } else if (recordEmail && currentEmail && recordEmail === currentEmail) {
+                        isMatch = true;
+                    } else if (recordUserAgent && currentUserAgent && recordUserAgent === currentUserAgent) {
+                        if (!recordEmail || recordEmail === currentEmail) {
+                            isMatch = true;
+                        }
+                    }
+
+                    if (isMatch) {
+                        console.warn('[SessionGuard Realtime] Device blocked event received:', newRecord);
+                        handleDeviceBlocked(currentUserId, currentUserAgent, newRecord.reason || 'Blocked by administrator');
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'sessions' },
+                (payload) => {
+                    if (isBlockedRef.current || isLoggingOutRef.current) return;
+                    const newRecord = payload.new as any;
+                    const activeToken = getSessionToken();
+                    if (newRecord && activeToken && newRecord.session_token === activeToken) {
+                        if (newRecord.is_active === false) {
+                            console.warn('[SessionGuard Realtime] Session terminated event received:', newRecord);
+                            const reason = newRecord.deactivation_reason === 'device_blocked'
+                                ? 'Your device has been blocked by an administrator.'
+                                : 'Your session has been terminated by an administrator.';
+                            handleInvalidSession(reason, true);
+                        }
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [guardState, getSessionToken, handleDeviceBlocked, handleInvalidSession]);
     // tamper polling
     useEffect(() => {
         const revalidate = () => {

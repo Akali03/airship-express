@@ -451,6 +451,7 @@ export default function PurchaseOrders() {
     const currentUserRole = user.getRole();
     const rawRole = (currentUserRole || '').toLowerCase().trim();
     const isAdmin = ['admin', 'super_admin', 'superadmin'].includes(rawRole);
+    const isExecutive = ['executive'].includes(rawRole);
     const canUpdateStatus = ['admin', 'super_admin', 'superadmin', 'manager', 'executive'].includes(rawRole);
     const userRole = currentUserRole;
     const scrollToTable = useCallback(() => {
@@ -1002,8 +1003,8 @@ export default function PurchaseOrders() {
             toast.error("Permission denied: Only Managers, Executives, and Admins can update purchase order status.");
             return;
         }
-        if (newStatus === 'Confirmed' && !isAdmin) {
-            toast.error("Permission denied: Only Administrators can set the 'Confirmed' status of purchase orders.");
+        if (newStatus === 'Confirmed' && !isAdmin && !isExecutive) {
+            toast.error("Permission denied: Only Administrators and Executives can set the 'Confirmed' status of purchase orders.");
             return;
         }
         if (selectedIds.size === 0) {
@@ -1076,9 +1077,19 @@ export default function PurchaseOrders() {
         const currentStatus = targetOrder?.status || 'Draft';
         if (currentStatus === newStatus)
             return;
-        // admin check
-        if ((newStatus === 'Confirmed' || currentStatus === 'Confirmed') && !isAdmin) {
-            toast.error("Permission denied: Only Administrators can set or modify the 'Confirmed' status of a purchase order.");
+
+        const STATUS_ORDER = ['Draft', 'Sent', 'Confirmed', 'Delivered', 'Completed'];
+        const currentIndex = STATUS_ORDER.indexOf(currentStatus);
+        const targetIndex = STATUS_ORDER.indexOf(newStatus);
+
+        if (currentIndex !== -1 && targetIndex !== -1 && targetIndex < currentIndex) {
+            toast.warning(`Cannot revert order status from "${currentStatus}" back to "${newStatus}".`);
+            return;
+        }
+
+        // admin / exec check: Setting Confirmed status requires Admin or Executive
+        if (newStatus === 'Confirmed' && !isAdmin && !isExecutive) {
+            toast.error("Permission denied: Only Administrators and Executives can set the 'Confirmed' status of a purchase order.");
             return;
         }
         if (!options?.skipConfirm) {
@@ -2369,11 +2380,7 @@ export default function PurchaseOrders() {
                                             </span>
                                         ) : !canUpdateStatus ? (
                                             <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800/40 flex items-center gap-1">
-                                                <i className="fas fa-lock text-[9px]" /> Managers & Admins Only
-                                            </span>
-                                        ) : !isAdmin ? (
-                                            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                                                Confirmed requires Admin
+                                                <i className="fas fa-lock text-[9px]" /> Managers, Execs & Admins Only
                                             </span>
                                         ) : null}
                                     </div>
@@ -2381,9 +2388,19 @@ export default function PurchaseOrders() {
                                     <div className="grid grid-cols-1 gap-2">
                                         {['Draft', 'Sent', 'Confirmed', 'Delivered', 'Cancelled'].map((status) => {
                                             const isCurrent = actionModalOrder.status === status;
-                                            const requiresAdmin = status === 'Confirmed' || actionModalOrder.status === 'Confirmed';
-                                            const isRestricted = !canUpdateStatus || (requiresAdmin && !isAdmin);
-                                            const isDisabled = pendingRowId === actionModalOrder.id || isCurrent || isRestricted || isSendingActionComm;
+                                            const STATUS_ORDER = ['Draft', 'Sent', 'Confirmed', 'Delivered', 'Completed'];
+                                            const currentIndex = STATUS_ORDER.indexOf(actionModalOrder.status);
+                                            const targetIndex = STATUS_ORDER.indexOf(status);
+
+                                            // Backward status disabling:
+                                            // When Confirmed -> Draft and Sent are disabled
+                                            // When Delivered -> Draft, Sent, and Confirmed are disabled
+                                            const isPreviousStatus = currentIndex !== -1 && targetIndex !== -1 && targetIndex < currentIndex;
+                                            
+                                            // Setting Confirmed requires Admin or Executive
+                                            const requiresAdminOrExec = status === 'Confirmed' && !isAdmin && !isExecutive;
+                                            const isRestricted = !canUpdateStatus || requiresAdminOrExec;
+                                            const isDisabled = pendingRowId === actionModalOrder.id || isCurrent || isRestricted || isPreviousStatus || isSendingActionComm;
 
                                             const getDotColor = () => {
                                                 switch (status) {
@@ -2406,14 +2423,16 @@ export default function PurchaseOrders() {
                                                         ? "Status updates are disabled while sending communication"
                                                         : isCurrent
                                                             ? `Current status is ${status}`
-                                                            : isRestricted
-                                                                ? requiresAdmin && !isAdmin
-                                                                    ? "Admin Only: Only Administrators can set or modify Confirmed status"
-                                                                    : "Only Managers, Executives, and Admins can update status"
-                                                                : `Click to change status to ${status}`}
+                                                            : isPreviousStatus
+                                                                ? `Previous stage: Cannot revert from ${actionModalOrder.status} back to ${status}`
+                                                                : isRestricted
+                                                                    ? requiresAdminOrExec
+                                                                        ? "Admin & Executive Only: Only Administrators and Executives can set Confirmed status"
+                                                                        : "Only Managers, Executives, and Admins can update status"
+                                                                    : `Click to change status to ${status}`}
                                                     className={`w-full px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all flex items-center justify-between border ${isCurrent
                                                         ? 'bg-[#e2e8f0]/80 dark:bg-[#101118] border-pink-400/60 dark:border-pink-500/50 shadow-[inset_2px_2px_4px_rgba(166,175,195,0.4)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] cursor-default'
-                                                        : isRestricted
+                                                        : isPreviousStatus || isRestricted
                                                             ? 'bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 border-slate-200/40 dark:border-slate-800/40 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-50 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.15)]'
                                                             : 'bg-[#f0f3f8] dark:bg-[#1a1b26] border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] hover:border-pink-300 dark:hover:border-pink-500/40 hover:text-pink-600 dark:hover:text-pink-400 text-slate-700 dark:text-slate-200 active:scale-[0.98] cursor-pointer'
                                                         }`}
@@ -2427,9 +2446,13 @@ export default function PurchaseOrders() {
                                                         <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40 tracking-wider">
                                                             Current ✓
                                                         </span>
+                                                    ) : isPreviousStatus ? (
+                                                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                                            <i className="fas fa-ban text-[9px]" /> Past Stage
+                                                        </span>
                                                     ) : isRestricted ? (
                                                         <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                                                            <i className="fas fa-lock text-[9px]" /> {requiresAdmin && !isAdmin ? 'Admin' : 'Locked'}
+                                                            <i className="fas fa-lock text-[9px]" /> {requiresAdminOrExec ? 'Admin/Exec' : 'Locked'}
                                                         </span>
                                                     ) : (
                                                         <i className="fas fa-chevron-right text-[10px] opacity-40 group-hover:opacity-100 transition-opacity" />

@@ -85,6 +85,60 @@ export function clearPoRateLimit(poId: string) {
     }
 }
 
+export async function prepareFileForUpload(file: File): Promise<{ base64Data: string; size: number }> {
+    if (file.type.startsWith('image/')) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                const maxDim = 1800;
+                let { width, height } = img;
+                if (width > maxDim || height > maxDim) {
+                    if (width > height) {
+                        height = Math.round((height * maxDim) / width);
+                        width = maxDim;
+                    } else {
+                        width = Math.round((width * maxDim) / height);
+                        height = maxDim;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                    const compressedBase64 = canvas.toDataURL(mime, 0.85);
+                    const estimatedSize = Math.round((compressedBase64.length * 3) / 4);
+                    resolve({
+                        base64Data: compressedBase64,
+                        size: estimatedSize,
+                    });
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => resolve({ base64Data: reader.result as string, size: file.size });
+                reader.readAsDataURL(file);
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(url);
+                const reader = new FileReader();
+                reader.onload = () => resolve({ base64Data: reader.result as string, size: file.size });
+                reader.readAsDataURL(file);
+            };
+            img.src = url;
+        });
+    }
+
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ base64Data: reader.result as string, size: file.size });
+        reader.readAsDataURL(file);
+    });
+}
+
 export interface UploadReceiptModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -312,11 +366,8 @@ export function UploadReceiptModal({
         setVerificationState('verifying');
         onStartVerification?.(po.id, po.po_number);
 
-        // Convert file to Base64
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const base64Data = reader.result as string;
+        try {
+            const { base64Data, size: optimizedSize } = await prepareFileForUpload(file);
 
             if (onQueueVerification) {
                 onQueueVerification({
@@ -344,7 +395,7 @@ export function UploadReceiptModal({
                     fileBase64: base64Data,
                     fileName: file.name,
                     fileType: file.type,
-                    fileSize: file.size,
+                    fileSize: optimizedSize || file.size,
                     userId: user.getUserId() || undefined,
                     userRole: currentUserRole,
                     userName: user.getName() || 'Procurement Officer',
@@ -418,7 +469,13 @@ export function UploadReceiptModal({
             } finally {
                 setIsUploading(false);
             }
-        };
+        } catch (prepErr: any) {
+            onEndVerification?.(po.id);
+            console.error('Error preparing receipt file:', prepErr);
+            toast.error(prepErr?.message || 'Failed to process receipt image');
+            setVerificationState('upload');
+            setIsUploading(false);
+        }
     };
 
     const handleForceInsert = async () => {

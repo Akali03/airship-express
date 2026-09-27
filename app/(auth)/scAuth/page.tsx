@@ -1,5 +1,6 @@
 'use client';
 
+import '../../(supplyChain)/supplyChain.css';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';

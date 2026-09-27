@@ -509,6 +509,38 @@ export function useUserActivity() {
                 if (insertError) throw insertError;
             }
 
+            // Deactivate any matching active sessions so the target user is logged out immediately in realtime
+            await supabase
+                .from('sessions')
+                .update({
+                    is_active: false,
+                    ended_at: new Date().toISOString(),
+                    deactivation_reason: 'device_blocked',
+                })
+                .eq('id', sessionId);
+
+            if (userEmail) {
+                await supabase
+                    .from('sessions')
+                    .update({
+                        is_active: false,
+                        ended_at: new Date().toISOString(),
+                        deactivation_reason: 'device_blocked',
+                    })
+                    .eq('email', userEmail);
+            }
+
+            // Log activity
+            await supabase
+                .from('user_activity')
+                .insert({
+                    user_id: userId,
+                    user_email: userEmail,
+                    action: 'DEVICE_BLOCKED',
+                    description: `Device blocked by administrator: ${userName || 'Unknown'} (${userAgent})`,
+                    created_at: new Date().toISOString(),
+                });
+
             toast.success('Device blocked successfully');
             await fetchAllData();
         } catch (error: any) {
@@ -825,6 +857,16 @@ export function useUserActivity() {
 
                         if (!insertError) blockedCount++;
                     }
+
+                    // Deactivate session in realtime
+                    await supabase
+                        .from('sessions')
+                        .update({
+                            is_active: false,
+                            ended_at: new Date().toISOString(),
+                            deactivation_reason: 'device_blocked',
+                        })
+                        .eq('id', sessionId);
                 }));
             }
 
