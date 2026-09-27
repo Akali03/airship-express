@@ -29,6 +29,7 @@ interface ActiveUsersTabProps {
         executive: { reserved: number; active: number; available: number };
         manager: { reserved: number; active: number; available: number };
         employee: { reserved: number; active: number; available: number };
+        supplier: { reserved: number; active: number; available: number };
         totalActive: number;
         maxCapacity: number;
     };
@@ -55,11 +56,14 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
     const callerRole = (userRole || '').toLowerCase();
 
     // Determine if target session is protected:
-    // Only Executive accounts are protected from remote logout.
-    // Managers, Employees, Operators, and Admins can be logged out.
+    // - Executive accounts are always protected from remote logout.
+    // - Admin accounts can only be logged out by Executive accounts (Admin cannot log out Admin).
+    // - Managers, Employees, Operators, Staff, and Suppliers can be logged out by Admin or Executive.
     const isProtectedRole = (targetRole?: string) => {
-        const target = (targetRole || '').toLowerCase();
-        return target === 'executive';
+        const target = (targetRole || '').toLowerCase().trim();
+        if (target === 'executive') return true;
+        if (target === 'admin' && callerRole !== 'executive') return true;
+        return false;
     };
 
     const selectableUsers = activeUsers.filter(s => !isProtectedRole(s.users?.role));
@@ -69,7 +73,7 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
     const canTerminate = ['admin', 'executive'].includes(callerRole);
 
     const getRoleBadge = (role?: string) => {
-        const r = (role || 'Employee').toLowerCase();
+        const r = (role || 'Employee').toLowerCase().trim();
         if (r === 'executive') {
             return <StatusBadge tone="purple" size="xs">Executive</StatusBadge>;
         }
@@ -82,6 +86,12 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
         if (r === 'operator') {
             return <StatusBadge tone="blue" size="xs">Operator</StatusBadge>;
         }
+        if (r === 'staff') {
+            return <StatusBadge tone="indigo" size="xs">Staff</StatusBadge>;
+        }
+        if (r === 'supplier') {
+            return <StatusBadge tone="emerald" size="xs">Supplier</StatusBadge>;
+        }
         return <StatusBadge tone="neutral" size="xs">Employee</StatusBadge>;
     };
 
@@ -89,7 +99,7 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
         <div className="space-y-4">
             {/* Slot Allocation and Queue Overview Cards */}
             {slotStats && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     {/* Executive / Admin Slot Card */}
                     <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/80 shadow-sm flex items-center justify-between transition-all hover:border-slate-300/80 dark:hover:border-slate-700/80">
                         <div>
@@ -122,7 +132,7 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
                         </div>
                     </div>
 
-                    {/* Employee Slot Card */}
+                    {/* Staff & Operators Slot Card */}
                     <div className={`p-4 rounded-2xl border shadow-sm flex items-center justify-between transition-all ${
                         slotStats.employee.active > slotStats.employee.reserved
                             ? 'bg-amber-50/30 dark:bg-amber-950/20 border-amber-200/70 dark:border-amber-800/40'
@@ -130,7 +140,7 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
                     }`}>
                         <div>
                             <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                Employees
+                                Staff & Operators
                             </div>
                             <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-1 tracking-tight">
                                 {slotStats.employee.active} <span className="text-xs font-normal text-slate-400 dark:text-slate-500">/ {slotStats.employee.reserved} slots</span>
@@ -147,6 +157,34 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
                                 : 'bg-slate-100/70 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-slate-200/50 dark:border-slate-700/40'
                         }`}>
                             {Math.max(0, slotStats.employee.available)} left
+                        </div>
+                    </div>
+
+                    {/* Suppliers Slot Card */}
+                    <div className={`p-4 rounded-2xl border shadow-sm flex items-center justify-between transition-all ${
+                        (slotStats.supplier?.active || 0) > (slotStats.supplier?.reserved || 10)
+                            ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300/70 dark:border-emerald-800/40'
+                            : 'bg-white/80 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800/80 hover:border-slate-300/80 dark:hover:border-slate-700/80'
+                    }`}>
+                        <div>
+                            <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Suppliers
+                            </div>
+                            <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-1 tracking-tight">
+                                {slotStats.supplier?.active || 0} <span className="text-xs font-normal text-slate-400 dark:text-slate-500">/ {slotStats.supplier?.reserved || 10} slots</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                {(slotStats.supplier?.active || 0) > (slotStats.supplier?.reserved || 10)
+                                    ? `Draining to ≤ ${slotStats.supplier?.reserved || 10}`
+                                    : `Vendor Portal • Cap: ${slotStats.supplier?.reserved || 10}`}
+                            </div>
+                        </div>
+                        <div className={`px-2.5 py-1 rounded-xl border text-xs font-medium ${
+                            (slotStats.supplier?.active || 0) > (slotStats.supplier?.reserved || 10)
+                                ? 'bg-amber-50/80 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/40'
+                                : 'bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200/50 dark:border-emerald-800/30'
+                        }`}>
+                            {Math.max(0, slotStats.supplier?.available || 0)} left
                         </div>
                     </div>
 
@@ -181,14 +219,14 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
             )}
 
             {/* Graceful Downscale Alert Banner */}
-            {slotStats && (slotStats.employee.active > slotStats.employee.reserved || slotStats.totalActive > slotStats.maxCapacity) && (
+            {slotStats && (slotStats.employee.active > slotStats.employee.reserved || (slotStats.supplier && slotStats.supplier.active > slotStats.supplier.reserved) || slotStats.totalActive > slotStats.maxCapacity) && (
                 <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 flex items-center justify-between gap-3 text-blue-900 dark:text-blue-200 text-xs shadow-sm">
                     <div className="flex items-center gap-2.5">
                         <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
                         <div>
                             <span className="font-bold">Safe Slot Downscale in Effect: </span>
                             <span>
-                                Configured slot capacity is {slotStats.employee.reserved}, but {slotStats.employee.active} employees are currently active. Active sessions are <strong>never automatically logged out</strong>. The new limit will reflect on new logins and queue admissions once active sessions naturally reduce to ≤ {slotStats.employee.reserved}.
+                                Configured capacity limit is active. Active sessions are <strong>never automatically logged out</strong>. The new limit will reflect on new logins and queue admissions once active sessions naturally reduce to within configured limits.
                             </span>
                         </div>
                     </div>
@@ -422,7 +460,11 @@ export const ActiveUsersTab: React.FC<ActiveUsersTabProps> = ({
                                                 {isProtected ? (
                                                     <span
                                                         className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50 cursor-not-allowed select-none"
-                                                        title="Executive accounts are protected from remote termination"
+                                                        title={
+                                                            userRoleStr?.toLowerCase() === 'admin'
+                                                                ? "Admin accounts can only be logged out by Executive accounts"
+                                                                : "Executive accounts are protected from remote termination"
+                                                        }
                                                     >
                                                         <Shield className="w-3 h-3 text-amber-500" />
                                                         <span>Protected</span>

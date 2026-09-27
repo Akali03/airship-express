@@ -211,7 +211,7 @@ export function AceternityNavbar() {
             <Navbar className="top-0">
                 <NavBody visible={false}>
                 <button onClick={() => router.back()} className="flex items-center gap-2.5 group shrink-0 focus:outline-none">
-                    <Image src="/images/logo-remove-bg.png" alt="Airship" width={40} height={40} priority className="dark:ring-slate-700/60 group-hover:ring-pink-500/30 transition-all duration-300 object-contain dark:brightness-0 dark:invert"/>
+                    <Image src="/images/logo-remove-bg.png" alt="Airship" width={40} height={40} priority className="transition-all duration-300 object-contain dark:brightness-0 dark:invert"/>
                     <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm tracking-tight whitespace-nowrap">
                         Airship <span className="text-pink-500 dark:text-pink-400">Express</span>
                     </span>
@@ -299,7 +299,7 @@ export function AceternityNavbar() {
             <MobileNav visible={false}>
                 <MobileNavHeader>
                     <button onClick={() => router.back()} className="flex items-center gap-2.5 group">
-                        <Image src="/images/logo-remove-bg.png" alt="Airship" width={36} height={36} priority className="h-auto w-auto rounded-lg ring-1 ring-slate-200/60 dark:ring-slate-700/60 group-hover:ring-pink-500/30 transition-all duration-300 object-contain dark:brightness-0 dark:invert"/>
+                        <Image src="/images/logo-remove-bg.png" alt="Airship" width={36} height={36} priority className="h-auto w-auto transition-all duration-300 object-contain dark:brightness-0 dark:invert"/>
                         <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm tracking-tight whitespace-nowrap">
                             Airship <span className="text-pink-500 dark:text-pink-400">Express</span>
                         </span>

@@ -118,10 +118,22 @@ function LayoutContent({ children }: {
         setIsLoading(false);
     }, [router]);
 
-    // start smooth scroll and skip nested areas
+    // start smooth scroll on non-touch desktop and skip nested areas
     useEffect(() => {
         if (isLoading)
             return;
+
+        // Skip Lenis on mobile/touch devices to ensure native hardware-accelerated smooth touch scrolling
+        const isTouchDevice = typeof window !== 'undefined' && (
+            window.innerWidth < 768 ||
+            window.matchMedia('(pointer: coarse)').matches ||
+            'ontouchstart' in window
+        );
+
+        if (isTouchDevice) {
+            return;
+        }
+
         const lenis = new Lenis({
             duration: 1.0,
             smoothWheel: true,
@@ -183,27 +195,27 @@ function LayoutContent({ children }: {
         <NavVisibilityContext.Provider value={{ isNavHidden, setIsNavHidden }}>
             <CustomCursor containerRef={containerRef}/>
             <OfflineDetector autoReconnect={true} reconnectInterval={30000} blurAmount={4}>
-                <div ref={containerRef} className="supplychain-container relative overflow-x-hidden font-rethink bg-[#FCFBF9] dark:bg-ink min-h-screen flex flex-col justify-between">
-                    {/* Ambient decorative background glows & geometric shapes */}
+                <div ref={containerRef} className="supplychain-container relative w-full max-w-full overflow-x-hidden font-rethink bg-[#FCFBF9] dark:bg-ink min-h-screen flex flex-col justify-between">
+                    {/* Ambient decorative background glows & geometric shapes constrained in overflow-hidden */}
                     {!isNavHidden && !isPortal && (
-                        <>
-                            <div aria-hidden className="pointer-events-none fixed -top-32 -left-32 h-72 w-72 rounded-full bg-accent/10 blur-3xl z-0" />
-                            <div aria-hidden className="pointer-events-none fixed -top-20 -right-24 h-72 w-72 rounded-full blur-3xl transition-colors duration-500 bg-ink/5 dark:bg-paper/5 z-0" />
+                        <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+                            <div aria-hidden className="pointer-events-none absolute -top-32 -left-32 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
+                            <div aria-hidden className="pointer-events-none absolute -top-20 -right-24 h-72 w-72 rounded-full blur-3xl transition-colors duration-500 bg-ink/5 dark:bg-paper/5" />
                             <div
                                 aria-hidden
-                                className="pointer-events-none fixed -bottom-10 left-8 hidden h-24 w-24 rounded-full border-[14px] border-accent/60 lg:block z-0"
+                                className="pointer-events-none absolute -bottom-10 left-8 hidden h-24 w-24 rounded-full border-[14px] border-accent/60 lg:block"
                                 style={{ clipPath: "inset(0 0 50% 0)" }}
                             />
-                            <div aria-hidden className="pointer-events-none fixed bottom-24 right-0 hidden h-16 w-16 rounded-tl-full bg-accent/20 lg:block z-0" />
-                            <div aria-hidden className="pointer-events-none fixed bottom-8 right-0 hidden h-16 w-16 rounded-bl-full bg-accent/40 lg:block z-0" />
-                        </>
+                            <div aria-hidden className="pointer-events-none absolute bottom-24 right-0 hidden h-16 w-16 rounded-tl-full bg-accent/20 lg:block" />
+                            <div aria-hidden className="pointer-events-none absolute bottom-8 right-0 hidden h-16 w-16 rounded-bl-full bg-accent/40 lg:block" />
+                        </div>
                     )}
 
                     <AnimatedTopNavbar />
 
                     <FooterWrapper />
 
-                    <main className={`relative z-10 flex-1 flex flex-col ${isNavHidden || isPortal ? 'mt-0 pb-0' : 'mt-18 pb-16'}`}>
+                    <main className={`relative z-10 flex-1 flex flex-col w-full max-w-full min-w-0 overflow-x-hidden ${isNavHidden || isPortal ? 'mt-0 pb-0' : 'mt-16 sm:mt-18 pb-16'}`}>
                         {children}
                     </main>
 

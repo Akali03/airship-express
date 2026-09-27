@@ -237,12 +237,14 @@ export async function POST(request: Request) {
                 executiveSlots: 10,
                 managerSlots: 20,
                 employeeSlots: 70,
+                supplierSlots: 10,
             };
 
             const executiveSlots = slots.executiveSlots ?? 10;
             const managerSlots = slots.managerSlots ?? 20;
             const employeeSlots = slots.employeeSlots ?? 70;
-            const totalCapacity = executiveSlots + managerSlots + employeeSlots;
+            const supplierSlots = slots.supplierSlots ?? 10;
+            const totalCapacity = executiveSlots + managerSlots + employeeSlots + supplierSlots;
 
             // Fetch active sessions via supabaseAdmin
             const { data: activeSessions } = await supabaseAdmin
@@ -271,17 +273,19 @@ export async function POST(request: Request) {
             let activeExecAdmin = 0;
             let activeManager = 0;
             let activeEmployee = 0;
+            let activeSupplier = 0;
 
             activeList.forEach((s) => {
                 const r = userRolesMap[s.user_id] || 'employee';
                 if (r === 'executive' || r === 'admin') activeExecAdmin++;
                 else if (r === 'manager') activeManager++;
+                else if (r === 'supplier') activeSupplier++;
                 else activeEmployee++;
             });
 
             const normEffectiveRole = effectiveRole.toLowerCase();
             let isAdmitted = false;
-            let tierName = 'Employee';
+            let tierName = 'Staff & Operator';
             let tierSlots = employeeSlots;
             let tierActive = activeEmployee;
 
@@ -295,8 +299,13 @@ export async function POST(request: Request) {
                 tierSlots = managerSlots;
                 tierActive = activeManager;
                 isAdmitted = activeManager < managerSlots;
+            } else if (normEffectiveRole === 'supplier') {
+                tierName = 'Supplier';
+                tierSlots = supplierSlots;
+                tierActive = activeSupplier;
+                isAdmitted = activeSupplier < supplierSlots;
             } else {
-                tierName = 'Employee';
+                tierName = 'Staff & Operator';
                 tierSlots = employeeSlots;
                 tierActive = activeEmployee;
                 isAdmitted = activeEmployee < employeeSlots;

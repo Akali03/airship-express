@@ -27,10 +27,10 @@ import {
     CornerDownLeft
 } from "lucide-react";
 import { Supplier } from "../../types";
-import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
-import { user } from "@/app/(supplyChain)/lib/services/Class/user";
+import { supabase } from "../../../../lib/services/client/supabase";
+import { user } from "../../../../lib/services/Class/user";
 import { toast } from "sonner";
-import Portal from "@/app/(supplyChain)/components/client/Portal";
+import Portal from "../../../../components/client/Portal";
 
 interface SupplierMessageModalProps {
     isOpen: boolean;

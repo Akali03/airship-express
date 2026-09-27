@@ -34,6 +34,9 @@ export default function TabsWrapper({ children }: TabsWrapperProps) {
     const handleTabChange = useCallback((tabId: string) => {
         if (tabId === activeTab)
             return;
+        if (typeof document !== 'undefined') {
+            document.body.style.overflow = "";
+        }
         setActiveTab(tabId);
         const params = new URLSearchParams(searchParams.toString());
         params.set('tab', tabId);
@@ -84,7 +87,7 @@ export default function TabsWrapper({ children }: TabsWrapperProps) {
         setActiveTab(initialTab);
     }, [getTabFromUrl]);
     return (<>
-            <div id="tabs" className="sticky top-0 z-20 flex gap-2 p-2 overflow-x-auto no-scrollbar scroll-smooth bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 backdrop-blur-md shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] border-b border-slate-200/60 dark:border-slate-800/80 transition-colors">
+            <div id="tabs" className="sticky top-0 z-20 flex gap-2 p-2 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x max-w-full bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 backdrop-blur-md shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] border-b border-slate-200/60 dark:border-slate-800/80 transition-colors">
                 <NavBtn
                     link="dashboard"
                     data-tab="dashboard"

@@ -362,6 +362,18 @@
     border: 1px solid var(--sc-border-card);
     box-shadow: var(--sc-shadow-card);
     transition: all 0.25s ease;
+    max-width: calc(100% - 2.5rem);
+    box-sizing: border-box;
+  }
+
+  @media (max-width: 768px) {
+    .bgCard {
+      padding: 0.875rem !important;
+      margin: 0.5rem auto !important;
+      border-radius: 1rem !important;
+      max-width: calc(100% - 0.75rem) !important;
+      width: calc(100% - 0.75rem) !important;
+    }
   }
 
   .pagination-container-class {
@@ -992,6 +1004,8 @@
   border-radius: 1rem;
   box-shadow: var(--sc-shadow-card);
   transition: all 0.25s ease;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .brand-gradient {

@@ -477,7 +477,7 @@ export function IncomingTable({
                 onClear={() => setSelectedIds(new Set())}
             />
 
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto bg-white dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800">
+            <div className="overflow-x-auto max-h-none sm:max-h-[600px] overflow-y-visible sm:overflow-y-auto bg-white dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800">
                 {/* select all mobile */}
                 <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200/60 dark:border-slate-800">
                     <label className={`flex items-center gap-2.5 select-none ${selectableParcels.length === 0 ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}>

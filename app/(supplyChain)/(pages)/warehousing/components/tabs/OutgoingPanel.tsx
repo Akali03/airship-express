@@ -1263,7 +1263,7 @@ export default function OutgoingPanel({ isVisible = true }) {
             </div>
 
             <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] overflow-hidden text-slate-900 dark:text-slate-100">
-                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                <div className="overflow-x-auto max-h-none sm:max-h-[600px] overflow-y-visible sm:overflow-y-auto">
                     <table className="table-pro w-full text-left border-collapse">
                         <thead>
                             <tr>

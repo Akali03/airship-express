@@ -64,7 +64,7 @@ export const Navbar = ({ children, className }: NavbarProps) => {
   return (
     <motion.div
       className={cn(
-        "fixed inset-x-0 top-0 z-40 w-full px-4 sm:px-6 transition-all duration-300",
+        "fixed inset-x-0 top-0 z-40 w-full max-w-full px-2 sm:px-6 transition-all duration-300 box-border",
         className,
       )}
     >
@@ -157,7 +157,7 @@ export const MobileNav = ({ children, className, visible }: MobileNavProps) => {
         damping: 32,
       }}
       className={cn(
-        "relative z-10 mx-auto flex w-full flex-col items-center justify-between bg-[#f0f3f8]/95 border border-white/80 px-4 py-2.5 lg:hidden dark:bg-[#191a24]/95 dark:border-[#2c2d3c]",
+        "relative z-10 mx-auto flex w-full max-w-full box-border flex-col items-center justify-between bg-[#f0f3f8]/95 border border-white/80 px-3.5 sm:px-4 py-2.5 lg:hidden dark:bg-[#191a24]/95 dark:border-[#2c2d3c]",
         "shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)]",
         className,
       )}

@@ -47,7 +47,8 @@ const DEFAULT_PAGE_PERMISSIONS: Record<string, string[]> = {
 const DEFAULT_CONCURRENCY_SLOTS = {
     executiveSlots: 10, // Reserved exclusively for Executives & Admins
     managerSlots: 20,   // Reserved for Managers + Executives/Admins
-    employeeSlots: 70,  // For Employees & Operators + Managers/Executives/Admins
+    employeeSlots: 70,  // For Staff & Operators (max: 650)
+    supplierSlots: 10,  // For Suppliers (max: 50)
 };
 
 export async function GET() {
@@ -165,18 +166,21 @@ export async function POST(request: Request) {
         let activeExecAdmin = 0;
         let activeManager = 0;
         let activeEmployee = 0;
+        let activeSupplier = 0;
 
         sessionsList.forEach((s) => {
             const r = userRolesMap[s.user_id] || 'employee';
             if (r === 'executive' || r === 'admin') activeExecAdmin++;
             else if (r === 'manager') activeManager++;
+            else if (r === 'supplier') activeSupplier++;
             else activeEmployee++;
         });
 
         const sanitizedSlots = {
-            executiveSlots: Math.max(activeExecAdmin, Math.max(1, concurrencySlots?.executiveSlots ?? 10)),
-            managerSlots: Math.max(activeManager, Math.max(1, concurrencySlots?.managerSlots ?? 20)),
-            employeeSlots: Math.max(activeEmployee, Math.max(1, concurrencySlots?.employeeSlots ?? 70)),
+            executiveSlots: Math.max(activeExecAdmin, Math.max(1, Math.min(500, concurrencySlots?.executiveSlots ?? 10))),
+            managerSlots: Math.max(activeManager, Math.max(1, Math.min(500, concurrencySlots?.managerSlots ?? 20))),
+            employeeSlots: Math.max(activeEmployee, Math.max(1, Math.min(650, concurrencySlots?.employeeSlots ?? 70))),
+            supplierSlots: Math.max(activeSupplier, Math.max(1, Math.min(50, concurrencySlots?.supplierSlots ?? 10))),
         };
 
         const payload = {

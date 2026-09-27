@@ -109,12 +109,23 @@ export async function POST(request: Request) {
 
         // 3. ENFORCE HIERARCHY RULE:
         // - Executive accounts are protected from remote logout.
-        // - Admins and Executives are authorized to log out Managers, Employees, Operators, and Admins.
+        // - Admin accounts can only be logged out by Executive accounts (Admin cannot log out Admin).
+        // - Executives can log out Admins, Managers, Employees, Operators, Staff, and Suppliers.
         if (targetRole === 'executive') {
             return NextResponse.json(
                 {
                     success: false,
                     message: `Cannot terminate session: ${targetName} is an Executive. Executive accounts are protected from remote logout.`
+                },
+                { status: 403 }
+            );
+        }
+
+        if (targetRole === 'admin' && callerRole !== 'executive') {
+            return NextResponse.json(
+                {
+                    success: false,
+                    message: `Cannot terminate session: Admin accounts can only be logged out by Executive accounts.`
                 },
                 { status: 403 }
             );

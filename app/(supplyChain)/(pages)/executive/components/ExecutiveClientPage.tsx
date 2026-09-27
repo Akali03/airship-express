@@ -31,7 +31,7 @@ export default function ExecutiveClientPage() {
             {/* Header Section */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#14151c] border border-slate-200/80 dark:border-slate-800 p-1 flex items-center justify-center shrink-0 shadow-xs">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0">
                         <img
                             src="/images/logo-remove-bg.png"
                             alt="Airship Express"

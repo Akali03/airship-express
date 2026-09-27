@@ -17,10 +17,10 @@ import {
     Sparkles,
     ShieldCheck
 } from "lucide-react";
-import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
-import { user } from "@/app/(supplyChain)/lib/services/Class/user";
+import { supabase } from "../../lib/services/client/supabase";
+import { user } from "../../lib/services/Class/user";
 import { toast } from "sonner";
-import Portal from "@/app/(supplyChain)/components/client/Portal";
+import Portal from "../client/Portal";
 
 interface SupplierMessengerDrawerProps {
     isOpen: boolean;

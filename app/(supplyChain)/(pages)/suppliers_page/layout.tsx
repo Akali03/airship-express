@@ -18,15 +18,16 @@ import {
     ChevronRight,
     Sparkles,
     ExternalLink,
-    KeyRound
+    KeyRound,
+    Loader2,
 } from "lucide-react";
-import { user } from "@/app/(supplyChain)/lib/services/Class/user";
-import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
+import { user } from "../../lib/services/Class/user";
+import { supabase } from "../../lib/services/client/supabase";
 import { toast } from "sonner";
-import { SessionGuard } from "@/app/(supplyChain)/components/server/SessionGuard";
+import { SessionGuard } from "../../components/server/SessionGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { ChangePasswordModal } from "@/app/(supplyChain)/components/modals/ChangePasswordModal";
-import { cn } from "@/app/(supplyChain)/lib/utils";
+import { ChangePasswordModal } from "../../components/modals/ChangePasswordModal";
+import { cn } from "../../lib/utils";
 
 export default function SupplierPortalLayout({
     children,
@@ -40,6 +41,7 @@ export default function SupplierPortalLayout({
     const [unreadCount, setUnreadCount] = useState<number>(0);
     const [isLoading, setIsLoading] = useState(true);
     const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const currentUserEmail = user.getEmail();
     const currentUserName = user.getName() || "Authorized Supplier";
@@ -121,6 +123,8 @@ export default function SupplierPortalLayout({
     }, [currentUserEmail]);
 
     const handleLogout = async () => {
+        if (isLoggingOut) return;
+        setIsLoggingOut(true);
         try {
             const sessionToken = user.getSessionToken();
             if (sessionToken) {
@@ -249,12 +253,20 @@ export default function SupplierPortalLayout({
                                 </button>
 
                                 <button
+                                    type="button"
                                     onClick={handleLogout}
-                                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-full transition-all duration-200 border cursor-pointer active:scale-95 text-rose-600 dark:text-rose-400 bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-900/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 shadow-xs"
+                                    disabled={isLoggingOut}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-full transition-all duration-200 border cursor-pointer active:scale-95 text-rose-600 dark:text-rose-400 bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-900/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
                                     title="Sign out of Supplier Portal"
                                 >
-                                    <LogOut className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Sign Out</span>
+                                    {isLoggingOut ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <LogOut className="w-3.5 h-3.5" />
+                                    )}
+                                    <span className="hidden sm:inline">
+                                        {isLoggingOut ? "Signing Out..." : "Sign Out"}
+                                    </span>
                                 </button>
                             </div>
                         </div>

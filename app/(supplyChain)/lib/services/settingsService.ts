@@ -12,9 +12,10 @@ export interface InactivitySettings {
 }
 
 export interface ConcurrencySlotSettings {
-    executiveSlots: number; // Reserved exclusively for Executives & Admins (default: 10)
-    managerSlots: number;   // Reserved for Managers + Executive/Admin (default: 20)
-    employeeSlots: number;  // For Staff/Employees & Operators + Manager/Executive/Admin (default: 70)
+    executiveSlots: number; // Reserved exclusively for Executives & Admins (default: 10, max: 500)
+    managerSlots: number;   // Reserved for Managers + Executive/Admin (default: 20, max: 500)
+    employeeSlots: number;  // For Staff & Operators (default: 70, max: 650)
+    supplierSlots: number;  // For Suppliers (default: 10, max: 50)
 }
 
 export interface PagePermission {
@@ -38,9 +39,10 @@ export const DEFAULT_CONCURRENCY_SLOTS: ConcurrencySlotSettings = {
     executiveSlots: 10,
     managerSlots: 20,
     employeeSlots: 70,
+    supplierSlots: 10,
 };
 
-export const ALL_ROLES: UserRole[] = ['Executive', 'Admin', 'Manager', 'Operator', 'Staff', 'Employee', 'Supplier'];
+export const ALL_ROLES: UserRole[] = ['Executive', 'Admin', 'Manager', 'Operator', 'Staff', 'Employee'];
 
 export const DEFAULT_ROLE_REDIRECTS: Record<UserRole, string> = {
     'Executive': '/executive',
@@ -392,7 +394,7 @@ class SettingsService {
      */
     public getTotalSlots(): number {
         const slots = this.getConcurrencySlots();
-        return (slots.executiveSlots || 10) + (slots.managerSlots || 20) + (slots.employeeSlots || 70);
+        return (slots.executiveSlots || 10) + (slots.managerSlots || 20) + (slots.employeeSlots || 70) + (slots.supplierSlots || 10);
     }
 
     /**

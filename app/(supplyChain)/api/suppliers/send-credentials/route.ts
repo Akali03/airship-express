@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendSupplyChainEmail } from "@/app/(supplyChain)/lib/email/mailer";
+import { sendSupplyChainEmail } from "../../../lib/email/mailer";
 
 export async function POST(request: Request) {
     try {

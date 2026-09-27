@@ -27,15 +27,15 @@ import {
     FileSpreadsheet
 } from "lucide-react";
 import Link from "next/link";
-import { user } from "@/app/(supplyChain)/lib/services/Class/user";
-import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
-import { useDebounce } from "@/app/(supplyChain)/hooks/useDebounce";
-import { Pagination } from "@/app/(supplyChain)/components/global/pagination";
-import { StatusBadge, getPOStatusTone } from "@/app/(supplyChain)/components/ui/StatusBadge";
-import { CardsSkeleton, TableSkeleton } from "@/app/(supplyChain)/components/ui/SkeletonLoader";
-import Cards from "@/app/(supplyChain)/components/global/Cards";
+import { user } from "../../../lib/services/Class/user";
+import { supabase } from "../../../lib/services/client/supabase";
+import { useDebounce } from "../../../hooks/useDebounce";
+import { Pagination } from "../../../components/global/pagination";
+import { StatusBadge, getPOStatusTone } from "../../../components/ui/StatusBadge";
+import { CardsSkeleton, TableSkeleton } from "../../../components/ui/SkeletonLoader";
+import Cards from "../../../components/global/Cards";
 import { toast } from "sonner";
-import Portal from "@/app/(supplyChain)/components/client/Portal";
+import Portal from "../../../components/client/Portal";
 
 interface PurchaseOrderItem {
     item_name?: string;

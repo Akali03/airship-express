@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useConfirm } from '../../../components/ui/ConfirmModal';
 import { user } from '../../../lib/services/Class/user';
@@ -13,16 +13,25 @@ const ITEMS_PER_PAGE = 30;
 export function useUserActivity() {
     const { confirm } = useConfirm();
 
+    // raw data from supabase
     const [sessions, setSessions] = useState<Session[]>([]);
-    const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
     const [activeUsers, setActiveUsers] = useState<Session[]>([]);
-    const [filteredActiveUsers, setFilteredActiveUsers] = useState<Session[]>([]);
     const [blockedDevices, setBlockedDevices] = useState<BlockedDevice[]>([]);
     const [activities, setActivities] = useState<UserActivity[]>([]);
-    const [filteredActivities, setFilteredActivities] = useState<UserActivity[]>([]);
     const [appeals, setAppeals] = useState<Appeal[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
 
+    // status states
+    const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isRealtimeActive, setIsRealtimeActive] = useState(false);
+
+    // search & filter state
+    const [sessionSearchTerm, setSessionSearchTerm] = useState('');
+    const [activeUserSearchTerm, setActiveUserSearchTerm] = useState('');
+    const [activitySearchTerm, setActivitySearchTerm] = useState('');
+    const [activityActionFilter, setActivityActionFilter] = useState<string>('all');
+
+    // selections
     const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
     const [selectedActiveUsers, setSelectedActiveUsers] = useState<Set<string>>(new Set());
     const [selectedBlockedDevices, setSelectedBlockedDevices] = useState<Set<string>>(new Set());
@@ -39,12 +48,6 @@ export function useUserActivity() {
     const [appealPage, setAppealPage] = useState(1);
     const [activityPage, setActivityPage] = useState(1);
 
-    const [sessionTotalPages, setSessionTotalPages] = useState(1);
-    const [activeUserTotalPages, setActiveUserTotalPages] = useState(1);
-    const [blockedTotalPages, setBlockedTotalPages] = useState(1);
-    const [appealTotalPages, setAppealTotalPages] = useState(1);
-    const [activityTotalPages, setActivityTotalPages] = useState(1);
-
     // slot & queue stats
     const [queuedUsersCount, setQueuedUsersCount] = useState<number>(0);
     const [queuedRolesCount, setQueuedRolesCount] = useState<Record<string, number>>({});
@@ -52,16 +55,33 @@ export function useUserActivity() {
         executive: { reserved: number; active: number; available: number };
         manager: { reserved: number; active: number; available: number };
         employee: { reserved: number; active: number; available: number };
+        supplier: { reserved: number; active: number; available: number };
         totalActive: number;
         maxCapacity: number;
     }>({
         executive: { reserved: 10, active: 0, available: 10 },
         manager: { reserved: 20, active: 0, available: 20 },
         employee: { reserved: 70, active: 0, available: 70 },
+        supplier: { reserved: 10, active: 0, available: 10 },
         totalActive: 0,
-        maxCapacity: 100,
+        maxCapacity: 110,
     });
 
+    const isMounted = useRef(true);
+    const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+
+    const debouncedFetch = useCallback((key: string, callback: () => void, delay = 300) => {
+        if (debounceTimers.current[key]) {
+            clearTimeout(debounceTimers.current[key]);
+        }
+        debounceTimers.current[key] = setTimeout(() => {
+            if (isMounted.current) {
+                callback();
+            }
+        }, delay);
+    }, []);
+
+    // 1. Fetch Sessions (Sessions Tab)
     const fetchSessions = useCallback(async (isSilent = false) => {
         try {
             const [blockedResult, sessionsResult] = await Promise.all([
@@ -110,7 +130,7 @@ export function useUserActivity() {
                 blockedMap.set(key, d.id);
             });
 
-            const sessionsWithBlockStatus = sessionsData.map(session => {
+            const sessionsWithBlockStatus: Session[] = sessionsData.map(session => {
                 const sessionEmail = session.email || session.users?.email || '';
                 const key = `${session.user_agent}_${session.ip_address || 'unknown'}_${sessionEmail}`;
                 const blockedDeviceId = blockedMap.get(key);
@@ -126,15 +146,16 @@ export function useUserActivity() {
                 };
             });
 
-            setSessions(sessionsWithBlockStatus);
-            setFilteredSessions(sessionsWithBlockStatus);
-            setSessionTotalPages(Math.max(1, Math.ceil(sessionsWithBlockStatus.length / ITEMS_PER_PAGE)));
+            if (isMounted.current) {
+                setSessions(sessionsWithBlockStatus);
+            }
         } catch (error) {
             console.error('Error fetching sessions:', error);
             if (!isSilent) toast.error('Failed to fetch sessions');
         }
     }, []);
 
+    // 2. Fetch Active Users & Queue Stats (Active Users Tab)
     const fetchActiveUsers = useCallback(async (isSilent = false) => {
         try {
             const [activeRes, queueStatusRes] = await Promise.all([
@@ -150,29 +171,31 @@ export function useUserActivity() {
                     `)
                     .eq('is_active', true)
                     .order('created_at', { ascending: false }),
-                fetch('/api/supplyChain/queue-status').then(r => r.ok ? r.json() : null).catch(() => null)
+                fetch('/api/supplyChain/queue-status').then(r => (r.ok ? r.json() : null)).catch(() => null)
             ]);
 
             if (activeRes.error) throw activeRes.error;
             const activeData = activeRes.data || [];
-            setActiveUsers(activeData);
-            setFilteredActiveUsers(activeData);
-            setActiveUserTotalPages(Math.max(1, Math.ceil(activeData.length / ITEMS_PER_PAGE)));
 
-            if (queueStatusRes) {
-                setQueuedUsersCount(queueStatusRes.queuedCount || 0);
-                setQueuedRolesCount(queueStatusRes.queuedRolesCount || {});
-                if (queueStatusRes.slots) {
-                    setSlotStats({
-                        executive: queueStatusRes.slots.executive,
-                        manager: queueStatusRes.slots.manager,
-                        employee: queueStatusRes.slots.employee,
-                        totalActive: queueStatusRes.totalActive || activeData.length,
-                        maxCapacity: queueStatusRes.maxCapacity || 100,
-                    });
+            if (isMounted.current) {
+                setActiveUsers(activeData);
+
+                if (queueStatusRes) {
+                    setQueuedUsersCount(queueStatusRes.queuedCount || 0);
+                    setQueuedRolesCount(queueStatusRes.queuedRolesCount || {});
+                    if (queueStatusRes.slots) {
+                        setSlotStats({
+                            executive: queueStatusRes.slots.executive,
+                            manager: queueStatusRes.slots.manager,
+                            employee: queueStatusRes.slots.employee,
+                            supplier: queueStatusRes.slots.supplier || { reserved: 10, active: 0, available: 10 },
+                            totalActive: queueStatusRes.totalActive || activeData.length,
+                            maxCapacity: queueStatusRes.maxCapacity || 110,
+                        });
+                    }
+                } else {
+                    setQueuedRolesCount({});
                 }
-            } else {
-                setQueuedRolesCount({});
             }
         } catch (error) {
             console.error('Error fetching active users:', error);
@@ -180,6 +203,7 @@ export function useUserActivity() {
         }
     }, []);
 
+    // 3. Fetch Blocked Devices (Blocked Tab)
     const fetchBlockedDevices = useCallback(async (isSilent = false) => {
         try {
             const { data: devices, error: devicesError } = await supabase
@@ -206,14 +230,16 @@ export function useUserActivity() {
                 })
             );
 
-            setBlockedDevices(devicesWithCount);
-            setBlockedTotalPages(Math.max(1, Math.ceil(devicesWithCount.length / ITEMS_PER_PAGE)));
+            if (isMounted.current) {
+                setBlockedDevices(devicesWithCount);
+            }
         } catch (error) {
             console.error('Error fetching blocked devices:', error);
             if (!isSilent) toast.error('Failed to fetch blocked devices');
         }
     }, []);
 
+    // 4. Fetch Activity Logs (Activity Log Tab)
     const fetchActivities = useCallback(async (isSilent = false) => {
         try {
             const { data, error } = await supabase
@@ -223,15 +249,16 @@ export function useUserActivity() {
                 .limit(500);
 
             if (error) throw error;
-            setActivities(data || []);
-            setFilteredActivities(data || []);
-            setActivityTotalPages(Math.max(1, Math.ceil((data || []).length / ITEMS_PER_PAGE)));
+            if (isMounted.current) {
+                setActivities(data || []);
+            }
         } catch (error) {
             console.error('Error fetching activities:', error);
             if (!isSilent) toast.error('Failed to fetch activities');
         }
     }, []);
 
+    // 5. Fetch Appeals (Appeals Tab)
     const fetchAppeals = useCallback(async (isSilent = false) => {
         try {
             const { data, error } = await supabase
@@ -240,115 +267,222 @@ export function useUserActivity() {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setAppeals(data || []);
-            setAppealTotalPages(Math.max(1, Math.ceil((data || []).length / ITEMS_PER_PAGE)));
+            if (isMounted.current) {
+                setAppeals(data || []);
+            }
         } catch (error) {
             console.error('Error fetching appeals:', error);
             if (!isSilent) toast.error('Failed to fetch appeals');
         }
     }, []);
 
-    const fetchAllData = useCallback(async () => {
-        setIsLoading(true);
+    // Fetch all tabs data
+    const fetchAllData = useCallback(async (isManual = false) => {
+        if (isManual) {
+            setIsRefreshing(true);
+        } else {
+            setIsLoading(true);
+        }
+
         try {
             await Promise.all([
-                fetchSessions(),
-                fetchActiveUsers(),
-                fetchBlockedDevices(),
-                fetchActivities(),
-                fetchAppeals()
+                fetchSessions(true),
+                fetchActiveUsers(true),
+                fetchBlockedDevices(true),
+                fetchActivities(true),
+                fetchAppeals(true)
             ]);
         } catch (error) {
-            console.error('Error fetching data:', error);
+            console.error('Error fetching all activity data:', error);
+            if (isManual) toast.error('Failed to refresh data');
         } finally {
-            setIsLoading(false);
+            if (isMounted.current) {
+                setIsLoading(false);
+                setIsRefreshing(false);
+            }
         }
     }, [fetchSessions, fetchActiveUsers, fetchBlockedDevices, fetchActivities, fetchAppeals]);
 
+    // Realtime postgres subscriptions across all tabs
     useEffect(() => {
+        isMounted.current = true;
         const role = user.getRole();
         const userData = user.getUser();
         setUserRole(role);
         setCurrentUserId(userData?.email || '');
-        fetchAllData();
+        fetchAllData(false);
 
-        // optimized realtime postgres subscriptions with debouncing
-        let timer: NodeJS.Timeout | null = null;
-        const debouncedFetch = (callback: () => void) => {
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(callback, 300);
-        };
-
-        const channelId = `user_activity_live_${Math.random().toString(36).substring(2, 9)}`;
+        const channelId = `user_activity_all_tabs_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         const channel = supabase
             .channel(channelId)
+            // 1. Activity Log tab realtime updates
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'user_activity' },
                 () => {
-                    debouncedFetch(() => fetchActivities(true));
+                    debouncedFetch('activity', () => fetchActivities(true));
                 }
             )
+            // 2. Active Users & Sessions tabs realtime updates
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'sessions' },
                 () => {
-                    debouncedFetch(() => {
+                    debouncedFetch('sessions', () => {
                         fetchSessions(true);
                         fetchActiveUsers(true);
                     });
                 }
             )
+            // 3. Blocked Devices, Sessions, Appeals & Active Users tabs realtime updates
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'blocked_devices' },
                 () => {
-                    debouncedFetch(() => {
+                    debouncedFetch('blocked', () => {
                         fetchBlockedDevices(true);
                         fetchSessions(true);
                         fetchActiveUsers(true);
                     });
                 }
             )
+            // 4. Appeals tab realtime updates
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'appeals' },
                 () => {
-                    debouncedFetch(() => fetchAppeals(true));
+                    debouncedFetch('appeals', () => fetchAppeals(true));
                 }
             )
+            // 5. Active Users tab: slot allocations & capacity realtime updates
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'sc_system_settings' },
                 () => {
-                    debouncedFetch(() => fetchActiveUsers(true));
+                    debouncedFetch('settings', () => fetchActiveUsers(true));
                 }
             )
-            .subscribe();
+            // 6. User accounts & role changes across all tabs
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'users' },
+                () => {
+                    debouncedFetch('users', () => {
+                        fetchSessions(true);
+                        fetchActiveUsers(true);
+                        fetchActivities(true);
+                    });
+                }
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED' && isMounted.current) {
+                    setIsRealtimeActive(true);
+                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                    if (isMounted.current) {
+                        setIsRealtimeActive(false);
+                    }
+                }
+            });
 
         // live background polling interval: keeps active sessions, slots, and queued users updated in realtime
         const liveQueueInterval = setInterval(() => {
-            fetchActiveUsers(true);
+            if (isMounted.current) {
+                fetchActiveUsers(true);
+            }
         }, 4000);
 
-        // optimized interval: updates active countdowns dynamically when any strike exists
+        // interval: updates active countdowns dynamically when any strike exists
         const pollInterval = setInterval(() => {
-            setSessions(prev => {
-                const hasStrikes = prev.some(s => (s.strikes || 0) > 0 || s.is_locked_out);
-                if (hasStrikes) {
-                    fetchSessions(true);
-                }
-                return prev;
-            });
+            if (isMounted.current) {
+                setSessions(prev => {
+                    const hasStrikes = prev.some(s => (s.strikes || 0) > 0 || s.is_locked_out);
+                    if (hasStrikes) {
+                        fetchSessions(true);
+                    }
+                    return prev;
+                });
+            }
         }, 10000);
 
         return () => {
-            if (timer) clearTimeout(timer);
+            isMounted.current = false;
+            Object.values(debounceTimers.current).forEach(t => clearTimeout(t));
             clearInterval(liveQueueInterval);
             clearInterval(pollInterval);
             supabase.removeChannel(channel);
         };
-    }, [fetchAllData, fetchActivities, fetchSessions, fetchActiveUsers, fetchBlockedDevices, fetchAppeals]);
+    }, [fetchAllData, debouncedFetch, fetchActivities, fetchSessions, fetchActiveUsers, fetchBlockedDevices, fetchAppeals]);
+
+    // Reactive filtering for all tabs that preserves active user searches upon realtime updates
+    const filteredSessions = useMemo(() => {
+        if (!sessionSearchTerm.trim()) return sessions;
+        const term = sessionSearchTerm.toLowerCase();
+        return sessions.filter(session =>
+            session.user_agent?.toLowerCase().includes(term) ||
+            session.ip_address?.toLowerCase().includes(term) ||
+            session.email?.toLowerCase().includes(term) ||
+            session.hr_employee_name?.toLowerCase().includes(term) ||
+            session.users?.display_name?.toLowerCase().includes(term)
+        );
+    }, [sessions, sessionSearchTerm]);
+
+    const filteredActiveUsers = useMemo(() => {
+        if (!activeUserSearchTerm.trim()) return activeUsers;
+        const term = activeUserSearchTerm.toLowerCase();
+        return activeUsers.filter(session =>
+            session.user_agent?.toLowerCase().includes(term) ||
+            session.ip_address?.toLowerCase().includes(term) ||
+            session.email?.toLowerCase().includes(term) ||
+            session.hr_employee_name?.toLowerCase().includes(term) ||
+            session.users?.display_name?.toLowerCase().includes(term) ||
+            session.users?.role?.toLowerCase().includes(term)
+        );
+    }, [activeUsers, activeUserSearchTerm]);
+
+    const filteredActivities = useMemo(() => {
+        let list = activities;
+        if (activitySearchTerm.trim()) {
+            const term = activitySearchTerm.toLowerCase();
+            list = list.filter(activity =>
+                activity.action?.toLowerCase().includes(term) ||
+                activity.module?.toLowerCase().includes(term) ||
+                activity.description?.toLowerCase().includes(term) ||
+                activity.ip_address?.toLowerCase().includes(term) ||
+                activity.users?.display_name?.toLowerCase().includes(term) ||
+                activity.users?.email?.toLowerCase().includes(term)
+            );
+        }
+
+        if (activityActionFilter !== 'all') {
+            list = list.filter(activity => activity.action === activityActionFilter);
+        }
+
+        return list;
+    }, [activities, activitySearchTerm, activityActionFilter]);
+
+    // Total pages calculations
+    const sessionTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE)), [filteredSessions]);
+    const activeUserTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredActiveUsers.length / ITEMS_PER_PAGE)), [filteredActiveUsers]);
+    const blockedTotalPages = useMemo(() => Math.max(1, Math.ceil(blockedDevices.length / ITEMS_PER_PAGE)), [blockedDevices]);
+    const appealTotalPages = useMemo(() => Math.max(1, Math.ceil(appeals.length / ITEMS_PER_PAGE)), [appeals]);
+    const activityTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredActivities.length / ITEMS_PER_PAGE)), [filteredActivities]);
+
+    // Compatibility filter helpers for parent wrapper
+    const filterSessions = useCallback((term: string) => {
+        setSessionSearchTerm(term);
+        setSessionPage(1);
+    }, []);
+
+    const filterActiveUsers = useCallback((term: string) => {
+        setActiveUserSearchTerm(term);
+        setActiveUserPage(1);
+    }, []);
+
+    const filterActivities = useCallback((term: string, filter: string) => {
+        setActivitySearchTerm(term);
+        setActivityActionFilter(filter);
+        setActivityPage(1);
+    }, []);
 
     const isTargetUserAdmin = async (userId: string): Promise<boolean> => {
         try {
@@ -364,72 +498,7 @@ export function useUserActivity() {
         }
     };
 
-    // filter helpers
-    const filterSessions = useCallback((term: string) => {
-        if (!term.trim()) {
-            setFilteredSessions(sessions);
-            setSessionTotalPages(Math.max(1, Math.ceil(sessions.length / ITEMS_PER_PAGE)));
-            return;
-        }
-
-        const filtered = sessions.filter(session =>
-            session.user_agent?.toLowerCase().includes(term.toLowerCase()) ||
-            session.ip_address?.toLowerCase().includes(term.toLowerCase()) ||
-            session.email?.toLowerCase().includes(term.toLowerCase()) ||
-            session.hr_employee_name?.toLowerCase().includes(term.toLowerCase()) ||
-            session.users?.display_name?.toLowerCase().includes(term.toLowerCase())
-        );
-
-        setFilteredSessions(filtered);
-        setSessionTotalPages(Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE)));
-        setSessionPage(1);
-    }, [sessions]);
-
-    const filterActiveUsers = useCallback((term: string) => {
-        if (!term.trim()) {
-            setFilteredActiveUsers(activeUsers);
-            setActiveUserTotalPages(Math.max(1, Math.ceil(activeUsers.length / ITEMS_PER_PAGE)));
-            return;
-        }
-
-        const filtered = activeUsers.filter(session =>
-            session.user_agent?.toLowerCase().includes(term.toLowerCase()) ||
-            session.ip_address?.toLowerCase().includes(term.toLowerCase()) ||
-            session.email?.toLowerCase().includes(term.toLowerCase()) ||
-            session.hr_employee_name?.toLowerCase().includes(term.toLowerCase()) ||
-            session.users?.display_name?.toLowerCase().includes(term.toLowerCase()) ||
-            session.users?.role?.toLowerCase().includes(term.toLowerCase())
-        );
-
-        setFilteredActiveUsers(filtered);
-        setActiveUserTotalPages(Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE)));
-        setActiveUserPage(1);
-    }, [activeUsers]);
-
-    const filterActivities = useCallback((term: string, filter: string) => {
-        let filtered = activities;
-
-        if (term.trim()) {
-            filtered = filtered.filter(activity =>
-                activity.action?.toLowerCase().includes(term.toLowerCase()) ||
-                activity.module?.toLowerCase().includes(term.toLowerCase()) ||
-                activity.description?.toLowerCase().includes(term.toLowerCase()) ||
-                activity.ip_address?.toLowerCase().includes(term.toLowerCase()) ||
-                activity.users?.display_name?.toLowerCase().includes(term.toLowerCase()) ||
-                activity.users?.email?.toLowerCase().includes(term.toLowerCase())
-            );
-        }
-
-        if (filter !== 'all') {
-            filtered = filtered.filter(activity => activity.action === filter);
-        }
-
-        setFilteredActivities(filtered);
-        setActivityTotalPages(Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE)));
-        setActivityPage(1);
-    }, [activities]);
-
-    // actions
+    // Actions
     const handleBlockDevice = async (sessionId: string, userAgent: string, ipAddress?: string, userName?: string, email?: string) => {
         const session = sessions.find(s => s.id === sessionId);
         const sessionRole = session?.users?.role;
@@ -472,7 +541,7 @@ export function useUserActivity() {
             if (existingDevice) {
                 if (existingDevice.status === 'blocked') {
                     toast.warning('This device is already blocked');
-                    await fetchSessions();
+                    await fetchSessions(true);
                     return;
                 } else if (existingDevice.status === 'unblocked') {
                     const { error: updateError } = await supabase
@@ -542,7 +611,7 @@ export function useUserActivity() {
                 });
 
             toast.success('Device blocked successfully');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error: any) {
             console.error('Error blocking device:', error);
             toast.error(`Failed to block device: ${error?.message || 'Unknown error'}`);
@@ -558,7 +627,7 @@ export function useUserActivity() {
             });
             if (res.ok) {
                 toast.success('Moderation strikes reset successfully');
-                await fetchSessions();
+                await fetchSessions(true);
             }
         } catch (e) {
             toast.error('Failed to reset strikes');
@@ -588,7 +657,7 @@ export function useUserActivity() {
                 .eq('email', email);
 
             toast.success('Device unblocked successfully');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error unblocking device:', error);
             toast.error('Failed to unblock device');
@@ -613,7 +682,7 @@ export function useUserActivity() {
                 .eq('id', deviceId);
 
             toast.success('Device record deleted');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error deleting device:', error);
             toast.error('Failed to delete device');
@@ -655,7 +724,7 @@ export function useUserActivity() {
                 .eq('id', appeal.blocked_device_id);
 
             toast.success('Appeal approved and device unblocked');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error approving appeal:', error);
             toast.error('Failed to approve appeal');
@@ -685,7 +754,7 @@ export function useUserActivity() {
                 .eq('id', appealId);
 
             toast.success('Appeal rejected');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error rejecting appeal:', error);
             toast.error('Failed to reject appeal');
@@ -710,7 +779,7 @@ export function useUserActivity() {
                 .eq('id', appealId);
 
             toast.success('Appeal deleted successfully');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error deleting appeal:', error);
             toast.error('Failed to delete appeal');
@@ -733,7 +802,7 @@ export function useUserActivity() {
                 .eq('id', selectedAppeal.id);
 
             toast.success('Response sent successfully');
-            await fetchAppeals();
+            await fetchAppeals(true);
             return true;
         } catch (error) {
             console.error('Error sending response:', error);
@@ -742,7 +811,7 @@ export function useUserActivity() {
         }
     };
 
-    // bulk actions
+    // Bulk actions
     const handleBulkBlock = async () => {
         if (selectedSessions.size === 0) {
             toast.warning('Please select at least one device');
@@ -792,82 +861,84 @@ export function useUserActivity() {
             for (let i = 0; i < sessionIds.length; i += batchSize) {
                 const batch = sessionIds.slice(i, i + batchSize);
 
-                await Promise.all(batch.map(async (sessionId) => {
-                    const session = sessions.find(s => s.id === sessionId);
-                    if (!session) return;
+                await Promise.all(
+                    batch.map(async (sessionId) => {
+                        const session = sessions.find(s => s.id === sessionId);
+                        if (!session) return;
 
-                    const sessionEmail = session.email || session.users?.email || '';
+                        const sessionEmail = session.email || session.users?.email || '';
 
-                    const { data: existingBlocked } = await supabase
-                        .from('blocked_devices')
-                        .select('id')
-                        .eq('user_agent', session.user_agent)
-                        .eq('ip_address', session.ip_address || '')
-                        .eq('email', sessionEmail)
-                        .eq('status', 'blocked')
-                        .maybeSingle();
-
-                    if (existingBlocked) {
-                        skippedCount++;
-                        return;
-                    }
-
-                    const { data: existingUnblocked } = await supabase
-                        .from('blocked_devices')
-                        .select('id')
-                        .eq('user_agent', session.user_agent)
-                        .eq('ip_address', session.ip_address || '')
-                        .eq('email', sessionEmail)
-                        .eq('status', 'unblocked')
-                        .maybeSingle();
-
-                    const userId = session.user_id || currentUserId || '00000000-0000-0000-0000-000000000000';
-                    const deviceName = session.users?.display_name || session.hr_employee_name || 'Unknown Device';
-
-                    if (existingUnblocked) {
-                        const { error: updateError } = await supabase
+                        const { data: existingBlocked } = await supabase
                             .from('blocked_devices')
+                            .select('id')
+                            .eq('user_agent', session.user_agent)
+                            .eq('ip_address', session.ip_address || '')
+                            .eq('email', sessionEmail)
+                            .eq('status', 'blocked')
+                            .maybeSingle();
+
+                        if (existingBlocked) {
+                            skippedCount++;
+                            return;
+                        }
+
+                        const { data: existingUnblocked } = await supabase
+                            .from('blocked_devices')
+                            .select('id')
+                            .eq('user_agent', session.user_agent)
+                            .eq('ip_address', session.ip_address || '')
+                            .eq('email', sessionEmail)
+                            .eq('status', 'unblocked')
+                            .maybeSingle();
+
+                        const userId = session.user_id || currentUserId || '00000000-0000-0000-0000-000000000000';
+                        const deviceName = session.users?.display_name || session.hr_employee_name || 'Unknown Device';
+
+                        if (existingUnblocked) {
+                            const { error: updateError } = await supabase
+                                .from('blocked_devices')
+                                .update({
+                                    status: 'blocked',
+                                    blocked_at: new Date().toISOString(),
+                                    blocked_by: userId,
+                                    reason: 'Blocked by admin (bulk action)',
+                                    updated_at: new Date().toISOString(),
+                                    unblocked_at: null,
+                                })
+                                .eq('id', existingUnblocked.id);
+
+                            if (!updateError) blockedCount++;
+                        } else {
+                            const { error: insertError } = await supabase
+                                .from('blocked_devices')
+                                .insert({
+                                    user_id: userId,
+                                    device_name: deviceName,
+                                    user_agent: session.user_agent,
+                                    ip_address: session.ip_address || 'Unknown',
+                                    status: 'blocked',
+                                    email: sessionEmail,
+                                    reason: 'Blocked by admin (bulk action)',
+                                    blocked_at: new Date().toISOString(),
+                                    blocked_by: userId,
+                                    created_at: new Date().toISOString(),
+                                    updated_at: new Date().toISOString(),
+                                });
+
+                            if (!insertError) blockedCount++;
+                        }
+
+                        // Deactivate session in realtime
+                        await supabase
+                            .from('sessions')
                             .update({
-                                status: 'blocked',
-                                blocked_at: new Date().toISOString(),
-                                blocked_by: userId,
-                                reason: 'Blocked by admin (bulk action)',
-                                updated_at: new Date().toISOString(),
-                                unblocked_at: null,
+                                is_active: false,
+                                ended_at: new Date().toISOString(),
+                                deactivation_reason: 'device_blocked',
                             })
-                            .eq('id', existingUnblocked.id);
-
-                        if (!updateError) blockedCount++;
-                    } else {
-                        const { error: insertError } = await supabase
-                            .from('blocked_devices')
-                            .insert({
-                                user_id: userId,
-                                device_name: deviceName,
-                                user_agent: session.user_agent,
-                                ip_address: session.ip_address || 'Unknown',
-                                status: 'blocked',
-                                email: sessionEmail,
-                                reason: 'Blocked by admin (bulk action)',
-                                blocked_at: new Date().toISOString(),
-                                blocked_by: userId,
-                                created_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString(),
-                            });
-
-                        if (!insertError) blockedCount++;
-                    }
-
-                    // Deactivate session in realtime
-                    await supabase
-                        .from('sessions')
-                        .update({
-                            is_active: false,
-                            ended_at: new Date().toISOString(),
-                            deactivation_reason: 'device_blocked',
-                        })
-                        .eq('id', sessionId);
-                }));
+                            .eq('id', sessionId);
+                    })
+                );
             }
 
             if (blockedCount > 0) {
@@ -881,7 +952,7 @@ export function useUserActivity() {
             }
 
             setSelectedSessions(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error: any) {
             console.error('Error bulk blocking devices:', error);
             toast.error(`Failed to block devices: ${error?.message || 'Unknown error'}`);
@@ -921,7 +992,7 @@ export function useUserActivity() {
 
             toast.success(`Unblocked ${selectedBlockedDevices.size} device(s)`);
             setSelectedBlockedDevices(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error bulk unblocking devices:', error);
             toast.error('Failed to unblock devices');
@@ -952,7 +1023,7 @@ export function useUserActivity() {
 
             toast.success(`Deleted ${selectedBlockedDevices.size} device record(s)`);
             setSelectedBlockedDevices(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error bulk deleting devices:', error);
             toast.error('Failed to delete devices');
@@ -983,7 +1054,7 @@ export function useUserActivity() {
 
             toast.success(`Deleted ${selectedSessions.size} session(s)`);
             setSelectedSessions(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error bulk deleting sessions:', error);
             toast.error('Failed to delete sessions');
@@ -1014,7 +1085,7 @@ export function useUserActivity() {
 
             toast.success(`Deleted ${selectedActivities.size} activity record(s)`);
             setSelectedActivities(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error bulk deleting activities:', error);
             toast.error('Failed to delete activities');
@@ -1045,7 +1116,7 @@ export function useUserActivity() {
 
             toast.success(`Deleted ${selectedAppeals.size} appeal(s)`);
             setSelectedAppeals(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error bulk deleting appeals:', error);
             toast.error('Failed to delete appeals');
@@ -1094,7 +1165,7 @@ export function useUserActivity() {
 
             toast.success(`Approved ${appealIds.length} appeal(s)`);
             setSelectedAppeals(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error bulk approving appeals:', error);
             toast.error('Failed to approve appeals');
@@ -1128,7 +1199,7 @@ export function useUserActivity() {
 
             toast.success(`Rejected ${appealIds.length} appeal(s)`);
             setSelectedAppeals(new Set());
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (error) {
             console.error('Error bulk rejecting appeals:', error);
             toast.error('Failed to reject appeals');
@@ -1141,6 +1212,11 @@ export function useUserActivity() {
 
         if (normalizedTarget === 'executive') {
             toast.error('Executive accounts are protected and cannot be logged out.');
+            return;
+        }
+
+        if (normalizedTarget === 'admin' && callerRole !== 'executive') {
+            toast.error('Admin accounts can only be logged out by Executive accounts.');
             return;
         }
 
@@ -1193,15 +1269,17 @@ export function useUserActivity() {
             return;
         }
 
-        // Filter out any protected users from the selected set (Executive sessions are protected)
+        // Filter out any protected users from the selected set
         const eligibleToTerminate = activeUsers.filter(s => {
             if (!selectedActiveUsers.has(s.id)) return false;
             const target = (s.users?.role || '').toLowerCase();
-            return target !== 'executive';
+            if (target === 'executive') return false;
+            if (target === 'admin' && callerRole !== 'executive') return false;
+            return true;
         });
 
         if (eligibleToTerminate.length === 0) {
-            toast.warning('None of the selected users can be terminated (Executive sessions are protected).');
+            toast.warning('None of the selected users can be terminated (Protected roles).');
             return;
         }
 
@@ -1256,6 +1334,8 @@ export function useUserActivity() {
         filteredActivities,
         appeals,
         isLoading,
+        isRefreshing,
+        isRealtimeActive,
         userRole,
         currentUserId,
         queuedUsersCount,
@@ -1292,13 +1372,17 @@ export function useUserActivity() {
         appealTotalPages,
         activityTotalPages,
 
-        // data helpers
+        // data helpers & fetch
         getPaginatedData,
         filterSessions,
         filterActiveUsers,
         filterActivities,
         fetchAllData,
         fetchActiveUsers,
+        fetchSessions,
+        fetchBlockedDevices,
+        fetchActivities,
+        fetchAppeals,
 
         // moderation
         handleResetStrikes,

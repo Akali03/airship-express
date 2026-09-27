@@ -10,8 +10,8 @@ export default function WarehousingPage() {
     return (
         <>
             <SessionGuard requiredRole={['Admin', 'Manager', 'Operator', 'Executive']}>
-                <div className="p-6 space-y-6 fade-in">
-                    <div className="card">
+                <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 fade-in max-w-full overflow-hidden">
+                    <div className="card overflow-hidden">
                         <TabsWrapper>
                             <div data-panel="dashboard">
                                 <DashboardPanel />

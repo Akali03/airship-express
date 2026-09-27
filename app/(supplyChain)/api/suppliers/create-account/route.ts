@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { sendSupplyChainEmail } from "@/app/(supplyChain)/lib/email/mailer";
+import { sendSupplyChainEmail } from "../../../lib/email/mailer";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || "https://sswjqqpfaumxojbkkpbl.supabase.co";
 const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 

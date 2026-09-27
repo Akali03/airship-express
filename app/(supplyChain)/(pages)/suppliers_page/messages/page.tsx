@@ -26,10 +26,10 @@ import {
     ChevronRight,
     History
 } from "lucide-react";
-import { user } from "@/app/(supplyChain)/lib/services/Class/user";
-import { supabase } from "@/app/(supplyChain)/lib/services/client/supabase";
-import Cards from "@/app/(supplyChain)/components/global/Cards";
-import { CardsSkeleton } from "@/app/(supplyChain)/components/ui/SkeletonLoader";
+import { user } from "../../../lib/services/Class/user";
+import { supabase } from "../../../lib/services/client/supabase";
+import Cards from "../../../components/global/Cards";
+import { CardsSkeleton } from "../../../components/ui/SkeletonLoader";
 import { toast } from "sonner";
 
 interface SupplierMessage {

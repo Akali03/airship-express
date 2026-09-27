@@ -31,12 +31,14 @@ export async function GET(request: Request) {
             executiveSlots: 10,
             managerSlots: 20,
             employeeSlots: 70,
+            supplierSlots: 10,
         };
 
         const executiveSlots = slots.executiveSlots ?? 10;
         const managerSlots = slots.managerSlots ?? 20;
         const employeeSlots = slots.employeeSlots ?? 70;
-        const totalCapacity = executiveSlots + managerSlots + employeeSlots;
+        const supplierSlots = slots.supplierSlots ?? 10;
+        const totalCapacity = executiveSlots + managerSlots + employeeSlots + supplierSlots;
 
         // 2. Fetch all active sessions via supabaseAdmin
         const { data: activeSessions, error: activeErr } = await supabaseAdmin
@@ -65,6 +67,7 @@ export async function GET(request: Request) {
         let activeExecutiveAdmin = 0;
         let activeManager = 0;
         let activeEmployee = 0;
+        let activeSupplier = 0;
 
         sessionsList.forEach((s) => {
             const r = userRolesMap[s.user_id] || 'employee';
@@ -72,6 +75,8 @@ export async function GET(request: Request) {
                 activeExecutiveAdmin++;
             } else if (r === 'manager') {
                 activeManager++;
+            } else if (r === 'supplier') {
+                activeSupplier++;
             } else {
                 activeEmployee++;
             }
@@ -127,6 +132,7 @@ export async function GET(request: Request) {
         const employeeAvailable = activeEmployee < employeeSlots;
         const managerAvailable = activeManager < managerSlots;
         const executiveAvailable = activeExecutiveAdmin < executiveSlots;
+        const supplierAvailable = activeSupplier < supplierSlots;
 
         let roleSpecificAvailable = false;
         const normRole = targetRole.toLowerCase();
@@ -134,10 +140,12 @@ export async function GET(request: Request) {
             roleSpecificAvailable = executiveAvailable;
         } else if (normRole === 'manager') {
             roleSpecificAvailable = managerAvailable;
+        } else if (normRole === 'supplier') {
+            roleSpecificAvailable = supplierAvailable;
         } else if (targetRole) {
             roleSpecificAvailable = employeeAvailable;
         } else {
-            roleSpecificAvailable = employeeAvailable || managerAvailable || executiveAvailable;
+            roleSpecificAvailable = employeeAvailable || managerAvailable || executiveAvailable || supplierAvailable;
         }
 
         let roleActive = totalActive;
@@ -148,6 +156,9 @@ export async function GET(request: Request) {
         } else if (normRole === 'manager') {
             roleActive = activeManager;
             roleSlots = managerSlots;
+        } else if (normRole === 'supplier') {
+            roleActive = activeSupplier;
+            roleSlots = supplierSlots;
         } else if (targetRole) {
             roleActive = activeEmployee;
             roleSlots = employeeSlots;
@@ -178,11 +189,17 @@ export async function GET(request: Request) {
                     active: activeEmployee,
                     available: Math.max(0, employeeSlots - activeEmployee),
                 },
+                supplier: {
+                    reserved: supplierSlots,
+                    active: activeSupplier,
+                    available: Math.max(0, supplierSlots - activeSupplier),
+                },
             },
             roleAvailability: {
                 executive: executiveAvailable,
                 manager: managerAvailable,
                 employee: employeeAvailable,
+                supplier: supplierAvailable,
             },
         });
     } catch (err: any) {

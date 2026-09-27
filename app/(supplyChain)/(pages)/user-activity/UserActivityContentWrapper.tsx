@@ -19,8 +19,18 @@ export default function UserActivityContentWrapper() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const initialTab = (searchParams.get('tab') as ActivityTab) || 'active_users';
+    const validTabs: ActivityTab[] = ['active_users', 'sessions', 'blocked', 'appeals', 'activity'];
+    const tabParam = searchParams.get('tab') as ActivityTab;
+    const initialTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'active_users';
     const [activeTab, setActiveTab] = useState<ActivityTab>(initialTab);
+
+    // Sync activeTab when searchParams change (browser back/forward or direct navigation)
+    useEffect(() => {
+        const currentParam = searchParams.get('tab') as ActivityTab;
+        if (currentParam && validTabs.includes(currentParam)) {
+            setActiveTab(prev => (prev !== currentParam ? currentParam : prev));
+        }
+    }, [searchParams]);
 
     // search and filters
     const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +56,8 @@ export default function UserActivityContentWrapper() {
         filteredActivities,
         appeals,
         isLoading,
+        isRefreshing,
+        isRealtimeActive,
         userRole,
         queuedUsersCount,
         queuedRolesCount,
@@ -83,6 +95,7 @@ export default function UserActivityContentWrapper() {
         filterSessions,
         filterActiveUsers,
         filterActivities,
+        fetchAllData,
 
         handleBlockDevice,
         handleResetStrikes,
@@ -270,12 +283,15 @@ export default function UserActivityContentWrapper() {
     }
 
     return (
-        <div className="p-6 space-y-6  animate-in fade-in duration-300 bgCard">
+        <div className="p-6 space-y-6 animate-in fade-in duration-300 bgCard">
             {/* header & quick stat badges */}
             <HeaderStats
                 blockedDevices={blockedDevices}
                 appeals={appeals}
                 activities={activities}
+                isRealtimeActive={isRealtimeActive}
+                isRefreshing={isRefreshing}
+                onRefresh={() => fetchAllData(true)}
             />
 
             {/* navigation tabs */}

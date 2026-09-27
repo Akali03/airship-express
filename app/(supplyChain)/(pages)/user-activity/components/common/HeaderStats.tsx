@@ -3,17 +3,24 @@
 import React from 'react';
 import { BlockedDevice, Appeal, UserActivity } from '../../types';
 import { StatusBadge } from '../../../../components/ui/StatusBadge';
+import { RefreshCw } from 'lucide-react';
 
 interface HeaderStatsProps {
     blockedDevices: BlockedDevice[];
     appeals: Appeal[];
     activities: UserActivity[];
+    isRealtimeActive?: boolean;
+    isRefreshing?: boolean;
+    onRefresh?: () => void;
 }
 
 export const HeaderStats: React.FC<HeaderStatsProps> = ({
     blockedDevices,
     appeals,
     activities,
+    isRealtimeActive = true,
+    isRefreshing = false,
+    onRefresh,
 }) => {
     const blockedCount = blockedDevices.filter(d => d.status === 'blocked').length;
     const pendingAppealsCount = appeals.filter(a => a.status === 'pending').length;
@@ -32,7 +39,7 @@ export const HeaderStats: React.FC<HeaderStatsProps> = ({
                         Device Management
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Monitor all sessions, manage blocked devices, view appeals, and user activity
+                        Monitor all sessions, manage blocked devices, view appeals, and user activity in realtime
                     </p>
 
                     {/* Quick Stats / Indicators */}
@@ -57,16 +64,44 @@ export const HeaderStats: React.FC<HeaderStatsProps> = ({
                         </StatusBadge>
 
                         {/* Realtime Live Indicator Badge */}
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-800/40 shadow-xs select-none">
+                        <div
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-xs select-none transition-colors ${
+                                isRealtimeActive
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/70 dark:border-emerald-800/40'
+                                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/70 dark:border-amber-800/40'
+                            }`}
+                        >
                             <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                <span
+                                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                                        isRealtimeActive ? 'bg-emerald-400' : 'bg-amber-400'
+                                    }`}
+                                ></span>
+                                <span
+                                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                                        isRealtimeActive ? 'bg-emerald-500' : 'bg-amber-500'
+                                    }`}
+                                ></span>
                             </span>
-                            <span>Live Realtime</span>
+                            <span>{isRealtimeActive ? 'Live Realtime' : 'Connecting...'}</span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Quick manual refresh button */}
+            {onRefresh && (
+                <button
+                    type="button"
+                    onClick={onRefresh}
+                    disabled={isRefreshing}
+                    title="Refresh all tabs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-60 shrink-0"
+                >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-pink-500' : ''}`} />
+                    <span>{isRefreshing ? 'Syncing...' : 'Sync Now'}</span>
+                </button>
+            )}
         </div>
     );
 };

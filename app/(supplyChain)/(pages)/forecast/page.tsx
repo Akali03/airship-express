@@ -1016,11 +1016,11 @@ export default function Forecast() {
 
     return (
         <SessionGuard requiredRole={['Admin', 'Manager', 'Staff', 'Employee', 'Operator', 'Executive']}>
-            <div className="p-6 space-y-6 bgCard dark:bg-ink/90 pb-16">
+            <div className="p-3.5 sm:p-6 space-y-5 sm:space-y-6 bgCard dark:bg-ink/90 pb-16 max-w-full overflow-hidden">
                 {/* header */}
                 <div className="flex items-start justify-between gap-4 flex-wrap border-b border-slate-200/80 dark:border-ink/20 pb-5">
-                    <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#14151c] border border-slate-200/80 dark:border-slate-800 p-1 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                    <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-3.5 max-w-full">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 mt-0.5">
                             <img
                                 src="/images/logo-remove-bg.png"
                                 alt="Airship Express Logo"
@@ -1050,8 +1050,8 @@ export default function Forecast() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-                        <AppButton type="button" variant="pink" size="md" onClick={() => {
+                    <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-2.5 overflow-x-auto pb-1 max-w-full no-scrollbar flex-nowrap sm:flex-wrap">
+                        <AppButton type="button" variant="pink" size="md" className="shrink-0 whitespace-nowrap" onClick={() => {
                             const el = document.getElementById("monthly-intelligence-section");
                             if (el) el.scrollIntoView({ behavior: 'smooth' });
                         }}>
@@ -1059,17 +1059,17 @@ export default function Forecast() {
                             <span>Monthly AI Audit</span>
                         </AppButton>
 
-                        <AppButton type="button" variant="primary" size="md" onClick={generateAiSummary} disabled={loading || summarizing || !forecastData}>
+                        <AppButton type="button" variant="primary" size="md" className="shrink-0 whitespace-nowrap" onClick={generateAiSummary} disabled={loading || summarizing || !forecastData}>
                             <i className={`fas ${summarizing ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'} text-xs`}/>
                             <span>{summarizing ? "Analyzing Models..." : "Summarize with AI"}</span>
                         </AppButton>
 
-                        <AppButton type="button" variant="neutral" size="md" onClick={() => fetchForecast(true)} disabled={retraining || loading} title="Recalculate models from Supabase">
+                        <AppButton type="button" variant="neutral" size="md" className="shrink-0 whitespace-nowrap" onClick={() => fetchForecast(true)} disabled={retraining || loading} title="Recalculate models from Supabase">
                             <i className={`fas fa-rotate text-xs ${retraining ? "fa-spin text-pink-500" : "text-slate-400"}`}/>
                             <span>{retraining ? "Recalculating..." : "Sync DB"}</span>
                         </AppButton>
 
-                        <AppButton type="button" variant="neutral" size="md" onClick={handleExport} disabled={loading || !forecastData} title="Export Forecast Report">
+                        <AppButton type="button" variant="neutral" size="md" className="shrink-0 whitespace-nowrap" onClick={handleExport} disabled={loading || !forecastData} title="Export Forecast Report">
                             <i className="fas fa-download text-xs text-slate-400"/>
                             <span>Export</span>
                         </AppButton>

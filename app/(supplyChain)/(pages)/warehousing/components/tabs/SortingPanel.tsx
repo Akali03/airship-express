@@ -1199,7 +1199,7 @@ export default function SortingPanel() {
                                 </div>
                             </div>))}
                     </div>{/* table skeleton */}
-                    <div className="flex-1 overflow-y-auto max-h-[600px] p-4 space-y-5 bg-slate-50/30 dark:bg-slate-950/40">
+                    <div className="flex-1 overflow-y-visible sm:overflow-y-auto max-h-none sm:max-h-[600px] p-2 sm:p-4 space-y-4 sm:space-y-5 bg-slate-50/30 dark:bg-slate-950/40">
                         <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
                             <div className="bg-slate-50/80 dark:bg-slate-800/40 px-4 py-2.5 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
@@ -1553,7 +1553,7 @@ export default function SortingPanel() {
                              </div>)}
                     </div>
                 </div>                {/* container */}
-                <div className="flex-1 overflow-y-auto max-h-[600px] p-4 space-y-5 bg-[#ebf0f7]/40 dark:bg-[#12131b]/30 rounded-3xl border border-white/70 dark:border-white/[0.04]">
+                <div className="flex-1 overflow-y-visible sm:overflow-y-auto max-h-none sm:max-h-[600px] p-2 sm:p-4 space-y-4 sm:space-y-5 bg-[#ebf0f7]/40 dark:bg-[#12131b]/30 rounded-3xl border border-white/70 dark:border-white/[0.04]">
                     {!loading && groupedParcels.length > 0 && (
                         <div className="flex items-center justify-between px-5 py-3 rounded-2xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08] shadow-[4px_4px_12px_rgba(166,175,195,0.3),-4px_-4px_12px_rgba(255,255,255,0.9)] dark:shadow-[4px_4px_14px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-colors">
                             <div className="flex items-center gap-3">
