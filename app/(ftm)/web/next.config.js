@@ -3,6 +3,29 @@ const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 
 const nextConfig = {
+  experimental: {
+    outputFileTracingRoot: path.resolve(__dirname, ".."),
+    outputFileTracingIncludes: {
+      "/*": [
+        "../backend/server.js",
+        "../backend/config/**/*.js",
+        "../backend/controllers/**/*.js",
+        "../backend/events/**/*.js",
+        "../backend/middleware/**/*.js",
+        "../backend/models/**/*.js",
+        "../backend/routes/**/*.js",
+        "../backend/services/**/*.js",
+      ],
+    },
+    serverComponentsExternalPackages: [
+      "@supabase/supabase-js",
+      "dotenv",
+      "exceljs",
+      "express",
+      "nodemailer",
+      "serverless-http",
+    ],
+  },
   env: {
     NEXT_PUBLIC__FTM_SUPABASE_URL:
       process.env.NEXT_PUBLIC__FTM_SUPABASE_URL || process.env.NEXT_PUBLIC_FTM_SUPABASE_URL || "",
