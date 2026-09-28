@@ -13,20 +13,25 @@ const HOP_BY_HOP_HEADERS = [
 ];
 
 function getBackendUrl() {
-  const configuredUrl = process.env.FTM_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
-  const backendUrl = configuredUrl || (process.env.NODE_ENV === "development" ? "http://localhost:8001" : "");
-  if (!backendUrl) return null;
+  const configuredUrls = [process.env.FTM_BACKEND_URL, process.env["NEXT_PUBLIC_API_BASE_URL"]];
+  if (process.env.NODE_ENV === "development") configuredUrls.push("http://localhost:8001");
 
-  try {
-    const parsed = new URL(backendUrl);
-    const isLoopback = ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname.toLowerCase());
-    if (!/^https?:$/.test(parsed.protocol) || (process.env.NODE_ENV === "production" && isLoopback)) {
-      return null;
+  for (const configuredUrl of configuredUrls) {
+    if (!configuredUrl?.trim()) continue;
+
+    try {
+      const parsed = new URL(configuredUrl.trim());
+      const isLoopback = ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname.toLowerCase());
+      if (!/^https?:$/.test(parsed.protocol) || (process.env.NODE_ENV === "production" && isLoopback)) {
+        continue;
+      }
+      return parsed;
+    } catch {
+      continue;
     }
-    return parsed;
-  } catch {
-    return null;
   }
+
+  return null;
 }
 
 async function forwardToFtmBackend(request: Request, { params }: RouteContext) {
