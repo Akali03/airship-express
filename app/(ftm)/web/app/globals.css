@@ -246,6 +246,26 @@ body {
   font-family: "Hanken Grotesk", system-ui, sans-serif;
 }
 
+@media (min-width: 1024px) {
+  .ftm-auth-shell {
+    grid-template-columns: minmax(0, 1fr) 460px;
+  }
+
+  .ftm-auth-shell > .ftm-auth-hero {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .ftm-auth-shell .ftm-auth-desktop-video {
+    display: flex !important;
+  }
+
+  .ftm-auth-shell .ftm-auth-mobile-video {
+    display: none !important;
+  }
+}
+
 .ftm-soft-app main {
   background: transparent;
 }

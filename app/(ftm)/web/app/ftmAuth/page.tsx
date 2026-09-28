@@ -328,8 +328,8 @@ export default function AuthPage() {
 
   return (
     <>
-      <div className="supplychain-container h-dvh w-full bg-paper dark:bg-ink text-ink dark:text-paper font-rethink grid grid-cols-1 lg:grid-cols-[1fr_460px] transition-colors duration-300">
-        <div className="relative hidden lg:flex flex-col justify-between border-r border-line dark:border-paper/10 px-16 py-14 overflow-hidden">
+      <div className="supplychain-container ftm-auth-shell h-dvh w-full bg-paper dark:bg-ink text-ink dark:text-paper font-rethink grid grid-cols-1 lg:grid-cols-[1fr_460px] transition-colors duration-300">
+        <div className="ftm-auth-hero relative hidden lg:flex flex-col justify-between border-r border-line dark:border-paper/10 px-16 py-14 overflow-hidden">
           <div className="absolute bottom-14 right-14 rotate-[-6deg] select-none">
             <div className="flex items-center gap-2 rounded-full border border-line dark:border-paper/15 px-4 py-2">
               <span className="h-1.5 w-1.5 rounded-full bg-accent dark:bg-accent" />
@@ -375,7 +375,7 @@ export default function AuthPage() {
                 Securely manage dispatch, fleet operations, compliance, and customer movement across the full transport network.
               </p>
             </div>
-            <div className="hidden shrink-0 translate-x-[-42px] -translate-y-12 justify-center xl:flex">
+            <div className="ftm-auth-desktop-video hidden shrink-0 translate-x-[-42px] -translate-y-12 justify-center xl:flex">
               <FtmLoginVideo />
             </div>
           </motion.div>
@@ -403,7 +403,7 @@ export default function AuthPage() {
                 priority
               />
             </div>
-            <div className="mb-5 xl:hidden">
+            <div className="ftm-auth-mobile-video mb-5 xl:hidden">
               <FtmLoginVideo compact />
             </div>
             <p className="font-rethink text-[12px] sm:text-[13px] font-medium uppercase tracking-[0.2em] text-accent">
