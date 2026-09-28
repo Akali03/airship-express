@@ -243,6 +243,7 @@ body {
   background:
     radial-gradient(circle at 8% 4%, rgba(255, 255, 255, 0.94), transparent 30%),
     linear-gradient(135deg, #eef2f7 0%, #e8edf4 48%, #f5f7fa 100%);
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
 }
 
 .ftm-soft-app main {

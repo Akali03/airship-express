@@ -445,6 +445,49 @@ export function proxy(request: NextRequest) {
         );
       }
 
+      if (normalizedPath === "/api" || normalizedPath.startsWith("/api/")) {
+        if (currentPortal.primarySubdomain === "ftm") {
+          const rewriteUrl = new URL(`/web/app${normalizedPath}${search}`, request.url);
+          const requestHeaders = new Headers(request.headers);
+          requestHeaders.set("x-airship-ftm-embedded", "1");
+          return applySecurityHeaders(
+            NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+            protocol
+          );
+        }
+
+        return applySecurityHeaders(NextResponse.next(), protocol);
+      }
+
+      if (
+        currentPortal.primarySubdomain === "ftm" &&
+        (normalizedPath === "/" || normalizedPath === currentPortal.loginPath)
+      ) {
+        const rewriteUrl = new URL(`/web/app/ftmAuth${search}`, request.url);
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set("x-airship-ftm-embedded", "1");
+        return applySecurityHeaders(
+          NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+          protocol
+        );
+      }
+
+      if (
+        currentPortal.primarySubdomain === "ftm" &&
+        /\.(?:svg|png|jpe?g|gif|webp|ico|css|js|woff2?|ttf|eot|mp4|webm|ogg|mp3|wav|glb|gltf)$/i.test(normalizedPath)
+      ) {
+        const assetPath = normalizedPath.startsWith("/ftm-media/")
+          ? normalizedPath.slice("/ftm-media".length)
+          : normalizedPath;
+        const rewriteUrl = new URL(`/web/app/ftm-media${assetPath}`, request.url);
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set("x-airship-ftm-embedded", "1");
+        return applySecurityHeaders(
+          NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+          protocol
+        );
+      }
+
       if (normalizedPath === "/") {
         const rewriteUrl = new URL(currentPortal.loginPath, request.url);
         return applySecurityHeaders(NextResponse.rewrite(rewriteUrl), protocol);
@@ -471,7 +514,6 @@ export function proxy(request: NextRequest) {
 
       const shouldRewriteFtmRoute =
         currentPortal.primarySubdomain === "ftm" &&
-        normalizedPath !== "/ftmAuth" &&
         (isAllowedAuthPath || isValidPortalRoute);
 
       if (shouldRewriteFtmRoute) {
@@ -479,7 +521,12 @@ export function proxy(request: NextRequest) {
           `/web/app${normalizedPath}${search}`,
           request.url
         );
-        return applySecurityHeaders(NextResponse.rewrite(rewriteUrl), protocol);
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set("x-airship-ftm-embedded", "1");
+        return applySecurityHeaders(
+          NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+          protocol
+        );
       }
 
       if (isAllowedAuthPath) {
@@ -532,5 +579,7 @@ export default proxy;
 export const config = {
   matcher: [
     "/((?!api|_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|mp4|webm|ogg|mp3|wav|json|glb|gltf)$).*)",
+    "/((?!api|_next/static|_next/image).+\\.(?:svg|png|jpe?g|gif|webp|ico|css|js|woff2?|ttf|eot|mp4|webm|ogg|mp3|wav|glb|gltf)$)",
+    "/api/:path*",
   ],
 };

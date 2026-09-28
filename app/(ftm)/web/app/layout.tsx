@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Rethink_Sans } from "next/font/google";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import "./globals.css";
 import CursorHost from "./components/CursorHost";
@@ -25,11 +26,38 @@ export const metadata: Metadata = {
   description: "Integrated Fleet Operations Suite — real-time fleet distribution, dispatch, fuel, cost, driver and maintenance command center.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isEmbedded = (await headers()).get("x-airship-ftm-embedded") === "1";
+  const content = (
+    <FtmSettingsProvider>
+      <FtmProfileAvatarProvider>
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <FtmLoadingProvider>
+              <FtmSecurityProvider>
+                <CursorHost />
+                {children}
+                <FtmChatbotGate />
+              </FtmSecurityProvider>
+            </FtmLoadingProvider>
+          </Suspense>
+        </ThemeProvider>
+      </FtmProfileAvatarProvider>
+    </FtmSettingsProvider>
+  );
+
+  if (isEmbedded) {
+    return (
+      <div className={`${bricolage.variable} ${rethink.variable} ftm-soft-app font-sans antialiased min-h-screen flex flex-col`}>
+        {content}
+      </div>
+    );
+  }
+
   return (
     <html lang="en" className={`${bricolage.variable} ${rethink.variable}`}>
       <head>
@@ -41,21 +69,7 @@ export default function RootLayout({
         />
       </head>
       <body className="ftm-soft-app font-sans antialiased min-h-screen flex flex-col">
-        <FtmSettingsProvider>
-          <FtmProfileAvatarProvider>
-            <ThemeProvider>
-            <Suspense fallback={null}>
-              <FtmLoadingProvider>
-                <FtmSecurityProvider>
-                  <CursorHost />
-                  {children}
-                  <FtmChatbotGate />
-                </FtmSecurityProvider>
-              </FtmLoadingProvider>
-            </Suspense>
-            </ThemeProvider>
-          </FtmProfileAvatarProvider>
-        </FtmSettingsProvider>
+        {content}
       </body>
     </html>
   );
