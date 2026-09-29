@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { getCurrentProfile, removeProfileAvatar, uploadProfileAvatar } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 
 export const FTM_AVATAR_CHANGED_EVENT = "ftm:avatar-changed";
@@ -93,6 +92,7 @@ export function FtmProfileAvatarProvider({ children }: { children: ReactNode }) 
     }
     const cachedAvatar = typeof window !== "undefined" && userId ? window.localStorage.getItem(storageKey(userId)) : null;
     try {
+      const { getCurrentProfile } = await import("../lib/api");
       const profile = await getCurrentProfile();
       // The profile record is canonical. Never retain a previous account's
       // local value after removal or a user switch.
@@ -146,6 +146,7 @@ export function FtmProfileAvatarProvider({ children }: { children: ReactNode }) 
     setError(null);
     try {
       setProgress(35);
+      const { uploadProfileAvatar } = await import("../lib/api");
       const result = await uploadProfileAvatar(pendingImage, setProgress);
       setProgress(80);
       const { data } = await supabase.auth.getUser();
@@ -168,6 +169,7 @@ export function FtmProfileAvatarProvider({ children }: { children: ReactNode }) 
     setProgress(25);
     setError(null);
     try {
+      const { removeProfileAvatar } = await import("../lib/api");
       await removeProfileAvatar();
       const { data } = await supabase.auth.getUser();
       applyAvatar(null, data.user?.id);

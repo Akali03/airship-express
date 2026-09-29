@@ -9,7 +9,7 @@ const hasHrCredentials = Boolean(
 
 const useHrAuth = process.env.NEXT_PUBLIC_FTM_AUTH_PROVIDER === "hr" && hasHrCredentials;
 
-const supabaseUrl = useHrAuth
+export const supabaseUrl = useHrAuth
   ? process.env.NEXT_PUBLIC_HR_SUPABASE_URL || FALLBACK_SUPABASE_URL
   : process.env.NEXT_PUBLIC__FTM_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || FALLBACK_SUPABASE_URL;
 

@@ -467,7 +467,7 @@ export function proxy(request: NextRequest) {
         currentPortal.primarySubdomain === "ftm" &&
         (normalizedPath === "/" || normalizedPath === currentPortal.loginPath)
       ) {
-        const rewriteUrl = new URL(`/web/app/ftmAuth${search}`, request.url);
+        const rewriteUrl = new URL(`${currentPortal.loginPath}${search}`, request.url);
         const requestHeaders = new Headers(request.headers);
         requestHeaders.set("x-airship-ftm-embedded", "1");
         return applySecurityHeaders(

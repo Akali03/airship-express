@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import airshipLogo from "../../public/airship-logo.png";
 
 function EyeIcon({ size = 20, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
   return (
@@ -69,7 +70,7 @@ export default function AuthPage() {
   const [otpBusy, setOtpBusy] = useState(false);
   const [otpExpiresAt, setOtpExpiresAt] = useState(0);
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
   const [passkeyMode, setPasskeyMode] = useState<"verify" | "register">("verify");
   const [passkeyBusy, setPasskeyBusy] = useState(false);
@@ -258,7 +259,8 @@ export default function AuthPage() {
             transition={{ duration: 0.5, ease: "easeOut" }}
           >
             <Image
-              src="/airship-logo.png"
+              src={airshipLogo}
+              unoptimized
               alt="Airship Express"
               width={168}
               height={48}
@@ -303,7 +305,8 @@ export default function AuthPage() {
           >
             <div className="mb-6 sm:mb-10 lg:hidden">
               <Image
-                src="/airship-logo.png"
+                src={airshipLogo}
+                unoptimized
                 alt="Airship Express"
                 width={144}
                 height={40}

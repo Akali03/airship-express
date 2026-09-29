@@ -1,6 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "./supabaseClient";
-import { fetchJson } from "./api";
+import { supabase, supabaseUrl } from "./supabaseClient";
 import { getDashboardRouteForRole, normalizeRole, type AppRole } from "./roleAccess";
 
 export type AuthUser = {
@@ -115,6 +114,16 @@ export function clearPasskeyVerified() {
   if (typeof window !== "undefined") window.sessionStorage.removeItem(PASSKEY_VERIFIED_SESSION_KEY);
 }
 
+function getSessionIssuerHost(accessToken: string) {
+  try {
+    const payload = accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "=")));
+    return typeof claims.iss === "string" ? new URL(claims.iss).host.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function signInWithPassword(email: string, password: string) {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
   let response: Response;
@@ -141,6 +150,15 @@ export async function signInWithPassword(email: string, password: string) {
   if (!session?.access_token || !session.refresh_token) {
     return { user: null, error: new Error("Authentication did not return a valid session") };
   }
+  const sessionIssuerHost = getSessionIssuerHost(session.access_token);
+  const configuredProjectHost = new URL(supabaseUrl).host.toLowerCase();
+  if (sessionIssuerHost && sessionIssuerHost !== configuredProjectHost) {
+    await supabase.auth.signOut({ scope: "local" });
+    return {
+      user: null,
+      error: new Error("The FTM API and web app are connected to different Supabase projects. Set FTM_SUPABASE_URL and NEXT_PUBLIC__FTM_SUPABASE_URL to the same project."),
+    };
+  }
   const user = mapSupabaseUser(body.user ? {
     ...body.user,
     app_metadata: body.user.app_metadata || {},
@@ -158,6 +176,16 @@ export async function signInWithPassword(email: string, password: string) {
   if (sessionError) {
     persistAuthUser(null);
     return { user: null, error: sessionError };
+  }
+
+  const { data: verifiedSession, error: verificationError } = await supabase.auth.getUser();
+  if (verificationError || verifiedSession.user?.id !== user.id) {
+    await supabase.auth.signOut({ scope: "local" });
+    persistAuthUser(null);
+    const error = verificationError?.status === 401 || verificationError?.status === 403
+      ? new Error("The FTM web app could not validate this login session. Confirm its Supabase URL and anon key match the project configured for the FTM backend.")
+      : verificationError || new Error("The FTM web app received a session for a different user. Please sign in again.");
+    return { user: null, error };
   }
 
   return { user, error: null };
@@ -222,6 +250,7 @@ export async function requestEmailMfaCode(email: string) {
 }
 
 export async function updateOtpExpirationPolicy(otpLifetimeSeconds: number) {
+  const { fetchJson } = await import("./api");
   return fetchJson("/api/auth/otp-policy", {
     method: "PATCH",
     body: JSON.stringify({ otpLifetimeSeconds }),
@@ -229,6 +258,7 @@ export async function updateOtpExpirationPolicy(otpLifetimeSeconds: number) {
 }
 
 export async function getOtpExpirationPolicy() {
+  const { fetchJson } = await import("./api");
   return fetchJson("/api/auth/otp-policy") as Promise<{ otpLifetimeSeconds: number }>;
 }
 
@@ -279,6 +309,10 @@ export function getUserFriendlyAuthError(rawError: unknown, context: "signin" | 
     if (context === "otp") return "We couldn’t verify your sign-in code. Please try again and check your inbox.";
     if (context === "passkey") return "We couldn’t verify your device passkey. Please try again or register a new passkey.";
     return "We couldn’t complete this sign-in step. Please try again.";
+  }
+
+  if (/(different supabase projects|could not validate this login session)/i.test(normalized)) {
+    return "The FTM web app and backend must use the same Supabase project. In Vercel, set NEXT_PUBLIC__FTM_SUPABASE_URL to the project URL used by FTM_SUPABASE_URL, and set the matching public anon key.";
   }
 
   if (/(invalid login credentials|invalid credentials|wrong password|incorrect password|invalid email or password|email or password is invalid|authentication failed|login failed|user not found|no user found|failed to authenticate|account temporarily locked)/i.test(normalized)) {

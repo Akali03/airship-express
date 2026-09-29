@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import airshipLogo from "../../public/airship-logo.png";
 import ConnectionStatusNotice from "./ConnectionStatusNotice";
 import { useFtmSettings } from "./FtmSettingsProvider";
 
@@ -213,7 +214,7 @@ export default function FtmLoadingProvider({ children }: { children: React.React
       <ConnectionStatusNotice />
       {isNavigating && (
         <div className="pointer-events-none fixed inset-0 z-[3000] flex flex-col items-center justify-center gap-8 bg-gradient-to-br from-[#fff7fb] via-[#fcfbf9] to-[#ffe8f2] px-6" role="status" aria-live="polite" aria-label="Loading page">
-          <Image src="/airship-logo.png" alt="Airship Express" width={180} height={50} priority className="h-10 w-auto object-contain" />
+          <Image src={airshipLogo} unoptimized alt="Airship Express" width={180} height={50} priority className="h-10 w-auto object-contain" />
           <div className="flex w-full max-w-xs flex-col items-center gap-5">
             <TruckIcon />
             <div className="h-[2px] w-full overflow-hidden rounded-full">

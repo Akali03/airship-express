@@ -19,6 +19,7 @@ import { optimizeRoute, SAMPLE_OPTIMIZATION_PAYLOAD } from "../../lib/optimize";
 import { getBookings, getDrivers, getTrips, getVehicles } from "../../lib/api";
 import { useParcelStore } from "../../lib/parcelStore";
 import { listCourierWarehouses } from "../../lib/courierWarehouses";
+import airshipLogo from "../../../public/airship-logo.png";
 import GlobalNavbar from "../../components/GlobalNavbar";
 import GlobalFooter from "../../components/GlobalFooter";
 
@@ -294,7 +295,7 @@ export default function VrdsDashboardPage() {
         subtitle: "Company origin / main hub",
         details: (
           <div className="space-y-2 text-xs text-slate-600">
-            <img src="/airship-logo.png" alt="Airship Express" className="h-10 w-auto max-w-[150px] object-contain" />
+            <img src={airshipLogo.src} alt="Airship Express" className="h-10 w-auto max-w-[150px] object-contain" />
             <div>Origin and dispatch hub</div>
             <div>Binondo, Manila</div>
           </div>

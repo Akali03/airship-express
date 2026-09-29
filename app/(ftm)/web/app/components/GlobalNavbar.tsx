@@ -7,6 +7,7 @@ import { getAllowedNavPaths, getProfileActions } from "../lib/permissions";
 import { normalizeRole } from "../lib/roleAccess";
 import { supabase } from "../lib/supabaseClient";
 import { signOut } from "../lib/auth";
+import airshipLogo from "../../public/airship-logo.png";
 import ThemeToggle from "./ThemeToggle";
 import FtmProfileAvatar from "./FtmProfileAvatar";
 
@@ -268,7 +269,7 @@ export default function GlobalNavbar() {
       <div className="ftm-soft-nav-surface border-b border-white/80 bg-slate-100/80 shadow-[0_8px_30px_rgba(148,163,184,0.14)] backdrop-blur-xl">
         <div className="mx-auto flex h-[48px] max-w-[1700px] items-center gap-5 px-4 sm:px-7">
           <a href={homeDashboardPath} className="shrink-0 h-full flex items-center" aria-label="Go to your home dashboard">
-            <img src="/airship-logo.png" alt="Airship Express logo" className="h-full w-auto object-contain" />
+            <img src={airshipLogo.src} alt="Airship Express logo" className="h-full w-auto object-contain" />
           </a>
           <nav ref={navRef} className="hidden min-w-0 flex-1 items-center justify-center gap-2 lg:flex" aria-label="Main navigation">
             {visibleItems.map((item) => (

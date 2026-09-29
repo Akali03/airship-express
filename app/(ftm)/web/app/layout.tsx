@@ -8,10 +8,12 @@ import FtmLoadingProvider from "./components/FtmLoadingProvider";
 import FtmSecurityProvider from "./components/FtmSecurityProvider";
 import FtmChatbotGate from "./components/FtmChatbotGate";
 import { FtmProfileAvatarProvider } from "./components/FtmProfileAvatarProvider";
+import airshipLogo from "../public/airship-logo.png";
 
 export const metadata: Metadata = {
   title: "Airship Express - Fleet & Transport Suite",
   description: "Integrated Fleet Operations Suite — real-time fleet distribution, dispatch, fuel, cost, driver and maintenance command center.",
+  icons: { icon: airshipLogo.src },
 };
 
 export default function RootLayout({
