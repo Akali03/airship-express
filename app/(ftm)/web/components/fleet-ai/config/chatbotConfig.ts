@@ -1,7 +1,7 @@
 import type { QuickAction } from "../types/chatbot";
 
 export const FLEET_AI_API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
 
 export const FLEET_AI_CHAT_ENDPOINT = `${FLEET_AI_API_BASE}/api/fleet-ai/chat`;
 export const FLEET_AI_CONVERSATION_ENDPOINT = (id: string) =>

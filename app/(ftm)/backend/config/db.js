@@ -10,6 +10,8 @@ let anonSupabase = null;
 let hrSupabase = null;
 let authSupabase = null;
 
+const hasServiceRoleKey = () => Boolean(process.env.FTM_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
+
 const initSupabase = () => {
   const supabaseUrl = process.env.FTM_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey = process.env.FTM_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -48,7 +50,7 @@ const initSupabase = () => {
 };
 
 const getSupabase = () => supabase;
-const getServiceSupabase = () => serviceSupabase || supabase;
+const getServiceSupabase = () => (hasServiceRoleKey() ? (serviceSupabase || null) : null);
 const getHrSupabase = () => hrSupabase;
 const getAuthSupabase = () => authSupabase || supabase;
 

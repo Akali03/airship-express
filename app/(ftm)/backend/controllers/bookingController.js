@@ -132,8 +132,12 @@ async function createBooking(req, res) {
     return res.status(400).json({ error: 'id, pickup_location, and dropoff_location are required' });
   }
 
-  const supabase = getSupabase();
-  if (!supabase) return res.status(503).json({ error: 'Database is not configured' });
+  const supabase = getServiceSupabase();
+  if (!supabase) {
+    return res.status(503).json({
+      error: 'Database is not configured for booking writes. Configure FTM_SUPABASE_SERVICE_ROLE_KEY.',
+    });
+  }
 
   const { data, error } = await supabase.from('bookings').insert(payload).select('*').single();
   if (error) return res.status(500).json({ error: `Unable to create booking: ${error.message}` });
@@ -147,7 +151,11 @@ async function assignBookingResources(req, res) {
   }
 
   const supabase = getServiceSupabase();
-  if (!supabase) return res.status(503).json({ error: 'Database is not configured' });
+  if (!supabase) {
+    return res.status(503).json({
+      error: 'Database is not configured for booking assignment writes. Configure FTM_SUPABASE_SERVICE_ROLE_KEY.',
+    });
+  }
 
   let validation;
   try {

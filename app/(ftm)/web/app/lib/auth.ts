@@ -125,7 +125,7 @@ function getSessionIssuerHost(accessToken: string) {
 }
 
 export async function signInWithPassword(email: string, password: string) {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const base = process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
   let response: Response;
   try {
     response = await fetch(`${base}/api/auth/login`, {
@@ -229,7 +229,7 @@ export async function requestEmailMfaCode(email: string) {
   const trimmedEmail = String(email ?? "").trim();
   if (!trimmedEmail) throw new Error("Email address is required.");
 
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const base = process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
   const response = await fetch(`${base}/api/auth/request-otp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -277,7 +277,7 @@ export async function verifyEmailMfaCode(email: string, code: string) {
     throw new Error("Enter the 6-digit code from your email.");
   }
 
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const base = process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
   const response = await fetch(`${base}/api/auth/verify-otp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

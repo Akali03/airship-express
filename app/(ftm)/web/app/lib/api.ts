@@ -1,8 +1,9 @@
 import { supabase } from "./supabaseClient";
 import { parcelSupabase } from "./parcelSupabaseClient";
+import { getFtmApiBase } from "./apiBase";
 
 export async function fetchJson(path: string, opts: RequestInit = {}) {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const base = getFtmApiBase() || "http://localhost:8001";
   const url = path.startsWith("http") ? path : `${base}${path}`;
   let slowTimer: number | undefined;
 
@@ -45,7 +46,7 @@ export async function fetchJson(path: string, opts: RequestInit = {}) {
 }
 
 export async function exportSystemBackup() {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const base = getFtmApiBase() || "http://localhost:8001";
   const current = await supabase.auth.getSession();
   const session = current.data.session || (await supabase.auth.refreshSession()).data.session;
   if (!session?.access_token) throw new Error("Your session has expired. Please sign in again.");
@@ -65,7 +66,7 @@ export async function getCurrentProfile() {
 }
 
 export async function uploadProfileAvatar(content: string, onProgress?: (progress: number) => void) {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const base = getFtmApiBase() || "http://localhost:8001";
   const { data } = await supabase.auth.getSession();
   const accessToken = data.session?.access_token || (await supabase.auth.refreshSession()).data.session?.access_token;
   if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
