@@ -1,13 +1,4 @@
 const path = require('path');
-const Module = require('module');
-const sharedNodeModules = [
-  path.resolve(__dirname, '../web/node_modules'),
-  path.resolve(process.cwd(), 'node_modules'),
-  path.resolve(process.cwd(), 'web/node_modules'),
-];
-sharedNodeModules.forEach((nodeModulesPath) => {
-  if (!Module.globalPaths.includes(nodeModulesPath)) Module.globalPaths.unshift(nodeModulesPath);
-});
 const express = require('express');
 const http = require('http');
 const dotenv = require('dotenv');
@@ -93,10 +84,6 @@ app.use('/api/fleet-ai', require('./routes/fleetAiRoutes'));
 app.use('/api/support', permissionForMethod('operations'), require('./routes/supportRoutes'));
 app.use('/api/alerts', require('./routes/alertRoutes'));
 
-module.exports = app;
-
-if (require.main === module) {
-  http.createServer({ maxHeaderSize: 2 * 1024 * 1024 }, app).listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT} on 0.0.0.0`);
-  });
-}
+http.createServer({ maxHeaderSize: 2 * 1024 * 1024 }, app).listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT} on 0.0.0.0`);
+});

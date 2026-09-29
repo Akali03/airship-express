@@ -1,98 +1,77 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
-import serverless from "serverless-http";
-import { createClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
-import ExcelJS from "exceljs";
-import express from "express";
-import nodemailer from "nodemailer";
-
 type RouteContext = {
   params: Promise<{ path: string[] }> | { path: string[] };
 };
 
-const backendRoot = [
-  path.resolve(process.cwd(), "backend"),
-  path.resolve(process.cwd(), "app/(ftm)/backend"),
-  path.resolve(process.cwd(), "../backend"),
-].find((candidate) => existsSync(path.join(candidate, "server.js")));
+const HOP_BY_HOP_HEADERS = [
+  "connection",
+  "content-encoding",
+  "content-length",
+  "keep-alive",
+  "transfer-encoding",
+  "upgrade",
+  "x-airship-ftm-embedded",
+];
 
-if (!backendRoot) {
-  throw new Error("Unable to locate the FTM backend package.");
+function getBackendUrl() {
+  const configuredUrls = [process.env.FTM_BACKEND_URL, process.env["NEXT_PUBLIC_API_BASE_URL"]];
+  if (process.env.NODE_ENV === "development") configuredUrls.push("http://localhost:8001");
+
+  for (const configuredUrl of configuredUrls) {
+    if (!configuredUrl?.trim()) continue;
+
+    try {
+      const parsed = new URL(configuredUrl.trim());
+      const isLoopback = ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname.toLowerCase());
+      if (!/^https?:$/.test(parsed.protocol) || (process.env.NODE_ENV === "production" && isLoopback)) {
+        continue;
+      }
+      return parsed;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
-
-const nodeRequire = eval("require") as NodeRequire;
-const expressApp = nodeRequire(path.join(backendRoot, "server.js"));
-if (
-  typeof express !== "function" ||
-  typeof dotenv.config !== "function" ||
-  typeof createClient !== "function" ||
-  typeof ExcelJS.Workbook !== "function" ||
-  typeof nodemailer.createTransport !== "function"
-) {
-  throw new Error("FTM API runtime dependencies are unavailable.");
-}
-const expressHandler = (serverless as unknown as (
-  app: unknown,
-  options?: { provider?: "aws" }
-) => unknown)(expressApp, { provider: "aws" }) as (
-  event: object,
-  context: object
-) => Promise<{
-  statusCode: number;
-  headers?: Record<string, string | string[]>;
-  body?: string;
-  isBase64Encoded?: boolean;
-  cookies?: string[];
-}>;
-
-export const runtime = "nodejs";
 
 async function forwardToFtmBackend(request: Request, { params }: RouteContext) {
+  const backendUrl = getBackendUrl();
+  if (!backendUrl) {
+    return Response.json({ error: "The FTM backend URL is not configured." }, { status: 503 });
+  }
+
   try {
     const { path } = await params;
     const incomingUrl = new URL(request.url);
-    const method = request.method.toUpperCase();
-    const body = method === "GET" || method === "HEAD"
-      ? undefined
-      : Buffer.from(await request.arrayBuffer()).toString("utf8");
-    const result = await expressHandler({
-      version: "2.0",
-      routeKey: "$default",
-      rawPath: `/api/${path.map(encodeURIComponent).join("/")}`,
-      rawQueryString: incomingUrl.search.slice(1),
-      headers: Object.fromEntries(request.headers),
-      requestContext: {
-        http: {
-          method,
-          path: incomingUrl.pathname,
-          protocol: incomingUrl.protocol.replace(":", ""),
-          sourceIp: request.headers.get("x-forwarded-for") || "127.0.0.1",
-          userAgent: request.headers.get("user-agent") || "",
-        },
-      },
-      isBase64Encoded: false,
-      body,
-    }, {});
+    const targetUrl = new URL(`api/${path.map(encodeURIComponent).join("/")}`, `${backendUrl.href.replace(/\/+$/, "")}/`);
+    targetUrl.search = incomingUrl.search;
 
-    const responseHeaders = new Headers();
-    Object.entries(result.headers || {}).forEach(([name, value]) => {
-      if (Array.isArray(value)) value.forEach((entry) => responseHeaders.append(name, entry));
-      else responseHeaders.set(name, value);
+    const headers = new Headers(request.headers);
+    HOP_BY_HOP_HEADERS.forEach((header) => headers.delete(header));
+    headers.delete("host");
+
+    const method = request.method.toUpperCase();
+    const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
+    const backendResponse = await fetch(targetUrl, {
+      method,
+      headers,
+      body,
+      cache: "no-store",
+      redirect: "manual",
     });
-    result.cookies?.forEach((cookie) => responseHeaders.append("set-cookie", cookie));
-    const responseBody = method === "HEAD" || [204, 205, 304].includes(result.statusCode)
+    const responseHeaders = new Headers(backendResponse.headers);
+    HOP_BY_HOP_HEADERS.forEach((header) => responseHeaders.delete(header));
+    const responseBody = method === "HEAD" || [204, 205, 304].includes(backendResponse.status)
       ? null
-      : result.isBase64Encoded
-        ? Buffer.from(result.body || "", "base64")
-        : result.body || null;
+      : backendResponse.body;
 
     return new Response(responseBody, {
-      status: result.statusCode,
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
       headers: responseHeaders,
     });
   } catch {
-    return Response.json({ error: "The FTM API handler failed." }, { status: 500 });
+    return Response.json({ error: "The FTM backend could not be reached." }, { status: 502 });
   }
 }
 
