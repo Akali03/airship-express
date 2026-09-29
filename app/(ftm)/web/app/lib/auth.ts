@@ -116,28 +116,50 @@ export function clearPasskeyVerified() {
 }
 
 export async function signInWithPassword(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { user: null, error };
-  if (!data.user) return { user: null, error: new Error("Authentication did not return a user") };
-  if (!data.session) return { user: null, error: new Error("Authentication did not return a valid session") };
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  let response: Response;
+  try {
+    response = await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    return {
+      user: null,
+      error: new Error(`Unable to connect to the FTM backend at ${base}. Start the backend server and try again.`),
+    };
+  }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const authError = new Error(body.error || "Unable to sign in") as Error & { code?: string };
+    authError.code = body.code;
+    return { user: null, error: authError };
+  }
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle();
-  const user = mapSupabaseUser({
-    ...data.user,
-    role: profile?.role ?? null,
-  } as User & { role?: string | null });
+  const session = body.session;
+  if (!session?.access_token || !session.refresh_token) {
+    return { user: null, error: new Error("Authentication did not return a valid session") };
+  }
+  const user = mapSupabaseUser(body.user ? {
+    ...body.user,
+    app_metadata: body.user.app_metadata || {},
+    user_metadata: body.user.user_metadata || {},
+    role: body.user.role,
+  } as User & { role?: string | null } : null);
   if (!user) return { user: null, error: new Error("Authentication did not return a user") };
   if (user.role === "driver") {
-    await supabase.auth.signOut({ scope: "local" });
     return { user: null, error: new Error("Driver accounts cannot access the FTM web portal.") };
   }
 
   persistAuthUser(user);
   clearPasskeyVerified();
+  const { error: sessionError } = await supabase.auth.setSession(session);
+  if (sessionError) {
+    persistAuthUser(null);
+    return { user: null, error: sessionError };
+  }
+
   return { user, error: null };
 }
 
@@ -179,22 +201,23 @@ export async function requestEmailMfaCode(email: string) {
   const trimmedEmail = String(email ?? "").trim();
   if (!trimmedEmail) throw new Error("Email address is required.");
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email || user.email.toLowerCase() !== trimmedEmail.toLowerCase()) {
-    throw new Error("Sign in again before requesting a verification code.");
-  }
-
-  const { error } = await supabase.auth.signInWithOtp({
-    email: trimmedEmail,
-    options: { shouldCreateUser: false },
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const response = await fetch(`${base}/api/auth/request-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: trimmedEmail }),
   });
-  if (error) throw error;
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || "Unable to send the verification email.");
+  }
 
   return {
     sent: true,
-    message: "A 6-digit verification code was sent to your email address.",
-    expiresAt: Date.now() + 5 * 60 * 1000,
-    resendAvailableAt: Date.now() + 30 * 1000,
+    message: body.message || "A 6-digit verification code was sent to your email address.",
+    expiresAt: Number(body.expiresAt) || Date.now() + (Number(body.expiresInSeconds) || 300) * 1000,
+    resendAvailableAt: Number(body.resendAvailableAt) || Date.now(),
   };
 }
 
@@ -224,24 +247,19 @@ export async function verifyEmailMfaCode(email: string, code: string) {
     throw new Error("Enter the 6-digit code from your email.");
   }
 
-  const { data: { user: pendingUser } } = await supabase.auth.getUser();
-  if (!pendingUser?.email || pendingUser.email.toLowerCase() !== trimmedEmail.toLowerCase()) {
-    throw new Error("Sign in again before verifying this code.");
-  }
-
-  const { data, error } = await supabase.auth.verifyOtp({
-    email: trimmedEmail,
-    token: normalizedCode,
-    type: "email",
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  const response = await fetch(`${base}/api/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: trimmedEmail, code: normalizedCode }),
   });
-  if (error) throw error;
-  if (data.user?.id !== pendingUser.id) {
-    await supabase.auth.signOut({ scope: "local" });
-    persistAuthUser(null);
-    throw new Error("The verification code did not match the signed-in account.");
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || "The verification code is invalid or expired.");
   }
 
-  return { verified: true };
+  return { verified: Boolean(body.verified) };
 }
 
 export function getUserFriendlyAuthError(rawError: unknown, context: "signin" | "otp" | "passkey" = "signin") {

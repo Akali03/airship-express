@@ -1,9 +1,9 @@
 // Simple script to fetch parcels from Supabase REST API
-// Uses the FTM Supabase project variables from ../../.env.
+// Uses NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY from ../../.env.
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC__FTM_SUPABASE_URL || process.env.NEXT_PUBLIC_FTM_SUPABASE_URL;
-const ANON_KEY = process.env.NEXT_PUBLIC_FTM_SUPABASE_ANON_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC__FTM_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const ANON_KEY = process.env.NEXT_PUBLIC_FTM_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !ANON_KEY) {
   console.error('Missing environment variables. Please set NEXT_PUBLIC__FTM_SUPABASE_URL and NEXT_PUBLIC_FTM_SUPABASE_ANON_KEY.');

@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Rethink_Sans } from "next/font/google";
-import { headers } from "next/headers";
 import { Suspense } from "react";
 import "./globals.css";
 import CursorHost from "./components/CursorHost";
@@ -11,55 +9,18 @@ import FtmSecurityProvider from "./components/FtmSecurityProvider";
 import FtmChatbotGate from "./components/FtmChatbotGate";
 import { FtmProfileAvatarProvider } from "./components/FtmProfileAvatarProvider";
 
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
-  subsets: ["latin"],
-});
-
-const rethink = Rethink_Sans({
-  variable: "--font-rethink",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
   title: "Airship Express - Fleet & Transport Suite",
   description: "Integrated Fleet Operations Suite — real-time fleet distribution, dispatch, fuel, cost, driver and maintenance command center.",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isEmbedded = (await headers()).get("x-airship-ftm-embedded") === "1";
-  const content = (
-    <FtmSettingsProvider>
-      <FtmProfileAvatarProvider>
-        <ThemeProvider>
-          <Suspense fallback={null}>
-            <FtmLoadingProvider>
-              <FtmSecurityProvider>
-                <CursorHost />
-                {children}
-                <FtmChatbotGate />
-              </FtmSecurityProvider>
-            </FtmLoadingProvider>
-          </Suspense>
-        </ThemeProvider>
-      </FtmProfileAvatarProvider>
-    </FtmSettingsProvider>
-  );
-
-  if (isEmbedded) {
-    return (
-      <div className={`${bricolage.variable} ${rethink.variable} ftm-soft-app font-sans antialiased min-h-screen flex flex-col`}>
-        {content}
-      </div>
-    );
-  }
-
   return (
-    <html lang="en" className={`${bricolage.variable} ${rethink.variable}`}>
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -69,7 +30,21 @@ export default async function RootLayout({
         />
       </head>
       <body className="ftm-soft-app font-sans antialiased min-h-screen flex flex-col">
-        {content}
+        <FtmSettingsProvider>
+          <FtmProfileAvatarProvider>
+            <ThemeProvider>
+            <Suspense fallback={null}>
+              <FtmLoadingProvider>
+                <FtmSecurityProvider>
+                  <CursorHost />
+                  {children}
+                  <FtmChatbotGate />
+                </FtmSecurityProvider>
+              </FtmLoadingProvider>
+            </Suspense>
+            </ThemeProvider>
+          </FtmProfileAvatarProvider>
+        </FtmSettingsProvider>
       </body>
     </html>
   );
