@@ -11,10 +11,23 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 export default function ExecutiveClientPage() {
-    const { data, loading, isRefreshing, isLoadedFromCache, isRealtimeActive, refresh } = useExecutiveData();
+    const { data, loading, isRefreshing, isLoadedFromCache, isRealtimeActive, refresh, applyDateFilter, resetDateFilter, activeDateRange } = useExecutiveData();
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const searchParams = useSearchParams();
     const currentTab = searchParams.get('tab') || 'overview';
+
+    const handleApplyFilter = () => {
+        if (!dateFrom && !dateTo) return;
+        applyDateFilter({ from: dateFrom, to: dateTo || dateFrom });
+    };
+
+    const handleResetFilter = () => {
+        setDateFrom('');
+        setDateTo('');
+        resetDateFilter();
+    };
 
     const pageKpis = data?.pageKpis || {
         parcelsToday: 0,
@@ -90,16 +103,162 @@ export default function ExecutiveClientPage() {
                 </div>
             </div>
 
+            {/* Date Range Filter Bar — Neumorphic */}
+            <div className="
+                rounded-2xl px-5 py-4
+                bg-[#e8edf4] dark:bg-[#1a1b26]
+                shadow-[6px_6px_14px_rgba(166,175,195,0.5),-6px_-6px_14px_rgba(255,255,255,0.9)]
+                dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5),-6px_-6px_14px_rgba(255,255,255,0.04)]
+                flex flex-col gap-3
+            ">
+                {/* Row 1 — Month quick-filter */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0 mr-1">
+                        <div className="
+                            w-7 h-7 rounded-xl flex items-center justify-center text-pink-500 dark:text-pink-400
+                            bg-[#e8edf4] dark:bg-[#1a1b26]
+                            shadow-[3px_3px_7px_rgba(166,175,195,0.5),-3px_-3px_7px_rgba(255,255,255,0.9)]
+                            dark:shadow-[3px_3px_7px_rgba(0,0,0,0.5),-3px_-3px_7px_rgba(255,255,255,0.04)]
+                        ">
+                            <i className="fas fa-layer-group text-[10px]" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                            Quick Month
+                        </span>
+                    </div>
+                    {(() => {
+                        const now = new Date();
+                        const currentYear = now.getFullYear();
+                        const currentMonth = now.getMonth(); // 0-indexed
+                        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                        return monthNames.slice(0, currentMonth + 1).map((name, idx) => {
+                            const monthNum = String(idx + 1).padStart(2, '0');
+                            const lastDay = new Date(currentYear, idx + 1, 0).getDate();
+                            const fromVal = `${currentYear}-${monthNum}-01`;
+                            const toVal   = `${currentYear}-${monthNum}-${String(lastDay).padStart(2, '0')}`;
+                            const isActive = activeDateRange?.from === fromVal && activeDateRange?.to === toVal;
+                            return (
+                                <button
+                                    key={name}
+                                    type="button"
+                                    onClick={() => {
+                                        setDateFrom(fromVal);
+                                        setDateTo(toVal);
+                                        applyDateFilter({ from: fromVal, to: toVal });
+                                    }}
+                                    className={`h-7 px-3 rounded-xl text-[11px] font-bold cursor-pointer transition-all neu-btn-raised ${
+                                        isActive
+                                            ? 'bg-pink-500 text-white shadow-[2px_2px_6px_rgba(236,72,153,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)]'
+                                            : 'text-slate-600 dark:text-slate-300 bg-[#e8edf4] dark:bg-[#1a1b26] shadow-[3px_3px_7px_rgba(166,175,195,0.45),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.45),-3px_-3px_7px_rgba(255,255,255,0.04)] hover:text-pink-500 dark:hover:text-pink-400'
+                                    }`}
+                                >
+                                    {name}
+                                </button>
+                            );
+                        });
+                    })()}
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-slate-200/70 dark:bg-white/[0.05]" />
+
+                {/* Row 2 — Custom date range + apply/reset */}
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="
+                            w-8 h-8 rounded-xl flex items-center justify-center text-pink-500 dark:text-pink-400
+                            bg-[#e8edf4] dark:bg-[#1a1b26]
+                            shadow-[3px_3px_7px_rgba(166,175,195,0.5),-3px_-3px_7px_rgba(255,255,255,0.9)]
+                            dark:shadow-[3px_3px_7px_rgba(0,0,0,0.5),-3px_-3px_7px_rgba(255,255,255,0.04)]
+                        ">
+                            <i className="fas fa-calendar-alt text-xs" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            Custom range
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {/* From */}
+                        <div className="flex items-center gap-2">
+                            <label className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide">From</label>
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                max={dateTo || undefined}
+                                onChange={(e) => setDateFrom(e.target.value)}
+                                className="neu-date-input"
+                            />
+                        </div>
+
+                        {/* arrow */}
+                        <i className="fas fa-arrow-right text-[10px] text-slate-400 dark:text-slate-600" />
+
+                        {/* To */}
+                        <div className="flex items-center gap-2">
+                            <label className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide">To</label>
+                            <input
+                                type="date"
+                                value={dateTo}
+                                min={dateFrom || undefined}
+                                onChange={(e) => setDateTo(e.target.value)}
+                                className="neu-date-input"
+                            />
+                        </div>
+
+                        {/* Apply btn */}
+                        <button
+                            type="button"
+                            onClick={handleApplyFilter}
+                            disabled={!dateFrom && !dateTo}
+                            className="neu-btn-raised h-8 px-4 rounded-xl text-xs font-bold text-white bg-pink-500 flex items-center gap-1.5 cursor-pointer shadow-[4px_4px_10px_rgba(236,72,153,0.4),-2px_-2px_6px_rgba(255,255,255,0.15)] dark:shadow-[4px_4px_10px_rgba(236,72,153,0.35),-2px_-2px_6px_rgba(255,255,255,0.04)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                        >
+                            <i className="fas fa-check text-[10px]" />
+                            Apply
+                        </button>
+
+                        {/* Reset btn — only when active */}
+                        {activeDateRange && (
+                            <button
+                                type="button"
+                                onClick={handleResetFilter}
+                                className="neu-btn-raised h-8 px-3.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-[#e8edf4] dark:bg-[#1a1b26] flex items-center gap-1.5 cursor-pointer shadow-[4px_4px_10px_rgba(166,175,195,0.5),-4px_-4px_10px_rgba(255,255,255,0.9)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5),-4px_-4px_10px_rgba(255,255,255,0.04)] hover:text-pink-500 dark:hover:text-pink-400"
+                            >
+                                <i className="fas fa-times text-[10px]" />
+                                Reset
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Active filter badge */}
+                    {activeDateRange && (
+                        <span className="
+                            inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-bold
+                            text-pink-600 dark:text-pink-400
+                            bg-[#e8edf4] dark:bg-[#1a1b26]
+                            shadow-[inset_2px_2px_5px_rgba(166,175,195,0.5),inset_-2px_-2px_5px_rgba(255,255,255,0.9)]
+                            dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.5),inset_-2px_-2px_5px_rgba(255,255,255,0.04)]
+                        ">
+                            <i className="fas fa-filter text-[9px]" />
+                            {activeDateRange.from} → {activeDateRange.to}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+
             {loading && !data ? (
                 <CardsSkeleton count={4} className="grid-cols-2 sm:grid-cols-2 xl:grid-cols-4" />
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <Cards
-                        header="Parcels received today"
+                        header={activeDateRange?.from ? `Parcels in range` : `Parcels received today`}
                         data={pageKpis.parcelsToday.toLocaleString()}
                         description={pageKpis.parcelsChangePct}
-                        backHeader="Today Ingestion Log"
-                        backDescription={`Parcels created today: ${pageKpis.parcelsToday}\nTrend: ${pageKpis.parcelsChangePct}`}
+                        backHeader={activeDateRange?.from ? "Filtered Range Total" : "Today Ingestion Log"}
+                        backDescription={activeDateRange?.from
+                            ? `Parcels in ${activeDateRange.from} → ${activeDateRange.to}: ${pageKpis.parcelsToday}\nTrend: ${pageKpis.parcelsChangePct}`
+                            : `Parcels created today: ${pageKpis.parcelsToday}\nTrend: ${pageKpis.parcelsChangePct}`}
                     />
                     <Cards
                         header="Ready for dispatch"
@@ -109,11 +268,13 @@ export default function ExecutiveClientPage() {
                         backDescription={`Parcels in ready/sorting state: ${pageKpis.readyForDispatch}\nQueue Ratio: ${pageKpis.readyPct}`}
                     />
                     <Cards
-                        header="Dispatched (MTD)"
+                        header={activeDateRange?.from ? `Dispatched (Period)` : `Dispatched (MTD)`}
                         data={pageKpis.dispatchedMtd.toLocaleString()}
                         description={pageKpis.dispatchedChangePct}
-                        backHeader="Monthly Dispatched Volume"
-                        backDescription={`Month-to-date dispatched shipments: ${pageKpis.dispatchedMtd}`}
+                        backHeader={activeDateRange?.from ? "Period Dispatched Volume" : "Monthly Dispatched Volume"}
+                        backDescription={activeDateRange?.from
+                            ? `Dispatched in ${activeDateRange.from} → ${activeDateRange.to}: ${pageKpis.dispatchedMtd}`
+                            : `Month-to-date dispatched shipments: ${pageKpis.dispatchedMtd}`}
                     />
                     <Cards
                         header="Fulfillment Delivery Rate"
@@ -123,6 +284,7 @@ export default function ExecutiveClientPage() {
                         backDescription={`Ratio of delivered parcels out of total database records: ${pageKpis.ontimeRate}`}
                     />
                 </div>
+
             )}
 
             <AiQuestions />

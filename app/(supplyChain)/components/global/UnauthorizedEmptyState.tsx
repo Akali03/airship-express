@@ -74,14 +74,18 @@ export interface UnauthorizedEmptyStateProps {
     currentRole?: string;
     requiredRoles?: string[];
     className?: string;
+    statusCode?: number | string;
+    statusText?: string;
 }
 
 export default function UnauthorizedEmptyState({
-    title = "Unauthorized Access",
+    title = "Access Forbidden",
     description = "You do not have the required permissions to view this content. This section is restricted to authorized personnel only.",
     currentRole,
     requiredRoles = ["Admin", "Manager", "Executive"],
     className = "",
+    statusCode = 403,
+    statusText = "Forbidden",
 }: UnauthorizedEmptyStateProps) {
     const role = currentRole || user.getRole() || 'User';
 
@@ -100,11 +104,11 @@ export default function UnauthorizedEmptyState({
                 </div>
             </div>
 
-            {/* 401 Recessed Badge */}
+            {/* 403 / Status Recessed Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_2px_2px_5px_#cbd6e4,inset_-2px_-2px_5px_#ffffff] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6),inset_-1px_-1px_4px_rgba(255,255,255,0.02)] border border-pink-500/20">
                 <ShieldAlert className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
                 <span className="font-mono text-xs font-bold tracking-wider text-pink-600 dark:text-pink-400 uppercase">
-                    401 • Unauthorized
+                    {statusCode} • {statusText}
                 </span>
             </div>
 

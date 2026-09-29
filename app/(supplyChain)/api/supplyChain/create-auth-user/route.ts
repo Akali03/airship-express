@@ -189,13 +189,25 @@ export async function POST(request: Request) {
         let effectiveRole = role;
         if (supplierAcc || role === 'Supplier') {
             effectiveRole = 'Supplier';
-        } else if (userPosition && role !== 'Admin' && role !== 'Executive') {
+        } else if (userPosition && role !== 'Executive') {
             const p = userPosition.trim().toUpperCase().replace(/\s+/g, ' ');
             if (
+                p === 'ADMIN STAFF' ||
+                p === 'ADMIN' ||
+                p === 'ADMINISTRATOR' ||
+                p === 'MARKETING/ADMIN STAFF' ||
+                p === 'MARKETING / ADMIN STAFF' ||
+                p === 'MKTG/ADMIN STAFF' ||
+                p === 'MKTG / ADMIN STAFF' ||
+                p.includes('ADMIN STAFF') ||
+                p === 'ADMIN ASSISTANT' ||
+                p.includes('ADMIN ASSISTANT')
+            ) {
+                effectiveRole = 'Admin';
+            } else if (
                 p === 'OFFICE-IN-CHARGE' ||
                 p === 'OFFICE IN CHARGE' ||
                 p === 'PROJECT COORDINATOR' ||
-                p === 'ADMIN ASSISTANT' ||
                 p === 'MANAGER'
             ) {
                 effectiveRole = 'Manager';

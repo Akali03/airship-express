@@ -2,11 +2,13 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Document } from '../../types';
 import { formatFileSize } from '../../utils/formatters';
 import { AppButton } from '../../../../components/ui/AppButton';
 import Portal from '../../../../components/client/Portal';
 import { toast } from 'sonner';
+import { findSimilarExtractedDocument } from '../../utils/textSimilarity';
 
 interface DocumentAttachFileModalProps {
     isOpen: boolean;
@@ -23,6 +25,7 @@ export function DocumentAttachFileModal({
     onClose,
     onAttachSuccess,
 }: DocumentAttachFileModalProps) {
+    const router = useRouter();
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [isAttaching, setIsAttaching] = useState(false);
@@ -53,6 +56,21 @@ export function DocumentAttachFileModal({
             setIsVerifying(true);
             const toastId = toast.loading('Running Gemini OCR document validation...');
 
+            // Duplicate check against existing documents by filename & size
+            const { supabase } = await import('../../../../lib/services/client/supabase');
+            const { data: existingDocs } = await supabase
+                .from('documents')
+                .select('id, file_name, file_size')
+                .ilike('file_name', selectedFile.name)
+                .eq('file_size', selectedFile.size)
+                .neq('id', targetDoc.id);
+
+            if (existingDocs && existingDocs.length > 0) {
+                setIsVerifying(false);
+                toast.info(`Document "${selectedFile.name}" has already been uploaded previously.`, { id: toastId, duration: 5000 });
+                return;
+            }
+
             // Convert file to base64
             const reader = new FileReader();
             const base64Promise = new Promise<string>((resolve, reject) => {
@@ -69,13 +87,42 @@ export function DocumentAttachFileModal({
                 body: JSON.stringify({
                     fileBase64: base64,
                     fileName: selectedFile.name,
+                    fileSize: selectedFile.size,
                     fileType: selectedFile.type,
                     userRole: userRole,
+                    excludeDocId: targetDoc.id,
                 }),
             });
 
             const ocrData = await ocrRes.json();
             setIsVerifying(false);
+
+            if (ocrData.success && ocrData.is_in_trash) {
+                const searchQ = ocrData.search_query || ocrData.trash_match?.file_name || ocrData.trash_match?.title || selectedFile.name;
+                toast.warning(
+                    `file is already in trash ask your manager to restore it to avoid duplication or see if you can restore it`,
+                    {
+                        id: toastId,
+                        duration: 12000,
+                        action: {
+                            label: 'View in Trash',
+                            onClick: () => {
+                                router.push(`/trash?tab=documents&q=${encodeURIComponent(searchQ)}`);
+                            },
+                        },
+                    }
+                );
+                return;
+            }
+
+            if (ocrData.success && ocrData.is_duplicate) {
+                const matchedName = ocrData.duplicate_match?.matchedDoc?.title || ocrData.duplicate_match?.matchedDoc?.file_name || 'existing document';
+                toast.info(
+                    `Duplicate Blocked: "${selectedFile.name}" has already been uploaded previously (matches "${matchedName}").`,
+                    { id: toastId, duration: 6000 }
+                );
+                return;
+            }
 
             if (ocrData.success && !ocrData.is_valid_system_doc) {
                 if (!isPrivileged) {
@@ -92,6 +139,83 @@ export function DocumentAttachFileModal({
                     setOverrideAllowed(true);
                     toast.warning('AI Warning: Out-of-scope media detected. Review warning below to proceed.', { id: toastId });
                     return;
+                }
+            }
+
+            // Check extracted content similarity against trash archive and existing active documents
+            const ocrTextToCompare = ocrData?.extracted_text || ocrData?.extracted?.text || ocrData?.photo_description;
+            if (ocrTextToCompare || selectedFile) {
+                try {
+                    // Check trash archive
+                    const { data: existingTrashDocs } = await supabase
+                        .from('documents_archive')
+                        .select('id, title, file_name, file_size, supplier, po_number, extracted')
+                        .order('deleted_at', { ascending: false })
+                        .limit(150);
+
+                    if (existingTrashDocs && existingTrashDocs.length > 0) {
+                        const trashMatch = findSimilarExtractedDocument(
+                            {
+                                text: ocrData?.extracted?.text || ocrData?.extracted_text || null,
+                                description: ocrData?.extracted?.description || ocrData?.photo_description || null,
+                                summary: ocrData?.extracted?.summary || ocrData?.summary || null,
+                                po_number: ocrData?.extracted?.po_number || ocrData?.extracted_po_number || null,
+                                file_name: selectedFile.name,
+                                file_size: selectedFile.size,
+                            },
+                            existingTrashDocs
+                        );
+
+                        if (trashMatch && trashMatch.isSimilar) {
+                            const searchQ = trashMatch.matchedDoc.file_name || trashMatch.matchedDoc.title || selectedFile.name;
+                            toast.warning(
+                                `file is already in trash ask your manager to restore it to avoid duplication or see if you can restore it`,
+                                {
+                                    id: toastId,
+                                    duration: 12000,
+                                    action: {
+                                        label: 'View in Trash',
+                                        onClick: () => {
+                                            router.push(`/trash?tab=documents&q=${encodeURIComponent(searchQ)}`);
+                                        },
+                                    },
+                                }
+                            );
+                            return;
+                        }
+                    }
+
+                    // Check active documents
+                    const { data: existingExtractedDocs } = await supabase
+                        .from('documents')
+                        .select('id, title, file_name, file_size, supplier, po_number, extracted')
+                        .neq('id', targetDoc.id)
+                        .order('created_at', { ascending: false })
+                        .limit(250);
+
+                    if (existingExtractedDocs && existingExtractedDocs.length > 0) {
+                        const simMatch = findSimilarExtractedDocument(
+                            {
+                                text: ocrData?.extracted?.text || ocrData?.extracted_text || null,
+                                description: ocrData?.extracted?.description || ocrData?.photo_description || null,
+                                summary: ocrData?.extracted?.summary || ocrData?.summary || null,
+                                po_number: ocrData?.extracted?.po_number || ocrData?.extracted_po_number || null,
+                                file_name: selectedFile.name,
+                                file_size: selectedFile.size,
+                            },
+                            existingExtractedDocs,
+                            targetDoc.id
+                        );
+                        if (simMatch && simMatch.isSimilar) {
+                            toast.info(
+                                `Document "${selectedFile.name}" was already uploaded previously (similar content to "${simMatch.matchedDoc.title || simMatch.matchedDoc.file_name}").`,
+                                { id: toastId, duration: 6000 }
+                            );
+                            return;
+                        }
+                    }
+                } catch (simErr) {
+                    console.warn('Text similarity check skipped in attachment:', simErr);
                 }
             }
 
@@ -219,19 +343,24 @@ export function DocumentAttachFileModal({
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)]">
-                                <i className="fas fa-paperclip text-sm"></i>
+                            <div className={`w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] ${(isVerifying || isAttaching) ? 'text-pink-600 dark:text-pink-400 animate-pulse' : 'text-pink-500 dark:text-pink-400'}`}>
+                                <i className={`fas ${(isVerifying || isAttaching) ? 'fa-spinner fa-spin' : 'fa-paperclip'} text-sm`}></i>
                             </div>
                             <div>
-                                <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                                    Attach File to Document
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                                    <span>Attach File to Document</span>
+                                    {(isVerifying || isAttaching) && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20 animate-pulse">
+                                            {isVerifying ? 'Verifying...' : 'Attaching...'}
+                                        </span>
+                                    )}
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                     Upload official document or receipt file with Gemini OCR verification
                                 </p>
                             </div>
                         </div>
-                        <AppButton type="button" variant="neutral" size="icon-sm" onClick={onClose} aria-label="Close modal">
+                        <AppButton type="button" variant="neutral" size="icon-sm" onClick={onClose} disabled={isVerifying || isAttaching} aria-label="Close modal">
                             <i className="fas fa-times text-xs"></i>
                         </AppButton>
                     </div>
@@ -253,6 +382,19 @@ export function DocumentAttachFileModal({
                                 {targetDoc.Price && <span>Price: <strong className="text-pink-600 dark:text-pink-400">₱{targetDoc.Price}</strong></span>}
                             </div>
                         </div>
+
+                        {/* Loading Banner */}
+                        {(isVerifying || isAttaching) && (
+                            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 border border-pink-500/30 text-xs space-y-2 animate-in fade-in duration-200">
+                                <div className="flex items-center gap-2 font-bold text-pink-600 dark:text-pink-400">
+                                    <i className="fas fa-circle-notch fa-spin text-sm"></i>
+                                    <span>{isVerifying ? 'Running AI OCR Verification on selected file...' : 'Attaching & saving file...'}</span>
+                                </div>
+                                <div className="w-full bg-slate-200/80 dark:bg-slate-800/80 rounded-full h-2 overflow-hidden shadow-inner">
+                                    <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 h-2 rounded-full w-3/4 animate-pulse"></div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* OCR Warning Alert (for Admin/Executive) */}
                         {ocrWarning && overrideAllowed && (
@@ -280,16 +422,26 @@ export function DocumentAttachFileModal({
 
                         {/* Dropzone */}
                         <div
-                            className="border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl p-6 text-center hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer bg-[#ebf0f7] dark:bg-[#14151e] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)]"
-                            onClick={() => fileInputRef.current?.click()}
+                            className={`border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl p-6 text-center transition-all bg-[#ebf0f7] dark:bg-[#14151e] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] ${
+                                (isVerifying || isAttaching)
+                                    ? 'opacity-60 cursor-not-allowed pointer-events-none'
+                                    : 'hover:border-pink-400 dark:hover:border-pink-500/60 cursor-pointer'
+                            }`}
+                            onClick={() => {
+                                if (isVerifying || isAttaching) return;
+                                fileInputRef.current?.click();
+                            }}
                             onDragOver={(e) => {
+                                if (isVerifying || isAttaching) return;
                                 e.preventDefault();
                                 e.currentTarget.classList.add('border-pink-400', 'bg-pink-500/5');
                             }}
                             onDragLeave={(e) => {
+                                if (isVerifying || isAttaching) return;
                                 e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/5');
                             }}
                             onDrop={(e) => {
+                                if (isVerifying || isAttaching) return;
                                 e.preventDefault();
                                 e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/5');
                                 handleFileSelect(e.dataTransfer.files);
@@ -298,13 +450,14 @@ export function DocumentAttachFileModal({
                             <input
                                 ref={fileInputRef}
                                 type="file"
+                                disabled={isVerifying || isAttaching}
                                 className="hidden"
                                 accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx,.xls,.xlsx"
                                 onChange={(e) => handleFileSelect(e.target.files)}
                             />
                             <div className="flex flex-col items-center gap-2">
                                 <div className="w-12 h-12 rounded-2xl bg-[#f0f3f8] dark:bg-[#191a24] text-pink-500 dark:text-pink-400 flex items-center justify-center mb-1 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)]">
-                                    <i className="fas fa-file-arrow-up text-xl"></i>
+                                    <i className={`fas ${(isVerifying || isAttaching) ? 'fa-spinner fa-spin' : 'fa-file-arrow-up'} text-xl`}></i>
                                 </div>
                                 <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                     {selectedFile ? selectedFile.name : (
@@ -319,7 +472,7 @@ export function DocumentAttachFileModal({
 
                         {/* Actions */}
                         <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200/60 dark:border-white/[0.06]">
-                            <AppButton type="button" variant="neutral" size="md" onClick={onClose}>
+                            <AppButton type="button" variant="neutral" size="md" onClick={onClose} disabled={isVerifying || isAttaching}>
                                 Cancel
                             </AppButton>
                             {!ocrWarning && (

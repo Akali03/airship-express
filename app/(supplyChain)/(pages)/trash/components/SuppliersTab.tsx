@@ -118,6 +118,65 @@ export function SuppliersTab() {
         if (confirmed) {
             setSupplierLoading(true);
             try {
+                // Check if an active supplier with the same name already exists
+                const { data: existingActive } = await supabase
+                    .from('suppliers')
+                    .select('id, name')
+                    .ilike('name', supplier.name)
+                    .maybeSingle();
+
+                if (existingActive) {
+                    setSupplierLoading(false);
+                    const shouldOverwrite = await confirm({
+                        title: 'Active Supplier Already Exists',
+                        message: `An active supplier with name "${sanitizeText(supplier.name)}" is already active in Supplier Directory.\n\nDo you want to overwrite the active supplier with this archived record?`,
+                        confirmText: 'Overwrite Active',
+                        cancelText: 'Cancel',
+                        confirmVariant: 'warning'
+                    });
+
+                    if (!shouldOverwrite) {
+                        toast.info(`Restore cancelled: active supplier "${sanitizeText(supplier.name)}" already exists.`);
+                        return;
+                    }
+
+                    setSupplierLoading(true);
+                    const { error: updateError } = await supabase
+                        .from('suppliers')
+                        .update({
+                            category: supplier.category,
+                            contact_person: supplier.contact_person,
+                            phone: supplier.phone,
+                            email: supplier.email,
+                            location: supplier.location,
+                            products: supplier.products,
+                            notes: supplier.notes,
+                            is_active: supplier.is_active,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq('id', existingActive.id);
+
+                    if (updateError) throw updateError;
+
+                    const { error: deleteError } = await supabase
+                        .from('suppliers_archive')
+                        .delete()
+                        .eq('id', supplier.id);
+
+                    if (deleteError) throw deleteError;
+
+                    trashCache.removeItem('suppliers', supplier.id);
+                    setArchivedSuppliers(prev => prev.filter(s => s.id !== supplier.id));
+                    setSupplierTotalPages(Math.ceil((archivedSuppliers.length - 1) / ITEMS_PER_PAGE));
+                    setSelectedSupplierIds(prev => {
+                        const updated = new Set(prev);
+                        updated.delete(supplier.id);
+                        return updated;
+                    });
+                    toast.success(`Active supplier "${sanitizeText(supplier.name)}" updated with archived details`);
+                    return;
+                }
+
                 const supplierPayload = {
                     name: supplier.name,
                     category: supplier.category,
@@ -147,7 +206,13 @@ export function SuppliersTab() {
                     insertError = retry.error;
                 }
 
-                if (insertError) throw insertError;
+                if (insertError) {
+                    if (insertError.code === '23505' || insertError.message?.includes('duplicate key')) {
+                        toast.error(`Cannot restore: An active supplier with name "${sanitizeText(supplier.name)}" already exists.`);
+                        return;
+                    }
+                    throw insertError;
+                }
 
                 const { error: deleteError } = await supabase
                     .from('suppliers_archive')
@@ -165,8 +230,12 @@ export function SuppliersTab() {
                     return updated;
                 });
                 toast.success(`"${sanitizeText(supplier.name)}" restored successfully`);
-            } catch (error) {
-                toast.error('Failed to restore supplier');
+            } catch (error: any) {
+                if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+                    toast.error(`Cannot restore: An active supplier with name "${sanitizeText(supplier.name)}" already exists.`);
+                } else {
+                    toast.error('Failed to restore supplier');
+                }
                 console.error(error);
             } finally {
                 setSupplierLoading(false);
@@ -224,7 +293,26 @@ export function SuppliersTab() {
             setSupplierLoading(true);
             try {
                 const suppliersToRestore = archivedSuppliers.filter(s => selectedSupplierIds.has(s.id));
+                const allNames = suppliersToRestore.map(s => s.name).filter(Boolean);
+
+                // Check which supplier names already exist in active suppliers
+                const { data: existingActiveList } = await supabase
+                    .from('suppliers')
+                    .select('name')
+                    .in('name', allNames);
+
+                const activeNames = new Set((existingActiveList || []).map(s => s.name.toLowerCase()));
+                const seenInBatch = new Set<string>();
+                const successfullyRestoredIds = new Set<string | number>();
+                const skippedConflictNames: string[] = [];
+
                 for (const supplier of suppliersToRestore) {
+                    const normName = supplier.name.toLowerCase();
+                    if (activeNames.has(normName) || seenInBatch.has(normName)) {
+                        skippedConflictNames.push(supplier.name);
+                        continue;
+                    }
+
                     const supplierPayload = {
                         name: supplier.name,
                         category: supplier.category,
@@ -254,18 +342,35 @@ export function SuppliersTab() {
                         insertError = retry.error;
                     }
 
-                    if (insertError) throw insertError;
+                    if (insertError) {
+                        console.error('Insert error for supplier:', supplier.name, insertError);
+                        skippedConflictNames.push(supplier.name);
+                        continue;
+                    }
 
                     await supabase
                         .from('suppliers_archive')
                         .delete()
                         .eq('id', supplier.id);
+
+                    seenInBatch.add(normName);
+                    successfullyRestoredIds.add(supplier.id);
                 }
 
-                trashCache.removeItems('suppliers', selectedSupplierIds);
-                setArchivedSuppliers(prev => prev.filter(s => !selectedSupplierIds.has(s.id)));
-                setSupplierTotalPages(Math.ceil((archivedSuppliers.length - selectedSupplierIds.size) / ITEMS_PER_PAGE));
-                toast.success(`${selectedSupplierIds.size} supplier(s) restored successfully!`);
+                if (successfullyRestoredIds.size > 0) {
+                    trashCache.removeItems('suppliers', successfullyRestoredIds);
+                    setArchivedSuppliers(prev => prev.filter(s => !successfullyRestoredIds.has(s.id)));
+                    setSupplierTotalPages(Math.ceil((archivedSuppliers.length - successfullyRestoredIds.size) / ITEMS_PER_PAGE));
+                    toast.success(`${successfullyRestoredIds.size} supplier(s) restored successfully!`);
+                }
+
+                if (skippedConflictNames.length > 0) {
+                    toast.warning(
+                        `Skipped ${skippedConflictNames.length} supplier(s) because an active supplier already exists: ${skippedConflictNames.join(', ')}`,
+                        { duration: 7000 }
+                    );
+                }
+
                 setSelectedSupplierIds(new Set());
             } catch (error) {
                 toast.error('Failed to restore suppliers');

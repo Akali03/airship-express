@@ -63,19 +63,19 @@ export function NavBtn({ link, isActive, color, icon, label, onClick, 'data-tab'
     return (
         <button
             type="button"
-            className={`tab-btn relative flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl
+            className={`relative flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl
                         border transition-all duration-200 whitespace-nowrap cursor-pointer
                         active:scale-95 ${
                             isActive
-                                ? 'bg-gradient-to-b from-pink-500 to-pink-600 text-white border-pink-400/80 dark:border-pink-500/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] font-bold'
-                                : 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-700 dark:text-slate-200 border-white/70 dark:border-[#2a2b38] hover:bg-[#e8edf5] dark:hover:bg-[#232533] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)]'
+                                ? '!text-white bg-gradient-to-b from-pink-500 to-pink-600 border-pink-400/80 dark:border-pink-500/80 shadow-[0_4px_14px_rgba(236,72,153,0.45),inset_0_1px_1.5px_rgba(255,255,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.25)] font-bold'
+                                : 'bg-[#f0f3f8] dark:bg-[#1d1e28] text-slate-800 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white border-white/70 dark:border-[#2a2b38] hover:bg-[#e8edf5] dark:hover:bg-[#232533] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)]'
                         } ${color || ''}`}
             data-tab={dataTab || link}
             data-active={isActive ? 'true' : 'false'}
             onClick={onClick}
         >
-            <i className={`${icon} ${isActive ? 'text-white' : 'text-pink-500 dark:text-pink-400'}`}></i>
-            <span>{label}</span>
+            <i className={`${icon} ${isActive ? '!text-white' : 'text-pink-500 dark:text-pink-400'}`}></i>
+            <span className={isActive ? '!text-white font-bold' : 'text-slate-800 dark:text-slate-100 font-semibold'}>{label}</span>
         </button>
     );
 }

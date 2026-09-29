@@ -101,10 +101,10 @@ export async function GET(request: Request) {
 
             if (hrData) {
                 const rawRole = (hrData.role || hrData.position || '').trim();
-                if (/manager/i.test(rawRole)) userRole = 'Manager';
-                else if (/operator/i.test(rawRole)) userRole = 'Operator';
+                if (/admin/i.test(rawRole)) userRole = 'Admin';
+                else if (/manager|office-in-charge|project coordinator/i.test(rawRole)) userRole = 'Manager';
+                else if (/operator|appraiser/i.test(rawRole)) userRole = 'Operator';
                 else if (/executive/i.test(rawRole)) userRole = 'Executive';
-                else if (/admin/i.test(rawRole)) userRole = 'Admin';
                 else userRole = hrData.role || 'Employee';
             } else {
                 const { data: supData } = await supabaseAdmin

@@ -59,7 +59,7 @@ export const NAV = [
                 label: "Documents",
                 href: "/documents",
                 icon: "fa-solid fa-folder",
-                roles: ["Executive", "Admin", "Manager", "Staff", "Employee"],
+                roles: ["Executive", "Admin", "Manager", "Staff", "Employee", "Operator"],
             },
             {
                 id: "forecast",
@@ -78,7 +78,7 @@ export const NAV = [
                 label: "Gallery",
                 href: "/gallery",
                 icon: "fa-solid fa-images",
-                roles: ["Executive", "Admin", "Manager", "Staff", "Employee"],
+                roles: ["Executive", "Admin", "Manager", "Staff", "Employee", "Operator"],
             },
             {
                 id: "Trash",

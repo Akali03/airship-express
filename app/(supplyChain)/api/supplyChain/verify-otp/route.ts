@@ -204,13 +204,25 @@ export async function POST(request: Request) {
 
             if (isSupplier) {
                 effectiveRole = 'Supplier';
-            } else if (userPosition && effectiveRole !== 'Admin' && effectiveRole !== 'Executive' && effectiveRole !== 'Supplier') {
+            } else if (userPosition && effectiveRole !== 'Executive' && effectiveRole !== 'Supplier') {
                 const p = userPosition.toUpperCase().replace(/\s+/g, ' ');
                 if (
+                    p === 'ADMIN STAFF' ||
+                    p === 'ADMIN' ||
+                    p === 'ADMINISTRATOR' ||
+                    p === 'MARKETING/ADMIN STAFF' ||
+                    p === 'MARKETING / ADMIN STAFF' ||
+                    p === 'MKTG/ADMIN STAFF' ||
+                    p === 'MKTG / ADMIN STAFF' ||
+                    p.includes('ADMIN STAFF') ||
+                    p === 'ADMIN ASSISTANT' ||
+                    p.includes('ADMIN ASSISTANT')
+                ) {
+                    effectiveRole = 'Admin';
+                } else if (
                     p === 'OFFICE-IN-CHARGE' ||
                     p === 'OFFICE IN CHARGE' ||
                     p === 'PROJECT COORDINATOR' ||
-                    p === 'ADMIN ASSISTANT' ||
                     p === 'MANAGER'
                 ) {
                     effectiveRole = 'Manager';
@@ -499,7 +511,8 @@ export async function POST(request: Request) {
             if (hrData) {
                 const rawPos = (hrData.position || '').trim().toUpperCase().replace(/\s+/g, ' ');
                 const rawRole = (hrData.role || '').trim();
-                if (/manager|office-in-charge|project coordinator|admin assistant/i.test(rawPos) || /manager/i.test(rawRole)) effectiveRole = 'Manager';
+                if (/admin/i.test(rawPos) || /admin/i.test(rawRole)) effectiveRole = 'Admin';
+                else if (/manager|office-in-charge|project coordinator/i.test(rawPos) || /manager/i.test(rawRole)) effectiveRole = 'Manager';
                 else if (/appraiser|operator/i.test(rawPos) || /operator/i.test(rawRole)) effectiveRole = 'Operator';
                 else if (rawRole) effectiveRole = rawRole === 'Employee' ? 'Staff' : rawRole;
                 else effectiveRole = 'Staff';

@@ -121,6 +121,66 @@ export function PurchaseOrdersTab() {
         if (confirmed) {
             setPoLoading(true);
             try {
+                // Check if an active purchase order with the same po_number already exists
+                const { data: existingActive } = await supabase
+                    .from('purchase_orders')
+                    .select('id, po_number')
+                    .eq('po_number', po.po_number)
+                    .maybeSingle();
+
+                if (existingActive) {
+                    setPoLoading(false);
+                    const shouldOverwrite = await confirm({
+                        title: 'Active Purchase Order Already Exists',
+                        message: `An active purchase order with PO Number "${sanitizeText(po.po_number)}" is already active in Procurement/Purchase Orders.\n\nDo you want to overwrite the active purchase order with this archived record?`,
+                        confirmText: 'Overwrite Active',
+                        cancelText: 'Cancel',
+                        confirmVariant: 'warning'
+                    });
+
+                    if (!shouldOverwrite) {
+                        toast.info(`Restore cancelled: active purchase order "${sanitizeText(po.po_number)}" already exists.`);
+                        return;
+                    }
+
+                    setPoLoading(true);
+                    const { error: updateError } = await supabase
+                        .from('purchase_orders')
+                        .update({
+                            request_id: po.request_id,
+                            supplier_id: po.supplier_id,
+                            supplier_name: po.supplier_name,
+                            total_amount: po.total_amount,
+                            status: po.status,
+                            delivery_date: po.delivery_date,
+                            notes: po.notes,
+                            items: po.items,
+                            created_by: po.created_by,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq('id', existingActive.id);
+
+                    if (updateError) throw updateError;
+
+                    const { error: deleteError } = await supabase
+                        .from('purchase_orders_archive')
+                        .delete()
+                        .eq('id', po.id);
+
+                    if (deleteError) throw deleteError;
+
+                    trashCache.removeItem('purchase_orders', po.id);
+                    setArchivedPurchaseOrders(prev => prev.filter(p => p.id !== po.id));
+                    setPoTotalPages(Math.ceil((archivedPurchaseOrders.length - 1) / ITEMS_PER_PAGE));
+                    setSelectedPoIds(prev => {
+                        const updated = new Set(prev);
+                        updated.delete(po.id);
+                        return updated;
+                    });
+                    toast.success(`Active purchase order "${sanitizeText(po.po_number)}" updated with archived details`);
+                    return;
+                }
+
                 const { error: insertError } = await supabase
                     .from('purchase_orders')
                     .insert({
@@ -139,7 +199,13 @@ export function PurchaseOrdersTab() {
                         updated_at: new Date().toISOString(),
                     });
 
-                if (insertError) throw insertError;
+                if (insertError) {
+                    if (insertError.code === '23505' || insertError.message?.includes('duplicate key')) {
+                        toast.error(`Cannot restore: An active purchase order with PO Number "${sanitizeText(po.po_number)}" already exists.`);
+                        return;
+                    }
+                    throw insertError;
+                }
 
                 const { error: deleteError } = await supabase
                     .from('purchase_orders_archive')
@@ -157,8 +223,12 @@ export function PurchaseOrdersTab() {
                     return updated;
                 });
                 toast.success(`"${sanitizeText(po.po_number)}" restored successfully`);
-            } catch (error) {
-                toast.error('Failed to restore purchase order');
+            } catch (error: any) {
+                if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+                    toast.error(`Cannot restore: An active purchase order with PO Number "${sanitizeText(po.po_number)}" already exists.`);
+                } else {
+                    toast.error('Failed to restore purchase order');
+                }
                 console.error(error);
             } finally {
                 setPoLoading(false);
@@ -216,7 +286,25 @@ export function PurchaseOrdersTab() {
             setPoLoading(true);
             try {
                 const posToRestore = archivedPurchaseOrders.filter(po => selectedPoIds.has(po.id));
+                const allPoNumbers = posToRestore.map(p => p.po_number).filter(Boolean);
+
+                // Check which PO numbers already exist in active purchase orders
+                const { data: existingActiveList } = await supabase
+                    .from('purchase_orders')
+                    .select('po_number')
+                    .in('po_number', allPoNumbers);
+
+                const activePoNumbers = new Set((existingActiveList || []).map(p => p.po_number));
+                const seenInBatch = new Set<string>();
+                const successfullyRestoredIds = new Set<string>();
+                const skippedConflictPos: string[] = [];
+
                 for (const po of posToRestore) {
+                    if (activePoNumbers.has(po.po_number) || seenInBatch.has(po.po_number)) {
+                        skippedConflictPos.push(po.po_number);
+                        continue;
+                    }
+
                     const { error: insertError } = await supabase
                         .from('purchase_orders')
                         .insert({
@@ -235,18 +323,35 @@ export function PurchaseOrdersTab() {
                             updated_at: new Date().toISOString(),
                         });
 
-                    if (insertError) throw insertError;
+                    if (insertError) {
+                        console.error('Insert error for PO:', po.po_number, insertError);
+                        skippedConflictPos.push(po.po_number);
+                        continue;
+                    }
 
                     await supabase
                         .from('purchase_orders_archive')
                         .delete()
                         .eq('id', po.id);
+
+                    seenInBatch.add(po.po_number);
+                    successfullyRestoredIds.add(po.id);
                 }
 
-                trashCache.removeItems('purchase_orders', selectedPoIds);
-                setArchivedPurchaseOrders(prev => prev.filter(po => !selectedPoIds.has(po.id)));
-                setPoTotalPages(Math.ceil((archivedPurchaseOrders.length - selectedPoIds.size) / ITEMS_PER_PAGE));
-                toast.success(`${selectedPoIds.size} purchase order(s) restored successfully!`);
+                if (successfullyRestoredIds.size > 0) {
+                    trashCache.removeItems('purchase_orders', successfullyRestoredIds);
+                    setArchivedPurchaseOrders(prev => prev.filter(po => !successfullyRestoredIds.has(po.id)));
+                    setPoTotalPages(Math.ceil((archivedPurchaseOrders.length - successfullyRestoredIds.size) / ITEMS_PER_PAGE));
+                    toast.success(`${successfullyRestoredIds.size} purchase order(s) restored successfully!`);
+                }
+
+                if (skippedConflictPos.length > 0) {
+                    toast.warning(
+                        `Skipped ${skippedConflictPos.length} purchase order(s) because an active PO already exists: ${skippedConflictPos.join(', ')}`,
+                        { duration: 7000 }
+                    );
+                }
+
                 setSelectedPoIds(new Set());
             } catch (error) {
                 toast.error('Failed to restore purchase orders');

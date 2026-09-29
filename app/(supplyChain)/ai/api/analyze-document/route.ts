@@ -53,20 +53,10 @@ export async function POST(request: NextRequest) {
         } = body;
 
         const normalizedRole = (role || "").toLowerCase().trim();
-        const isOperator = normalizedRole === "operator";
         const isSearchDocMode = mode === "search_document";
 
-        // OPERATOR ROLE RESTRICTION: Disable Search Document with Photo for Operators
-        if (isOperator && isSearchDocMode) {
-            return NextResponse.json({
-                success: false,
-                error: "Search Document with Photo is disabled for Operators.",
-                response: "⚠️ **Access Restricted:** The **Search Document with Photo** feature is disabled for users with the **Operator** role. You may still use standard AI chat to ask questions."
-            }, { status: 403 });
-        }
-
         const isManagementRole = /^(admin|super\s*admin|manager|executive|supervisor)$/i.test(normalizedRole);
-        const isStaffRole = !isManagementRole; // Staff, Employee, etc. only see what they inserted
+        const isStaffRole = !isManagementRole; // Staff, Operator, Employee, etc. only see what they inserted
 
         if (!file || !file.base64) {
             return NextResponse.json(

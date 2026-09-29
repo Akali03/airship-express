@@ -384,31 +384,17 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
             setTimeout(() => setActionFeedback(null), 4000);
             return;
         }
-        const currentRole = user.getRole() || '';
-        const isOperatorRole = currentRole.toLowerCase().trim() === 'operator';
-
         const reader = new FileReader();
         reader.onload = () => {
             const dataUrl = reader.result as string;
-            if (isOperatorRole) {
-                setActiveMode('chat');
-                setAttachedFile({
-                    name: file.name,
-                    type: file.type || "application/octet-stream",
-                    size: file.size,
-                    dataUrl,
-                    mode: 'normal',
-                });
-            } else {
-                setActiveMode('search');
-                setAttachedFile({
-                    name: file.name,
-                    type: file.type || "application/octet-stream",
-                    size: file.size,
-                    dataUrl,
-                    mode: 'search_document',
-                });
-            }
+            setActiveMode('search');
+            setAttachedFile({
+                name: file.name,
+                type: file.type || "application/octet-stream",
+                size: file.size,
+                dataUrl,
+                mode: 'search_document',
+            });
         };
         reader.readAsDataURL(file);
         e.target.value = "";
@@ -419,13 +405,6 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
     };
 
     const handleModeSwitch = (mode: 'chat' | 'search') => {
-        const currentRole = user.getRole() || '';
-        const isOperatorRole = currentRole.toLowerCase().trim() === 'operator';
-        if (mode === 'search' && isOperatorRole) {
-            setActionFeedback("Search Document with Photo is disabled for Operators");
-            setTimeout(() => setActionFeedback(null), 3500);
-            return;
-        }
         setActiveMode(mode);
         if (attachedFile) {
             setAttachedFile(prev => prev ? {
@@ -2563,23 +2542,16 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                                 <button
                                     type="button"
                                     onClick={() => handleModeSwitch('search')}
-                                    disabled={isLoading || (isLockedOut && lockoutSeconds > 0) || (user.getRole() || '').toLowerCase().trim() === 'operator'}
-                                    className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 ${
-                                        (user.getRole() || '').toLowerCase().trim() === 'operator'
-                                            ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-100/50 dark:bg-slate-800/30'
-                                            : activeMode === 'search'
-                                                ? 'bg-emerald-500/15 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 shadow-[3px_3px_6px_rgba(16,185,129,0.2),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] cursor-pointer'
-                                                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer'
+                                    disabled={isLoading || (isLockedOut && lockoutSeconds > 0)}
+                                    className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                        activeMode === 'search'
+                                            ? 'bg-emerald-500/15 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 shadow-[3px_3px_6px_rgba(16,185,129,0.2),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)]'
+                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                                     }`}
-                                    title={(user.getRole() || '').toLowerCase().trim() === 'operator' ? "Search Document with Photo is disabled for Operators" : "Search Document with Photo"}
+                                    title="Search Document with Photo"
                                 >
                                     <i className="fas fa-camera text-xs" />
                                     <span>Search Document with Photo</span>
-                                    {(user.getRole() || '').toLowerCase().trim() === 'operator' && (
-                                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 font-semibold">
-                                            Disabled
-                                        </span>
-                                    )}
                                 </button>
                             </div>
 

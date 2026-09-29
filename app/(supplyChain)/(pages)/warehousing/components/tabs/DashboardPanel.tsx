@@ -124,12 +124,11 @@ export default function DashboardPanel() {
         checkMobile();
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
-    }, []); // scroll lock
+    }, []);
+
+    // Handle Escape key for forecast modal
     useEffect(() => {
         if (selectedForecast) {
-            const originalOverflow = document.body.style.overflow;
-            document.body.style.overflow = "hidden";
-
             const handleKeyDown = (e: KeyboardEvent) => {
                 if (e.key === "Escape") {
                     setSelectedForecast(null);
@@ -138,7 +137,6 @@ export default function DashboardPanel() {
             window.addEventListener("keydown", handleKeyDown);
 
             return () => {
-                document.body.style.overflow = originalOverflow;
                 window.removeEventListener("keydown", handleKeyDown);
             };
         }

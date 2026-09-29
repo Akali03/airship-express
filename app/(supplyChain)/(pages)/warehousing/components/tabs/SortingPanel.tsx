@@ -1902,8 +1902,9 @@ export default function SortingPanel() {
                         </div>)}
                 </div>
             </div>            {/* city modal */}
-            <Portal>
-                {showModal && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
+            {showModal && (
+                <Portal>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
                         <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-3xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 overflow-hidden">
 
                             <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/[0.06] p-5 sm:px-6">
@@ -2005,10 +2006,13 @@ export default function SortingPanel() {
                             </div>
 
                         </div>
-                    </div>)}
-            </Portal>{/* courier modal */}
-            <Portal>
-                {showCourierModal && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 dark:bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200">
+                    </div>
+                </Portal>
+            )}
+            {/* courier modal */}
+            {showCourierModal && (
+                <Portal>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 dark:bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200">
                         <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-3xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in slide-in-from-bottom-4 duration-300 overflow-hidden">
 
                             <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/[0.06] px-6 py-4">
@@ -2118,10 +2122,13 @@ export default function SortingPanel() {
                             </div>
 
                         </div>
-                    </div>)}
-            </Portal>{/* view modal */}
-            <Portal>
-                {showViewModal && viewParcel && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
+                    </div>
+                </Portal>
+            )}
+            {/* view modal */}
+            {showViewModal && viewParcel && (
+                <Portal>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
                         <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-3xl bg-[#f0f3f8] dark:bg-[#161722] border border-white/90 dark:border-white/[0.08]  dark:shadow-[14px_14px_40px_rgba(0,0,0,0.8),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 overflow-hidden">
 
                             {/* header */}
@@ -2259,7 +2266,8 @@ export default function SortingPanel() {
                                 </div>
                             </div>
                         </div>
-                    </div>)}
-            </Portal>
+                    </div>
+                </Portal>
+            )}
         </div>);
 }

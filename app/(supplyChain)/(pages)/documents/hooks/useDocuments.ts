@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/services/client/supabase";
 import { toast } from "sonner";
 import { useDebounce } from "../../../hooks/useDebounce";
@@ -10,8 +10,10 @@ import { useConfirm } from "../../../components/ui/ConfirmModal";
 import { Document, Supplier, Activity, DEFAULT_USER } from "../types";
 import { user } from "../../../lib/services/Class/user";
 import { revokeCachedFilePreviewUrl, clearAllCachedFilePreviewUrls } from "../components/modals/SelectedFilesGridModal";
+import { findSimilarExtractedDocument } from "../utils/textSimilarity";
 
 export function useDocuments() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const initialSearch = searchParams?.get('search') || "";
     const { confirm } = useConfirm();
@@ -691,6 +693,10 @@ export function useDocuments() {
     // handle upload submission with OCR check and fileless option
     const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (isUploading) {
+            toast.warning('An upload is currently in progress. Please wait.');
+            return;
+        }
 
         const form = e.target as HTMLFormElement;
         const formData = new FormData(form);
@@ -813,35 +819,63 @@ export function useDocuments() {
         // Path 2: Upload with attached file(s) and run Gemini OCR check
         setIsUploading(true);
         setUploadProgress(0);
-        const toastId = toast.loading(`Verifying & uploading ${selectedFiles.length} file(s)...`);
+        const totalFiles = selectedFiles.length;
+        const toastId = toast.loading(`Verifying & uploading 1 of ${totalFiles} file(s) (0%)...`);
 
         try {
             const uploadedFiles: string[] = [];
+            const duplicateFiles: { name: string; matchedTitle?: string; similarity?: number }[] = [];
+            const trashFiles: { name: string; searchQuery: string }[] = [];
             const skippedFiles: { name: string; reason: string }[] = [];
             const failedFiles: { name: string; reason: string }[] = [];
 
-            for (const file of selectedFiles) {
-                // Check duplicate
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const currentPct = Math.round((i / totalFiles) * 100);
+                toast.loading(`Processing "${file.name}" (${i + 1}/${totalFiles} • ${currentPct}%)...`, { id: toastId });
+
+                // 1. Check exact file in trash archive first
+                const { data: existingTrashDocs } = await supabase
+                    .from('documents_archive')
+                    .select('id, file_name, file_size, title, po_number')
+                    .ilike('file_name', file.name)
+                    .eq('file_size', file.size);
+
+                if (existingTrashDocs && existingTrashDocs.length > 0) {
+                    const match = existingTrashDocs[0];
+                    const searchQ = match.file_name || match.title || file.name;
+                    trashFiles.push({ name: file.name, searchQuery: searchQ });
+                    skippedFiles.push({ name: file.name, reason: 'File is already in trash' });
+                    setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+                    continue;
+                }
+
+                // Check exact file duplicate in active database
                 const { data: existingDocs, error: checkError } = await supabase
                     .from('documents')
                     .select('id, file_name, file_size, storage_path')
-                    .eq('file_name', file.name)
+                    .ilike('file_name', file.name)
                     .eq('file_size', file.size);
 
                 if (checkError) {
                     console.error('Duplicate check error:', checkError);
                     failedFiles.push({ name: file.name, reason: `Duplicate check error: ${checkError.message}` });
+                    setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                     continue;
                 }
 
                 if (existingDocs && existingDocs.length > 0) {
-                    skippedFiles.push({ name: file.name, reason: 'Duplicate (file already exists in system)' });
+                    duplicateFiles.push({ name: file.name });
+                    skippedFiles.push({ name: file.name, reason: 'Already uploaded in system' });
+                    setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                     continue;
                 }
 
-                // OCR Document Validation via Gemini
+                // 2. OCR Document Validation via Gemini
                 let currentOcrData: any = null;
                 try {
+                    toast.loading(`Running AI OCR on "${file.name}" (${i + 1}/${totalFiles} • ${currentPct}%)...`, { id: toastId });
+
                     const reader = new FileReader();
                     const base64Promise = new Promise<string>((resolve, reject) => {
                         reader.onload = () => resolve(reader.result as string);
@@ -856,14 +890,39 @@ export function useDocuments() {
                         body: JSON.stringify({
                             fileBase64,
                             fileName: file.name,
+                            fileSize: file.size,
                             fileType: file.type,
                             userRole: userRole,
+                            userName: userName || DEFAULT_USER.name,
                         }),
                     });
 
                     const ocrData = await ocrRes.json();
                     if (ocrData?.success) {
                         currentOcrData = ocrData;
+                    }
+
+                    if (ocrData?.is_in_trash) {
+                        const searchQ = ocrData.search_query || ocrData.trash_match?.file_name || ocrData.trash_match?.title || file.name;
+                        trashFiles.push({ name: file.name, searchQuery: searchQ });
+                        skippedFiles.push({ name: file.name, reason: 'File is already in trash' });
+                        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+                        continue;
+                    }
+
+                    if (ocrData?.is_duplicate) {
+                        const dupTitle = ocrData.duplicate_match?.matchedDoc?.title || ocrData.duplicate_match?.matchedDoc?.file_name;
+                        duplicateFiles.push({
+                            name: file.name,
+                            matchedTitle: dupTitle,
+                            similarity: ocrData.duplicate_match?.similarity || 100,
+                        });
+                        skippedFiles.push({
+                            name: file.name,
+                            reason: ocrData.rejection_reason || 'Already uploaded in document archive',
+                        });
+                        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+                        continue;
                     }
 
                     if (ocrData.success && !ocrData.is_valid_system_doc) {
@@ -881,6 +940,7 @@ export function useDocuments() {
                                     name: file.name,
                                     reason: ocrData.rejection_reason || 'Out-of-scope media detected by AI verification'
                                 });
+                                setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                                 continue;
                             }
                         } else {
@@ -897,6 +957,7 @@ export function useDocuments() {
                                     name: file.name,
                                     reason: `AI Warning: ${ocrData.rejection_reason || 'Out-of-scope media'} (Requires Admin Override)`
                                 });
+                                setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                                 continue;
                             }
                         }
@@ -904,6 +965,70 @@ export function useDocuments() {
                 } catch (ocrErr) {
                     console.warn('Gemini OCR verification error (continuing):', ocrErr);
                 }
+
+                // 3. Content similarity check against trash archive & existing active documents
+                const ocrTextToCompare = currentOcrData?.extracted_text || currentOcrData?.extracted?.text || currentOcrData?.photo_description;
+                if (ocrTextToCompare && typeof ocrTextToCompare === 'string' && ocrTextToCompare.trim().length >= 15) {
+                    try {
+                        // Check trash archive
+                        const { data: existingTrashExtracted } = await supabase
+                            .from('documents_archive')
+                            .select('id, title, file_name, file_size, supplier, po_number, extracted')
+                            .order('deleted_at', { ascending: false })
+                            .limit(150);
+
+                        if (existingTrashExtracted && existingTrashExtracted.length > 0) {
+                            const simTrashMatch = findSimilarExtractedDocument(
+                                {
+                                    text: currentOcrData?.extracted_text || currentOcrData?.extracted?.text || null,
+                                    description: currentOcrData?.photo_description || currentOcrData?.extracted?.description || null,
+                                    summary: currentOcrData?.summary || currentOcrData?.extracted?.summary || null,
+                                    po_number: currentOcrData?.extracted_po_number || currentOcrData?.extracted?.po_number || null,
+                                    file_name: file.name,
+                                    file_size: file.size,
+                                },
+                                existingTrashExtracted
+                            );
+
+                            if (simTrashMatch && simTrashMatch.isSimilar) {
+                                const searchQ = simTrashMatch.matchedDoc.file_name || simTrashMatch.matchedDoc.title || file.name;
+                                trashFiles.push({ name: file.name, searchQuery: searchQ });
+                                skippedFiles.push({ name: file.name, reason: 'File is already in trash' });
+                                setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+                                continue;
+                            }
+                        }
+
+                        // Check active documents
+                        const { data: existingExtractedDocs } = await supabase
+                            .from('documents')
+                            .select('id, title, file_name, file_size, supplier, po_number, extracted')
+                            .not('extracted', 'is', null)
+                            .order('created_at', { ascending: false })
+                            .limit(250);
+
+                        if (existingExtractedDocs && existingExtractedDocs.length > 0) {
+                            const simMatch = findSimilarExtractedDocument(ocrTextToCompare, existingExtractedDocs);
+                            if (simMatch && simMatch.isSimilar) {
+                                duplicateFiles.push({
+                                    name: file.name,
+                                    matchedTitle: simMatch.matchedDoc.title || simMatch.matchedDoc.file_name,
+                                    similarity: simMatch.similarity,
+                                });
+                                skippedFiles.push({
+                                    name: file.name,
+                                    reason: `Already uploaded (${simMatch.similarity}% content match to "${simMatch.matchedDoc.title || simMatch.matchedDoc.file_name}")`,
+                                });
+                                setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+                                continue;
+                            }
+                        }
+                    } catch (simErr) {
+                        console.warn('Text similarity check skipped:', simErr);
+                    }
+                }
+
+                toast.loading(`Saving "${file.name}" (${i + 1}/${totalFiles} • ${Math.min(95, currentPct + Math.round(50 / totalFiles))}%)...`, { id: toastId });
 
                 const fileExt = file.name.split('.').pop();
                 const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
@@ -919,6 +1044,7 @@ export function useDocuments() {
                 if (uploadError) {
                     console.error('Upload error:', uploadError);
                     failedFiles.push({ name: file.name, reason: uploadError.message || 'Storage upload error' });
+                    setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                     continue;
                 }
 
@@ -969,11 +1095,16 @@ export function useDocuments() {
                 if (insertError) {
                     console.error('Insert error:', insertError);
                     failedFiles.push({ name: file.name, reason: insertError.message || 'Database save error' });
+                    setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                     continue;
                 }
 
                 uploadedFiles.push(file.name);
-                setUploadProgress(Math.round(((uploadedFiles.length + skippedFiles.length + failedFiles.length) / selectedFiles.length) * 100));
+                const stepPct = Math.round(((i + 1) / totalFiles) * 100);
+                setUploadProgress(stepPct);
+                if (i + 1 < totalFiles) {
+                    toast.loading(`Processed ${i + 1} of ${totalFiles} file(s) (${stepPct}%)...`, { id: toastId });
+                }
             }
 
             const unuploadedItems = [
@@ -981,28 +1112,134 @@ export function useDocuments() {
                 ...skippedFiles.map(s => `• ${s.name} (Skipped: ${s.reason})`),
             ];
 
-            // 1. Toast Notification to uploader
-            if (uploadedFiles.length === selectedFiles.length) {
+            // 1. Toast Notification to uploader (show trash warnings and duplicate info)
+            if (trashFiles.length > 0 && uploadedFiles.length === 0 && duplicateFiles.length === 0) {
+                const targetQ = trashFiles[0].searchQuery;
+                toast.warning(
+                    trashFiles.length === 1
+                        ? `file is already in trash ask your manager to restore it to avoid duplication or see if you can restore it`
+                        : `${trashFiles.length} files are already in trash. Ask your manager to restore them to avoid duplication or see if you can restore them.`,
+                    {
+                        id: toastId,
+                        duration: 12000,
+                        action: {
+                            label: 'View in Trash',
+                            onClick: () => {
+                                router.push(`/trash?tab=documents&q=${encodeURIComponent(targetQ)}`);
+                            },
+                        },
+                    }
+                );
+            } else if (duplicateFiles.length === selectedFiles.length) {
+                // All selected files were already uploaded
+                if (duplicateFiles.length === 1) {
+                    const dup = duplicateFiles[0];
+                    toast.info(
+                        dup.matchedTitle
+                            ? `Document "${dup.name}" was already uploaded previously (similar content to "${dup.matchedTitle}").`
+                            : `Document "${dup.name}" has already been uploaded previously.`,
+                        {
+                            id: toastId,
+                            duration: 6000,
+                        }
+                    );
+                } else {
+                    toast.info(
+                        `All ${duplicateFiles.length} file(s) are already uploaded:\n${duplicateFiles.map(d => d.matchedTitle ? `• ${d.name} (similar to "${d.matchedTitle}")` : `• ${d.name}`).join('\n')}`,
+                        {
+                            id: toastId,
+                            duration: 7000,
+                        }
+                    );
+                }
+            } else if (uploadedFiles.length === selectedFiles.length) {
                 toast.success(`All ${uploadedFiles.length} file(s) uploaded successfully!`, {
                     id: toastId,
                     duration: 4000,
                 });
             } else if (uploadedFiles.length > 0) {
-                toast.warning(
-                    `Uploaded ${uploadedFiles.length} of ${selectedFiles.length} file(s).\n${unuploadedItems.length} not uploaded:\n${unuploadedItems.join('\n')}`,
-                    {
-                        id: toastId,
-                        duration: 8000,
-                    }
-                );
+                toast.success(`Uploaded ${uploadedFiles.length} of ${selectedFiles.length} file(s) successfully!`, {
+                    id: toastId,
+                    duration: 4000,
+                });
+                if (trashFiles.length > 0) {
+                    const targetQ = trashFiles[0].searchQuery;
+                    toast.warning(
+                        trashFiles.length === 1
+                            ? `"${trashFiles[0].name}" is already in trash. Ask your manager to restore it to avoid duplication or see if you can restore it.`
+                            : `${trashFiles.length} file(s) are already in trash. Ask your manager to restore them to avoid duplication.`,
+                        {
+                            duration: 12000,
+                            action: {
+                                label: 'View in Trash',
+                                onClick: () => {
+                                    router.push(`/trash?tab=documents&q=${encodeURIComponent(targetQ)}`);
+                                },
+                            },
+                        }
+                    );
+                }
+                if (duplicateFiles.length > 0) {
+                    toast.info(
+                        duplicateFiles.length === 1
+                            ? (duplicateFiles[0].matchedTitle
+                                ? `"${duplicateFiles[0].name}" was skipped because similar content already exists in "${duplicateFiles[0].matchedTitle}".`
+                                : `"${duplicateFiles[0].name}" was skipped because it is already uploaded.`)
+                            : `${duplicateFiles.length} file(s) were skipped because they are already uploaded:\n${duplicateFiles.map(d => d.matchedTitle ? `• ${d.name} (similar to "${d.matchedTitle}")` : `• ${d.name}`).join('\n')}`,
+                        { duration: 7000 }
+                    );
+                }
+                if (failedFiles.length > 0) {
+                    toast.error(
+                        `Failed to upload ${failedFiles.length} file(s):\n${failedFiles.map(f => `• ${f.name} (${f.reason})`).join('\n')}`,
+                        { duration: 8000 }
+                    );
+                }
             } else {
-                toast.error(
-                    `None of the ${selectedFiles.length} file(s) could be uploaded:\n${unuploadedItems.join('\n')}`,
-                    {
-                        id: toastId,
-                        duration: 8000,
-                    }
-                );
+                // No files uploaded
+                if (trashFiles.length > 0) {
+                    const targetQ = trashFiles[0].searchQuery;
+                    toast.warning(
+                        trashFiles.length === 1
+                            ? `file is already in trash ask your manager to restore it to avoid duplication or see if you can restore it`
+                            : `${trashFiles.length} files are already in trash. Ask your manager to restore them to avoid duplication or see if you can restore them.`,
+                        {
+                            id: toastId,
+                            duration: 12000,
+                            action: {
+                                label: 'View in Trash',
+                                onClick: () => {
+                                    router.push(`/trash?tab=documents&q=${encodeURIComponent(targetQ)}`);
+                                },
+                            },
+                        }
+                    );
+                }
+                if (duplicateFiles.length > 0) {
+                    toast.info(
+                        duplicateFiles.length === 1
+                            ? (duplicateFiles[0].matchedTitle
+                                ? `Document "${duplicateFiles[0].name}" was already uploaded previously (similar content to "${duplicateFiles[0].matchedTitle}").`
+                                : `Document "${duplicateFiles[0].name}" has already been uploaded previously.`)
+                            : `${duplicateFiles.length} file(s) are already uploaded:\n${duplicateFiles.map(d => d.matchedTitle ? `• ${d.name} (similar to "${d.matchedTitle}")` : `• ${d.name}`).join('\n')}`,
+                        { duration: 7000 }
+                    );
+                }
+                if (failedFiles.length > 0) {
+                    toast.error(
+                        `Failed to upload ${failedFiles.length} file(s):\n${failedFiles.map(f => `• ${f.name} (${f.reason})`).join('\n')}`,
+                        { duration: 8000 }
+                    );
+                }
+                if (trashFiles.length === 0 && duplicateFiles.length === 0 && failedFiles.length === 0) {
+                    toast.error(
+                        `None of the ${selectedFiles.length} file(s) could be uploaded:\n${unuploadedItems.join('\n')}`,
+                        {
+                            id: toastId,
+                            duration: 8000,
+                        }
+                    );
+                }
             }
 
             // 2. In-app Notification record to the uploader
@@ -1014,6 +1251,10 @@ export function useDocuments() {
                 if (uploadedFiles.length === selectedFiles.length) {
                     notifTitle = `Upload Complete: All ${uploadedFiles.length} files uploaded`;
                     notifMsg = `All ${uploadedFiles.length} document(s) (${documentType}, ${category}) were successfully verified and uploaded.`;
+                    notifType = 'info';
+                } else if (duplicateFiles.length === selectedFiles.length) {
+                    notifTitle = `Upload Skipped: Already uploaded`;
+                    notifMsg = `${duplicateFiles.length} file(s) already exist in the document archive.`;
                     notifType = 'info';
                 } else if (uploadedFiles.length > 0) {
                     notifTitle = `Upload Partial: ${uploadedFiles.length}/${selectedFiles.length} files uploaded`;
@@ -1076,9 +1317,11 @@ export function useDocuments() {
 
     // Confirm force upload for privileged Admin/Executive
     const handleConfirmForceUpload = async () => {
-        if (selectedFiles.length === 0) return;
+        if (isUploading || selectedFiles.length === 0) return;
         setIsUploading(true);
-        const toastId = toast.loading(`Uploading ${selectedFiles.length} file(s) with Admin override...`);
+        setUploadProgress(0);
+        const totalFiles = selectedFiles.length;
+        const toastId = toast.loading(`Uploading 1 of ${totalFiles} file(s) with Admin override (0%)...`);
 
         try {
             let currentUserId = userId;
@@ -1088,10 +1331,28 @@ export function useDocuments() {
             }
 
             const uploadedFiles: string[] = [];
+            const duplicateFiles: string[] = [];
             const failedFiles: { name: string; reason: string }[] = [];
 
-            for (const file of selectedFiles) {
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const currentPct = Math.round((i / totalFiles) * 100);
+                toast.loading(`Uploading "${file.name}" (${i + 1}/${totalFiles} • ${currentPct}%)...`, { id: toastId });
+
                 try {
+                    // Check duplicate in database (case-insensitive filename and matching file size)
+                    const { data: existingDocs } = await supabase
+                        .from('documents')
+                        .select('id, file_name, file_size')
+                        .ilike('file_name', file.name)
+                        .eq('file_size', file.size);
+
+                    if (existingDocs && existingDocs.length > 0) {
+                        duplicateFiles.push(file.name);
+                        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+                        continue;
+                    }
+
                     const fileExt = file.name.split('.').pop();
                     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
                     const filePath = `documents/${fileName}`;
@@ -1102,6 +1363,7 @@ export function useDocuments() {
 
                     if (uploadError) {
                         failedFiles.push({ name: file.name, reason: uploadError.message || 'Storage error' });
+                        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                         continue;
                     }
 
@@ -1134,23 +1396,59 @@ export function useDocuments() {
 
                     if (insertError) {
                         failedFiles.push({ name: file.name, reason: insertError.message || 'Database error' });
+                        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                         continue;
                     }
 
                     uploadedFiles.push(file.name);
+                    const stepPct = Math.round(((i + 1) / totalFiles) * 100);
+                    setUploadProgress(stepPct);
+                    if (i + 1 < totalFiles) {
+                        toast.loading(`Uploaded ${i + 1} of ${totalFiles} file(s) (${stepPct}%)...`, { id: toastId });
+                    }
                 } catch (err: any) {
                     failedFiles.push({ name: file.name, reason: err.message || 'Unexpected error' });
+                    setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
                 }
             }
 
             const unuploadedItems = failedFiles.map(f => `• ${f.name} (Failed: ${f.reason})`);
 
-            if (uploadedFiles.length === selectedFiles.length) {
+            if (duplicateFiles.length === selectedFiles.length) {
+                if (duplicateFiles.length === 1) {
+                    toast.info(`Document "${duplicateFiles[0]}" has already been uploaded previously.`, { id: toastId, duration: 5000 });
+                } else {
+                    toast.info(`All ${duplicateFiles.length} file(s) are already uploaded:\n${duplicateFiles.map(name => `• ${name}`).join('\n')}`, { id: toastId, duration: 6000 });
+                }
+            } else if (uploadedFiles.length === selectedFiles.length) {
                 toast.success(`All ${uploadedFiles.length} file(s) uploaded successfully with Admin override!`, { id: toastId, duration: 4000 });
             } else if (uploadedFiles.length > 0) {
-                toast.warning(`Uploaded ${uploadedFiles.length} of ${selectedFiles.length} file(s) with override.\nFailed:\n${unuploadedItems.join('\n')}`, { id: toastId, duration: 8000 });
+                toast.success(`Uploaded ${uploadedFiles.length} of ${selectedFiles.length} file(s) with override.`, { id: toastId, duration: 4000 });
+                if (duplicateFiles.length > 0) {
+                    toast.info(
+                        duplicateFiles.length === 1
+                            ? `"${duplicateFiles[0]}" was skipped because it is already uploaded.`
+                            : `${duplicateFiles.length} file(s) were skipped because they are already uploaded:\n${duplicateFiles.map(name => `• ${name}`).join('\n')}`,
+                        { duration: 6000 }
+                    );
+                }
+                if (failedFiles.length > 0) {
+                    toast.error(`Failed:\n${unuploadedItems.join('\n')}`, { duration: 8000 });
+                }
             } else {
-                toast.error(`Admin override failed for all ${selectedFiles.length} file(s):\n${unuploadedItems.join('\n')}`, { id: toastId, duration: 8000 });
+                if (duplicateFiles.length > 0) {
+                    toast.info(
+                        duplicateFiles.length === 1
+                            ? `"${duplicateFiles[0]}" has already been uploaded previously.`
+                            : `${duplicateFiles.length} file(s) are already uploaded:\n${duplicateFiles.map(name => `• ${name}`).join('\n')}`,
+                        { id: toastId, duration: 6000 }
+                    );
+                    if (failedFiles.length > 0) {
+                        toast.error(`Admin override failed for ${failedFiles.length} file(s):\n${unuploadedItems.join('\n')}`, { duration: 8000 });
+                    }
+                } else {
+                    toast.error(`Admin override failed for all ${selectedFiles.length} file(s):\n${unuploadedItems.join('\n')}`, { id: toastId, duration: 8000 });
+                }
             }
 
             // Insert notification in notifications table
@@ -1320,10 +1618,14 @@ export function useDocuments() {
         setSelectedActivityIds(new Set());
     };
 
-    const MAX_FILES_PER_TRANSACTION = 10;
+    const MAX_FILES_PER_TRANSACTION = 5;
 
-    // file select handler with 10 max file limit
+    // file select handler with 5 max file limit
     const handleFileSelect = (files: FileList | null) => {
+        if (isUploading) {
+            toast.warning('Upload in progress. Please wait until current upload finishes.');
+            return;
+        }
         if (!files || files.length === 0) return;
         const incoming = Array.from(files);
 
@@ -1336,18 +1638,30 @@ export function useDocuments() {
                 return prev;
             }
 
-            if (incoming.length > availableSlots) {
-                toast.warning(`Maximum ${MAX_FILES_PER_TRANSACTION} files allowed per transaction. Only the first ${availableSlots} file(s) were added.`);
-                return [...prev, ...incoming.slice(0, availableSlots)];
+            // Check if any incoming files are already in the staged selection
+            const alreadySelected = incoming.filter(f => prev.some(p => p.name === f.name && p.size === f.size));
+            const newFiles = incoming.filter(f => !prev.some(p => p.name === f.name && p.size === f.size));
+
+            if (alreadySelected.length > 0 && newFiles.length === 0) {
+                toast.info(`Selected file(s) are already in the upload list.`);
+                return prev;
+            } else if (alreadySelected.length > 0) {
+                toast.info(`${alreadySelected.length} duplicate file(s) already in the upload list were skipped.`);
             }
 
-            toast.success(`${incoming.length} file(s) selected (${currentCount + incoming.length}/${MAX_FILES_PER_TRANSACTION})`);
-            return [...prev, ...incoming];
+            if (newFiles.length > availableSlots) {
+                toast.warning(`Maximum ${MAX_FILES_PER_TRANSACTION} files allowed per transaction. Only the first ${availableSlots} file(s) were added.`);
+                return [...prev, ...newFiles.slice(0, availableSlots)];
+            }
+
+            toast.success(`${newFiles.length} file(s) selected (${currentCount + newFiles.length}/${MAX_FILES_PER_TRANSACTION})`);
+            return [...prev, ...newFiles];
         });
     };
 
     // remove file from staging list
     const removeFile = (index: number) => {
+        if (isUploading) return;
         setSelectedFiles(prev => {
             if (prev[index]) {
                 revokeCachedFilePreviewUrl(prev[index]);
@@ -1358,6 +1672,7 @@ export function useDocuments() {
 
     // clear all staging files
     const clearAllSelectedFiles = () => {
+        if (isUploading) return;
         clearAllCachedFilePreviewUrls();
         setSelectedFiles([]);
     };

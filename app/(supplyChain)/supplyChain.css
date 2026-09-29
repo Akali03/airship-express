@@ -1423,22 +1423,6 @@
   color: #d1d1d1 !important;
 }
 
-.dark .supplychain-container .tab-btn {
-  color: #b1b1b1 !important;
-}
-
-.dark .supplychain-container .tab-btn:hover {
-  color: #f1f1f1 !important;
-}
-
-.dark .supplychain-container .tab-btn.border-pink-500 {
-  color: var(--color-accent, #e5167e) !important;
-}
-
-.dark .supplychain-container .tab-btn::after {
-  background: var(--color-accent, #e5167e) !important;
-}
-
 .dark .supplychain-container .metabase-container {
   background: #1c1b1f !important;
 }
@@ -2123,5 +2107,210 @@ body.is-offline [data-sonner-toaster],
 body.is-offline [data-sonner-toaster] * {
   pointer-events: auto !important;
 }
+
+
+/* ============================================================
+   NEUMORPHIC DATE INPUT — full webkit redesign
+   ============================================================ */
+
+/* Base — shared light + dark surface */
+.neu-date-input {
+  position: relative;
+  height: 2.25rem;          /* h-9 */
+  padding: 0 0.875rem;
+  border-radius: 0.75rem;   /* rounded-xl */
+  border: none;
+  outline: none;
+  font-size: 0.75rem;       /* text-xs */
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  appearance: none;
+  -webkit-appearance: none;
+  color-scheme: light;
+
+  /* Light neumorphic inset */
+  background: #e8edf4;
+  color: #334155;           /* slate-700 */
+  box-shadow:
+    inset 3px 3px 7px rgba(166, 175, 195, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.9);
+
+  transition: box-shadow 0.2s ease, color 0.2s ease;
+}
+
+/* Dark neumorphic inset */
+.dark .neu-date-input {
+  color-scheme: dark;
+  background: #1a1b26;
+  color: #e2e8f0;           /* slate-200 */
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.04);
+}
+
+/* Focus ring */
+.neu-date-input:focus {
+  box-shadow:
+    inset 3px 3px 7px rgba(166, 175, 195, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.9),
+    0 0 0 2px rgba(236, 72, 153, 0.35);
+}
+.dark .neu-date-input:focus {
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.04),
+    0 0 0 2px rgba(236, 72, 153, 0.35);
+}
+
+/* ── Webkit date parts ─────────────────────────────── */
+
+/* The calendar/clock icon (opens the picker) */
+.neu-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 2px;
+  opacity: 0.55;
+  filter: none;
+  /* pink tint on light */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+  background-size: 14px 14px;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 18px;
+  height: 18px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.neu-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* Date field segments */
+.neu-date-input::-webkit-datetime-edit {
+  padding: 0;
+  color: inherit;
+}
+.neu-date-input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+.neu-date-input::-webkit-datetime-edit-text {
+  color: #94a3b8; /* slate-400 separator */
+  padding: 0 1px;
+}
+.neu-date-input::-webkit-datetime-edit-month-field,
+.neu-date-input::-webkit-datetime-edit-day-field,
+.neu-date-input::-webkit-datetime-edit-year-field {
+  border-radius: 4px;
+  padding: 1px 2px;
+  transition: background 0.15s;
+}
+.neu-date-input::-webkit-datetime-edit-month-field:focus,
+.neu-date-input::-webkit-datetime-edit-day-field:focus,
+.neu-date-input::-webkit-datetime-edit-year-field:focus {
+  background: rgba(236, 72, 153, 0.12);
+  color: #ec4899;
+  outline: none;
+}
+
+/* Placeholder text (before any date is set) */
+.neu-date-input::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+
+/* ============================================================
+   NEUMORPHIC SELECT — full redesign
+   ============================================================ */
+
+.neu-select {
+  position: relative;
+  height: 2.25rem;
+  padding: 0 2.25rem 0 0.875rem;  /* right padding for chevron */
+  border-radius: 0.75rem;
+  border: none;
+  outline: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  cursor: pointer;
+
+  /* Custom pink chevron SVG */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 13px 13px;
+
+  /* Light neumorphic inset */
+  background-color: #e8edf4;
+  color: #334155;
+  box-shadow:
+    inset 3px 3px 7px rgba(166, 175, 195, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.9);
+
+  transition: box-shadow 0.2s ease, color 0.2s ease;
+}
+
+.dark .neu-select {
+  background-color: #1a1b26;
+  color: #e2e8f0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f472b6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.04);
+}
+
+.neu-select:focus {
+  box-shadow:
+    inset 3px 3px 7px rgba(166, 175, 195, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.9),
+    0 0 0 2px rgba(236, 72, 153, 0.35);
+}
+.dark .neu-select:focus {
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.04),
+    0 0 0 2px rgba(236, 72, 153, 0.35);
+}
+
+/* Option list — styled for both modes */
+.neu-select option {
+  background: #f1f5f9;
+  color: #1e293b;
+  font-weight: 500;
+  padding: 6px 10px;
+}
+.dark .neu-select option {
+  background: #1e2030;
+  color: #e2e8f0;
+}
+.neu-select option:checked,
+.neu-select option:hover {
+  background: #ec4899;
+  color: #ffffff;
+}
+
+/* Disabled placeholder option */
+.neu-select option[value=""][disabled] {
+  color: #94a3b8;
+}
+.dark .neu-select option[value=""][disabled] {
+  color: #475569;
+}
+
+/* ── Hover lift for raised (non-inset) versions ─────── */
+.neu-btn-raised {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.neu-btn-raised:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.neu-btn-raised:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.2) !important;
+}
+
 
 

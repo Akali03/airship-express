@@ -1,65 +1,69 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { AppButton } from "../../../../../components/ui/AppButton";
 import Portal from "../../../../../components/client/Portal";
 
+declare global {
+    interface Window {
+        openManualEntryModal?: () => void;
+        closeManualEntryModal?: () => void;
+        handleManualEntry?: () => void;
+    }
+}
+
+interface Courier {
+    id: string | number;
+    name: string;
+}
+
 export default function ManualEntryModal() {
     const modalRef = useRef<HTMLDivElement>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [couriers, setCouriers] = useState<Courier[]>([]);
+    const [couriersLoading, setCouriersLoading] = useState(false);
 
     const showToast = (message: string, type: string = "info") => {
         alert(message);
     };
 
+    const fetchCouriers = useCallback(async () => {
+        if (couriers.length > 0) return; // only fetch once
+        setCouriersLoading(true);
+        try {
+            const res = await fetch("/api/couriers");
+            if (res.ok) {
+                const data: Courier[] = await res.json();
+                setCouriers(data);
+            }
+        } catch {
+            // silently fail – user can still type
+        } finally {
+            setCouriersLoading(false);
+        }
+    }, [couriers.length]);
+
     useEffect(() => {
         // modal functions
         window.openManualEntryModal = function () {
-            const modal = document.getElementById("manualEntryModal");
-            if (modal) {
-                modal.classList.remove("hidden");
-                document.body.style.overflow = "hidden";
-            }
+            setIsOpen(true);
         };
 
         window.closeManualEntryModal = function () {
-            const modal = document.getElementById("manualEntryModal");
-            if (modal) {
-                modal.classList.add("hidden");
-                document.body.style.overflow = "auto";
-                // reset form
-                const inputs = modal.querySelectorAll("input, textarea, select");
-                inputs.forEach((input: any) => {
-                    if (input.type === "text" || input.type === "textarea") {
-                        input.value = "";
-                    } else if (input.tagName === "SELECT") {
-                        input.value = "";
-                    }
-                });
-                const statusSelect = document.getElementById(
-                    "manualStatus"
-                ) as HTMLSelectElement;
-                if (statusSelect) statusSelect.value = "Received";
-            }
+            setIsOpen(false);
         };
 
         window.handleManualEntry = function () {
-            const barcode = (document.getElementById("manualBarcode") as HTMLInputElement)
-                ?.value;
-            const tracking = (
-                document.getElementById("manualTracking") as HTMLInputElement
-            )?.value;
-            const destination = (
-                document.getElementById("manualDestination") as HTMLInputElement
-            )?.value;
+            const barcode = (document.getElementById("manualBarcode") as HTMLInputElement)?.value;
+            const tracking = (document.getElementById("manualTracking") as HTMLInputElement)?.value;
+            const destination = (document.getElementById("manualDestination") as HTMLInputElement)?.value;
 
             if (!barcode || !tracking || !destination) {
                 showToast("Please fill in all required fields", "error");
                 return;
             }
 
-            if (window.closeManualEntryModal) {
-                window.closeManualEntryModal();
-            }
+            setIsOpen(false);
             showToast("Parcel " + barcode + " added successfully!", "info");
 
             setTimeout(() => {
@@ -67,33 +71,44 @@ export default function ManualEntryModal() {
             }, 1000);
         };
 
-        // close on backdrop
-        const modal = document.getElementById("manualEntryModal");
-        if (modal) {
-            modal.addEventListener("click", (e) => {
-                if (e.target === e.currentTarget && window.closeManualEntryModal) {
-                    window.closeManualEntryModal();
-                }
-            });
-        }
+        return () => {
+            delete window.openManualEntryModal;
+            delete window.closeManualEntryModal;
+            delete window.handleManualEntry;
+        };
+    }, []);
 
-        // close on esc
+    // fetch couriers whenever the modal opens
+    useEffect(() => {
+        if (isOpen) fetchCouriers();
+    }, [isOpen, fetchCouriers]);
+
+    // close on esc
+    useEffect(() => {
+        if (!isOpen) return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && window.closeManualEntryModal) {
-                window.closeManualEntryModal();
+            if (e.key === "Escape") {
+                setIsOpen(false);
             }
         };
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [isOpen]);
 
-    }, []);
+    if (!isOpen) return null;
 
     return (
         <Portal>
             <div
                 id="manualEntryModal"
                 ref={modalRef}
-                className="fixed inset-0 z-[9999] bg-slate-950/70 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200 hidden"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        setIsOpen(false);
+                    }
+                }}
+                className="fixed inset-0 z-[9999] bg-slate-950/70 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
             >
                 <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl shadow-[16px_16px_40px_rgba(0,0,0,0.35)] w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/80 dark:border-[#2c2d3c] overflow-hidden transform transition-all duration-300">
 
@@ -116,9 +131,7 @@ export default function ManualEntryModal() {
                             type="button"
                             variant="neutral"
                             size="icon-sm"
-                            onClick={() => {
-                                if (window.closeManualEntryModal) window.closeManualEntryModal();
-                            }}
+                            onClick={() => setIsOpen(false)}
                             aria-label="Close modal"
                         >
                             <i className="fas fa-times text-xs"></i>
@@ -194,42 +207,35 @@ export default function ManualEntryModal() {
                                 <div className="relative">
                                     <select
                                         id="manualCourier"
-                                        className="w-full px-3.5 py-2.5 pr-9 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] focus:outline-none focus:border-pink-500 transition-all appearance-none cursor-pointer"
+                                        className="neu-select"
                                         defaultValue=""
                                     >
-                                        <option value="" disabled className="dark:bg-slate-900 text-slate-400">Select courier</option>
-                                        <option value="J&T Express" className="dark:bg-slate-900 dark:text-slate-200">J&T Express</option>
-                                        <option value="LBC Express" className="dark:bg-slate-900 dark:text-slate-200">LBC Express</option>
-                                        <option value="Flash Express" className="dark:bg-slate-900 dark:text-slate-200">Flash Express</option>
-                                        <option value="Air21" className="dark:bg-slate-900 dark:text-slate-200">Air21</option>
-                                        <option value="JRS Express" className="dark:bg-slate-900 dark:text-slate-200">JRS Express</option>
-                                        <option value="Shopee" className="dark:bg-slate-900 dark:text-slate-200">Shopee</option>
+                                        <option value="" disabled className="dark:bg-slate-900 text-slate-400">
+                                            {couriersLoading ? "Loading..." : "Select courier"}
+                                        </option>
+                                        {couriers.map((c) => (
+                                            <option key={c.id} value={c.name} className="dark:bg-slate-900 dark:text-slate-200">
+                                                {c.name}
+                                            </option>
+                                        ))}
                                     </select>
-                                    <svg className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
                                 </div>
                             </div>
                             <div>
                                 <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                     <i className="fas fa-tag mr-1 opacity-70"></i> Status
                                 </label>
-                                <div className="relative">
-                                    <select
-                                        id="manualStatus"
-                                        className="w-full px-3.5 py-2.5 pr-9 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] focus:outline-none focus:border-pink-500 transition-all appearance-none cursor-pointer"
-                                        defaultValue="Received"
-                                    >
-                                        <option value="Received" className="dark:bg-slate-900 dark:text-slate-200">Received</option>
-                                        <option value="Sorting" className="dark:bg-slate-900 dark:text-slate-200">Sorting</option>
-                                        <option value="Ready for Pickup" className="dark:bg-slate-900 dark:text-slate-200">Ready for Pickup</option>
-                                        <option value="In Transit" className="dark:bg-slate-900 dark:text-slate-200">In Transit</option>
-                                        <option value="Delivered" className="dark:bg-slate-900 dark:text-slate-200">Delivered</option>
-                                    </select>
-                                    <svg className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
+                                <select
+                                    id="manualStatus"
+                                    className="neu-select"
+                                    defaultValue="Received"
+                                >
+                                    <option value="Received">Received</option>
+                                    <option value="Sorting">Sorting</option>
+                                    <option value="Ready for Pickup">Ready for Pickup</option>
+                                    <option value="In Transit">In Transit</option>
+                                    <option value="Delivered">Delivered</option>
+                                </select>
                             </div>
                         </div>
 
@@ -250,9 +256,7 @@ export default function ManualEntryModal() {
                                 type="button"
                                 variant="neutral"
                                 size="sm"
-                                onClick={() => {
-                                    if (window.closeManualEntryModal) window.closeManualEntryModal();
-                                }}
+                                onClick={() => setIsOpen(false)}
                             >
                                 <i className="fas fa-times text-xs"></i>
                                 <span>Cancel</span>
@@ -271,4 +275,4 @@ export default function ManualEntryModal() {
             </div>
         </Portal>
     );
-}
+}

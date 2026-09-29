@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { fetchParcels } from "../../../actions/incoming/incomingPanel";
-import { fetchBatchMockParcels, batchInsertOfflineParcels } from "../../../actions/incoming/offlineActions";
+import { fetchBatchMockParcels, batchInsertOfflineParcels, type OfflineParcelItem } from "../../../actions/incoming/offlineActions";
 import IncomingHeader from "./IncomingHeader";
 import ScanPanel from "./ScanPanel";
 import TableFilters from "./TableFilters";
@@ -11,6 +11,7 @@ import { supabase } from "../../../../../lib/services/client/supabase";
 import { TableSkeleton } from "../../../../../components/ui/SkeletonLoader";
 import { getOfflineScans, removeOfflineScan, updateMultipleOfflineScans } from "./offlineStorage";
 import { user } from "../../../../../lib/services/Class/user";
+import AddManualButton from "./AddManualButton";
 
 interface Parcel {
     id: number;
@@ -257,7 +258,10 @@ export default function IncomingPanel() {
                 return;
             }
 
-            const resultMap = new Map(result.data.map(m => [m.barcode.toUpperCase(), m]));
+            const resultMap = new Map<string, OfflineParcelItem>();
+            (result.data as OfflineParcelItem[]).forEach((m) => {
+                resultMap.set(m.barcode.toUpperCase(), m);
+            });
 
             // Update offlineStorage
             const updatedOffline = notSynced.map(p => {
@@ -666,18 +670,7 @@ export default function IncomingPanel() {
                                     </button>
                                 ) : (
                                     <>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (typeof window !== 'undefined' && window.openManualEntryModal) {
-                                                    window.openManualEntryModal();
-                                                }
-                                            }}
-                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white border border-pink-600 text-xs font-semibold transition-colors cursor-pointer"
-                                        >
-                                            <i className="fas fa-plus text-[11px]"></i>
-                                            <span>Add Manual Entry</span>
-                                        </button>
+                                        <AddManualButton onAdd={() => fetchParcelsData(true)} />
                                         <button
                                             type="button"
                                             onClick={() => fetchParcelsData(true)}

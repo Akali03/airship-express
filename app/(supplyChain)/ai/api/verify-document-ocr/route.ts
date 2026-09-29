@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
+import { findSimilarExtractedDocument } from "../../../(pages)/documents/utils/textSimilarity";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || '';
+const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_ANON_KEY || '';
+
+const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+    },
+});
 
 const apiKey = process.env.GEMINI_SUPPLYCHAIN_API_KEY;
 const FALLBACK_MODELS = [
@@ -34,9 +48,11 @@ export async function POST(request: NextRequest) {
         const {
             fileBase64,
             fileName = "uploaded_file",
+            fileSize = null,
             fileType = "image/png",
             userRole = "Employee",
             userName = "User",
+            excludeDocId = null,
         } = body;
 
         if (!fileBase64) {
@@ -50,6 +66,138 @@ export async function POST(request: NextRequest) {
         let pureBase64 = fileBase64;
         if (pureBase64.includes(",")) {
             pureBase64 = pureBase64.split(",")[1];
+        }
+
+        // 1. Pre-check: exact file match in active documents or trash archive (case-insensitive filename and matching file size)
+        if (fileName && fileSize && supabaseUrl && serviceRoleKey) {
+            try {
+                // Check trash archive first
+                const { data: trashMatches } = await supabaseAdmin
+                    .from('documents_archive')
+                    .select('id, title, file_name, file_size, supplier, po_number, original_id')
+                    .ilike('file_name', fileName)
+                    .eq('file_size', fileSize);
+
+                if (trashMatches && trashMatches.length > 0) {
+                    const match = trashMatches[0];
+                    const searchQ = match.file_name || match.title || fileName;
+                    return NextResponse.json({
+                        success: true,
+                        is_valid_system_doc: false,
+                        is_duplicate: true,
+                        is_in_trash: true,
+                        rejection_reason: `file is already in trash ask your manager to restore it to avoid duplication or see if you can restore it`,
+                        detected_type: "Archived Document in Trash",
+                        detected_category: "documents",
+                        extracted_title: fileName.replace(/\.[^/.]+$/, ""),
+                        extracted_price: null,
+                        extracted_supplier: match.supplier || null,
+                        extracted_po_number: match.po_number || null,
+                        extracted_text: null,
+                        photo_description: `Archived in trash: ${match.title || match.file_name}`,
+                        visual_objects: [],
+                        trash_match: {
+                            id: match.id,
+                            original_id: match.original_id,
+                            title: match.title,
+                            file_name: match.file_name,
+                            file_size: match.file_size,
+                            supplier: match.supplier,
+                            po_number: match.po_number,
+                        },
+                        search_query: searchQ,
+                        duplicate_match: {
+                            isSimilar: true,
+                            similarity: 100,
+                            isInTrash: true,
+                            matchedDoc: {
+                                id: match.id,
+                                title: match.title,
+                                file_name: match.file_name,
+                                supplier: match.supplier,
+                                po_number: match.po_number,
+                            },
+                            matchReason: `Exact file match found in trash archive.`,
+                        },
+                        summary: "File is already in trash archive.",
+                        extracted: {
+                            text: null,
+                            description: `Archived in trash: ${match.file_name}`,
+                            visual_objects: [],
+                            vendor_name: match.supplier || null,
+                            po_number: match.po_number || null,
+                            price: null,
+                            summary: "File is in trash.",
+                            document_type: "Archived",
+                            category: "documents",
+                            confidence_score: 100,
+                            extracted_at: new Date().toISOString(),
+                        },
+                    });
+                }
+
+                // Check active documents
+                let query = supabaseAdmin
+                    .from('documents')
+                    .select('id, title, file_name, file_size, supplier, po_number')
+                    .ilike('file_name', fileName)
+                    .eq('file_size', fileSize);
+
+                if (excludeDocId) {
+                    query = query.neq('id', excludeDocId);
+                }
+
+                const { data: exactMatches } = await query;
+
+                if (exactMatches && exactMatches.length > 0) {
+                    const match = exactMatches[0];
+                    return NextResponse.json({
+                        success: true,
+                        is_valid_system_doc: false,
+                        is_duplicate: true,
+                        is_in_trash: false,
+                        rejection_reason: `Duplicate detected: File "${fileName}" (${fileSize} bytes) has already been uploaded previously in "${match.title || match.file_name}".`,
+                        detected_type: "Duplicate Document",
+                        detected_category: "documents",
+                        extracted_title: fileName.replace(/\.[^/.]+$/, ""),
+                        extracted_price: null,
+                        extracted_supplier: match.supplier || null,
+                        extracted_po_number: match.po_number || null,
+                        extracted_text: null,
+                        photo_description: `Exact duplicate of ${match.title || match.file_name}`,
+                        visual_objects: [],
+                        duplicate_match: {
+                            isSimilar: true,
+                            similarity: 100,
+                            isInTrash: false,
+                            matchedDoc: {
+                                id: match.id,
+                                title: match.title,
+                                file_name: match.file_name,
+                                supplier: match.supplier,
+                                po_number: match.po_number,
+                            },
+                            matchReason: `Exact filename and size match with document "${match.title || match.file_name}"`,
+                        },
+                        summary: "Exact duplicate document detected in company archives.",
+                        extracted: {
+                            text: null,
+                            description: `Duplicate of ${match.file_name}`,
+                            visual_objects: [],
+                            vendor_name: match.supplier || null,
+                            po_number: match.po_number || null,
+                            price: null,
+                            summary: "Duplicate upload blocked.",
+                            document_type: "Duplicate",
+                            category: "documents",
+                            confidence_score: 100,
+                            extracted_at: new Date().toISOString(),
+                        },
+                    });
+                }
+            } catch (preCheckErr) {
+                console.warn('Pre-check exact duplicate error:', preCheckErr);
+            }
         }
 
         if (!apiKey) {
@@ -71,6 +219,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 success: true,
                 is_valid_system_doc: true,
+                is_duplicate: false,
                 detected_type: "Standard Document",
                 detected_category: "documents",
                 extracted_title: fileName.replace(/\.[^/.]+$/, ""),
@@ -203,9 +352,102 @@ Return ONLY a valid JSON object without markdown formatting, code fences, or bac
             extracted_at: new Date().toISOString(),
         };
 
+        // 2. Post-OCR Content similarity check across trash archive and existing active documents
+        let duplicateMatch: any = null;
+        let trashMatch: any = null;
+        let isDuplicate = false;
+        let isInTrash = false;
+        let rejectionReason = parsedResult.rejection_reason || null;
+        let searchQuery = fileName;
+
+        if (supabaseUrl && serviceRoleKey) {
+            try {
+                // A. Check trash archive for similar content first
+                const { data: existingTrashDocs } = await supabaseAdmin
+                    .from('documents_archive')
+                    .select('id, title, file_name, file_size, supplier, po_number, extracted, original_id')
+                    .order('deleted_at', { ascending: false })
+                    .limit(200);
+
+                if (existingTrashDocs && existingTrashDocs.length > 0) {
+                    const trashSimilarityResult = findSimilarExtractedDocument(
+                        {
+                            text: parsedResult.extracted_text,
+                            description: parsedResult.photo_description,
+                            summary: parsedResult.summary,
+                            po_number: parsedResult.extracted_po_number,
+                            file_name: fileName,
+                            file_size: fileSize,
+                        },
+                        existingTrashDocs,
+                        null,
+                        0.70 // 70% threshold
+                    );
+
+                    if (trashSimilarityResult && trashSimilarityResult.isSimilar) {
+                        isDuplicate = true;
+                        isInTrash = true;
+                        duplicateMatch = {
+                            ...trashSimilarityResult,
+                            isInTrash: true,
+                        };
+                        trashMatch = trashSimilarityResult.matchedDoc;
+                        searchQuery = trashSimilarityResult.matchedDoc.file_name || trashSimilarityResult.matchedDoc.title || fileName;
+                        rejectionReason = `file is already in trash ask your manager to restore it to avoid duplication or see if you can restore it`;
+                    }
+                }
+
+                // B. If not in trash, check active documents
+                if (!isInTrash) {
+                    const { data: existingExtractedDocs } = await supabaseAdmin
+                        .from('documents')
+                        .select('id, title, file_name, file_size, supplier, po_number, extracted')
+                        .not('extracted', 'is', null)
+                        .order('created_at', { ascending: false })
+                        .limit(300);
+
+                    if (existingExtractedDocs && existingExtractedDocs.length > 0) {
+                        const similarityResult = findSimilarExtractedDocument(
+                            {
+                                text: parsedResult.extracted_text,
+                                description: parsedResult.photo_description,
+                                summary: parsedResult.summary,
+                                po_number: parsedResult.extracted_po_number,
+                                file_name: fileName,
+                                file_size: fileSize,
+                            },
+                            existingExtractedDocs,
+                            excludeDocId,
+                            0.70 // 70% threshold
+                        );
+
+                        if (similarityResult && similarityResult.isSimilar) {
+                            isDuplicate = true;
+                            isInTrash = false;
+                            duplicateMatch = {
+                                ...similarityResult,
+                                isInTrash: false,
+                            };
+                            searchQuery = similarityResult.matchedDoc.file_name || similarityResult.matchedDoc.title || fileName;
+                            rejectionReason = `Duplicate content detected (${similarityResult.similarity}% match to existing document "${similarityResult.matchedDoc.title || similarityResult.matchedDoc.file_name}").`;
+                        }
+                    }
+                }
+            } catch (simDbErr) {
+                console.warn('Server-side similarity check error:', simDbErr);
+            }
+        }
+
         return NextResponse.json({
             success: true,
             ...parsedResult,
+            is_valid_system_doc: isDuplicate ? false : parsedResult.is_valid_system_doc,
+            is_duplicate: isDuplicate,
+            is_in_trash: isInTrash,
+            trash_match: trashMatch,
+            search_query: searchQuery,
+            duplicate_match: duplicateMatch,
+            rejection_reason: rejectionReason,
             extracted: extractedPayload,
             userRole,
             userName,
@@ -222,4 +464,5 @@ Return ONLY a valid JSON object without markdown formatting, code fences, or bac
         );
     }
 }
+
 

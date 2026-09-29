@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useConfirm } from '../../../components/ui/ConfirmModal';
 import { supabase } from '../../../lib/services/client/supabase';
@@ -70,6 +71,8 @@ const formatArchivedDocument = (doc: any): ArchivedDocument => ({
 
 export function DocumentsTab() {
     const { confirm } = useConfirm();
+    const searchParams = useSearchParams();
+    const urlQuery = searchParams?.get('q') || searchParams?.get('search') || '';
 
     const [archivedDocuments, setArchivedDocuments] = useState<ArchivedDocument[]>(() => {
         return trashCache.get<ArchivedDocument>('documents') || [];
@@ -77,12 +80,18 @@ export function DocumentsTab() {
     const [docsLoading, setDocsLoading] = useState<boolean>(() => {
         return !trashCache.get('documents');
     });
-    const [docSearchTerm, setDocSearchTerm] = useState('');
+    const [docSearchTerm, setDocSearchTerm] = useState(urlQuery);
     const [docTypeFilter, setDocTypeFilter] = useState('all');
     const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
     const [docPage, setDocPage] = useState(1);
     const [docTotalPages, setDocTotalPages] = useState(1);
     const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        if (urlQuery) {
+            setDocSearchTerm(urlQuery);
+        }
+    }, [urlQuery]);
 
     const debouncedDocSearchTerm = useDebounce(docSearchTerm, 300);
 
@@ -134,6 +143,84 @@ export function DocumentsTab() {
         if (confirmed) {
             setDocsLoading(true);
             try {
+                // Check if an active document with the same original_id or same filename+size already exists
+                let query = supabase
+                    .from('documents')
+                    .select('id, title, file_name, file_size')
+                    .eq('id', doc.original_id);
+
+                const { data: existingById } = await query.maybeSingle();
+                let existingActive = existingById;
+
+                if (!existingActive && doc.file_name && doc.file_size) {
+                    const { data: existingByFile } = await supabase
+                        .from('documents')
+                        .select('id, title, file_name, file_size')
+                        .ilike('file_name', doc.file_name)
+                        .eq('file_size', doc.file_size)
+                        .maybeSingle();
+                    existingActive = existingByFile;
+                }
+
+                if (existingActive) {
+                    setDocsLoading(false);
+                    const shouldOverwrite = await confirm({
+                        title: 'Active Document Already Exists',
+                        message: `An active document "${sanitizeText(doc.title || doc.file_name)}" is already active in Document Management.\n\nDo you want to overwrite the active document with this archived record?`,
+                        confirmText: 'Overwrite Active',
+                        cancelText: 'Cancel',
+                        confirmVariant: 'warning'
+                    });
+
+                    if (!shouldOverwrite) {
+                        toast.info(`Restore cancelled: active document "${sanitizeText(doc.title || doc.file_name)}" already exists.`);
+                        return;
+                    }
+
+                    setDocsLoading(true);
+                    const { error: updateError } = await supabase
+                        .from('documents')
+                        .update({
+                            title: doc.title,
+                            file_name: doc.file_name,
+                            file_size: doc.file_size,
+                            file_type: doc.file_type,
+                            storage_path: doc.storage_path,
+                            category: doc.category,
+                            document_type: doc.document_type,
+                            supplier: doc.supplier,
+                            po_number: doc.po_number,
+                            parcel_batch: doc.parcel_batch,
+                            uploaded_by: doc.uploaded_by,
+                            notes: doc.notes,
+                            version: doc.version,
+                            updated_at: new Date().toISOString(),
+                            role: doc.role,
+                            session_id: doc.session_id,
+                        })
+                        .eq('id', existingActive.id);
+
+                    if (updateError) throw updateError;
+
+                    const { error: deleteError } = await supabase
+                        .from('documents_archive')
+                        .delete()
+                        .eq('id', doc.id);
+
+                    if (deleteError) throw deleteError;
+
+                    trashCache.removeItem('documents', doc.id);
+                    setArchivedDocuments(prev => prev.filter(d => d.id !== doc.id));
+                    setDocTotalPages(Math.ceil((archivedDocuments.length - 1) / ITEMS_PER_PAGE));
+                    setSelectedDocIds(prev => {
+                        const updated = new Set(prev);
+                        updated.delete(doc.id);
+                        return updated;
+                    });
+                    toast.success(`Active document "${sanitizeText(doc.title)}" updated with archived details`);
+                    return;
+                }
+
                 const { error: insertError } = await supabase
                     .from('documents')
                     .insert({
@@ -157,7 +244,13 @@ export function DocumentsTab() {
                         session_id: doc.session_id,
                     });
 
-                if (insertError) throw insertError;
+                if (insertError) {
+                    if (insertError.code === '23505' || insertError.message?.includes('duplicate key')) {
+                        toast.error(`Cannot restore: An active document "${sanitizeText(doc.title || doc.file_name)}" already exists.`);
+                        return;
+                    }
+                    throw insertError;
+                }
 
                 const { error: deleteError } = await supabase
                     .from('documents_archive')
@@ -175,9 +268,13 @@ export function DocumentsTab() {
                     return updated;
                 });
                 toast.success(`"${sanitizeText(doc.title)}" restored successfully`);
-            } catch (error) {
-                console.error('Restore error:', error);
-                toast.error('Failed to restore document');
+            } catch (error: any) {
+                if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+                    toast.error(`Cannot restore: An active document "${sanitizeText(doc.title || doc.file_name)}" already exists.`);
+                } else {
+                    toast.error('Failed to restore document');
+                }
+                console.error(error);
             } finally {
                 setDocsLoading(false);
             }
@@ -249,7 +346,23 @@ export function DocumentsTab() {
             setDocsLoading(true);
             try {
                 const docsToRestore = archivedDocuments.filter(d => selectedDocIds.has(d.id));
+                const allOriginalIds = docsToRestore.map(d => d.original_id).filter(Boolean);
+
+                const { data: existingActiveList } = await supabase
+                    .from('documents')
+                    .select('id')
+                    .in('id', allOriginalIds);
+
+                const activeIds = new Set((existingActiveList || []).map(d => d.id));
+                const successfullyRestoredIds = new Set<string>();
+                const skippedConflictDocs: string[] = [];
+
                 for (const doc of docsToRestore) {
+                    if (activeIds.has(doc.original_id)) {
+                        skippedConflictDocs.push(doc.title || doc.file_name);
+                        continue;
+                    }
+
                     const { error: insertError } = await supabase
                         .from('documents')
                         .insert({
@@ -273,18 +386,34 @@ export function DocumentsTab() {
                             session_id: doc.session_id,
                         });
 
-                    if (insertError) throw insertError;
+                    if (insertError) {
+                        console.error('Insert error for doc:', doc.title, insertError);
+                        skippedConflictDocs.push(doc.title || doc.file_name);
+                        continue;
+                    }
 
                     await supabase
                         .from('documents_archive')
                         .delete()
                         .eq('id', doc.id);
+
+                    successfullyRestoredIds.add(doc.id);
                 }
 
-                trashCache.removeItems('documents', selectedDocIds);
-                setArchivedDocuments(prev => prev.filter(d => !selectedDocIds.has(d.id)));
-                setDocTotalPages(Math.ceil((archivedDocuments.length - selectedDocIds.size) / ITEMS_PER_PAGE));
-                toast.success(`${selectedDocIds.size} document(s) restored successfully!`);
+                if (successfullyRestoredIds.size > 0) {
+                    trashCache.removeItems('documents', successfullyRestoredIds);
+                    setArchivedDocuments(prev => prev.filter(d => !successfullyRestoredIds.has(d.id)));
+                    setDocTotalPages(Math.ceil((archivedDocuments.length - successfullyRestoredIds.size) / ITEMS_PER_PAGE));
+                    toast.success(`${successfullyRestoredIds.size} document(s) restored successfully!`);
+                }
+
+                if (skippedConflictDocs.length > 0) {
+                    toast.warning(
+                        `Skipped ${skippedConflictDocs.length} document(s) because an active document already exists: ${skippedConflictDocs.join(', ')}`,
+                        { duration: 7000 }
+                    );
+                }
+
                 setSelectedDocIds(new Set());
             } catch (error) {
                 toast.error('Failed to restore documents');

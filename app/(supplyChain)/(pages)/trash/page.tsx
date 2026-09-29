@@ -24,7 +24,7 @@ export default function ArchivePage() {
     const isOperator = userRole?.toLowerCase() === 'operator';
     const isStaffOrEmployee = userRole?.toLowerCase() === 'employee' || userRole?.toLowerCase() === 'staff';
 
-    const canAccessDocuments = isPrivileged || isStaffOrEmployee;
+    const canAccessDocuments = isPrivileged || isStaffOrEmployee || isOperator;
     const canAccessPurchaseOrders = isPrivileged;
     const canAccessSuppliers = isPrivileged;
     const canAccessParcels = isPrivileged || isOperator;
@@ -35,11 +35,13 @@ export default function ArchivePage() {
         return 'documents';
     }, []);
 
-    const tabFromUrl = searchParams.get('tab') as ArchiveTab;
-    const isValidTab = tabFromUrl && VALID_TABS.includes(tabFromUrl);
-    const initialDefaultTab = getDefaultTabForRole(userRole);
-    const [activeTab, setActiveTab] = useState<ArchiveTab>(isValidTab ? tabFromUrl : initialDefaultTab);
-    const [visitedTabs, setVisitedTabs] = useState<Set<ArchiveTab>>(new Set([isValidTab ? tabFromUrl : initialDefaultTab]));
+    const explicitTab = searchParams.get('tab') as ArchiveTab;
+    const hasQuery = Boolean(searchParams.get('q') || searchParams.get('search'));
+    const tabFromUrl = (explicitTab && VALID_TABS.includes(explicitTab)) ? explicitTab : (hasQuery ? 'documents' : null);
+    const isValidTab = Boolean(tabFromUrl && VALID_TABS.includes(tabFromUrl));
+    const initialDefaultTab = tabFromUrl || getDefaultTabForRole(userRole);
+    const [activeTab, setActiveTab] = useState<ArchiveTab>(isValidTab ? tabFromUrl! : initialDefaultTab);
+    const [visitedTabs, setVisitedTabs] = useState<Set<ArchiveTab>>(new Set([isValidTab ? tabFromUrl! : initialDefaultTab]));
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     // update tab
@@ -60,12 +62,15 @@ export default function ArchivePage() {
     // sync active tab
     useEffect(() => {
         const tab = searchParams.get('tab') as ArchiveTab;
-        if (tab && VALID_TABS.includes(tab)) {
-            setActiveTab(tab);
+        const query = searchParams.get('q') || searchParams.get('search');
+        const resolvedTab = (tab && VALID_TABS.includes(tab)) ? tab : (query ? 'documents' : null);
+
+        if (resolvedTab && VALID_TABS.includes(resolvedTab)) {
+            setActiveTab(resolvedTab);
             setVisitedTabs(prev => {
-                if (prev.has(tab)) return prev;
+                if (prev.has(resolvedTab)) return prev;
                 const next = new Set(prev);
-                next.add(tab);
+                next.add(resolvedTab);
                 return next;
             });
         } else if (!tab && isLoaded) {
@@ -190,9 +195,11 @@ export default function ArchivePage() {
                             {isLoaded && !canAccessDocuments ? (
                                 <UnauthorizedEmptyState
                                     title="Documents Trash Restricted"
-                                    description="You do not have permission to view or manage deleted documents. This section is restricted to Admin, Manager, Executive, and Employee personnel only."
+                                    description="You do not have permission to view or manage deleted documents. This section is restricted to Admin, Manager, Executive, Staff, and Operator personnel only."
                                     currentRole={userRole}
-                                    requiredRoles={['Admin', 'Manager', 'Executive', 'Employee']}
+                                    requiredRoles={['Admin', 'Manager', 'Executive', 'Staff', 'Operator']}
+                                    statusCode={403}
+                                    statusText="Forbidden"
                                 />
                             ) : (
                                 <DocumentsTab />
@@ -207,6 +214,8 @@ export default function ArchivePage() {
                                     description="You do not have permission to view or manage deleted purchase orders. This section is restricted to Admin, Manager, and Executive personnel only."
                                     currentRole={userRole}
                                     requiredRoles={['Admin', 'Manager', 'Executive']}
+                                    statusCode={403}
+                                    statusText="Forbidden"
                                 />
                             ) : (
                                 <PurchaseOrdersTab />
@@ -221,6 +230,8 @@ export default function ArchivePage() {
                                     description="You do not have permission to view or manage deleted suppliers. This section is restricted to Admin, Manager, and Executive personnel only."
                                     currentRole={userRole}
                                     requiredRoles={['Admin', 'Manager', 'Executive']}
+                                    statusCode={403}
+                                    statusText="Forbidden"
                                 />
                             ) : (
                                 <SuppliersTab />
@@ -235,6 +246,8 @@ export default function ArchivePage() {
                                     description="You do not have permission to view or manage deleted parcels. This section is restricted to Admin, Manager, Executive, and Operator personnel only."
                                     currentRole={userRole}
                                     requiredRoles={['Admin', 'Manager', 'Executive', 'Operator']}
+                                    statusCode={403}
+                                    statusText="Forbidden"
                                 />
                             ) : (
                                 <ParcelsTab />

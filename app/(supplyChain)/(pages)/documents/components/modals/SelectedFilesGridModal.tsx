@@ -52,6 +52,7 @@ interface SelectedFilesGridModalProps {
     isOpen: boolean;
     files: File[];
     maxFiles?: number;
+    isUploading?: boolean;
     onClose: () => void;
     onRemoveFile: (index: number) => void;
     onClearAll?: () => void;
@@ -60,7 +61,8 @@ interface SelectedFilesGridModalProps {
 export function SelectedFilesGridModal({
     isOpen,
     files,
-    maxFiles = 10,
+    maxFiles = 5,
+    isUploading = false,
     onClose,
     onRemoveFile,
     onClearAll,
@@ -71,6 +73,7 @@ export function SelectedFilesGridModal({
     if (!isOpen) return null;
 
     const handleRemove = (index: number, e?: React.MouseEvent) => {
+        if (isUploading) return;
         e?.stopPropagation();
         const fileToRemove = files[index];
         if (fileToRemove) {
@@ -83,6 +86,7 @@ export function SelectedFilesGridModal({
     };
 
     const handleClearAll = () => {
+        if (isUploading) return;
         files.forEach((f) => revokeCachedFilePreviewUrl(f));
         setPreviewFile(null);
         if (onClearAll) {
@@ -122,7 +126,8 @@ export function SelectedFilesGridModal({
                                     type="button"
                                     variant="danger"
                                     size="xs"
-                                    onClick={onClearAll}
+                                    disabled={isUploading}
+                                    onClick={handleClearAll}
                                     title="Remove all selected files"
                                 >
                                     <i className="fas fa-trash-can text-xs"></i>
@@ -133,6 +138,7 @@ export function SelectedFilesGridModal({
                                 type="button"
                                 variant="neutral"
                                 size="icon-sm"
+                                disabled={isUploading}
                                 onClick={onClose}
                                 aria-label="Close modal"
                             >
@@ -222,6 +228,7 @@ export function SelectedFilesGridModal({
                                                     type="button"
                                                     variant="neutral"
                                                     size="xs"
+                                                    disabled={isUploading}
                                                     className="w-full text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30"
                                                     onClick={(e) => handleRemove(index, e)}
                                                 >

@@ -102,7 +102,7 @@ export const DEFAULT_PAGE_PERMISSIONS: PagePermission[] = [
         label: 'Documents',
         description: 'Compliance files, shipping docs, and records archive',
         section: 'Intelligence',
-        allowedRoles: ['Executive', 'Admin', 'Manager', 'Staff', 'Employee'],
+        allowedRoles: ['Executive', 'Admin', 'Manager', 'Staff', 'Employee', 'Operator'],
     },
     {
         route: '/forecast',
@@ -116,7 +116,7 @@ export const DEFAULT_PAGE_PERMISSIONS: PagePermission[] = [
         label: 'Gallery',
         description: 'Media archive, logistics photos, and inspection snapshots',
         section: 'Others',
-        allowedRoles: ['Executive', 'Admin', 'Manager', 'Staff', 'Employee'],
+        allowedRoles: ['Executive', 'Admin', 'Manager', 'Staff', 'Employee', 'Operator'],
     },
     {
         route: '/trash',
@@ -242,8 +242,13 @@ class SettingsService {
         for (const [route, roles] of Object.entries(settings.pagePermissions)) {
             const cleanKey = route.toLowerCase().replace(/\/$/, '') || '/';
             // Ensure Executive always retains permission in cache
-            const finalRoles = roles.includes('Executive') ? roles : ['Executive', ...roles];
-            this.routeRolesCache.set(cleanKey, finalRoles);
+            const roleSet = new Set(roles);
+            roleSet.add('Executive');
+            // Ensure Operator is explicitly enabled for core operations & media routes
+            if (['/documents', '/gallery', '/trash', '/warehousing', '/inventory'].includes(cleanKey)) {
+                roleSet.add('Operator');
+            }
+            this.routeRolesCache.set(cleanKey, Array.from(roleSet));
         }
 
         if (!settings.inactivity.enabled) {
@@ -276,6 +281,19 @@ class SettingsService {
             const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw) as Partial<SystemSettings>;
+                const rawPerms = {
+                    ...DEFAULT_SETTINGS.pagePermissions,
+                    ...(parsed.pagePermissions || {}),
+                };
+
+                // Ensure Operator is always included in documents, gallery, trash
+                ['/documents', '/gallery', '/trash', '/warehousing', '/inventory'].forEach((route) => {
+                    const currentList = rawPerms[route] || [];
+                    if (!currentList.includes('Operator')) {
+                        rawPerms[route] = [...currentList, 'Operator'];
+                    }
+                });
+
                 const merged: SystemSettings = {
                     inactivity: {
                         ...DEFAULT_INACTIVITY_SETTINGS,
@@ -285,10 +303,7 @@ class SettingsService {
                         ...DEFAULT_CONCURRENCY_SLOTS,
                         ...(parsed.concurrencySlots || {}),
                     },
-                    pagePermissions: {
-                        ...DEFAULT_SETTINGS.pagePermissions,
-                        ...(parsed.pagePermissions || {}),
-                    },
+                    pagePermissions: rawPerms,
                     roleRedirects: {
                         ...DEFAULT_ROLE_REDIRECTS,
                         ...(parsed.roleRedirects || {}),
@@ -427,8 +442,21 @@ class SettingsService {
      */
     public canAccessPage(role: string, pathname: string, fallbackRoles?: string[]): boolean {
         if (!role) return false;
-        const allowedRoles = this.getPageRoles(pathname, fallbackRoles);
         const normRole = role.trim().toLowerCase();
+
+        // 1. Check fallbackRoles directly (from NAV / page definitions)
+        if (fallbackRoles && fallbackRoles.length > 0) {
+            const isFallbackAllowed = fallbackRoles.some(r => {
+                const normAllowed = (r || '').trim().toLowerCase();
+                if (normRole === normAllowed) return true;
+                if ((normRole === 'staff' && normAllowed === 'employee') || (normRole === 'employee' && normAllowed === 'staff')) return true;
+                return false;
+            });
+            if (isFallbackAllowed) return true;
+        }
+
+        // 2. Check dynamic allowed roles from DB/settings
+        const allowedRoles = this.getPageRoles(pathname, fallbackRoles);
         return allowedRoles.some(r => {
             const normAllowed = (r || '').trim().toLowerCase();
             if (normRole === normAllowed) return true;

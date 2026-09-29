@@ -97,9 +97,15 @@ export interface ExecutiveDataPayload {
 const CACHE_KEY = "AIRSHIP_EXECUTIVE_DATA_CACHE_V8";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+interface DateRange {
+    from: string; // YYYY-MM-DD
+    to: string;   // YYYY-MM-DD
+}
+
 interface FetchDataOptions {
     isManualRefresh?: boolean;
     isSilent?: boolean;
+    dateRange?: DateRange | null;
 }
 
 export function useExecutiveData() {
@@ -108,7 +114,10 @@ export function useExecutiveData() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isLoadedFromCache, setIsLoadedFromCache] = useState(false);
     const [isRealtimeActive, setIsRealtimeActive] = useState(false);
+    const [activeDateRange, setActiveDateRange] = useState<DateRange | null>(null);
     const isMounted = useRef(true);
+    // keep the latest applied range accessible inside the fetchData callback
+    const activeDateRangeRef = useRef<DateRange | null>(null);
 
     // hydrate from cache
     useEffect(() => {
@@ -142,6 +151,11 @@ export function useExecutiveData() {
     const fetchData = useCallback(async (options: boolean | FetchDataOptions = false) => {
         const isManual = typeof options === 'boolean' ? options : !!options?.isManualRefresh;
         const isSilent = typeof options === 'object' && !!options?.isSilent;
+        // use explicitly passed range, or fall back to the ref (last applied)
+        const range: DateRange | null =
+            typeof options === 'object' && options?.dateRange !== undefined
+                ? options.dateRange
+                : activeDateRangeRef.current;
 
         if (isManual) {
             setIsRefreshing(true);
@@ -160,27 +174,42 @@ export function useExecutiveData() {
                 couriersRes,
                 suppliersRes
             ] = await Promise.all([
-                supabase
-                    .from('parcels')
-                    .select('id, barcode, tracking_number, customer_name, sender_name, destination, courier, status, created_at, region, city')
-                    .order('created_at', { ascending: false }),
+                (() => {
+                    let q = supabase
+                        .from('parcels')
+                        .select('id, barcode, tracking_number, customer_name, sender_name, destination, courier, status, created_at, region, city')
+                        .order('created_at', { ascending: false });
+                    if (range?.from) q = q.gte('created_at', range.from);
+                    if (range?.to)   q = q.lte('created_at', range.to + 'T23:59:59');
+                    return q;
+                })(),
                 supabase
                     .from('inventory_items')
                     .select('id, item_code, item_name, category, current_stock, minimum_stock, status, purchase_price, supplier'),
-                supabase
-                    .from('purchase_requests')
-                    .select('id, request_number, type, description, requested_by, department, supplier_name, amount, priority, status, date, created_at')
-                    .order('created_at', { ascending: false }),
+                (() => {
+                    let q = supabase
+                        .from('purchase_requests')
+                        .select('id, request_number, type, description, requested_by, department, supplier_name, amount, priority, status, date, created_at')
+                        .order('created_at', { ascending: false });
+                    if (range?.from) q = q.gte('created_at', range.from);
+                    if (range?.to)   q = q.lte('created_at', range.to + 'T23:59:59');
+                    return q;
+                })(),
                 supabase
                     .from('documents')
                     .select('id, title, file_type, category, document_type, supplier, created_at')
                     .order('created_at', { ascending: false })
                     .limit(200),
-                supabase
-                    .from('purchase_orders')
-                    .select('id, po_number, supplier_name, total_amount, status, paid, created_at')
-                    .order('created_at', { ascending: false })
-                    .limit(200),
+                (() => {
+                    let q = supabase
+                        .from('purchase_orders')
+                        .select('id, po_number, supplier_name, total_amount, status, paid, created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(200);
+                    if (range?.from) q = q.gte('created_at', range.from);
+                    if (range?.to)   q = q.lte('created_at', range.to + 'T23:59:59');
+                    return q;
+                })(),
                 supabase
                     .from('receiving_queue')
                     .select('id, barcode, tracking_number, courier, status, scanned_at')
@@ -221,54 +250,110 @@ export function useExecutiveData() {
                 console.warn("Forecast prefetch failed:", fcErr);
             }
 
-            // daily parcel trends 7d
-            const dailyTrend: DailyTrendPoint[] = [];
             const now = new Date();
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(now);
-                d.setDate(d.getDate() - i);
-                const dStr = d.toISOString().split('T')[0];
-                const dayLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-                const receivedCount = parcels.filter(p => p.created_at && p.created_at.startsWith(dStr)).length;
-                const deliveredCount = parcels.filter(p => p.created_at && p.created_at.startsWith(dStr) && p.status === 'delivered').length;
-
-                dailyTrend.push({
-                    dayLabel,
-                    dateStr: dStr,
-                    receivedCount,
-                    deliveredCount
-                });
-            }
-
-            // today vs yesterday
             const todayStr = now.toISOString().split('T')[0];
-            const yesterdayDate = new Date(now);
-            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-            const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
 
-            const parcelsTodayCount = parcels.filter(p => p.created_at && p.created_at.startsWith(todayStr)).length;
-            const parcelsYesterdayCount = parcels.filter(p => p.created_at && p.created_at.startsWith(yesterdayStr)).length;
+            // ── Daily trend ──────────────────────────────────────────────
+            // When a date range is active, enumerate each day in that range.
+            // Otherwise fall back to the last 7 days.
+            const dailyTrend: DailyTrendPoint[] = [];
 
-            let parcelsChangePct = "0% vs yesterday";
-            if (parcelsYesterdayCount > 0) {
-                const diffPct = ((parcelsTodayCount - parcelsYesterdayCount) / parcelsYesterdayCount * 100).toFixed(1);
-                parcelsChangePct = `${Number(diffPct) >= 0 ? '+' : ''}${diffPct}% vs yesterday`;
-            } else if (parcelsTodayCount > 0) {
-                parcelsChangePct = `+100% vs yesterday`;
+            if (range?.from && range?.to) {
+                const start = new Date(range.from);
+                const end = new Date(range.to);
+                // cap at 90 days to avoid overflowing the chart
+                const MAX_DAYS = 90;
+                let cursor = new Date(start);
+                let dayCount = 0;
+                while (cursor <= end && dayCount < MAX_DAYS) {
+                    const dStr = cursor.toISOString().split('T')[0];
+                    const dayLabel = cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    dailyTrend.push({
+                        dayLabel,
+                        dateStr: dStr,
+                        receivedCount: parcels.filter(p => p.created_at && p.created_at.startsWith(dStr)).length,
+                        deliveredCount: parcels.filter(p => p.created_at && p.created_at.startsWith(dStr) && p.status === 'delivered').length,
+                    });
+                    cursor.setDate(cursor.getDate() + 1);
+                    dayCount++;
+                }
+            } else {
+                // default: last 7 days
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date(now);
+                    d.setDate(d.getDate() - i);
+                    const dStr = d.toISOString().split('T')[0];
+                    const dayLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    dailyTrend.push({
+                        dayLabel,
+                        dateStr: dStr,
+                        receivedCount: parcels.filter(p => p.created_at && p.created_at.startsWith(dStr)).length,
+                        deliveredCount: parcels.filter(p => p.created_at && p.created_at.startsWith(dStr) && p.status === 'delivered').length,
+                    });
+                }
             }
 
-            // dispatch stats mtd
+            // ── Page KPIs ─────────────────────────────────────────────────
+            // When a date range is active, "today" metrics become "in-range" metrics.
+            let parcelsTodayCount: number;
+            let parcelsYesterdayCount: number;
+            let parcelsChangePct: string;
+
+            if (range?.from) {
+                // In-range: all parcels already ARE the filtered set
+                parcelsTodayCount = parcels.length;
+                // "Yesterday" period = same-length window immediately before the from date
+                const fromDate = new Date(range.from);
+                const toDate   = range.to ? new Date(range.to) : fromDate;
+                const rangeDays = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1);
+                const prevFrom = new Date(fromDate); prevFrom.setDate(prevFrom.getDate() - rangeDays);
+                const prevTo   = new Date(fromDate); prevTo.setDate(prevTo.getDate() - 1);
+                const prevFromStr = prevFrom.toISOString().split('T')[0];
+                const prevToStr   = prevTo.toISOString().split('T')[0];
+                // We can't re-query Supabase here, so approximate using the parcels we already have
+                parcelsYesterdayCount = parcels.filter(p =>
+                    p.created_at && p.created_at >= prevFromStr && p.created_at.split('T')[0] <= prevToStr
+                ).length;
+                if (parcelsYesterdayCount > 0) {
+                    const diffPct = ((parcelsTodayCount - parcelsYesterdayCount) / parcelsYesterdayCount * 100).toFixed(1);
+                    parcelsChangePct = `${Number(diffPct) >= 0 ? '+' : ''}${diffPct}% vs prev period`;
+                } else {
+                    parcelsChangePct = parcelsTodayCount > 0 ? 'New in range' : 'No data in range';
+                }
+            } else {
+                // Default: today vs yesterday
+                const yesterdayDate = new Date(now);
+                yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+                parcelsTodayCount = parcels.filter(p => p.created_at && p.created_at.startsWith(todayStr)).length;
+                parcelsYesterdayCount = parcels.filter(p => p.created_at && p.created_at.startsWith(yesterdayStr)).length;
+                if (parcelsYesterdayCount > 0) {
+                    const diffPct = ((parcelsTodayCount - parcelsYesterdayCount) / parcelsYesterdayCount * 100).toFixed(1);
+                    parcelsChangePct = `${Number(diffPct) >= 0 ? '+' : ''}${diffPct}% vs yesterday`;
+                } else if (parcelsTodayCount > 0) {
+                    parcelsChangePct = '+100% vs yesterday';
+                } else {
+                    parcelsChangePct = '0% vs yesterday';
+                }
+            }
+
+            // dispatch stats — scoped to the filtered parcels
             const readyParcels = parcels.filter(p => p.status === 'ready' || p.status === 'ready_for_pickup' || p.status === 'sorting');
             const readyPctVal = parcels.length > 0 ? ((readyParcels.length / parcels.length) * 100).toFixed(1) : "0.0";
 
-            const currentMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
-            const dispatchedParcelsMtd = parcels.filter(p =>
-                p.created_at && p.created_at.startsWith(currentMonthStr) &&
-                (p.status === 'delivered' || p.status === 'picked_up' || p.status === 'in_transit')
-            ).length;
+            // "Dispatched MTD" = parcels in a dispatched status within the current result set
+            const dispatchedParcelsMtd = range?.from
+                ? parcels.filter(p => p.status === 'delivered' || p.status === 'picked_up' || p.status === 'in_transit').length
+                : (() => {
+                    const currentMonthStr = now.toISOString().slice(0, 7);
+                    return parcels.filter(p =>
+                        p.created_at && p.created_at.startsWith(currentMonthStr) &&
+                        (p.status === 'delivered' || p.status === 'picked_up' || p.status === 'in_transit')
+                    ).length;
+                })();
 
             const deliveredTotal = parcels.filter(p => p.status === 'delivered').length;
+
             const ontimeRateVal = parcels.length > 0 ? ((deliveredTotal / parcels.length) * 100).toFixed(1) : "0.0";
 
             const pageKpis: PageKpisData = {
@@ -277,7 +362,9 @@ export function useExecutiveData() {
                 readyForDispatch: readyParcels.length,
                 readyPct: `${readyPctVal}% of total queue`,
                 dispatchedMtd: dispatchedParcelsMtd,
-                dispatchedChangePct: `${dispatchedParcelsMtd} shipments this month`,
+                dispatchedChangePct: range?.from
+                    ? `${dispatchedParcelsMtd} shipments in period`
+                    : `${dispatchedParcelsMtd} shipments this month`,
                 ontimeRate: `${ontimeRateVal}%`,
             };
 
@@ -297,9 +384,12 @@ export function useExecutiveData() {
             // procurement summary
             const openPOs = purchaseOrders.filter(po => po.status !== 'Cancelled' && po.status !== 'Delivered').length;
             const pendingApprovals = procurement.filter(pr => pr.status === 'Pending').length;
-            const mtdSpend = purchaseOrders
-                .filter(po => po.created_at && po.created_at.startsWith(currentMonthStr))
-                .reduce((sum, po) => sum + (Number(po.total_amount) || 0), 0);
+            const currentMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
+            const mtdSpend = range?.from
+                ? purchaseOrders.reduce((sum, po) => sum + (Number(po.total_amount) || 0), 0)
+                : purchaseOrders
+                    .filter(po => po.created_at && po.created_at.startsWith(currentMonthStr))
+                    .reduce((sum, po) => sum + (Number(po.total_amount) || 0), 0);
             
             const approvedPRsCount = procurement.filter(pr => pr.status === 'Approved' || pr.status === 'Completed').length;
             const budgetUtilizationPct = procurement.length > 0
@@ -622,12 +712,29 @@ export function useExecutiveData() {
         };
     }, [fetchData]);
 
+    const applyDateFilter = useCallback((range: DateRange) => {
+        activeDateRangeRef.current = range;
+        setActiveDateRange(range);
+        sessionStorage.removeItem(CACHE_KEY); // bust cache so filtered data is fresh
+        fetchData({ isManualRefresh: true, dateRange: range });
+    }, [fetchData]);
+
+    const resetDateFilter = useCallback(() => {
+        activeDateRangeRef.current = null;
+        setActiveDateRange(null);
+        sessionStorage.removeItem(CACHE_KEY);
+        fetchData({ isManualRefresh: true, dateRange: null });
+    }, [fetchData]);
+
     return {
         data,
         loading,
         isRefreshing,
         isLoadedFromCache,
         isRealtimeActive,
+        activeDateRange,
         refresh: () => fetchData(true),
+        applyDateFilter,
+        resetDateFilter,
     };
 }

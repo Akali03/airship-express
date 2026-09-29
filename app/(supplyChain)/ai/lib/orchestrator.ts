@@ -187,10 +187,10 @@ export const DEFAULT_PAGE_PERMISSIONS: Record<string, string[]> = {
     '/procurement': ['Executive', 'Admin', 'Manager'],
     '/suppliers': ['Executive', 'Admin', 'Manager'],
     '/purchase-orders': ['Executive', 'Admin', 'Manager'],
-    '/documents': ['Executive', 'Admin', 'Manager', 'Employee'],
+    '/documents': ['Executive', 'Admin', 'Manager', 'Staff', 'Employee', 'Operator'],
     '/forecast': ['Executive', 'Admin'],
-    '/gallery': ['Executive', 'Admin', 'Manager', 'Employee'],
-    '/trash': ['Executive', 'Admin', 'Manager', 'Employee', 'Operator'],
+    '/gallery': ['Executive', 'Admin', 'Manager', 'Staff', 'Employee', 'Operator'],
+    '/trash': ['Executive', 'Admin', 'Manager', 'Staff', 'Employee', 'Operator'],
     '/user-activity': ['Executive', 'Admin'],
     '/settings': ['Executive', 'Admin'],
 };

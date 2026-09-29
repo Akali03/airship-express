@@ -124,24 +124,24 @@ export async function GET(request: Request) {
             return NextResponse.json(supplierList);
         }
 
-        // If Admin or Executive, fetch directly from users table
-        if (role === 'Admin' || role === 'Executive') {
+        // If Executive, fetch directly from users table
+        if (role === 'Executive') {
             const { data: dbUsers, error: userError } = await supabaseAdmin
                 .from('users')
                 .select('*')
-                .ilike('role', role)
+                .ilike('role', 'Executive')
                 .order('display_name', { ascending: true });
 
             if (userError) {
-                console.error(`Error fetching ${role} users:`, userError);
+                console.error(`Error fetching Executive users:`, userError);
                 return NextResponse.json(
-                    { message: `Failed to fetch ${role} accounts: ` + userError.message },
+                    { message: `Failed to fetch Executive accounts: ` + userError.message },
                     { status: 500 }
                 );
             }
 
             const usersList = (dbUsers || []).map((u: any) => {
-                const userRole = u.role || role;
+                const userRole = u.role || 'Executive';
                 const cleanEmpId = u.employee_id || u.id || u.user_id;
 
                 const rawDept = (u.department || '').trim();
@@ -151,7 +151,7 @@ export async function GET(request: Request) {
 
                 return {
                     id: u.id || u.user_id,
-                    display_name: u.display_name || u.full_name || u.name || (role === 'Admin' ? 'Admin User' : 'Executive User'),
+                    display_name: u.display_name || u.full_name || u.name || 'Executive User',
                     email: u.email || u.user_email,
                     role: userRole,
                     department: cleanDept,
@@ -210,15 +210,43 @@ export async function GET(request: Request) {
             return pos.trim().toUpperCase().replace(/\s+/g, ' ');
         };
 
-        const getRoleForPosition = (pos?: string | null): 'Manager' | 'Operator' | 'Staff' | 'Employee' | null => {
+        const getAdminPositionPriority = (pos?: string | null): number => {
+            const p = normalizePosition(pos);
+            // Tier 1: Highest priority - ADMIN STAFF / ADMIN / ADMINISTRATOR
+            if (p === 'ADMIN STAFF' || p === 'ADMIN' || p === 'ADMINISTRATOR') return 1;
+            // Tier 2: MARKETING/ADMIN STAFF
+            if (p.includes('MARKETING') || p.includes('MKTG')) return 2;
+            // Tier 3: ADMIN ASSISTANT
+            if (p.includes('ADMIN ASSISTANT') || p === 'ADMIN ASSISTANT') return 3;
+            // Tier 4: Other admin positions
+            if (p.includes('ADMIN')) return 4;
+            return 5;
+        };
+
+        const getRoleForPosition = (pos?: string | null): 'Admin' | 'Manager' | 'Operator' | 'Staff' | 'Employee' | null => {
             const p = normalizePosition(pos);
             
-            // MANAGER: OFFICE-IN-CHARGE, PROJECT COORDINATOR, ADMIN ASSISTANT
+            // ADMIN: ADMIN STAFF, MARKETING/ADMIN STAFF, ADMIN ASSISTANT, ADMIN, ADMINISTRATOR
+            if (
+                p === 'ADMIN STAFF' ||
+                p === 'ADMIN' ||
+                p === 'ADMINISTRATOR' ||
+                p === 'MARKETING/ADMIN STAFF' ||
+                p === 'MARKETING / ADMIN STAFF' ||
+                p === 'MKTG/ADMIN STAFF' ||
+                p === 'MKTG / ADMIN STAFF' ||
+                p.includes('ADMIN STAFF') ||
+                p === 'ADMIN ASSISTANT' ||
+                p.includes('ADMIN ASSISTANT')
+            ) {
+                return 'Admin';
+            }
+
+            // MANAGER: OFFICE-IN-CHARGE, PROJECT COORDINATOR, MANAGER
             if (
                 p === 'OFFICE-IN-CHARGE' ||
                 p === 'OFFICE IN CHARGE' ||
                 p === 'PROJECT COORDINATOR' ||
-                p === 'ADMIN ASSISTANT' ||
                 p === 'MANAGER'
             ) {
                 return 'Manager';
@@ -252,7 +280,7 @@ export async function GET(request: Request) {
             return null;
         };
 
-        // For Staff / Employee / Manager / Operator, fetch mock_employees filtered strictly by position
+        // For Admin / Staff / Employee / Manager / Operator, fetch mock_employees filtered strictly by position
         const { data: dbEmployees, error: dbError } = await supabaseAdmin
             .from('mock_employees')
             .select('*')
@@ -269,13 +297,6 @@ export async function GET(request: Request) {
         const targetRole = (role.toLowerCase() === 'employee' ? 'staff' : role.toLowerCase());
 
         const filteredDbEmployees = (dbEmployees || []).filter((emp: any) => {
-            const name = (emp.display_name || emp.full_name || emp.name || '').toLowerCase();
-            const email = (emp.email || '').toLowerCase();
-
-            // Exclude Edizon Prado from mock_employees fetch (as he is managed as an Admin account in users table)
-            if (name.includes('edizon') && name.includes('prado')) return false;
-            if (email.includes('edizon.prado')) return false;
-
             const assignedRole = getRoleForPosition(emp.position);
             // If position is not one of the allowed supply chain positions, exclude
             if (!assignedRole) return false;
@@ -283,6 +304,18 @@ export async function GET(request: Request) {
             // Only include employees that belong to the role logged in
             return assignedRole.toLowerCase() === targetRole;
         });
+
+        // For Admin role: sort with priority for ADMIN STAFF first, then MARKETING/ADMIN STAFF, then ADMIN ASSISTANT
+        if (targetRole === 'admin') {
+            filteredDbEmployees.sort((a: any, b: any) => {
+                const prioA = getAdminPositionPriority(a.position);
+                const prioB = getAdminPositionPriority(b.position);
+                if (prioA !== prioB) return prioA - prioB;
+                const nameA = (a.display_name || a.full_name || a.name || '').toLowerCase();
+                const nameB = (b.display_name || b.full_name || b.name || '').toLowerCase();
+                return nameA.localeCompare(nameB);
+            });
+        }
 
         const employees = filteredDbEmployees.map((emp: any) => {
             const assignedRole = getRoleForPosition(emp.position) || 'Staff';

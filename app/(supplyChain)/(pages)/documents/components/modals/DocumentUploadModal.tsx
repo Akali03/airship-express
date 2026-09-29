@@ -37,7 +37,7 @@ export function DocumentUploadModal({
     suppliers,
     userName,
     userRole = 'Employee',
-    maxFiles = 10,
+    maxFiles = 5,
     dropZoneRef,
     onClose,
     onFileSelect,
@@ -61,15 +61,20 @@ export function DocumentUploadModal({
                     {/* modal header */}
                     <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200/60 dark:border-white/[0.06] bg-[#ebf0f7]/50 dark:bg-[#14151e]/50">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] text-pink-500 dark:text-pink-400 flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)]">
-                                <i className="fas fa-upload text-sm"></i>
+                            <div className={`w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151e] flex items-center justify-center shrink-0 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.5)] ${isUploading ? 'text-pink-600 dark:text-pink-400 animate-pulse' : 'text-pink-500 dark:text-pink-400'}`}>
+                                <i className={`fas ${isUploading ? 'fa-spinner fa-spin' : 'fa-upload'} text-sm`}></i>
                             </div>
                             <div>
-                                <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                                    {createWithoutFile ? 'Create Document Record (No File)' : 'Upload Documents & Photos'}
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                                    <span>{createWithoutFile ? 'Create Document Record (No File)' : 'Upload Documents & Photos'}</span>
+                                    {isUploading && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20 animate-pulse">
+                                            Uploading...
+                                        </span>
+                                    )}
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                    {createWithoutFile ? 'Record document metadata now and attach file later' : 'Upload files with automatic Gemini OCR validation (Max 10 files)'}
+                                    {createWithoutFile ? 'Record document metadata now and attach file later' : 'Upload files with automatic Gemini OCR validation (Max 5 files)'}
                                 </p>
                             </div>
                         </div>
@@ -78,6 +83,7 @@ export function DocumentUploadModal({
                             variant="neutral"
                             size="icon-sm"
                             onClick={onClose}
+                            disabled={isUploading}
                             aria-label="Close modal"
                         >
                             <i className="fas fa-times text-xs"></i>
@@ -86,6 +92,33 @@ export function DocumentUploadModal({
 
                     {/* form body */}
                     <form onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+
+                        {/* Upload Progress Status Banner */}
+                        {isUploading && (
+                            <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 border border-pink-500/30 text-xs space-y-2.5 animate-in fade-in duration-200">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 font-bold text-pink-600 dark:text-pink-400">
+                                        <i className="fas fa-circle-notch fa-spin text-sm"></i>
+                                        <span>AI OCR Validation &amp; Upload in Progress</span>
+                                    </div>
+                                    <span className="font-mono font-bold text-pink-600 dark:text-pink-400 bg-pink-500/15 px-2 py-0.5 rounded-md border border-pink-500/20">
+                                        {uploadProgress}%
+                                    </span>
+                                </div>
+                                <div className="w-full bg-slate-200/80 dark:bg-slate-800/80 rounded-full h-2.5 overflow-hidden shadow-inner">
+                                    <div
+                                        className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 h-2.5 rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(236,72,153,0.6)]"
+                                        style={{ width: `${Math.max(5, uploadProgress)}%` }}
+                                    ></div>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                                    <span>Processing {selectedFiles.length} file(s)...</span>
+                                    <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                        <i className="fas fa-lock text-[10px]"></i> Inputs locked
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* OCR Warning Banner (Admin / Executive override) */}
                         {ocrWarning && (
@@ -114,7 +147,7 @@ export function DocumentUploadModal({
                         )}
 
                         {/* Toggle: Upload with File vs Create Without File */}
-                        <div className="flex items-center justify-between p-3 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] text-xs">
+                        <div className={`flex items-center justify-between p-3 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)] text-xs ${isUploading ? 'opacity-60 cursor-not-allowed' : ''}`}>
                             <div className="flex items-center gap-2.5">
                                 <i className="fas fa-file-circle-plus text-pink-500 text-sm"></i>
                                 <div>
@@ -126,11 +159,12 @@ export function DocumentUploadModal({
                                     </div>
                                 </div>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
+                            <label className={`relative inline-flex items-center ${isUploading ? 'cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}>
                                 <input
                                     type="checkbox"
                                     name="isPendingFile"
                                     checked={createWithoutFile}
+                                    disabled={isUploading}
                                     onChange={(e) => setCreateWithoutFile(e.target.checked)}
                                     className="sr-only peer"
                                 />
@@ -142,16 +176,26 @@ export function DocumentUploadModal({
                         {!createWithoutFile && (
                             <div
                                 ref={dropZoneRef}
-                                className="border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl p-5 text-center hover:border-pink-400 dark:hover:border-pink-500/60 transition-all cursor-pointer bg-[#ebf0f7] dark:bg-[#14151e] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)]"
-                                onClick={() => document.getElementById('fileInput')?.click()}
+                                className={`border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl p-5 text-center transition-all bg-[#ebf0f7] dark:bg-[#14151e] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] ${
+                                    isUploading 
+                                        ? 'opacity-60 cursor-not-allowed pointer-events-none' 
+                                        : 'hover:border-pink-400 dark:hover:border-pink-500/60 cursor-pointer'
+                                }`}
+                                onClick={() => {
+                                    if (isUploading) return;
+                                    document.getElementById('fileInput')?.click();
+                                }}
                                 onDragOver={(e) => {
+                                    if (isUploading) return;
                                     e.preventDefault();
                                     e.currentTarget.classList.add('border-pink-400', 'bg-pink-500/5');
                                 }}
                                 onDragLeave={(e) => {
+                                    if (isUploading) return;
                                     e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/5');
                                 }}
                                 onDrop={(e) => {
+                                    if (isUploading) return;
                                     e.preventDefault();
                                     e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/5');
                                     onFileSelect(e.dataTransfer.files);
@@ -162,15 +206,20 @@ export function DocumentUploadModal({
                                     type="file"
                                     className="hidden"
                                     multiple
+                                    disabled={isUploading}
                                     accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx,.xls,.xlsx"
                                     onChange={(e) => onFileSelect(e.target.files)}
                                 />
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="w-12 h-12 rounded-2xl bg-[#f0f3f8] dark:bg-[#191a24] text-pink-500 dark:text-pink-400 flex items-center justify-center mb-1 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.6)]">
-                                        <i className="fas fa-cloud-upload-alt text-xl"></i>
+                                        <i className={`fas ${isUploading ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-xl`}></i>
                                     </div>
                                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                        Drop files here or <span className="text-pink-600 dark:text-pink-400 underline">browse</span>
+                                        {isUploading ? (
+                                            <span className="text-pink-600 dark:text-pink-400">Uploading files in progress...</span>
+                                        ) : (
+                                            <>Drop files here or <span className="text-pink-600 dark:text-pink-400 underline">browse</span></>
+                                        )}
                                     </div>
                                     <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5 flex-wrap justify-center">
                                         <span>PDF, JPG, PNG, HEIC, DOC, XLS</span>
@@ -195,8 +244,9 @@ export function DocumentUploadModal({
                                                 </div>
                                                 <button
                                                     type="button"
+                                                    disabled={isUploading}
                                                     onClick={() => setIsGridModalOpen(true)}
-                                                    className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink-500/10 border border-pink-500/20 transition-all hover:scale-105"
+                                                    className={`text-xs font-bold text-pink-600 dark:text-pink-400 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink-500/10 border border-pink-500/20 transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:text-pink-700 dark:hover:text-pink-300 hover:scale-105'}`}
                                                 >
                                                     <i className="fas fa-grid-2 text-xs"></i>
                                                     <span>View Grid ({selectedFiles.length})</span>
@@ -213,8 +263,10 @@ export function DocumentUploadModal({
                                                     return (
                                                         <div
                                                             key={`${file.name}-${file.size}-${index}`}
-                                                            onClick={() => setIsGridModalOpen(true)}
-                                                            className="flex items-center justify-between p-2 bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.3),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] rounded-xl text-xs hover:border-pink-400 transition-all cursor-pointer group"
+                                                            onClick={() => {
+                                                                if (!isUploading) setIsGridModalOpen(true);
+                                                            }}
+                                                            className={`flex items-center justify-between p-2 bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.3),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] rounded-xl text-xs transition-all ${isUploading ? 'opacity-70 cursor-not-allowed' : 'hover:border-pink-400 cursor-pointer group'}`}
                                                         >
                                                             <div className="flex items-center gap-2 min-w-0 pr-1">
                                                                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs border shrink-0 overflow-hidden ${cachedThumb ? 'p-0 bg-black/20 border-slate-300 dark:border-slate-700' : getFileColor(file.type || fileExt)}`}>
@@ -243,8 +295,10 @@ export function DocumentUploadModal({
                                                                 type="button"
                                                                 variant="neutral"
                                                                 size="icon-xs"
+                                                                disabled={isUploading}
                                                                 onClick={(e) => {
                                                                     e?.stopPropagation();
+                                                                    if (isUploading) return;
                                                                     revokeCachedFilePreviewUrl(file);
                                                                     onRemoveFile(index);
                                                                 }}
@@ -259,8 +313,10 @@ export function DocumentUploadModal({
                                                 {/* More files card */}
                                                 {selectedFiles.length > 5 && (
                                                     <div
-                                                        onClick={() => setIsGridModalOpen(true)}
-                                                        className="flex flex-col items-center justify-center p-2 bg-pink-500/10 border border-pink-500/30 rounded-xl text-xs text-pink-600 dark:text-pink-400 font-bold hover:bg-pink-500/20 transition-all cursor-pointer text-center"
+                                                        onClick={() => {
+                                                            if (!isUploading) setIsGridModalOpen(true);
+                                                        }}
+                                                        className={`flex flex-col items-center justify-center p-2 bg-pink-500/10 border border-pink-500/30 rounded-xl text-xs text-pink-600 dark:text-pink-400 font-bold transition-all text-center ${isUploading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-pink-500/20 cursor-pointer'}`}
                                                     >
                                                         <i className="fas fa-ellipsis text-base mb-0.5"></i>
                                                         <span>+{selectedFiles.length - 5} more files</span>
@@ -269,27 +325,12 @@ export function DocumentUploadModal({
                                             </div>
                                         </div>
                                     )}
-
-                                    {uploadProgress > 0 && (
-                                        <div className="w-full max-w-md mt-3">
-                                            <div className="w-full bg-[#ebf0f7] dark:bg-[#14151e] rounded-full h-2 overflow-hidden shadow-[inset_1px_1px_2px_rgba(0,0,0,0.2)]">
-                                                <div
-                                                    className="bg-gradient-to-r from-pink-500 to-pink-600 h-2 rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(236,72,153,0.5)]"
-                                                    style={{ width: `${uploadProgress}%` }}
-                                                ></div>
-                                            </div>
-                                            <div className="flex justify-between items-center text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
-                                                <span>Uploading &amp; Verifying...</span>
-                                                <span>{uploadProgress}%</span>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}
 
                         {/* fields grid */}
-                        <div className="space-y-3.5 pt-1">
+                        <div className={`space-y-3.5 pt-1 ${isUploading ? 'opacity-60 pointer-events-none' : ''}`}>
                             {/* Document Title */}
                             <div>
                                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -297,23 +338,24 @@ export function DocumentUploadModal({
                                 </label>
                                 <input
                                     name="title"
+                                    disabled={isUploading}
                                     required={createWithoutFile}
                                     placeholder={createWithoutFile ? "e.g. Official Receipt - Supplier ABC" : "Auto-generated from file name or custom title"}
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all disabled:cursor-not-allowed"
                                 />
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                 <div>
                                     <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Category</label>
-                                    <select name="category" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer">
+                                    <select name="category" disabled={isUploading} className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer disabled:cursor-not-allowed">
                                         <option value="documents" className="dark:bg-slate-900">Documents</option>
                                         <option value="photos" className="dark:bg-slate-900">Photos</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Document Type</label>
-                                    <select name="documentType" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer">
+                                    <select name="documentType" disabled={isUploading} className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer disabled:cursor-not-allowed">
                                         <option value="Official Receipt" className="dark:bg-slate-900">Official Receipt</option>
                                         <option value="Invoice" className="dark:bg-slate-900">Invoice</option>
                                         <option value="Delivery Receipt" className="dark:bg-slate-900">Delivery Receipt</option>
@@ -328,7 +370,7 @@ export function DocumentUploadModal({
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                                 <div>
                                     <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Supplier</label>
-                                    <select name="supplier" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer">
+                                    <select name="supplier" disabled={isUploading} className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer disabled:cursor-not-allowed">
                                         <option value="" className="dark:bg-slate-900 text-slate-400">Select supplier</option>
                                         {suppliers.map((s) => (
                                             <option key={s.id} value={s.name} className="dark:bg-slate-900">{s.name}</option>
@@ -337,11 +379,11 @@ export function DocumentUploadModal({
                                 </div>
                                 <div>
                                     <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">PO Number</label>
-                                    <input name="poNumber" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="e.g. PO-2026-0031" />
+                                    <input name="poNumber" disabled={isUploading} className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:cursor-not-allowed" placeholder="e.g. PO-2026-0031" />
                                 </div>
                                 <div>
                                     <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Parcel Batch</label>
-                                    <input name="parcelBatch" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="e.g. PB-2026-045" />
+                                    <input name="parcelBatch" disabled={isUploading} className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:cursor-not-allowed" placeholder="e.g. PB-2026-045" />
                                 </div>
                             </div>
 
@@ -353,7 +395,8 @@ export function DocumentUploadModal({
                                         <input
                                             name="price"
                                             type="text"
-                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 pl-6 pr-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all font-mono"
+                                            disabled={isUploading}
+                                            className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 pl-6 pr-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 transition-all font-mono disabled:cursor-not-allowed"
                                             placeholder="e.g. 1,500.00"
                                         />
                                     </div>
@@ -366,13 +409,14 @@ export function DocumentUploadModal({
                                         name="uploadedBy"
                                         value={userName}
                                         readOnly
+                                        disabled={isUploading}
                                         className="w-full bg-[#e2e8f0]/60 dark:bg-[#101118] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.06)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.5)] rounded-lg py-2 px-3 text-xs font-medium text-slate-500 dark:text-slate-400 cursor-not-allowed select-none focus:outline-none"
                                         placeholder="Your name"
                                     />
                                 </div>
                                 <div>
                                     <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
-                                    <input name="notes" className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all" placeholder="Additional details" />
+                                    <input name="notes" disabled={isUploading} className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-lg py-2 px-3 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:cursor-not-allowed" placeholder="Additional details" />
                                 </div>
                             </div>
                         </div>
@@ -384,6 +428,7 @@ export function DocumentUploadModal({
                                 variant="neutral"
                                 size="md"
                                 onClick={onClose}
+                                disabled={isUploading}
                             >
                                 Cancel
                             </AppButton>
@@ -396,9 +441,11 @@ export function DocumentUploadModal({
                             >
                                 <i className={`fas ${createWithoutFile ? 'fa-plus' : 'fa-upload'} text-xs`}></i>
                                 <span>
-                                    {createWithoutFile
-                                        ? 'Create Record (No File)'
-                                        : `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}`}
+                                    {isUploading 
+                                        ? 'Uploading & Verifying...' 
+                                        : (createWithoutFile
+                                            ? 'Create Record (No File)'
+                                            : `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}`)}
                                 </span>
                             </AppButton>
                         </div>
@@ -412,14 +459,17 @@ export function DocumentUploadModal({
                     isOpen={isGridModalOpen}
                     files={selectedFiles}
                     maxFiles={maxFiles}
+                    isUploading={isUploading}
                     onClose={() => setIsGridModalOpen(false)}
                     onRemoveFile={(idx) => {
+                        if (isUploading) return;
                         if (selectedFiles[idx]) {
                             revokeCachedFilePreviewUrl(selectedFiles[idx]);
                         }
                         onRemoveFile(idx);
                     }}
                     onClearAll={() => {
+                        if (isUploading) return;
                         clearAllCachedFilePreviewUrls();
                         if (onClearAllFiles) {
                             onClearAllFiles();
