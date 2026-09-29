@@ -1,7 +1,17 @@
-// app/(supplyChain)/api/supplyChain/employees/route.ts
-
-import { supabase } from '../../../lib/services/client/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || '';
+const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_ANON_KEY || '';
+
+const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+    },
+});
 
 const isUUID = (str?: string | null): boolean => {
     if (!str) return false;
@@ -13,6 +23,14 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const role = searchParams.get('role');
         const loggedInEmail = searchParams.get('email');
+        const clientSessionToken = (request.headers.get('x-session-token') || searchParams.get('sessionToken') || searchParams.get('session_token') || '').trim();
+        let clientTokensMap: Record<string, string> = {};
+        try {
+            const headerTokens = request.headers.get('x-remember-tokens');
+            if (headerTokens) {
+                clientTokensMap = JSON.parse(headerTokens);
+            }
+        } catch (e) {}
 
         if (!role) {
             return NextResponse.json(
@@ -23,7 +41,7 @@ export async function GET(request: Request) {
 
         // If Supplier role, fetch active accounts from suppliers_account
         if (role.toLowerCase() === 'supplier') {
-            const { data: accounts, error: accError } = await supabase
+            const { data: accounts, error: accError } = await supabaseAdmin
                 .from('suppliers_account')
                 .select(`
                     id,
@@ -61,16 +79,54 @@ export async function GET(request: Request) {
                     employee_id: `SUP-${acc.supplier_id || String(acc.id).slice(0, 5)}`,
                     has_hr_password: !!acc.password_hash,
                     remembered: false,
-                    is_active: true
+                    is_active: false
                 };
             });
+
+            // Check sessions for remembered / active status
+            try {
+                const supplierEmails = supplierList.map(s => s.email).filter(Boolean);
+                if (supplierEmails.length > 0) {
+                    const { data: sessions } = await supabaseAdmin
+                        .from('sessions')
+                        .select('email, remember_me, expires_at, expires_at_remember, is_active, session_token')
+                        .in('email', supplierEmails);
+
+                    if (sessions) {
+                        const now = new Date();
+                        const activeEmails = sessions
+                            .filter(s => {
+                                if (!s.is_active || !s.expires_at || new Date(s.expires_at) <= now) return false;
+                                const emailKey = (s.email || '').toLowerCase();
+                                const isClientOwnToken = Boolean((clientSessionToken && s.session_token === clientSessionToken) || (clientTokensMap[emailKey] && s.session_token === clientTokensMap[emailKey]));
+                                return !isClientOwnToken;
+                            })
+                            .map(s => s.email);
+                        const rememberedEmails = sessions
+                            .filter(s => {
+                                const remExpiry = s.expires_at_remember || s.expires_at;
+                                if (!s.remember_me || !remExpiry || new Date(remExpiry) <= now) return false;
+                                const emailKey = (s.email || '').toLowerCase();
+                                return Boolean((clientSessionToken && s.session_token === clientSessionToken) || (clientTokensMap[emailKey] && s.session_token === clientTokensMap[emailKey]));
+                            })
+                            .map(s => s.email);
+
+                        supplierList.forEach(s => {
+                            s.is_active = activeEmails.includes(s.email);
+                            s.remembered = rememberedEmails.includes(s.email);
+                        });
+                    }
+                }
+            } catch (sessionErr) {
+                console.error('Supplier session check error:', sessionErr);
+            }
 
             return NextResponse.json(supplierList);
         }
 
         // If Admin or Executive, fetch directly from users table
         if (role === 'Admin' || role === 'Executive') {
-            const { data: dbUsers, error: userError } = await supabase
+            const { data: dbUsers, error: userError } = await supabaseAdmin
                 .from('users')
                 .select('*')
                 .ilike('role', role)
@@ -111,18 +167,28 @@ export async function GET(request: Request) {
             try {
                 const userEmails = usersList.map(u => u.email).filter(Boolean);
                 if (userEmails.length > 0) {
-                    const { data: sessions } = await supabase
+                    const { data: sessions } = await supabaseAdmin
                         .from('sessions')
-                        .select('email, remember_me, expires_at, is_active')
+                        .select('email, remember_me, expires_at, expires_at_remember, is_active, session_token')
                         .in('email', userEmails);
 
                     if (sessions) {
                         const now = new Date();
                         const activeEmails = sessions
-                            .filter(s => s.is_active && new Date(s.expires_at) > now)
+                            .filter(s => {
+                                if (!s.is_active || !s.expires_at || new Date(s.expires_at) <= now) return false;
+                                const emailKey = (s.email || '').toLowerCase();
+                                const isClientOwnToken = Boolean((clientSessionToken && s.session_token === clientSessionToken) || (clientTokensMap[emailKey] && s.session_token === clientTokensMap[emailKey]));
+                                return !isClientOwnToken;
+                            })
                             .map(s => s.email);
                         const rememberedEmails = sessions
-                            .filter(s => s.remember_me && new Date(s.expires_at) > now)
+                            .filter(s => {
+                                const remExpiry = s.expires_at_remember || s.expires_at;
+                                if (!s.remember_me || !remExpiry || new Date(remExpiry) <= now) return false;
+                                const emailKey = (s.email || '').toLowerCase();
+                                return Boolean((clientSessionToken && s.session_token === clientSessionToken) || (clientTokensMap[emailKey] && s.session_token === clientTokensMap[emailKey]));
+                            })
                             .map(s => s.email);
 
                         usersList.forEach(u => {
@@ -187,7 +253,7 @@ export async function GET(request: Request) {
         };
 
         // For Staff / Employee / Manager / Operator, fetch mock_employees filtered strictly by position
-        const { data: dbEmployees, error: dbError } = await supabase
+        const { data: dbEmployees, error: dbError } = await supabaseAdmin
             .from('mock_employees')
             .select('*')
             .order('display_name', { ascending: true });
@@ -246,18 +312,28 @@ export async function GET(request: Request) {
         try {
             const empEmails = employees.map(e => e.email).filter(Boolean);
             if (empEmails.length > 0) {
-                const { data: sessions } = await supabase
+                const { data: sessions } = await supabaseAdmin
                     .from('sessions')
-                    .select('email, remember_me, expires_at, is_active')
+                    .select('email, remember_me, expires_at, expires_at_remember, is_active, session_token')
                     .in('email', empEmails);
 
                 if (sessions) {
                     const now = new Date();
                     activeEmails = sessions
-                        .filter(s => s.is_active && new Date(s.expires_at) > now)
+                        .filter(s => {
+                            if (!s.is_active || !s.expires_at || new Date(s.expires_at) <= now) return false;
+                            const emailKey = (s.email || '').toLowerCase();
+                            const isClientOwnToken = Boolean((clientSessionToken && s.session_token === clientSessionToken) || (clientTokensMap[emailKey] && s.session_token === clientTokensMap[emailKey]));
+                            return !isClientOwnToken;
+                        })
                         .map(s => s.email);
                     rememberedEmails = sessions
-                        .filter(s => s.remember_me && new Date(s.expires_at) > now)
+                        .filter(s => {
+                            const remExpiry = s.expires_at_remember || s.expires_at;
+                            if (!s.remember_me || !remExpiry || new Date(remExpiry) <= now) return false;
+                            const emailKey = (s.email || '').toLowerCase();
+                            return Boolean((clientSessionToken && s.session_token === clientSessionToken) || (clientTokensMap[emailKey] && s.session_token === clientTokensMap[emailKey]));
+                        })
                         .map(s => s.email);
                 }
             }

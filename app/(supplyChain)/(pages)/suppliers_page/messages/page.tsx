@@ -24,7 +24,12 @@ import {
     Calendar,
     CalendarDays,
     ChevronRight,
-    History
+    ChevronLeft,
+    ChevronsLeft,
+    ChevronsRight,
+    History,
+    Filter,
+    ArrowUpRight
 } from "lucide-react";
 import { user } from "../../../lib/services/Class/user";
 import { supabase } from "../../../lib/services/client/supabase";
@@ -89,6 +94,8 @@ export default function SupplierMessagesPage() {
     const [dateSearchInput, setDateSearchInput] = useState<string>("");
     const [debouncedDateQuery, setDebouncedDateQuery] = useState<string>("");
     const [visibleMessageLimit, setVisibleMessageLimit] = useState<number>(20);
+    const [weekPage, setWeekPage] = useState<number>(1);
+    const weeksPerPage = 4;
 
     // Reset visible limit on week change or search change
     useEffect(() => {
@@ -507,6 +514,26 @@ export default function SupplierMessagesPage() {
         });
     }, [weekHistoryGroups, debouncedDateQuery]);
 
+    // Reset page to 1 on date search query change
+    useEffect(() => {
+        setWeekPage(1);
+    }, [debouncedDateQuery]);
+
+    const totalWeekPages = Math.max(1, Math.ceil(filteredWeekGroups.length / weeksPerPage));
+
+    // Clamp weekPage if totalWeekPages changes
+    useEffect(() => {
+        if (weekPage > totalWeekPages) {
+            setWeekPage(totalWeekPages);
+        }
+    }, [totalWeekPages, weekPage]);
+
+    // Sliced weekly groups for current page
+    const paginatedWeekGroups = useMemo(() => {
+        const start = (weekPage - 1) * weeksPerPage;
+        return filteredWeekGroups.slice(start, start + weeksPerPage);
+    }, [filteredWeekGroups, weekPage, weeksPerPage]);
+
     // Automatically synchronize selectedWeekId to the first available week in current filtered list
     useEffect(() => {
         if (filteredWeekGroups.length > 0) {
@@ -599,7 +626,7 @@ export default function SupplierMessagesPage() {
     };
 
     return (
-        <div className="space-y-5 sm:space-y-6 animate-fade-in">
+        <div className="w-full space-y-5 sm:space-y-6 animate-fade-in bgCard">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div>
@@ -676,111 +703,231 @@ export default function SupplierMessagesPage() {
                     
                     {/* Left Column: Weekly Messaging History */}
                     <div className="lg:col-span-4 space-y-3 sm:space-y-4">
-                        <div className="bg-[#ebf0f7]/70 dark:bg-[#13141c]/70 rounded-2xl p-3 sm:p-4 border border-white/60 dark:border-white/[0.04] shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)] space-y-3">
-                            
-                            <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800">
-                                <div className="flex items-center gap-2">
-                                    <History className="w-4 h-4 text-pink-500" />
-                                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                                        Weekly History
-                                    </h3>
+                        <div className="bg-[#ebf0f7]/80 dark:bg-[#13141c]/80 rounded-2xl p-3 sm:p-4 border border-white/80 dark:border-white/[0.04] shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)] flex flex-col justify-between space-y-3 min-h-0 lg:min-h-[600px]">
+                            <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                                {/* Header */}
+                                <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/80 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-7 h-7 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center shadow-xs font-black">
+                                            <History className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wide uppercase">
+                                                Weekly History
+                                            </h3>
+                                            <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
+                                                Archive by timeline
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/25">
+                                            {filteredWeekGroups.length} {filteredWeekGroups.length === 1 ? "Week" : "Weeks"}
+                                        </span>
+                                    </div>
                                 </div>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20">
-                                    {filteredWeekGroups.length} {filteredWeekGroups.length === 1 ? "Week" : "Weeks"}
-                                </span>
-                            </div>
 
-                            {/* Search Bar for Date with Debouncing */}
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                                <input
-                                    type="text"
-                                    placeholder="Search date (e.g. Sep 2026, Sep 27)..."
-                                    value={dateSearchInput}
-                                    onChange={(e) => setDateSearchInput(e.target.value)}
-                                    className="w-full pl-8 pr-7 py-2 rounded-xl text-xs bg-[#f0f3f8] dark:bg-[#181924] text-slate-800 dark:text-slate-200 border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] focus:outline-hidden focus:ring-1 focus:ring-pink-500/40"
-                                />
-                                {dateSearchInput && (
+                                {/* Search Bar for Date with Debouncing */}
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 dark:text-slate-400 pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by date (e.g. Sep 2026, Sep 27)..."
+                                        value={dateSearchInput}
+                                        onChange={(e) => setDateSearchInput(e.target.value)}
+                                        className="w-full pl-8 pr-7 py-2 rounded-xl text-xs bg-white dark:bg-[#181924] text-slate-900 dark:text-white font-medium border border-slate-200/80 dark:border-white/[0.08] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] focus:outline-hidden focus:ring-2 focus:ring-pink-500/50"
+                                    />
+                                    {dateSearchInput && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setDateSearchInput("")}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 dark:hover:text-white text-xs font-bold cursor-pointer"
+                                            title="Clear search"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Quick Current Week Action Pill if not currently on This Week */}
+                                {weekHistoryGroups.length > 0 && selectedWeekId !== weekHistoryGroups[0].id && (
                                     <button
                                         type="button"
-                                        onClick={() => setDateSearchInput("")}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold cursor-pointer"
-                                        title="Clear search"
+                                        onClick={() => {
+                                            setSelectedWeekId(weekHistoryGroups[0].id);
+                                            setWeekPage(1);
+                                            setDateSearchInput("");
+                                        }}
+                                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-extrabold text-pink-700 dark:text-pink-300 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/30 transition-all cursor-pointer group"
                                     >
-                                        ✕
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
+                                            <span>Back to Current Week</span>
+                                        </span>
+                                        <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                                     </button>
                                 )}
-                            </div>
 
-                            {/* Weekly Timeline List */}
-                            <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0 scrollbar-none max-h-[420px] lg:overflow-y-auto">
-                                {filteredWeekGroups.length === 0 ? (
-                                    <div className="py-6 text-center text-xs text-slate-400 space-y-1">
-                                        <p className="font-semibold">No matching weeks found</p>
-                                        {debouncedDateQuery && (
-                                            <p className="text-[11px] text-slate-500">
-                                                Try searching for a different month or date
-                                            </p>
-                                        )}
-                                    </div>
-                                ) : (
-                                    filteredWeekGroups.map((w) => {
-                                        const isSelected = selectedWeekId === w.id;
-                                        return (
-                                            <button
-                                                key={`week_${w.id}`}
-                                                type="button"
-                                                onClick={() => setSelectedWeekId(w.id)}
-                                                className={`min-w-[170px] sm:min-w-[200px] lg:min-w-0 w-full text-left p-2.5 sm:p-3 rounded-xl border transition-all cursor-pointer shrink-0 lg:shrink ${
-                                                    isSelected
-                                                        ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white border-pink-500 shadow-[0_4px_12px_rgba(236,72,153,0.3)]"
-                                                        : "bg-[#f0f3f8] dark:bg-[#181924] border-white/80 dark:border-white/[0.06] text-slate-700 dark:text-slate-300 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] hover:bg-white dark:hover:bg-[#1e1f2b]"
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                                        isSelected ? "bg-white/20 text-white" : "bg-pink-500/10 text-pink-500"
-                                                    }`}>
-                                                        <CalendarDays className="w-4 h-4" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center justify-between gap-1">
-                                                            <span className={`text-xs font-bold truncate ${isSelected ? "text-white" : "text-slate-900 dark:text-white"}`}>
-                                                                {w.label}
-                                                            </span>
-                                                            <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-black ${
-                                                                isSelected ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                                            }`}>
-                                                                {w.messageCount} msgs
-                                                            </span>
+                                {/* Weekly Timeline List */}
+                                <div className="space-y-2 flex-1 overflow-y-auto pr-0.5 custom-scrollbar max-h-[260px] sm:max-h-[320px] lg:max-h-none min-h-0">
+                                    {paginatedWeekGroups.length === 0 ? (
+                                        <div className="py-8 text-center text-xs text-slate-400 space-y-2 bg-white/70 dark:bg-[#181924]/70 rounded-xl p-4 border border-dashed border-slate-300 dark:border-slate-800">
+                                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                                                <CalendarDays className="w-4 h-4" />
+                                            </div>
+                                            <p className="font-bold text-slate-800 dark:text-slate-200">No matching weeks found</p>
+                                            {debouncedDateQuery && (
+                                                <>
+                                                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                                                        No history matched "{debouncedDateQuery}"
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDateSearchInput("")}
+                                                        className="px-3 py-1.5 text-[10px] font-extrabold text-pink-700 dark:text-pink-300 bg-pink-500/15 rounded-lg border border-pink-500/30 hover:bg-pink-500/25 cursor-pointer"
+                                                    >
+                                                        Clear Filter
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        paginatedWeekGroups.map((w) => {
+                                            const isSelected = selectedWeekId === w.id;
+                                            const isCurrentWeek = w.label === "This Week";
+
+                                            return (
+                                                <button
+                                                    key={`week_${w.id}`}
+                                                    type="button"
+                                                    onClick={() => setSelectedWeekId(w.id)}
+                                                    className={`w-full text-left p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
+                                                        isSelected
+                                                            ? "bg-white dark:bg-[#1C1F2D] text-slate-950 dark:text-white border-2 border-pink-500 dark:border-pink-500 shadow-[0_4px_14px_rgba(236,72,153,0.18)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+                                                            : "bg-[#f0f3f8] dark:bg-[#181924] border-white/80 dark:border-white/[0.06] text-slate-800 dark:text-slate-200 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.85)] dark:shadow-[2px_2px_6px_rgba(0,0,0,0.45)] hover:bg-white dark:hover:bg-[#1e1f2b] hover:border-pink-500/40"
+                                                    }`}
+                                                >
+                                                    {/* Solid active indicator on left */}
+                                                    {isSelected && (
+                                                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-pink-500" />
+                                                    )}
+
+                                                    <div className="flex items-start gap-2.5 pl-0.5">
+                                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 font-bold ${
+                                                            isSelected 
+                                                                ? "bg-pink-500 text-white shadow-xs" 
+                                                                : isCurrentWeek
+                                                                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                                                    : "bg-pink-500/10 text-pink-600 dark:text-pink-400"
+                                                        }`}>
+                                                            <CalendarDays className="w-4 h-4" />
                                                         </div>
-                                                        <div className="flex items-center justify-between gap-1 mt-0.5">
-                                                            <span className={`text-[10px] font-medium truncate ${
-                                                                isSelected ? "text-white/80" : "text-slate-400 dark:text-slate-500"
-                                                            }`}>
-                                                                {w.dateRangeText}
-                                                            </span>
-                                                            {w.unreadCount > 0 && (
-                                                                <span className="w-2 h-2 rounded-full bg-pink-400 animate-pulse shrink-0" />
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center justify-between gap-1.5">
+                                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <span className={`text-xs font-black truncate ${
+                                                                        isSelected ? "text-slate-950 dark:text-white" : "text-slate-900 dark:text-slate-100"
+                                                                    }`}>
+                                                                        {w.label}
+                                                                    </span>
+                                                                    {isCurrentWeek && (
+                                                                        <span className={`px-1.5 py-0.2 rounded-md text-[8px] font-black tracking-wide uppercase ${
+                                                                            isSelected
+                                                                                ? "bg-emerald-600 text-white shadow-xs"
+                                                                                : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                                                                        }`}>
+                                                                            Live
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black shrink-0 ${
+                                                                    isSelected
+                                                                        ? "bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/30"
+                                                                        : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold"
+                                                                }`}>
+                                                                    {w.messageCount} msg{w.messageCount === 1 ? "" : "s"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-1 mt-0.5">
+                                                                <span className={`text-[10px] font-bold truncate ${
+                                                                    isSelected ? "text-slate-600 dark:text-slate-300" : "text-slate-500 dark:text-slate-400"
+                                                                }`}>
+                                                                    {w.dateRangeText}
+                                                                </span>
+                                                                {w.unreadCount > 0 && (
+                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[8px] font-black bg-pink-500 text-white shadow-xs animate-pulse shrink-0">
+                                                                        {w.unreadCount} new
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {w.lastMessageText && (
+                                                                <p className={`text-[11px] mt-1.5 line-clamp-1 italic ${
+                                                                    isSelected ? "text-slate-800 dark:text-slate-200 font-medium" : "text-slate-600 dark:text-slate-400 font-normal"
+                                                                }`}>
+                                                                    "{w.lastMessageText}"
+                                                                </p>
                                                             )}
                                                         </div>
-                                                        <p className={`text-[10px] mt-1 line-clamp-1 italic ${
-                                                            isSelected ? "text-white/70" : "text-slate-500 dark:text-slate-400"
-                                                        }`}>
-                                                            "{w.lastMessageText}"
-                                                        </p>
                                                     </div>
-                                                </div>
-                                            </button>
-                                        );
-                                    })
-                                )}
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
                             </div>
+
+                            {/* Pagination Footer */}
+                            {totalWeekPages > 1 && (
+                                <div className="pt-2.5 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
+                                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                        Page <strong className="text-slate-900 dark:text-white font-black">{weekPage}</strong> of {totalWeekPages}
+                                    </span>
+                                    <div className="inline-flex items-center gap-1 bg-white dark:bg-[#1a1b26] p-1 rounded-xl border border-slate-200/80 dark:border-white/[0.08] shadow-xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setWeekPage((p) => Math.max(1, p - 1))}
+                                            disabled={weekPage <= 1}
+                                            className="p-1 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#232433] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer font-bold"
+                                            title="Previous Page"
+                                        >
+                                            <ChevronLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                        
+                                        {/* Page number indicators */}
+                                        <div className="flex items-center gap-1 px-1">
+                                            {Array.from({ length: totalWeekPages }, (_, i) => i + 1).map((num) => (
+                                                <button
+                                                    key={`page_${num}`}
+                                                    type="button"
+                                                    onClick={() => setWeekPage(num)}
+                                                    className={`w-5 h-5 rounded-md text-[10px] font-black flex items-center justify-center transition-all cursor-pointer ${
+                                                        weekPage === num
+                                                            ? "bg-pink-500 text-white shadow-xs"
+                                                            : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#232433]"
+                                                    }`}
+                                                >
+                                                    {num}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setWeekPage((p) => Math.min(totalWeekPages, p + 1))}
+                                            disabled={weekPage >= totalWeekPages}
+                                            className="p-1 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#232433] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer font-bold"
+                                            title="Next Page"
+                                        >
+                                            <ChevronRight className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Right Column: Unified Group Chat Stream & Input */}
-                    <div className="lg:col-span-8 flex flex-col h-[480px] sm:h-[560px] lg:h-[600px] bg-[#ebf0f7]/70 dark:bg-[#13141c]/70 rounded-2xl border border-white/60 dark:border-white/[0.04] shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)] overflow-hidden">
+                    <div className="lg:col-span-8 flex flex-col h-[520px] sm:h-[560px] lg:h-[600px] bg-[#ebf0f7]/70 dark:bg-[#13141c]/70 rounded-2xl border border-white/60 dark:border-white/[0.04] shadow-[inset_1px_1px_3px_rgba(166,175,195,0.25)] overflow-hidden">
                         
                         {/* Group Chat Toolbar & Roles Indicator */}
                         <div className="p-3 sm:px-4 bg-[#f0f3f8] dark:bg-[#161722] border-b border-white/60 dark:border-white/[0.04] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">

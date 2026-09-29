@@ -100,28 +100,14 @@ function FooterWrapper() {
 function LayoutContent({ children }: {
     children: React.ReactNode;
 }) {
-    const [isLoading, setIsLoading] = useState(true);
     const [isNavHidden, setIsNavHidden] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const lenisRef = useRef<Lenis | null>(null);
-    const router = useRouter();
     const pathname = usePathname();
     const isPortal = pathname?.startsWith('/suppliers_page') || pathname?.startsWith('/supplier-portal');
 
-    // check for active session token
-    useEffect(() => {
-        const sessionToken = user.getSessionToken();
-        if (!sessionToken) {
-            router.push('/scAuth');
-            return;
-        }
-        setIsLoading(false);
-    }, [router]);
-
     // start smooth scroll on non-touch desktop and skip nested areas
     useEffect(() => {
-        if (isLoading)
-            return;
 
         // Skip Lenis on mobile/touch devices to ensure native hardware-accelerated smooth touch scrolling
         const isTouchDevice = typeof window !== 'undefined' && (
@@ -180,16 +166,7 @@ function LayoutContent({ children }: {
                 __lenis?: Lenis;
             }).__lenis;
         };
-    }, [isLoading]);
-
-    if (isLoading) {
-        return (<div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Verifying session...</p>
-        </div>
-      </div>);
-    }
+    }, []);
 
     return (
         <NavVisibilityContext.Provider value={{ isNavHidden, setIsNavHidden }}>

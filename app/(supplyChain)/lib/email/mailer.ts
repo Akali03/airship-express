@@ -103,7 +103,61 @@ export async function sendSupplyChainEmail(
     const fallbackEmail = process.env.EMAIL_SUPPLYCHAIN_USER || process.env.EMAIL_USER || process.env.EMAIL_FROM || 'supplychain.airshipexpress@gmail.com';
     const activeReplyTo = replyTo || senderEmail || fallbackEmail;
 
-    // 1. Primary Method: Brevo REST API
+    // 1. Primary Method: Nodemailer Gmail SMTP (Direct Google-signed delivery into Primary Inbox)
+    const smtpUser = process.env.EMAIL_SUPPLYCHAIN_USER || process.env.EMAIL_USER || process.env.EMAIL_FROM || process.env.SMTP_USER;
+    const smtpPass = process.env.EMAIL_SUPPLYCHAIN_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASS;
+
+    if (smtpUser && smtpPass) {
+        try {
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    user: smtpUser,
+                    pass: smtpPass,
+                },
+                pool: true,
+                maxConnections: 5,
+                connectionTimeout: 8000,
+            });
+
+            const mailOptions: any = {
+                from: `"${senderName}" <${smtpUser}>`,
+                to: toRecipients.map(r => r.name ? `"${r.name}" <${r.email}>` : r.email).join(', '),
+                subject: subject,
+                html: html,
+                text: text || '',
+                replyTo: activeReplyTo,
+            };
+
+            if (ccRecipients.length > 0) {
+                mailOptions.cc = ccRecipients.map(r => r.name ? `"${r.name}" <${r.email}>` : r.email).join(', ');
+            }
+
+            if (bccRecipients.length > 0) {
+                mailOptions.bcc = bccRecipients.map(r => r.name ? `"${r.name}" <${r.email}>` : r.email).join(', ');
+            }
+
+            if (attachments.length > 0) {
+                mailOptions.attachments = attachments.map(att => ({
+                    filename: att.name,
+                    content: Buffer.from(att.content, 'base64'),
+                    contentType: att.contentType,
+                }));
+            }
+
+            const info = await transporter.sendMail(mailOptions);
+
+            return {
+                success: true,
+                messageId: info.messageId,
+                provider: 'smtp',
+            };
+        } catch (smtpErr: any) {
+            console.error('SMTP send error, falling back to Brevo if available:', smtpErr);
+        }
+    }
+
+    // 2. Secondary / Fallback Method: Brevo REST API
     if (brevoApiKey) {
         try {
             const brevoPayload: any = {
@@ -165,61 +219,6 @@ export async function sendSupplyChainEmail(
             console.warn('Brevo API responded with error:', data);
         } catch (brevoErr: any) {
             console.error('Brevo API request error:', brevoErr);
-        }
-    }
-
-    // 2. Fallback Method: Nodemailer SMTP
-    const smtpUser = process.env.EMAIL_SUPPLYCHAIN_USER || process.env.EMAIL_USER || process.env.EMAIL_FROM || process.env.SMTP_USER;
-    const smtpPass = process.env.EMAIL_SUPPLYCHAIN_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASS;
-
-    if (smtpUser && smtpPass) {
-        try {
-            const transporter = nodemailer.createTransport({
-                service: 'gmail',
-                auth: {
-                    user: smtpUser,
-                    pass: smtpPass,
-                },
-                pool: true,
-                maxConnections: 5,
-                connectionTimeout: 8000,
-            });
-
-            const mailOptions: any = {
-                from: `"${senderName}" <${smtpUser}>`,
-                to: toRecipients.map(r => r.name ? `"${r.name}" <${r.email}>` : r.email).join(', '),
-                subject: subject,
-                html: html,
-                text: text || '',
-                replyTo: activeReplyTo,
-            };
-
-            if (ccRecipients.length > 0) {
-                mailOptions.cc = ccRecipients.map(r => r.name ? `"${r.name}" <${r.email}>` : r.email).join(', ');
-            }
-
-            if (bccRecipients.length > 0) {
-                mailOptions.bcc = bccRecipients.map(r => r.name ? `"${r.name}" <${r.email}>` : r.email).join(', ');
-            }
-
-            if (attachments.length > 0) {
-                mailOptions.attachments = attachments.map(att => ({
-                    filename: att.name,
-                    content: Buffer.from(att.content, 'base64'),
-                    contentType: att.contentType,
-                }));
-            }
-
-            const info = await transporter.sendMail(mailOptions);
-
-            return {
-                success: true,
-                messageId: info.messageId,
-                provider: 'smtp',
-            };
-        } catch (smtpErr: any) {
-            console.error('SMTP fallback error:', smtpErr);
-            throw new Error(`Failed to send email via SMTP: ${smtpErr.message || 'Unknown error'}`);
         }
     }
 

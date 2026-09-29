@@ -5,6 +5,7 @@ import { InventoryRequest } from '../../types';
 import { toast } from 'sonner';
 import { user } from '../../../../lib/services/Class/user';
 import { AppButton } from '../../../../components/ui/AppButton';
+import { useConfirm } from '../../../../components/ui/ConfirmModal';
 import Portal from '../../../../components/client/Portal';
 import { fulfillInventoryRequest } from '../../server/query';
 import { ArrowUpRight, CheckCircle2, ShieldCheck, AlertCircle, Package } from 'lucide-react';
@@ -22,6 +23,7 @@ export function ReleaseApprovedRequestModal({
     onSuccess,
     request,
 }: ReleaseApprovedRequestModalProps) {
+    const { confirm } = useConfirm();
     const [releaseQuantity, setReleaseQuantity] = useState<number>(1);
     const [submitting, setSubmitting] = useState<boolean>(false);
 
@@ -50,8 +52,16 @@ export function ReleaseApprovedRequestModal({
             return;
         }
 
+        const confirmed = await confirm({
+            title: 'Confirm Stock Release',
+            message: `Are you sure you want to release and deduct ${releaseQuantity} unit(s) of "${request.item_name}" for request #${request.request_number || (request.id ? request.id.slice(0, 8) : '')}?`,
+            confirmText: `Release ${releaseQuantity} Unit(s)`,
+            confirmVariant: 'success'
+        });
+        if (!confirmed) return;
+
         setSubmitting(true);
-        const toastId = toast.loading(`Releasing ${releaseQuantity} units for #${request.request_number}...`);
+        const toastId = toast.loading(`Releasing ${releaseQuantity} units for #${request.request_number || ''}...`);
 
         try {
             const res = await fulfillInventoryRequest(

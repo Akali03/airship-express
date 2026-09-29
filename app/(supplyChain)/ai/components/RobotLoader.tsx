@@ -4,6 +4,8 @@
 
 import { motion } from 'framer-motion';
 
+import { Bot } from 'lucide-react';
+
 interface RobotLoaderProps {
     size?: number;
 }
@@ -56,7 +58,7 @@ export function RobotLoader({ size = 80 }: RobotLoaderProps) {
 
             {/* Robot face placeholder */}
             <div className="relative z-10 flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-pink-100 to-rose-100 dark:from-pink-900/30 dark:to-rose-900/30 shadow-inner">
-                <span className="text-2xl animate-pulse">🤖</span>
+                <Bot className="w-6 h-6 text-pink-500 dark:text-pink-400 animate-pulse" />
             </div>
         </div>
     );

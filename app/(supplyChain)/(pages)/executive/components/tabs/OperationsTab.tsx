@@ -94,13 +94,25 @@ export default function OperationsTab({ data, onOpenModal }: OperationsTabProps)
             if (hasData) {
                 const ctx = statusCanvasRef.current.getContext('2d');
                 if (ctx) {
+                    const statusColorMap: Record<string, string> = {
+                        delivered: CHART_COLORS.success,
+                        picked_up: CHART_COLORS.purple,
+                        in_transit: CHART_COLORS.secondary,
+                        sorting: CHART_COLORS.warning,
+                        received: CHART_COLORS.cyan,
+                        ready: CHART_COLORS.primary,
+                        cancelled: CHART_COLORS.danger,
+                        returned: CHART_COLORS.danger,
+                    };
+                    const bgColors = labels.map(l => statusColorMap[l.toLowerCase()] || CHART_COLORS.secondary);
+
                     statusInstance.current = new Chart(ctx, {
                         type: 'doughnut',
                         data: {
                             labels: labels,
                             datasets: [{
                                 data: values,
-                                backgroundColor: [CHART_COLORS.success, CHART_COLORS.warning, CHART_COLORS.primary, CHART_COLORS.cyan, CHART_COLORS.purple, CHART_COLORS.danger],
+                                backgroundColor: bgColors,
                                 borderWidth: 2,
                                 borderColor: cardBgColor,
                             }]

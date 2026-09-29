@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
                 message: notifMsg,
                 type: "purchase_request",
                 link: notifLink,
-                role: "Admin",
+                role: ["Admin", "Executive"],
                 is_read: false,
                 po_request_id: savedPR.id || reqNumber,
             });

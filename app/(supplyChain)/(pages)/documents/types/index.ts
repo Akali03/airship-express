@@ -33,6 +33,20 @@ export interface Document {
     } | null;
     force_user_name?: string | null;
     Price?: string | null;
+    extracted?: {
+        text?: string | null;
+        description?: string | null;
+        visual_objects?: string[];
+        vendor_name?: string | null;
+        po_number?: string | null;
+        price?: string | null;
+        summary?: string | null;
+        document_type?: string | null;
+        category?: string | null;
+        confidence_score?: number;
+        extracted_at?: string;
+        [key: string]: any;
+    } | null;
 }
 
 export interface Supplier {
@@ -49,6 +63,7 @@ export interface Activity {
     id: string;
     user_name: string;
     user_email: string | null;
+    user_id?: string | null;
     action_type: string;
     target_resource: string;
     document_id: string | null;

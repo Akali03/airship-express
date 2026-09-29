@@ -262,14 +262,16 @@ export function DocumentsTable({
                                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-pink-500 focus:ring-pink-500/20 cursor-pointer accent-pink-600 bg-transparent"
                                     />
                                 </th>
-                                <th className="w-12 text-center! py-3 px-3">Format</th>
-                                <th className="py-3 px-4">Document Title</th>
-                                <th className="py-3 px-4">Category</th>
-                                <th className="py-3 px-4">Price</th>
-                                <th className="py-3 px-4">Size</th>
-                                <th className="py-3 px-4">Supplier</th>
-                                <th className="py-3 px-4">Date Uploaded</th>
-                                <th className="text-right! py-3 px-4 w-[190px] min-w-[190px]">Actions</th>
+                                <th className="w-12 text-center! py-3 px-2">Format</th>
+                                <th className="py-3 px-4 min-w-[180px]">Document Title</th>
+                                <th className="py-3 px-3">Document Type</th>
+                                <th className="py-3 px-3 min-w-[130px]">PO / Reference #</th>
+                                <th className="py-3 px-3 min-w-[140px]">Supplier</th>
+                                <th className="py-3 px-3">Price</th>
+                                <th className="py-3 px-3">Size</th>
+                                <th className="py-3 px-3 min-w-[120px]">Status</th>
+                                <th className="py-3 px-3 whitespace-nowrap">Date Uploaded</th>
+                                <th className="text-right! py-3 px-4 w-[160px] min-w-[160px]">Actions</th>
                             </tr>
                         </thead>
 
@@ -282,16 +284,18 @@ export function DocumentsTable({
                                         { type: 'badge', width: 'w-12', align: 'center' },
                                         { type: 'avatar-text', subtext: true },
                                         { type: 'badge' },
+                                        { type: 'badge' },
                                         { type: 'text' },
                                         { type: 'text' },
                                         { type: 'text' },
+                                        { type: 'badge' },
                                         { type: 'date' },
-                                        { type: 'actions', align: 'right', width: 'w-[190px]' },
+                                        { type: 'actions', align: 'right', width: 'w-[160px]' },
                                     ]}
                                 />
                             ) : documents.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="py-12 text-center">
+                                    <td colSpan={11} className="py-12 text-center">
                                         <div className="flex flex-col items-center justify-center text-center p-4">
                                             <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] flex items-center justify-center text-pink-500 dark:text-pink-400 mb-3 transition-transform duration-300 hover:scale-105">
                                                 <i className="fas fa-folder-open text-2xl"></i>
@@ -305,6 +309,8 @@ export function DocumentsTable({
                                 documents.map((doc) => {
                                     const isSelected = selectedDocIds.has(doc.id);
                                     const isPending = doc.file_type === 'pending' || !doc.storage_path || doc.file_size === 0;
+                                    const poNumber = doc.purchase_orders?.po_number || doc.po_number;
+                                    const supplierName = doc.supplier || doc.purchase_orders?.supplier_name;
 
                                     return (
                                         <tr
@@ -312,6 +318,7 @@ export function DocumentsTable({
                                             onClick={() => isPending ? (onAttachFile ? onAttachFile(doc) : onEditDocument(doc)) : onViewDocument(doc)}
                                             className={`hover:bg-white/60 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer ${isSelected ? 'bg-pink-500/10 dark:bg-pink-500/20' : ''}`}
                                         >
+                                            {/* 1. Select Checkbox */}
                                             <td data-label="Select" className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-between md:justify-center w-full">
                                                     <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -328,7 +335,9 @@ export function DocumentsTable({
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td data-label="Format" className="py-3 px-3">
+
+                                            {/* 2. Format Icon */}
+                                            <td data-label="Format" className="py-3 px-2">
                                                 <div className="flex justify-end md:justify-center w-full">
                                                     {isPending ? (
                                                         <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm border bg-amber-500/10 text-amber-600 border-amber-300 dark:border-amber-700" title="Pending Attachment">
@@ -341,77 +350,104 @@ export function DocumentsTable({
                                                     )}
                                                 </div>
                                             </td>
+
+                                            {/* 3. Document Title */}
                                             <td data-label="Document Title" className="py-3 px-4">
-                                                <div className="text-right sm:text-left min-w-0 max-w-[220px] sm:max-w-none ml-auto sm:ml-0">
-                                                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                                                        <span className="font-semibold text-slate-900 dark:text-white truncate" title={doc.title}>
-                                                            {doc.title}
-                                                        </span>
-                                                        {isPending && (
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 whitespace-nowrap">
-                                                                No File Attached
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-400 font-mono tracking-tight mt-0.5">ID: {doc.id.substring(0, 8)}</div>
-
-                                                    {/* po link inline display */}
-                                                    {(doc.purchase_orders || doc.purchase_id || doc.po_number) && (
-                                                        <div className="flex items-center justify-end sm:justify-start gap-1.5 flex-wrap mt-1">
-                                                            <StatusBadge tone="pink" icon="fas fa-file-invoice" size="xs">
-                                                                <span>PO #{doc.purchase_orders?.po_number || doc.po_number}</span>
-                                                            </StatusBadge>
-                                                            {doc.purchase_orders?.status && (
-                                                                <StatusBadge tone="neutral" size="xs">
-                                                                    {doc.purchase_orders.status}
-                                                                </StatusBadge>
-                                                            )}
-                                                        </div>
-                                                    )}
-
-                                                    {/* force insert audit flag */}
-                                                    {doc.force_inserted_by && (
-                                                        <div className="mt-1 flex justify-end sm:justify-start">
-                                                            <StatusBadge tone="amber" icon="fas fa-triangle-exclamation" size="xs">
-                                                                <span>⚠ Forced by {doc.force_user_name || 'Admin'}</span>
-                                                            </StatusBadge>
-                                                        </div>
-                                                    )}
+                                                <div className="text-right sm:text-left min-w-0 max-w-[240px] sm:max-w-none ml-auto sm:ml-0">
+                                                    <p className="font-semibold text-slate-900 dark:text-white truncate" title={doc.title}>
+                                                        {doc.title}
+                                                    </p>
+                                                    <p className="text-[10.5px] text-slate-400 truncate mt-0.5" title={doc.file_name}>
+                                                        {doc.file_name}
+                                                    </p>
                                                 </div>
                                             </td>
-                                            <td data-label="Category" className="py-3 px-4">
+
+                                            {/* 4. Document Type / Category */}
+                                            <td data-label="Type" className="py-3 px-3">
                                                 <div className="flex justify-end sm:justify-start">
                                                     <StatusBadge tone="pink" size="xs">
-                                                        {doc.document_type}
+                                                        {doc.document_type || 'Document'}
                                                     </StatusBadge>
                                                 </div>
                                             </td>
-                                            <td data-label="Price" className="py-3 px-4 text-slate-900 dark:text-white font-medium text-right sm:text-left font-mono">
-                                                {doc.Price || (doc as any)["Price"] ? (
-                                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                                                        ₱{doc.Price || (doc as any)["Price"]}
+
+                                            {/* 5. Dedicated PO / Reference # Column */}
+                                            <td data-label="PO / Ref #" className="py-3 px-3">
+                                                <div className="flex flex-col items-end sm:items-start gap-1">
+                                                    {poNumber ? (
+                                                        <StatusBadge tone="pink" icon="fas fa-file-invoice" size="xs">
+                                                            <span>PO #{poNumber}</span>
+                                                        </StatusBadge>
+                                                    ) : (
+                                                        <span className="text-slate-400 text-xs">—</span>
+                                                    )}
+                                                    {doc.purchase_orders?.status && (
+                                                        <StatusBadge tone="neutral" size="xs">
+                                                            {doc.purchase_orders.status}
+                                                        </StatusBadge>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* 6. Supplier */}
+                                            <td data-label="Supplier" className="py-3 px-3 text-slate-900 dark:text-white text-right sm:text-left">
+                                                {supplierName ? (
+                                                    <span className="truncate max-w-[160px] sm:max-w-none inline-block font-medium" title={supplierName}>
+                                                        {supplierName}
                                                     </span>
                                                 ) : (
                                                     <span className="text-slate-400">—</span>
                                                 )}
                                             </td>
-                                            <td data-label="Size" className="py-3 px-4 text-slate-900 dark:text-white font-medium text-right sm:text-left">
+
+                                            {/* 7. Price / Total Amount */}
+                                            <td data-label="Price" className="py-3 px-3 text-slate-900 dark:text-white font-medium text-right sm:text-left font-mono">
+                                                {doc.Price || (doc as any)["Price"] ? (
+                                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                                        ₱{Number(doc.Price || (doc as any)["Price"]).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400">—</span>
+                                                )}
+                                            </td>
+
+                                            {/* 8. Size */}
+                                            <td data-label="Size" className="py-3 px-3 text-slate-600 dark:text-slate-300 font-mono text-right sm:text-left text-[11px]">
                                                 {isPending ? (
                                                     <span className="text-amber-600 dark:text-amber-400 text-xs italic">Pending</span>
                                                 ) : (
                                                     formatFileSize(doc.file_size)
                                                 )}
                                             </td>
-                                            <td data-label="Supplier" className="py-3 px-4 text-slate-900 dark:text-white text-right sm:text-left">
-                                                <span className="truncate max-w-[180px] sm:max-w-none inline-block" title={doc.supplier || doc.purchase_orders?.supplier_name || ''}>
-                                                    {doc.supplier || doc.purchase_orders?.supplier_name || <span className="text-slate-400">—</span>}
-                                                </span>
+
+                                            {/* 9. Dedicated Status / Audit Column */}
+                                            <td data-label="Status" className="py-3 px-3">
+                                                <div className="flex justify-end sm:justify-start">
+                                                    {doc.force_inserted_by ? (
+                                                        <StatusBadge tone="amber" icon="fas fa-shield-halved" size="xs" title={`Admin Override: ${doc.force_user_name || 'Admin'}`}>
+                                                            <span>Forced ({doc.force_user_name || 'Admin'})</span>
+                                                        </StatusBadge>
+                                                    ) : isPending ? (
+                                                        <StatusBadge tone="amber" icon="fas fa-paperclip" size="xs">
+                                                            <span>No File</span>
+                                                        </StatusBadge>
+                                                    ) : (
+                                                        <StatusBadge tone="emerald" icon="fas fa-check-circle" size="xs">
+                                                            <span>Verified</span>
+                                                        </StatusBadge>
+                                                    )}
+                                                </div>
                                             </td>
-                                            <td data-label="Date Uploaded" className="py-3 px-4 text-slate-400 whitespace-nowrap text-right sm:text-left">
+
+                                            {/* 10. Date Uploaded */}
+                                            <td data-label="Date Uploaded" className="py-3 px-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-right sm:text-left text-[11px]">
                                                 {new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                             </td>
-                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap sm:w-[190px] sm:min-w-[190px] w-full" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex items-center justify-end gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
+
+                                            {/* 11. Actions */}
+                                            <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap sm:w-[160px] sm:min-w-[160px] w-full" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-1.5 flex-wrap sm:flex-nowrap w-full sm:w-auto">
                                                     {isPending && onAttachFile && (
                                                         <AppButton
                                                             type="button"

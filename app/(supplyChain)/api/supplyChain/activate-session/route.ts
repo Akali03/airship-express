@@ -171,6 +171,7 @@ export async function POST(request: Request) {
         }
 
         // activate and update device info
+        const newExpiry = new Date(Date.now() + 15 * 24 * 3600000).toISOString();
         const { data: updated, error: updateError } = await supabaseAdmin
             .from('sessions')
             .update({
@@ -179,7 +180,8 @@ export async function POST(request: Request) {
                 user_agent: user_agent || session.user_agent,
                 ip_address: ipAddress || session.ip_address,
                 // extend 15 days
-                expires_at: new Date(Date.now() + 15 * 24 * 3600000).toISOString(),
+                expires_at: newExpiry,
+                expires_at_remember: newExpiry,
             })
             .eq('id', session.id)
             .select()

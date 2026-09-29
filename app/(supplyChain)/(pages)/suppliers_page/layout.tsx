@@ -25,6 +25,7 @@ import { user } from "../../lib/services/Class/user";
 import { supabase } from "../../lib/services/client/supabase";
 import { toast } from "sonner";
 import { SessionGuard } from "../../components/server/SessionGuard";
+import { useConfirm } from "../../components/ui/ConfirmModal";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { ChangePasswordModal } from "../../components/modals/ChangePasswordModal";
 import { cn } from "../../lib/utils";
@@ -36,6 +37,7 @@ export default function SupplierPortalLayout({
 }) {
     const pathname = usePathname();
     const router = useRouter();
+    const { confirm } = useConfirm();
     const [supplierAccount, setSupplierAccount] = useState<any>(null);
     const [supplierDetails, setSupplierDetails] = useState<any>(null);
     const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -123,21 +125,54 @@ export default function SupplierPortalLayout({
     }, [currentUserEmail]);
 
     const handleLogout = async () => {
+        const confirmed = await confirm({
+            title: "Logout",
+            message: "Are you sure you want to sign out of the Supplier Portal?",
+            confirmText: "Logout",
+            cancelText: "Cancel",
+            confirmVariant: "danger",
+        });
+        if (!confirmed) return;
+
         if (isLoggingOut) return;
         setIsLoggingOut(true);
         try {
             const sessionToken = user.getSessionToken();
-            if (sessionToken) {
-                await fetch("/api/supplyChain/logout", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ session_token: sessionToken }),
-                });
-            }
+            const userEmail = user.getEmail() || supplierAccount?.email || currentUserEmail;
+            const userId = user.getUserId() || supplierAccount?.id;
+
+            await fetch("/api/supplyChain/logout", {
+                method: "POST",
+                credentials: "include",
+                headers: { 
+                    "Content-Type": "application/json",
+                    ...(sessionToken ? { "x-session-token": sessionToken } : {})
+                },
+                body: JSON.stringify({ 
+                    action: "LOGOUT",
+                    session_token: sessionToken,
+                    email: userEmail,
+                    user_id: userId
+                }),
+            });
+            await supabase.auth.signOut();
         } catch (e) {
             console.error("Logout error:", e);
         } finally {
             user.clearUser();
+            if (typeof window !== "undefined") {
+                localStorage.removeItem("session_backup");
+                localStorage.removeItem("session_backup_2");
+                localStorage.removeItem("session_backup_3");
+                try {
+                    sessionStorage.removeItem("session_backup");
+                } catch (e) {}
+                document.cookie = "session_backup=; path=/; max-age=0";
+                document.cookie = "session_backup_2=; path=/; max-age=0";
+                document.cookie = "session_backup_3=; path=/; max-age=0";
+                document.cookie = "session_token=; path=/; max-age=0";
+                document.cookie = "sc_session_token=; path=/; max-age=0";
+            }
             toast.success("Signed out successfully");
             router.push("/scAuth");
         }
@@ -178,7 +213,7 @@ export default function SupplierPortalLayout({
 
                 {/* Top Navigation Bar */}
                 <header className="sticky top-0 z-40 bg-[#FCFBF9]/85 dark:bg-[#12131a]/85 backdrop-blur-xl border-b border-slate-200/80 dark:border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_25px_rgba(0,0,0,0.6)]">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex items-center justify-between h-20 gap-4">
                             
                             {/* Brand / Company Info */}
@@ -302,7 +337,7 @@ export default function SupplierPortalLayout({
                 </header>
 
                 {/* Main Content Area */}
-                <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+                <main className="flex-1 w-full mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 relative z-10">
                     {children}
                 </main>
 

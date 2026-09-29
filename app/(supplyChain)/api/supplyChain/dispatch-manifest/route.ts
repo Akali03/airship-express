@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
                     message: notifMsg,
                     type: 'dispatch_manifest',
                     link: downloadUrl,
-                    role: 'All',
+                    role: ['Admin', 'Manager', 'Executive'],
                     is_read: false
                 })
                 .select()

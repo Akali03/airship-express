@@ -449,6 +449,48 @@ export default function SupplierPurchaseOrdersPage() {
 
             if (error) throw error;
 
+            const currentPo = purchaseOrders.find((p) => p.id === poId) || selectedPo;
+            const supplierName = supplierAccount?.suppliers?.name || supplierAccount?.company_name || user.getName() || "Supplier";
+            const supplierEmail = supplierAccount?.email || user.getEmail() || "supplier@portal.com";
+            const poNumber = currentPo?.po_number || poId.slice(0, 8);
+            const amountStr = currentPo?.total_amount ? ` (₱${Number(currentPo.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : '';
+
+            let notifTitle = `Purchase Order Updated: #${poNumber}`;
+            let notifMessage = `Supplier "${supplierName}" updated PO #${poNumber} status to "${newStatus}".`;
+
+            const normStatus = (newStatus || '').toLowerCase();
+            if (normStatus.includes('confirm') || normStatus.includes('accept') || normStatus.includes('approved')) {
+                notifTitle = `Purchase Order Accepted: #${poNumber}`;
+                notifMessage = `Supplier "${supplierName}" has accepted & confirmed Purchase Order #${poNumber}${amountStr}. Delivery schedule acknowledged.`;
+            } else if (normStatus.includes('cancel') || normStatus.includes('reject')) {
+                notifTitle = `Purchase Order Declined: #${poNumber}`;
+                notifMessage = `Supplier "${supplierName}" has declined / cancelled Purchase Order #${poNumber}${amountStr}. Action required: Review and re-procure items.`;
+            } else if (normStatus.includes('deliver') || normStatus.includes('complete')) {
+                notifTitle = `Purchase Order Delivered: #${poNumber}`;
+                notifMessage = `Supplier "${supplierName}" marked Purchase Order #${poNumber}${amountStr} as Delivered. Ready for receiving verification.`;
+            }
+
+            // Insert notification targeting Manager, Admin & Executive
+            try {
+                await supabase
+                    .from("notifications")
+                    .insert({
+                        creator_name: supplierName,
+                        creator_email: supplierEmail,
+                        title: notifTitle,
+                        message: notifMessage,
+                        type: 'alert',
+                        link: `/purchase-orders?search=${encodeURIComponent(poNumber)}`,
+                        role: ['Manager', 'Admin', 'Executive'],
+                        is_read: false,
+                        reference_type: 'purchase_order',
+                        reference_id: poId,
+                        po_request_id: currentPo?.request_id || null
+                    });
+            } catch (notifErr) {
+                console.error("Error sending PO update notification:", notifErr);
+            }
+
             toast.success(`Purchase order status updated to ${newStatus}`);
             setPurchaseOrders((prev) =>
                 prev.map((p) => (p.id === poId ? { ...p, status: newStatus } : p))
@@ -511,7 +553,7 @@ export default function SupplierPurchaseOrdersPage() {
     }, [purchaseOrders]);
 
     return (
-        <div className="space-y-5 sm:space-y-6 animate-fade-in">
+        <div className="w-full space-y-5 sm:space-y-6 animate-fade-in bgCard">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div>

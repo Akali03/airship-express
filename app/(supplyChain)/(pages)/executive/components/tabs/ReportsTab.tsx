@@ -61,7 +61,7 @@ export default function ReportsTab({ data, onOpenModal }: ReportsTabProps) {
             border: 'border-purple-200 dark:border-purple-800/40',
             glow: 'shadow-[0_2px_12px_rgba(168,85,247,0.18)]',
             desc: 'Purchase request tracking, vendor PO totals, approval statuses, and monthly budget utilization.',
-            count: `₱ ${data.procurementSummary.mtdSpend.toLocaleString()} committed`,
+            count: `${data.procurement.length} requests • ₱${data.procurementSummary.mtdSpend.toLocaleString()} PO spend`,
             infoText: 'Financial spend audit detailing purchase orders, vendor names, and approval stages.',
             badge: 'Finance',
         },

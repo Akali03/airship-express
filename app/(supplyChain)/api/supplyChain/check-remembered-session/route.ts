@@ -46,8 +46,9 @@ export async function GET(request: Request) {
             );
         }
 
-        // check expiration
-        if (new Date(session.expires_at) < new Date()) {
+        // check expiration safely
+        const expiryDate = session.expires_at_remember || session.expires_at;
+        if (expiryDate && new Date(expiryDate) < new Date()) {
             await supabaseAdmin
                 .from('sessions')
                 .update({ is_active: false })

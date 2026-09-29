@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation';
 import { Bell, BellOff, Check, X, Loader2, Clock, DollarSign, FileText, User, Building, Tag, AlertCircle, Users, UserCog, Shield, Calendar, Package, Trash2, Edit3, Plus, Download, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/services/client/supabase';
+import { 
+    deleteNotificationForUser, 
+    deleteAllNotificationsForUser,
+    markNotificationAsReadForUser,
+    markAllNotificationsAsReadForUser,
+    RecipientItem
+} from '../../lib/services/notifications';
 import { useConfirm } from '../ui/ConfirmModal';
 import Portal from '../client/Portal';
 import { user } from '../../lib/services/Class/user';
@@ -21,11 +28,29 @@ interface Notification {
     is_read: boolean;
     created_at: string;
     po_request_id: string | null;
-    role: string;
+    role: string | string[];
     user_id?: string | null;
+    recipient_user_ids?: RecipientItem[] | null;
     reference_type?: string | null;
     reference_id?: string | null;
     read_at?: string | null;
+}
+
+function isNotificationReadByUser(notif: Notification, currentUserId: string | null): boolean {
+    if (!currentUserId) return notif.is_read;
+    if (notif.user_id && notif.user_id.toLowerCase() === currentUserId.toLowerCase()) {
+        return notif.is_read;
+    }
+    if (Array.isArray(notif.recipient_user_ids) && notif.recipient_user_ids.length > 0) {
+        const found = notif.recipient_user_ids.find((item: any) => {
+            const uid = typeof item === 'string' ? item : item?.user_id;
+            return uid && uid.toLowerCase() === currentUserId.toLowerCase();
+        });
+        if (found && typeof found === 'object') {
+            return Boolean(found.is_read);
+        }
+    }
+    return notif.is_read;
 }
 
 interface PurchaseRequest {
@@ -46,7 +71,7 @@ interface PurchaseRequest {
 }
 
 const PAGE_SIZE = 10;
-const CACHE_KEY_BASE = 'notifications_cache';
+const CACHE_KEY_BASE = 'notifications_cache_v3';
 const LEGACY_CACHE_KEY = 'notifications_cache';
 const CACHE_DURATION = 5 * 60 * 1000;
 
@@ -146,29 +171,62 @@ export function NotificationBell() {
     const buttonRef = useRef<HTMLButtonElement>(null);
 
     const getCacheKey = useCallback(() => {
-        return `${CACHE_KEY_BASE}_${userEmail || 'anon'}`;
-    }, [userEmail]);
+        return `${CACHE_KEY_BASE}_${(userRole || '').toLowerCase()}_${userEmail || 'anon'}`;
+    }, [userRole, userEmail]);
 
-    const isNotificationForUser = useCallback((notif: Notification | { role?: string; user_id?: string | null; creator_email?: string | null; reference_type?: string | null; link?: string | null; title?: string | null } | string) => {
+    const isNotificationForUser = useCallback((notif: Notification | { role?: string | string[]; user_id?: string | null; creator_email?: string | null; reference_type?: string | null; link?: string | null; title?: string | null; recipient_user_ids?: RecipientItem[] | any[] | null } | string) => {
+        const normalizeRoles = (r: any): string[] => {
+            if (!r) return ['all'];
+            if (Array.isArray(r)) return r.map((item: any) => String(item).toLowerCase().trim());
+            if (typeof r === 'string') {
+                const trimmed = r.trim();
+                if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        if (Array.isArray(parsed)) return parsed.map((item: any) => String(item).toLowerCase().trim());
+                    } catch {}
+                }
+                return [trimmed.toLowerCase()];
+            }
+            return ['all'];
+        };
+
+        const targetRoles = normalizeRoles(typeof notif === 'string' ? notif : notif.role);
+        const uRole = (userRole || '').toLowerCase().trim();
+        const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null);
+        const currentEmail = (userEmail || (typeof window !== 'undefined' ? user.getEmail() : '')).toLowerCase().trim();
+
+        // Check recipient_user_ids: if present as an array, verify the user has not deleted/dismissed it
+        if (typeof notif !== 'string' && notif.recipient_user_ids !== undefined && notif.recipient_user_ids !== null) {
+            if (Array.isArray(notif.recipient_user_ids)) {
+                // If the array is empty, all recipients dismissed it
+                if (notif.recipient_user_ids.length === 0) return false;
+
+                // If current user is known, they MUST exist in the recipient array and NOT be marked deleted
+                if (currentUserId) {
+                    const found = notif.recipient_user_ids.find((item: any) => {
+                        const uid = typeof item === 'string' ? item : item?.user_id;
+                        return uid && String(uid).toLowerCase() === currentUserId.toLowerCase();
+                    });
+                    if (!found || (typeof found === 'object' && (found.is_deleted || found.deleted))) {
+                        return false;
+                    }
+                }
+            }
+        }
+
         if (typeof notif === 'string') {
-            const notifRole = notif;
-            if (!notifRole) return true;
-            const nRole = notifRole.toLowerCase().trim();
-            const uRole = (userRole || '').toLowerCase().trim();
-            if (nRole === 'all') return true;
-            if (nRole === uRole) return true;
-            if (['admin', 'executive'].includes(uRole) && ['admin', 'executive'].includes(nRole)) return true;
-            if (['admin', 'executive', 'manager'].includes(uRole) && nRole === 'manager') return true;
-            return false;
+            return targetRoles.some(nR => {
+                if (nR === 'all') return true;
+                if (nR === uRole) return true;
+                if (['admin', 'executive'].includes(uRole) && ['admin', 'executive'].includes(nR)) return true;
+                return false;
+            });
         }
 
         const refType = (notif.reference_type || '').toLowerCase();
         const link = (notif.link || '').toLowerCase();
         const title = (notif.title || '').toLowerCase();
-        const notifRole = (notif.role || '').toLowerCase().trim();
-        const uRole = (userRole || '').toLowerCase().trim();
-        const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null);
-        const currentEmail = (userEmail || (typeof window !== 'undefined' ? user.getEmail() : '')).toLowerCase().trim();
 
         // 1. If notification is related to documents (upload, pending, attach, or link is /documents):
         // It is strictly isolated and ONLY delivered if the user_id or creator_email matches the current user
@@ -189,39 +247,39 @@ export function NotificationBell() {
         }
 
         // 2. Explicit direct-to-user notification (role is 'user' with targeted user_id)
-        if (notifRole === 'user' && notif.user_id) {
-            if (currentUserId && notif.user_id.toLowerCase().trim() === currentUserId.toLowerCase().trim()) return true;
-            if (currentEmail && notif.creator_email?.toLowerCase().trim() === currentEmail) return true;
+        if (targetRoles.includes('user')) {
+            if (notif.user_id && currentUserId && notif.user_id.toLowerCase().trim() === currentUserId.toLowerCase().trim()) return true;
+            if (notif.creator_email && currentEmail && notif.creator_email.toLowerCase().trim() === currentEmail) return true;
             return false;
         }
 
-        // 3. Role-based notifications (Purchase requests, announcements, system alerts, leadership notices)
-        if (notifRole === 'all') return true;
-        if (notifRole && notifRole === uRole) return true;
-        if (['admin', 'executive'].includes(uRole) && ['admin', 'executive'].includes(notifRole)) return true;
-        if (['admin', 'executive', 'manager'].includes(uRole) && notifRole === 'manager') return true;
-
-        // 4. Fallback: if user is explicitly the targeted user_id
-        if (notif.user_id && currentUserId && notif.user_id.toLowerCase().trim() === currentUserId.toLowerCase().trim()) return true;
-
-        return false;
+        // 3. Role-based notifications (Requisitions, purchase requests, system alerts, notices)
+        // Strictly matched to the user's role. A manager or staff member who created an alert addressed to Admin & Executive must NOT receive it.
+        return targetRoles.some(nR => {
+            if (nR === 'all') return true;
+            if (nR === uRole) return true;
+            if (['admin', 'executive'].includes(uRole) && ['admin', 'executive'].includes(nR)) return true;
+            return false;
+        });
     }, [userRole, userId, userEmail]);
 
     const getRoleFilterQuery = useCallback(() => {
         const uRole = (userRole || '').toLowerCase().trim();
-        let baseFilter = 'role.ilike.All';
+        const rolesToMatch = ['All'];
         if (['admin', 'executive'].includes(uRole)) {
-            baseFilter = 'role.ilike.All,role.ilike.Admin,role.ilike.Executive,role.ilike.Manager';
+            rolesToMatch.push('Admin', 'Executive');
         } else if (uRole === 'manager') {
-            baseFilter = 'role.ilike.All,role.ilike.Manager,role.ilike.Admin,role.ilike.Executive';
+            rolesToMatch.push('Manager');
+        } else if (uRole === 'staff') {
+            rolesToMatch.push('Staff');
         } else if (uRole) {
-            baseFilter = `role.ilike.All,role.ilike.${userRole}`;
+            rolesToMatch.push(userRole);
         }
-        if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
-            return `${baseFilter},user_id.eq.${userId}`;
-        }
-        return baseFilter;
-    }, [userRole, userId]);
+        
+        // JSONB containment filter clauses strictly by role target
+        const jsonbFilters = rolesToMatch.map(r => `role.cs.["${r}"]`);
+        return jsonbFilters.join(',');
+    }, [userRole]);
 
     // get user role and email from storage and keep updated
     useEffect(() => {
@@ -236,6 +294,22 @@ export function NotificationBell() {
                 let email = user.getEmail() || '';
                 let name = user.getName() || '';
                 let uid = user.getUserId() || '';
+
+                if (!uid && email) {
+                    try {
+                        const { data: dbUser } = await supabase
+                            .from('users')
+                            .select('id, role')
+                            .ilike('email', email.trim())
+                            .maybeSingle();
+                        if (dbUser?.id && isMounted) {
+                            uid = dbUser.id;
+                            localStorage.setItem('user_id', dbUser.id);
+                        }
+                    } catch (e) {
+                        // ignore lookup error
+                    }
+                }
 
                 if (!uid || !email) {
                     try {
@@ -306,6 +380,7 @@ export function NotificationBell() {
     const loadCachedNotifications = useCallback(() => {
         try {
             const cached = localStorage.getItem(getCacheKey());
+            const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
             if (cached) {
                 const { data, timestamp } = JSON.parse(cached);
                 const isExpired = Date.now() - timestamp > CACHE_DURATION;
@@ -313,7 +388,7 @@ export function NotificationBell() {
                     const filteredData = deduplicateNotifications(data.filter((n: Notification) => isNotificationForUser(n)));
                     setNotifications(filteredData);
                     setTotalCount(filteredData.length);
-                    const unread = filteredData.filter((n: Notification) => !n.is_read).length;
+                    const unread = filteredData.filter((n: Notification) => !isNotificationReadByUser(n, currentUserId)).length;
                     setUnreadCount(unread);
                     setTotalUnread(unread);
                     return true;
@@ -323,7 +398,7 @@ export function NotificationBell() {
             console.error('Error loading cache:', error);
         }
         return false;
-    }, [getCacheKey, isNotificationForUser]);
+    }, [getCacheKey, isNotificationForUser, userId]);
 
     // save notifications to cache
     const saveToCache = useCallback((data: Notification[]) => {
@@ -341,22 +416,52 @@ export function NotificationBell() {
     const fetchUnreadCount = useCallback(async () => {
         try {
             const roleFilter = getRoleFilterQuery();
-            const { data, error } = await supabase
-                .from('notifications')
-                .select('id, role, user_id, creator_email, reference_type, po_request_id, is_read')
-                .eq('is_read', false)
-                .or(roleFilter);
+            const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
+            let queryData: any = null;
 
-            if (error) throw error;
-            const visibleUnread = (data || []).filter((n: any) => isNotificationForUser(n));
-            const deduplicated = deduplicateNotifications(visibleUnread as Notification[]);
-            const unread = deduplicated.length;
+            const res = await supabase
+                .from('notifications')
+                .select('id, role, user_id, creator_email, reference_type, po_request_id, is_read, recipient_user_ids')
+                .or(roleFilter)
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+            if (!res.error && res.data) {
+                queryData = res.data;
+            } else {
+                // Fallback query without or() filter
+                const fallback = await supabase
+                    .from('notifications')
+                    .select('id, role, user_id, creator_email, reference_type, po_request_id, is_read, recipient_user_ids')
+                    .order('created_at', { ascending: false })
+                    .limit(100);
+                queryData = fallback.data || [];
+            }
+
+            const visible = (queryData || []).filter((n: any) => isNotificationForUser(n));
+            const deduplicated = deduplicateNotifications(visible as Notification[]);
+            const unread = deduplicated.filter(n => !isNotificationReadByUser(n, currentUserId)).length;
             setTotalUnread(unread);
             setUnreadCount(unread);
         } catch (error) {
             console.error('Error fetching unread count:', error);
         }
-    }, [getRoleFilterQuery, isNotificationForUser]);
+    }, [getRoleFilterQuery, isNotificationForUser, userId]);
+
+    const isNotificationForUserRef = useRef(isNotificationForUser);
+    useEffect(() => {
+        isNotificationForUserRef.current = isNotificationForUser;
+    }, [isNotificationForUser]);
+
+    const saveToCacheRef = useRef(saveToCache);
+    useEffect(() => {
+        saveToCacheRef.current = saveToCache;
+    }, [saveToCache]);
+
+    const fetchUnreadCountRef = useRef(fetchUnreadCount);
+    useEffect(() => {
+        fetchUnreadCountRef.current = fetchUnreadCount;
+    }, [fetchUnreadCount]);
 
     // fetch notifications with pagination
     const fetchNotifications = useCallback(async (pageNum: number, append: boolean = false) => {
@@ -368,38 +473,51 @@ export function NotificationBell() {
 
         try {
             const roleFilter = getRoleFilterQuery();
-            const { count, error: countError } = await supabase
+            let rawData: any[] = [];
+            let total = 0;
+
+            const countRes = await supabase
                 .from('notifications')
                 .select('*', { count: 'exact', head: true })
                 .or(roleFilter);
 
-            if (countError) throw countError;
-            const total = count ?? 0;
-            setTotalCount(total);
-
-            if (total === 0) {
-                setHasMore(false);
-                if (pageNum === 0) {
-                    setNotifications([]);
-                    setUnreadCount(0);
-                    setTotalUnread(0);
-                }
-                return;
+            if (!countRes.error) {
+                total = countRes.count ?? 0;
             }
 
             const from = pageNum * PAGE_SIZE;
-            const to = Math.min(from + PAGE_SIZE - 1, total - 1);
+            const to = from + PAGE_SIZE - 1;
 
-            const { data, error } = await supabase
+            const res = await supabase
                 .from('notifications')
                 .select('*')
                 .or(roleFilter)
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
-            if (error) throw error;
+            if (!res.error && res.data) {
+                rawData = res.data;
+            } else {
+                // Fallback query
+                const fallback = await supabase
+                    .from('notifications')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .range(from, to);
+                rawData = fallback.data || [];
+                total = rawData.length;
+            }
 
-            const rawData = data || [];
+            setTotalCount(total);
+
+            if (rawData.length === 0 && pageNum === 0) {
+                setHasMore(false);
+                setNotifications([]);
+                setUnreadCount(0);
+                setTotalUnread(0);
+                return;
+            }
+
             const notificationsData = rawData.filter((n: any) => isNotificationForUser(n));
 
             if (append) {
@@ -449,24 +567,27 @@ export function NotificationBell() {
 
     // listen for realtime notification updates
     useEffect(() => {
-        const channelId = `navbar_notifs_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+        let isSubscribed = true;
+        const channelId = `navbar_notifs_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         const channel = supabase
             .channel(channelId)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'notifications' },
                 (payload) => {
+                    if (!isSubscribed) return;
                     if (payload.eventType === 'INSERT') {
                         const newNotif = payload.new as Notification;
-                        if (isNotificationForUser(newNotif)) {
+                        if (isNotificationForUserRef.current(newNotif)) {
                             setNotifications(prev => {
                                 if (prev.some(n => n.id === newNotif.id || (newNotif.po_request_id && n.po_request_id === newNotif.po_request_id))) return prev;
                                 const updated = deduplicateNotifications([newNotif, ...prev]);
-                                saveToCache(updated);
+                                saveToCacheRef.current(updated);
                                 return updated;
                             });
                             setTotalCount(prev => prev + 1);
-                            if (!newNotif.is_read) {
+                            const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
+                            if (!isNotificationReadByUser(newNotif, currentUserId)) {
                                 setUnreadCount(prev => prev + 1);
                                 setTotalUnread(prev => prev + 1);
                             }
@@ -481,22 +602,33 @@ export function NotificationBell() {
                         }
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedNotif = payload.new as Notification;
-                        setNotifications(prev => {
-                            const updated = prev.map(n => n.id === updatedNotif.id ? updatedNotif : n);
-                            saveToCache(updated);
-                            return updated;
-                        });
-                        fetchUnreadCount();
+                        if (!isNotificationForUserRef.current(updatedNotif)) {
+                            // User was removed from recipient_user_ids (dismissed in another tab/device or session)
+                            setNotifications(prev => {
+                                const updated = prev.filter(n => n.id !== updatedNotif.id);
+                                saveToCacheRef.current(updated);
+                                return updated;
+                            });
+                            setTotalCount(prev => Math.max(0, prev - 1));
+                            fetchUnreadCountRef.current();
+                        } else {
+                            setNotifications(prev => {
+                                const updated = prev.map(n => n.id === updatedNotif.id ? updatedNotif : n);
+                                saveToCacheRef.current(updated);
+                                return updated;
+                            });
+                            fetchUnreadCountRef.current();
+                        }
                     } else if (payload.eventType === 'DELETE') {
                         const deletedId = (payload.old as { id: string })?.id;
                         if (deletedId) {
                             setNotifications(prev => {
                                 const updated = prev.filter(n => n.id !== deletedId);
-                                saveToCache(updated);
+                                saveToCacheRef.current(updated);
                                 return updated;
                             });
                             setTotalCount(prev => Math.max(0, prev - 1));
-                            fetchUnreadCount();
+                            fetchUnreadCountRef.current();
                         }
                     }
                 }
@@ -505,6 +637,7 @@ export function NotificationBell() {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'purchase_requests' },
                 (payload) => {
+                    if (!isSubscribed) return;
                     if (payload.eventType === 'UPDATE') {
                         const updatedPR = payload.new as PurchaseRequest;
                         setPurchaseRequest(prev => prev && prev.id === updatedPR.id ? updatedPR : prev);
@@ -512,80 +645,112 @@ export function NotificationBell() {
                 }
             )
             .subscribe((status, err) => {
+                if (!isSubscribed) return;
                 if (status === 'SUBSCRIBED') {
-                    fetchUnreadCount();
+                    fetchUnreadCountRef.current();
                 }
-                if (err) {
-                    console.warn('[Realtime Notifications] Subscription error:', err);
+                // Suppress normal transient disconnects / unmount closures (1006) which Supabase handles via auto-reconnect
+                if (err && status !== 'CLOSED') {
+                    const errMsg = String(err?.message || err);
+                    if (!errMsg.includes('1006') && !errMsg.includes('closed')) {
+                        console.warn('[Realtime Notifications] Subscription error:', err);
+                    }
                 }
             });
 
         return () => {
+            isSubscribed = false;
             supabase.removeChannel(channel);
         };
-    }, [userRole, isNotificationForUser, saveToCache, fetchUnreadCount]);
+    }, []);
 
     const handleMarkAsRead = async (id: string) => {
         try {
-            // mark notification read in state
-            setNotifications(prev => prev.map(n =>
-                n.id === id ? { ...n, is_read: true } : n
-            ));
+            const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
+            const target = notifications.find(n => n.id === id);
+
+            // mark notification read in state optimistically
+            setNotifications(prev => prev.map(n => {
+                if (n.id !== id) return n;
+                let updatedRecipients = n.recipient_user_ids;
+                if (Array.isArray(updatedRecipients) && currentUserId) {
+                    updatedRecipients = updatedRecipients.map((item: any) => {
+                        const uid = typeof item === 'string' ? item : item?.user_id;
+                        if (uid && uid.toLowerCase() === currentUserId.toLowerCase()) {
+                            return { user_id: uid, is_read: true, read_at: new Date().toISOString() };
+                        }
+                        return item;
+                    });
+                }
+                return { ...n, is_read: true, recipient_user_ids: updatedRecipients };
+            }));
+
             setUnreadCount(prev => Math.max(0, prev - 1));
             setTotalUnread(prev => Math.max(0, prev - 1));
-
-            // mark notification read in database
-            const { error } = await supabase
-                .from('notifications')
-                .update({ is_read: true, read_at: new Date().toISOString() })
-                .eq('id', id);
-
-            if (error) throw error;
 
             // save updated state to cache
             const cacheKey = getCacheKey();
             const cached = localStorage.getItem(cacheKey);
             if (cached) {
                 const { data, timestamp } = JSON.parse(cached);
-                const updated = data.map((n: Notification) =>
-                    n.id === id ? { ...n, is_read: true } : n
-                );
-                localStorage.setItem(cacheKey, JSON.stringify({
-                    data: updated,
-                    timestamp
-                }));
+                const updated = data.map((n: Notification) => {
+                    if (n.id !== id) return n;
+                    let updatedRecipients = n.recipient_user_ids;
+                    if (Array.isArray(updatedRecipients) && currentUserId) {
+                        updatedRecipients = updatedRecipients.map((item: any) => {
+                            const uid = typeof item === 'string' ? item : item?.user_id;
+                            if (uid && uid.toLowerCase() === currentUserId.toLowerCase()) {
+                                return { user_id: uid, is_read: true, read_at: new Date().toISOString() };
+                            }
+                            return item;
+                        });
+                    }
+                    return { ...n, is_read: true, recipient_user_ids: updatedRecipients };
+                });
+                localStorage.setItem(cacheKey, JSON.stringify({ data: updated, timestamp }));
             }
+
+            // update database for this user
+            await markNotificationAsReadForUser(
+                id,
+                currentUserId,
+                target?.recipient_user_ids,
+                target?.user_id
+            );
         } catch (error) {
             console.error('Error marking as read:', error);
             toast.error('Failed to mark as read');
-            // refetch on error
             fetchNotifications(0, false);
         }
     };
 
     const handleMarkAllAsRead = async () => {
         try {
-            const unreadIds = notifications
-                .filter(n => !n.is_read)
-                .map(n => n.id);
+            const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
+            const unreadItems = notifications.filter(n => !isNotificationReadByUser(n, currentUserId));
 
-            if (unreadIds.length === 0) {
+            if (unreadItems.length === 0) {
                 toast.info('No unread notifications');
                 return;
             }
 
-            // mark all read in state
-            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+            // mark all read in state optimistically
+            setNotifications(prev => prev.map(n => {
+                let updatedRecipients = n.recipient_user_ids;
+                if (Array.isArray(updatedRecipients) && currentUserId) {
+                    updatedRecipients = updatedRecipients.map((item: any) => {
+                        const uid = typeof item === 'string' ? item : item?.user_id;
+                        if (uid && uid.toLowerCase() === currentUserId.toLowerCase()) {
+                            return { user_id: uid, is_read: true, read_at: new Date().toISOString() };
+                        }
+                        return item;
+                    });
+                }
+                return { ...n, is_read: true, recipient_user_ids: updatedRecipients };
+            }));
+
             setUnreadCount(0);
             setTotalUnread(0);
-
-            // mark all read in database
-            const { error } = await supabase
-                .from('notifications')
-                .update({ is_read: true, read_at: new Date().toISOString() })
-                .in('id', unreadIds);
-
-            if (error) throw error;
 
             // save updated state to cache
             const cacheKey = getCacheKey();
@@ -593,17 +758,23 @@ export function NotificationBell() {
             if (cached) {
                 const { data, timestamp } = JSON.parse(cached);
                 const updated = data.map((n: Notification) => ({ ...n, is_read: true }));
-                localStorage.setItem(cacheKey, JSON.stringify({
-                    data: updated,
-                    timestamp
-                }));
+                localStorage.setItem(cacheKey, JSON.stringify({ data: updated, timestamp }));
             }
+
+            // update in database
+            await markAllNotificationsAsReadForUser(
+                unreadItems.map(n => ({
+                    id: n.id,
+                    user_id: n.user_id,
+                    recipient_user_ids: n.recipient_user_ids,
+                })),
+                currentUserId
+            );
 
             toast.success('All notifications marked as read');
         } catch (error) {
             console.error('Error marking all as read:', error);
             toast.error('Failed to mark all as read');
-            // refetch on error
             fetchNotifications(0, false);
         }
     };
@@ -613,23 +784,29 @@ export function NotificationBell() {
         e.stopPropagation();
         try {
             const target = notifications.find(n => n.id === id);
-            const wasUnread = target && !target.is_read;
+            const wasUnread = target && !isNotificationReadByUser(target, userId);
+            let currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
 
-            // remove notification from state
+            if (!currentUserId && userEmail) {
+                const { data: dbUser } = await supabase
+                    .from('users')
+                    .select('id')
+                    .ilike('email', userEmail.trim())
+                    .maybeSingle();
+                if (dbUser?.id) {
+                    currentUserId = dbUser.id;
+                    setUserId(dbUser.id);
+                    localStorage.setItem('user_id', dbUser.id);
+                }
+            }
+
+            // remove notification from state immediately
             setNotifications(prev => prev.filter(n => n.id !== id));
             setTotalCount(prev => Math.max(0, prev - 1));
             if (wasUnread) {
                 setUnreadCount(prev => Math.max(0, prev - 1));
                 setTotalUnread(prev => Math.max(0, prev - 1));
             }
-
-            // delete notification from database
-            const { error } = await supabase
-                .from('notifications')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
 
             // update cache
             const cacheKey = getCacheKey();
@@ -642,6 +819,14 @@ export function NotificationBell() {
                     timestamp
                 }));
             }
+
+            // delete/dismiss from database
+            await deleteNotificationForUser(
+                id,
+                currentUserId,
+                target?.recipient_user_ids,
+                target?.user_id
+            );
 
             toast.success('Notification removed');
         } catch (error) {
@@ -666,23 +851,40 @@ export function NotificationBell() {
         if (!confirmed) return;
 
         try {
-            const ids = notifications.map(n => n.id);
+            let currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
+            if (!currentUserId && userEmail) {
+                const { data: dbUser } = await supabase
+                    .from('users')
+                    .select('id')
+                    .ilike('email', userEmail.trim())
+                    .maybeSingle();
+                if (dbUser?.id) {
+                    currentUserId = dbUser.id;
+                    setUserId(dbUser.id);
+                    localStorage.setItem('user_id', dbUser.id);
+                }
+            }
+
+            const currentNotifs = [...notifications];
+
             setNotifications([]);
             setTotalCount(0);
             setUnreadCount(0);
             setTotalUnread(0);
 
-            // delete notifications from database
-            const { error } = await supabase
-                .from('notifications')
-                .delete()
-                .in('id', ids);
-
-            if (error) throw error;
-
             // clear cache
             const cacheKey = getCacheKey();
             localStorage.removeItem(cacheKey);
+
+            // delete notifications from database
+            await deleteAllNotificationsForUser(
+                currentNotifs.map(n => ({
+                    id: n.id,
+                    user_id: n.user_id,
+                    recipient_user_ids: n.recipient_user_ids,
+                })),
+                currentUserId
+            );
 
             toast.success('All notifications deleted');
         } catch (error) {
@@ -1013,17 +1215,48 @@ export function NotificationBell() {
         }
     };
 
-    const getRoleIcon = (role: string) => {
-        switch (role) {
+    const getRoleIcon = (role?: string | string[]) => {
+        let first = 'All';
+        if (Array.isArray(role)) {
+            first = role[0] || 'All';
+        } else if (typeof role === 'string') {
+            if (role.startsWith('[') && role.endsWith(']')) {
+                try {
+                    const parsed = JSON.parse(role);
+                    first = Array.isArray(parsed) ? (parsed[0] || 'All') : role;
+                } catch {
+                    first = role;
+                }
+            } else {
+                first = role;
+            }
+        }
+        switch (first) {
             case 'All': return <Users className="h-3 w-3" />;
             case 'Admin': return <Shield className="h-3 w-3" />;
             case 'Manager': return <UserCog className="h-3 w-3" />;
+            case 'Executive': return <Shield className="h-3 w-3" />;
             default: return <User className="h-3 w-3" />;
         }
     };
 
-    const getRoleColor = (role: string) => {
-        switch (role) {
+    const getRoleColor = (role?: string | string[]) => {
+        let first = 'All';
+        if (Array.isArray(role)) {
+            first = role[0] || 'All';
+        } else if (typeof role === 'string') {
+            if (role.startsWith('[') && role.endsWith(']')) {
+                try {
+                    const parsed = JSON.parse(role);
+                    first = Array.isArray(parsed) ? (parsed[0] || 'All') : role;
+                } catch {
+                    first = role;
+                }
+            } else {
+                first = role;
+            }
+        }
+        switch (first) {
             case 'Admin': return 'bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/30';
             case 'Manager': return 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/30';
             case 'Employee': return 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/30';
@@ -1033,11 +1266,10 @@ export function NotificationBell() {
         }
     };
 
-    if (!isMounted) return null;
-
-    return (
+    if (!isMounted) return null;    return (
         <>
             <div className="relative" ref={dropdownRef}>
+                {/* Neumorphic Bell Trigger Button */}
                 <button
                     ref={buttonRef}
                     onClick={() => {
@@ -1046,13 +1278,17 @@ export function NotificationBell() {
                             fetchUnreadCount();
                         }
                     }}
-                    className="relative flex items-center justify-center w-8 h-8 rounded-full bg-[#f0f3f8] dark:bg-[#1d1e28] border border-white/70 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04),inset_0_1px_1px_rgba(255,255,255,0.06)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.5),-1px_-1px_3px_rgba(255,255,255,0.9)] active:scale-95 transition-all duration-200 cursor-pointer"
+                    className={`relative flex items-center justify-center w-9 h-9 rounded-2xl transition-all duration-200 cursor-pointer ${
+                        isOpen
+                            ? 'bg-[#e4ebf5] dark:bg-[#151622] shadow-[inset_3px_3px_6px_#caced6,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_6px_#0e0f15,inset_-3px_-3px_6px_#222533] border border-slate-300/40 dark:border-white/5'
+                            : 'bg-[#ebf0f7] dark:bg-[#181a24] shadow-[4px_4px_10px_#c2cad6,-4px_-4px_10px_#ffffff] dark:shadow-[4px_4px_12px_#0e0f15,-4px_-4px_12px_#222533] hover:shadow-[2px_2px_6px_#c2cad6,-2px_-2px_6px_#ffffff] border border-white/80 dark:border-[#27293a] active:scale-95'
+                    }`}
                     aria-label="Notifications"
                 >
                     {totalUnread > 0 ? (
                         <>
-                            <Bell className="h-4 w-4 text-pink-600 dark:text-pink-400" />
-                            <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 bg-gradient-to-tr from-rose-500 to-pink-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-[0_2px_6px_rgba(244,63,94,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]">
+                            <Bell className="h-4 w-4 text-pink-600 dark:text-pink-400 drop-shadow-[0_1px_2px_rgba(244,63,94,0.3)] animate-wiggle" />
+                            <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 bg-gradient-to-tr from-rose-500 to-pink-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-[0_2px_6px_rgba(244,63,94,0.5),inset_0_1px_0_rgba(255,255,255,0.4)] border border-white/60 dark:border-pink-300/40">
                                 {totalUnread > 9 ? '9+' : totalUnread}
                             </span>
                         </>
@@ -1065,61 +1301,64 @@ export function NotificationBell() {
                     <>
                         {/* Mobile Backdrop Overlay */}
                         <div
-                            className="fixed inset-0 bg-slate-900/20 dark:bg-slate-950/60 backdrop-blur-sm z-40 sm:hidden animate-in fade-in duration-200"
+                            className="fixed inset-0 bg-slate-900/30 dark:bg-black/60 backdrop-blur-sm z-40 sm:hidden animate-in fade-in duration-200"
                             onClick={() => setIsOpen(false)}
                             aria-hidden="true"
                         />
 
-                        {/* Main Popover / Modal Panel */}
-                        <div className="fixed sm:absolute inset-x-0 top-0 sm:top-full sm:right-0 sm:left-auto mt-0 sm:mt-2 w-full sm:w-96 h-[100dvh] sm:h-auto sm:max-h-[560px] 
-                        bg-[#f2f5fa] dark:bg-[#191a24] 
-                        rounded-none sm:rounded-2xl 
-                        border-0 sm:border border-white/80 dark:border-[#2c2d3c] 
-                        shadow-[8px_8px_24px_rgba(166,175,195,0.45),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] 
+                        {/* Main Neumorphic Popover Panel */}
+                        <div className="fixed sm:absolute inset-x-0 top-0 sm:top-full sm:right-0 sm:left-auto mt-0 sm:mt-3 w-full sm:w-[410px] h-[100dvh] sm:h-auto sm:max-h-[580px] 
+                        bg-[#ebf0f7] dark:bg-[#181a24] 
+                        rounded-none sm:rounded-3xl 
+                        border-0 sm:border border-white/80 dark:border-[#27293a] 
+                        shadow-[14px_14px_32px_#c2cad6,-14px_-14px_32px_#ffffff] dark:shadow-[16px_16px_40px_#0a0b10,-8px_-8px_30px_#242636] 
                         z-50 flex flex-col overflow-hidden animate-in slide-in-from-top-2 duration-200">
 
-                            {/* Header */}
-                            <div className="flex items-center justify-between px-4 py-3.5 
-                          border-b border-slate-200/60 dark:border-slate-800 
-                          bg-[#f0f3f8]/95 dark:bg-[#191a24]/95 backdrop-blur-md shrink-0">
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                            {/* Neumorphic Header */}
+                            <div className="flex items-center justify-between px-5 py-4 
+                            border-b border-slate-200/50 dark:border-slate-800/80 
+                            bg-[#ebf0f7]/95 dark:bg-[#181a24]/95 backdrop-blur-md shrink-0">
+                                <div className="flex items-center gap-2.5">
+                                    <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
                                         Notifications
                                     </h3>
                                     {notifications.length > 0 && (
-                                        <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold 
-                                bg-[#ebf0f7] dark:bg-[#14151c] 
-                                text-slate-700 dark:text-slate-300 rounded-full border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                                        <span className="inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-bold 
+                                        bg-[#e3e9f3] dark:bg-[#14151e] 
+                                        text-slate-700 dark:text-slate-300 rounded-full 
+                                        shadow-[inset_2px_2px_4px_#cbd4e2,inset_-2px_-2px_4px_#ffffff] dark:shadow-[inset_2px_2px_4px_#0d0e14,inset_-2px_-2px_4px_#20222f] 
+                                        border border-white/40 dark:border-white/5">
                                             {notifications.length}
                                         </span>
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-2">
                                     {totalUnread > 0 && (
                                         <button
                                             onClick={handleMarkAllAsRead}
-                                            className="px-2.5 py-1.5 text-xs font-medium 
-                            text-pink-600 dark:text-pink-400 
-                            hover:text-pink-700 dark:hover:text-pink-300 
-                            hover:bg-pink-50/70 dark:hover:bg-pink-950/30 
-                            active:bg-pink-100 dark:active:bg-pink-950/50 
-                            rounded-lg transition-colors flex items-center gap-1.5"
+                                            className="px-3 py-1.5 text-xs font-semibold 
+                                            text-pink-600 dark:text-pink-400 
+                                            bg-[#ebf0f7] dark:bg-[#1b1d2a] 
+                                            shadow-[3px_3px_7px_#c5cfdd,-3px_-3px_7px_#ffffff] dark:shadow-[3px_3px_7px_#0d0e14,-3px_-3px_7px_#262838] 
+                                            hover:shadow-[inset_2px_2px_4px_#c5cfdd,inset_-2px_-2px_4px_#ffffff] dark:hover:shadow-[inset_2px_2px_4px_#0d0e14,inset_-2px_-2px_4px_#262838] 
+                                            active:scale-95 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                                         >
                                             <Check className="h-3.5 w-3.5" />
-                                            <span className="hidden xs:inline">Mark all as read</span>
-                                            <span className="xs:hidden">Mark read</span>
+                                            <span className="hidden xs:inline">Mark all read</span>
+                                            <span className="xs:hidden">Read all</span>
                                         </button>
                                     )}
 
                                     {notifications.length > 0 && (
                                         <button
                                             onClick={handleDeleteAll}
-                                            className="p-1.5 text-xs font-medium 
-                            text-slate-400 dark:text-slate-500 
-                            hover:text-red-600 dark:hover:text-red-400 
-                            hover:bg-red-50 dark:hover:bg-red-950/30 
-                            rounded-lg transition-colors flex items-center"
+                                            className="p-2 text-slate-400 dark:text-slate-500 
+                                            hover:text-rose-600 dark:hover:text-rose-400 
+                                            bg-[#ebf0f7] dark:bg-[#1b1d2a] 
+                                            shadow-[3px_3px_7px_#c5cfdd,-3px_-3px_7px_#ffffff] dark:shadow-[3px_3px_7px_#0d0e14,-3px_-3px_7px_#262838] 
+                                            hover:shadow-[inset_2px_2px_4px_#c5cfdd,inset_-2px_-2px_4px_#ffffff] dark:hover:shadow-[inset_2px_2px_4px_#0d0e14,inset_-2px_-2px_4px_#262838] 
+                                            active:scale-95 rounded-xl transition-all flex items-center cursor-pointer"
                                             title="Clear all notifications"
                                             aria-label="Clear all notifications"
                                         >
@@ -1127,171 +1366,188 @@ export function NotificationBell() {
                                         </button>
                                     )}
 
-                                    {/* Close button for mobile screen view */}
+                                    {/* Mobile close button */}
                                     <button
                                         onClick={() => setIsOpen(false)}
-                                        className="p-1.5 text-slate-400 dark:text-slate-500 
-                          hover:text-slate-600 dark:hover:text-slate-300 
-                          hover:bg-slate-100 dark:hover:bg-slate-700/50 
-                          rounded-lg transition-colors sm:hidden"
+                                        className="p-2 text-slate-400 dark:text-slate-500 
+                                        bg-[#ebf0f7] dark:bg-[#1b1d2a] 
+                                        shadow-[3px_3px_7px_#c5cfdd,-3px_-3px_7px_#ffffff] dark:shadow-[3px_3px_7px_#0d0e14,-3px_-3px_7px_#262838] 
+                                        rounded-xl sm:hidden"
                                         aria-label="Close notifications"
                                     >
-                                        <X className="h-5 w-5" />
+                                        <X className="h-4 w-4" />
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Scrollable Body */}
-                            <div className="overflow-y-auto flex-1 divide-y divide-slate-100 dark:divide-slate-700/60 
-                          scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+                            {/* Neumorphic Scrollable List Container */}
+                            <div className="overflow-y-auto flex-1 p-3.5 space-y-3 
+                            scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
                                 {isLoading ? (
-                                    <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 dark:text-slate-500">
-                                        <Loader2 className="animate-spin h-6 w-6 text-pink-500 dark:text-pink-400" />
-                                        <span className="text-xs font-medium">Fetching notifications...</span>
+                                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
+                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[#ebf0f7] dark:bg-[#181a24] shadow-[inset_3px_3px_6px_#cbd4e2,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_6px_#0d0e14,inset_-3px_-3px_6px_#222533]">
+                                            <Loader2 className="animate-spin h-6 w-6 text-pink-500 dark:text-pink-400" />
+                                        </div>
+                                        <span className="text-xs font-semibold">Updating notifications...</span>
                                     </div>
                                 ) : notifications.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-full mb-3">
-                                            <BellOff className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                        <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center 
+                                        bg-[#e5ebf4] dark:bg-[#14151e] 
+                                        shadow-[inset_4px_4px_8px_#ccd5e2,inset_-4px_-4px_8px_#ffffff] dark:shadow-[inset_4px_4px_8px_#0c0d12,inset_-4px_-4px_8px_#1e202c] mb-3.5">
+                                            <BellOff className="h-7 w-7 text-slate-400 dark:text-slate-500" />
                                         </div>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">All caught up!</p>
-                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">No new notifications to show right now.</p>
+                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">All caught up!</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-[220px]">
+                                            No notifications right now. Alerts and notices will appear here.
+                                        </p>
                                     </div>
                                 ) : (
                                     <>
-                                        {notifications.map((notification) => (
-                                            <div
-                                                key={notification.id}
-                                                onClick={() => handleNotificationClick(notification)}
-                                                className={`group w-full text-left p-4 transition-all duration-150 flex items-start gap-3.5 cursor-pointer 
-                                hover:bg-[#e8edf5] dark:hover:bg-[#222432] 
-                                active:bg-[#e0e7f1] dark:active:bg-[#262838] 
-                                focus:outline-none focus:bg-[#e8edf5] dark:focus:bg-[#222432] 
-                                ${!notification.is_read
-                                                        ? 'bg-pink-50/40 dark:bg-pink-950/20 relative before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-pink-500'
-                                                        : 'bg-[#f0f3f8] dark:bg-[#191a24]'
-                                                    }`}
-                                            >
-                                                {/* Icon Column */}
-                                                <div className={`p-2 rounded-xl shrink-0 border border-slate-100 dark:border-slate-700/60 ${getTypeColor(notification.type)}`}>
-                                                    <i className={`text-xs leading-none flex items-center justify-center ${getTypeIcon(notification.type)}`}></i>
-                                                </div>
+                                        {notifications.map((notification) => {
+                                            const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
+                                            const isRead = isNotificationReadByUser(notification, currentUserId);
 
-                                                {/* Content Column */}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <p className={`text-xs sm:text-sm font-semibold truncate leading-tight 
-                                      ${!notification.is_read ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>
-                                                            {notification.title}
+                                            return (
+                                                <div
+                                                    key={notification.id}
+                                                    onClick={() => handleNotificationClick(notification)}
+                                                    className={`group w-full text-left p-3.5 rounded-2xl transition-all duration-200 flex items-start gap-3.5 cursor-pointer relative ${
+                                                        !isRead
+                                                            ? 'bg-[#eef2f7] dark:bg-[#1c1e2b] shadow-[4px_4px_12px_#cbd4e2,-4px_-4px_12px_#ffffff] dark:shadow-[5px_5px_14px_#0d0e14,-4px_-4px_12px_#272a3c] border border-white/80 dark:border-[#2b2e40] hover:shadow-[6px_6px_16px_#c4cedc,-6px_-6px_16px_#ffffff] dark:hover:shadow-[6px_6px_18px_#0a0b10,-5px_-5px_15px_#2a2d40] border-l-4 border-l-pink-500 dark:border-l-pink-400'
+                                                            : 'bg-[#e5ebf4] dark:bg-[#14151f] shadow-[inset_2px_2px_6px_#ccd5e2,inset_-2px_-2px_6px_#ffffff] dark:shadow-[inset_2px_2px_6px_#0b0c11,inset_-2px_-2px_6px_#1f212e] border border-slate-200/50 dark:border-white/5 opacity-85 hover:opacity-100'
+                                                    }`}
+                                                >
+                                                    {/* Neumorphic Icon Well */}
+                                                    <div className={`w-9 h-9 rounded-xl shrink-0 flex items-center justify-center transition-all ${
+                                                        !isRead
+                                                            ? 'bg-[#ebf0f7] dark:bg-[#191a25] shadow-[2px_2px_5px_#cbd4e2,-2px_-2px_5px_#ffffff] dark:shadow-[2px_2px_5px_#0d0e14,-2px_-2px_5px_#232535]'
+                                                            : 'bg-[#e0e7f1] dark:bg-[#12131b] shadow-[inset_1px_1px_3px_#ccd5e2,inset_-1px_-1px_3px_#ffffff] dark:shadow-[inset_1px_1px_3px_#0a0b0f,inset_-1px_-1px_3px_#1d1f2b]'
+                                                    } ${getTypeColor(notification.type)}`}>
+                                                        <i className={`text-xs leading-none flex items-center justify-center ${getTypeIcon(notification.type)}`}></i>
+                                                    </div>
+
+                                                    {/* Content Column */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <p className={`text-xs sm:text-sm font-bold truncate leading-tight ${
+                                                                !isRead ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'
+                                                            }`}>
+                                                                {notification.title}
+                                                            </p>
+
+                                                            <div className="shrink-0 flex items-center gap-1.5">
+                                                                {/* Neumorphic delete button */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => handleDeleteNotification(notification.id, e)}
+                                                                    className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 bg-transparent hover:bg-[#e2e8f1] dark:hover:bg-[#161722] active:shadow-[inset_1px_1px_3px_#cbd4e2,inset_-1px_-1px_3px_#ffffff] dark:active:shadow-[inset_1px_1px_3px_#0b0c11,inset_-1px_-1px_3px_#1f212e] transition-all cursor-pointer"
+                                                                    title="Delete notification"
+                                                                    aria-label="Delete notification"
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <p className={`text-xs mt-1 line-clamp-2 leading-relaxed ${
+                                                            !isRead ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'
+                                                        }`}>
+                                                            {notification.message}
                                                         </p>
 
-                                                        <div className="shrink-0 pt-0.5 flex items-center gap-1.5">
-                                                            {!notification.is_read ? (
-                                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium 
-                                            bg-pink-100 dark:bg-pink-950/50 
-                                            text-pink-700 dark:text-pink-300 
-                                            px-2 py-0.5 rounded-full whitespace-nowrap">
-                                                                    <span className="w-1.5 h-1.5 bg-pink-500 rounded-full animate-pulse" />
-                                                                    New
+                                                        {/* Dispatch Manifest Excel Attachment Download */}
+                                                        {notification.link && (notification.link.includes('dispatch-manifest') || notification.type === 'dispatch_manifest') && (
+                                                            <div className="mt-2.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/60 flex items-center justify-between gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (!isRead) {
+                                                                            handleMarkAsRead(notification.id);
+                                                                        }
+                                                                        const a = document.createElement('a');
+                                                                        a.href = notification.link;
+                                                                        a.target = '_blank';
+                                                                        a.download = '';
+                                                                        document.body.appendChild(a);
+                                                                        a.click();
+                                                                        document.body.removeChild(a);
+                                                                        toast.success('Downloading attached manifest (.xlsx)...');
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-xl text-emerald-700 dark:text-emerald-300 bg-[#e8f5ec] dark:bg-[#15231c] shadow-[3px_3px_7px_#c6d8cb,-3px_-3px_7px_#ffffff] dark:shadow-[3px_3px_7px_#0a110d,-2px_-2px_6px_#1e3228] hover:shadow-[inset_2px_2px_4px_#c6d8cb,inset_-2px_-2px_4px_#ffffff] dark:hover:shadow-[inset_2px_2px_4px_#0a110d,inset_-2px_-2px_4px_#1e3228] active:scale-95 transition-all cursor-pointer"
+                                                                >
+                                                                    <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                                    <span>Download Attached (.xlsx)</span>
+                                                                </button>
+                                                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium px-2 py-0.5 rounded-md bg-[#e4f2e9] dark:bg-[#121e18] shadow-[inset_1px_1px_2px_#c4d5ca,inset_-1px_-1px_2px_#ffffff] flex items-center gap-1">
+                                                                    <FileSpreadsheet className="h-3 w-3" />
+                                                                    <span>Excel File</span>
                                                                 </span>
-                                                            ) : (
-                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">Read</span>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Neumorphic Footer Chips */}
+                                                        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap text-[10px] text-slate-400 dark:text-slate-500">
+                                                            <span className="px-2 py-0.5 rounded-md bg-[#e3e9f3] dark:bg-[#14151e] shadow-[inset_1px_1px_2px_#ccd5e2,inset_-1px_-1px_2px_#ffffff] dark:shadow-[inset_1px_1px_2px_#0d0e14,inset_-1px_-1px_2px_#1f212d] text-slate-600 dark:text-slate-400 font-medium">
+                                                                {new Date(notification.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                            </span>
+                                                            <span>•</span>
+                                                            <span className="truncate max-w-[110px] px-2 py-0.5 rounded-md bg-[#e3e9f3] dark:bg-[#14151e] shadow-[inset_1px_1px_2px_#ccd5e2,inset_-1px_-1px_2px_#ffffff] dark:shadow-[inset_1px_1px_2px_#0d0e14,inset_-1px_-1px_2px_#1f212d] font-medium text-slate-600 dark:text-slate-400">
+                                                                {notification.creator_name}
+                                                            </span>
+
+                                                            {notification.type === 'purchase_request' && (
+                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 shadow-[inset_1px_1px_2px_rgba(99,102,241,0.2)] ml-auto">
+                                                                    PO
+                                                                </span>
                                                             )}
 
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => handleDeleteNotification(notification.id, e)}
-                                                                className="opacity-70 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-all"
-                                                                title="Delete notification"
-                                                                aria-label="Delete notification"
-                                                            >
-                                                                <Trash2 className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-
-                                                    <p className={`text-xs mt-1 line-clamp-2 leading-relaxed 
-                                    ${!notification.is_read ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                        {notification.message}
-                                                    </p>
-
-                                                    {/* Download Attached File Button for Dispatch Manifests */}
-                                                    {notification.link && (notification.link.includes('dispatch-manifest') || notification.type === 'dispatch_manifest') && (
-                                                        <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    if (!notification.is_read) {
-                                                                        handleMarkAsRead(notification.id);
+                                                            {notification.role && (() => {
+                                                                const rawRole = notification.role;
+                                                                let roleList: string[] = [];
+                                                                if (Array.isArray(rawRole)) {
+                                                                    roleList = rawRole.map(String);
+                                                                } else if (typeof rawRole === 'string') {
+                                                                    if (rawRole.startsWith('[') && rawRole.endsWith(']')) {
+                                                                        try {
+                                                                            const parsed = JSON.parse(rawRole);
+                                                                            if (Array.isArray(parsed)) roleList = parsed.map(String);
+                                                                        } catch {
+                                                                            roleList = [rawRole];
+                                                                        }
+                                                                    } else {
+                                                                        roleList = [rawRole];
                                                                     }
-                                                                    const a = document.createElement('a');
-                                                                    a.href = notification.link;
-                                                                    a.target = '_blank';
-                                                                    a.download = '';
-                                                                    document.body.appendChild(a);
-                                                                    a.click();
-                                                                    document.body.removeChild(a);
-                                                                    toast.success('Downloading attached manifest (.xlsx)...');
-                                                                }}
-                                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800/50 transition-colors shadow-2xs cursor-pointer"
-                                                            >
-                                                                <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                                                <span>Download Attached (.xlsx)</span>
-                                                            </button>
-                                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800/30 flex items-center gap-1">
-                                                                <FileSpreadsheet className="h-3 w-3" />
-                                                                <span>Excel Attached</span>
-                                                            </span>
+                                                                }
+                                                                const displayRole = roleList.join(', ');
+                                                                return (
+                                                                    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-[#e3e9f3] dark:bg-[#14151e] shadow-[inset_1px_1px_2px_#ccd5e2,inset_-1px_-1px_2px_#ffffff] dark:shadow-[inset_1px_1px_2px_#0d0e14,inset_-1px_-1px_2px_#1f212d] border border-slate-200/40 dark:border-white/5 ${getRoleColor(notification.role)} whitespace-nowrap`}>
+                                                                        {getRoleIcon(notification.role)}
+                                                                        <span className="font-semibold">To: {displayRole}</span>
+                                                                    </span>
+                                                                );
+                                                            })()}
                                                         </div>
-                                                    )}
-
-                                                    {/* Metadata Chips Footer */}
-                                                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap text-[10px] text-slate-400 dark:text-slate-500">
-                                                        <span className="font-medium text-slate-500 dark:text-slate-400">
-                                                            {new Date(notification.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                                        </span>
-                                                        <span>•</span>
-                                                        <span className="truncate max-w-[110px] font-medium text-slate-500 dark:text-slate-400">
-                                                            {notification.creator_name}
-                                                        </span>
-
-                                                        {notification.type === 'purchase_request' && (
-                                                            <span className="text-[10px] font-medium 
-                                          bg-indigo-50 dark:bg-indigo-950/30 
-                                          text-indigo-600 dark:text-indigo-400 
-                                          border border-indigo-100 dark:border-indigo-800/30 
-                                          px-1.5 py-0.5 rounded-md whitespace-nowrap ml-auto">
-                                                                PO
-                                                            </span>
-                                                        )}
-
-                                                        {notification.role && (
-                                                            <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${getRoleColor(notification.role)} whitespace-nowrap`}>
-                                                                {getRoleIcon(notification.role)}
-                                                                <span className="font-medium">{notification.role}</span>
-                                                            </span>
-                                                        )}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
 
-                                        {/* Load More Button */}
+                                        {/* Neumorphic Load More Button */}
                                         {hasMore && totalCount > 0 && (
-                                            <div className="p-3 bg-slate-50/50 dark:bg-slate-800/30">
+                                            <div className="pt-2 pb-1">
                                                 <button
                                                     onClick={handleLoadMore}
                                                     disabled={isLoadingMore}
-                                                    className="w-full py-2 px-3 text-xs font-semibold 
-                                text-pink-600 dark:text-pink-400 
-                                hover:text-pink-700 dark:hover:text-pink-300 
-                                bg-white dark:bg-[#2a2a2e] 
-                                hover:bg-pink-50/50 dark:hover:bg-pink-950/20 
-                                border border-slate-200/80 dark:border-slate-700/60 
-                                rounded-xl transition-all shadow-sm 
-                                disabled:opacity-50 disabled:cursor-not-allowed 
-                                flex items-center justify-center gap-2"
+                                                    className="w-full py-2.5 px-4 text-xs font-semibold 
+                                                    text-pink-600 dark:text-pink-400 
+                                                    bg-[#ebf0f7] dark:bg-[#1c1e2b] 
+                                                    shadow-[4px_4px_10px_#c5cfdd,-4px_-4px_10px_#ffffff] dark:shadow-[4px_4px_10px_#0d0e14,-4px_-4px_10px_#262838] 
+                                                    hover:shadow-[inset_2px_2px_5px_#c5cfdd,inset_-2px_-2px_5px_#ffffff] dark:hover:shadow-[inset_2px_2px_5px_#0d0e14,inset_-2px_-2px_5px_#262838] 
+                                                    active:scale-98 rounded-2xl transition-all 
+                                                    disabled:opacity-50 disabled:cursor-not-allowed 
+                                                    flex items-center justify-center gap-2 cursor-pointer"
                                                 >
                                                     {isLoadingMore ? (
                                                         <>
@@ -1306,7 +1562,7 @@ export function NotificationBell() {
                                         )}
 
                                         {!hasMore && notifications.length > 0 && (
-                                            <div className="py-3 text-center bg-slate-50/30 dark:bg-slate-800/20">
+                                            <div className="py-2 text-center">
                                                 <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                                                     Showing all {notifications.length} notifications
                                                 </span>

@@ -265,7 +265,7 @@ export function useDocuments() {
         }
     }, [debouncedSearch, typeFilter, extensionFilter, categoryFilter, supplierFilter, dateFrom, dateTo, currentPage]);
 
-    // fetch activity history
+    // fetch activity history (document operations only)
     const fetchActivities = useCallback(async () => {
         try {
             let query = supabase
@@ -273,14 +273,19 @@ export function useDocuments() {
                 .select('*', { count: 'exact' })
                 .order('timestamp', { ascending: false });
 
-            if (debouncedActivitySearch) {
-                query = query.or(
-                    `user_name.ilike.%${debouncedActivitySearch}%,document_title.ilike.%${debouncedActivitySearch}%`
-                );
-            }
+            // Allowed document-specific actions for the Documents module
+            const docActionList = ['upload', 'update', 'delete', 'create', 'attach', 'archive', 'restore', 'download', 'preview', 'ocr_verify', 'verification_override'];
 
             if (activityFilter) {
                 query = query.eq('action_type', activityFilter);
+            } else {
+                query = query.or(`action_type.in.(${docActionList.join(',')}),document_id.not.is.null,document_title.not.is.null`);
+            }
+
+            if (debouncedActivitySearch) {
+                query = query.or(
+                    `user_name.ilike.%${debouncedActivitySearch}%,document_title.ilike.%${debouncedActivitySearch}%,target_resource.ilike.%${debouncedActivitySearch}%`
+                );
             }
 
             if (activityDateFrom) {
@@ -298,7 +303,16 @@ export function useDocuments() {
 
             if (error) throw error;
 
-            setActivities(data || []);
+            // Extra client-side safety guard: filter out any user/auth/supplier actions without document reference
+            const filteredData = (data || []).filter((act: Activity) => {
+                const action = (act.action_type || '').toLowerCase();
+                const hasDocRef = Boolean(act.document_id || act.document_title);
+                const isNonDocAction = action.includes('supplier_account') || action.includes('login') || action.includes('logout') || action.includes('password') || action.includes('session');
+                if (isNonDocAction && !hasDocRef) return false;
+                return docActionList.includes(action) || hasDocRef || action.includes('doc') || action.includes('file');
+            });
+
+            setActivities(filteredData);
             setTotalActivities(count || 0);
         } catch (error) {
             console.error('Error fetching activities:', error);
@@ -371,10 +385,12 @@ export function useDocuments() {
         try {
             const name = userName || DEFAULT_USER.name;
             const email = userEmail || DEFAULT_USER.email;
+            const effectiveUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null);
 
-            const activityData = {
+            const activityData: any = {
                 user_name: name,
                 user_email: email,
+                user_id: effectiveUserId || null,
                 action_type: actionType,
                 target_resource: targetResource,
                 document_id: documentId || null,
@@ -397,7 +413,7 @@ export function useDocuments() {
             console.error('Error logging activity:', error);
             return null;
         }
-    }, [userName, userEmail]);
+    }, [userName, userEmail, userId]);
 
     // download single file
     const downloadFile = useCallback(async (doc: Document) => {
@@ -800,9 +816,9 @@ export function useDocuments() {
         const toastId = toast.loading(`Verifying & uploading ${selectedFiles.length} file(s)...`);
 
         try {
-            let uploadedCount = 0;
-            let skippedCount = 0;
-            const skippedFiles: string[] = [];
+            const uploadedFiles: string[] = [];
+            const skippedFiles: { name: string; reason: string }[] = [];
+            const failedFiles: { name: string; reason: string }[] = [];
 
             for (const file of selectedFiles) {
                 // Check duplicate
@@ -814,17 +830,17 @@ export function useDocuments() {
 
                 if (checkError) {
                     console.error('Duplicate check error:', checkError);
-                    toast.error(`Failed to check for duplicates for ${file.name}`);
+                    failedFiles.push({ name: file.name, reason: `Duplicate check error: ${checkError.message}` });
                     continue;
                 }
 
                 if (existingDocs && existingDocs.length > 0) {
-                    skippedCount++;
-                    skippedFiles.push(file.name);
+                    skippedFiles.push({ name: file.name, reason: 'Duplicate (file already exists in system)' });
                     continue;
                 }
 
                 // OCR Document Validation via Gemini
+                let currentOcrData: any = null;
                 try {
                     const reader = new FileReader();
                     const base64Promise = new Promise<string>((resolve, reject) => {
@@ -846,24 +862,43 @@ export function useDocuments() {
                     });
 
                     const ocrData = await ocrRes.json();
+                    if (ocrData?.success) {
+                        currentOcrData = ocrData;
+                    }
 
                     if (ocrData.success && !ocrData.is_valid_system_doc) {
                         if (!isPrivileged) {
-                            // Non-admin hard rejection
-                            toast.error(
-                                `Document Rejected: ${ocrData.rejection_reason || 'Out-of-scope media detected.'}`,
-                                { id: toastId, duration: 6000 }
-                            );
-                            setIsUploading(false);
-                            return;
+                            // Non-admin rejection: record failure for this file
+                            if (selectedFiles.length === 1) {
+                                toast.error(
+                                    `Document Rejected: ${ocrData.rejection_reason || 'Out-of-scope media detected.'}`,
+                                    { id: toastId, duration: 6000 }
+                                );
+                                setIsUploading(false);
+                                return;
+                            } else {
+                                failedFiles.push({
+                                    name: file.name,
+                                    reason: ocrData.rejection_reason || 'Out-of-scope media detected by AI verification'
+                                });
+                                continue;
+                            }
                         } else {
-                            // Admin warning notice
-                            setOcrWarning(
-                                `Warning: Gemini OCR detected "${ocrData.detected_type || 'Unrelated media'}". ${ocrData.rejection_reason || 'Out-of-scope media.'} As an Admin/Executive, you may proceed with an override.`
-                            );
-                            toast.warning('AI Warning: Out-of-scope media detected. Review warning to override.', { id: toastId });
-                            setIsUploading(false);
-                            return;
+                            // Admin warning notice for single-file, or record for batch
+                            if (selectedFiles.length === 1) {
+                                setOcrWarning(
+                                    `Warning: Gemini OCR detected "${ocrData.detected_type || 'Unrelated media'}". ${ocrData.rejection_reason || 'Out-of-scope media.'} As an Admin/Executive, you may proceed with an override.`
+                                );
+                                toast.warning('AI Warning: Out-of-scope media detected. Review warning to override.', { id: toastId });
+                                setIsUploading(false);
+                                return;
+                            } else {
+                                failedFiles.push({
+                                    name: file.name,
+                                    reason: `AI Warning: ${ocrData.rejection_reason || 'Out-of-scope media'} (Requires Admin Override)`
+                                });
+                                continue;
+                            }
                         }
                     }
                 } catch (ocrErr) {
@@ -883,11 +918,29 @@ export function useDocuments() {
 
                 if (uploadError) {
                     console.error('Upload error:', uploadError);
-                    toast.error(`Failed to upload ${file.name}: ${uploadError.message}`);
+                    failedFiles.push({ name: file.name, reason: uploadError.message || 'Storage upload error' });
                     continue;
                 }
 
-                const docTitle = title.trim() || `${documentType} - ${file.name}`;
+                const docTitle = title.trim() || (currentOcrData?.extracted_title ? `${documentType} - ${currentOcrData.extracted_title}` : `${documentType} - ${file.name}`);
+                const finalSupplier = supplier || currentOcrData?.extracted_supplier || null;
+                const finalPo = poNumber || currentOcrData?.extracted_po_number || null;
+                const finalPrice = price || currentOcrData?.extracted_price || null;
+
+                const extractedRecord = currentOcrData?.extracted || (currentOcrData ? {
+                    text: currentOcrData.extracted_text || null,
+                    description: currentOcrData.photo_description || currentOcrData.summary || null,
+                    visual_objects: currentOcrData.visual_objects || [],
+                    vendor_name: finalSupplier,
+                    po_number: finalPo,
+                    price: finalPrice,
+                    summary: currentOcrData.summary || null,
+                    document_type: currentOcrData.detected_type || documentType,
+                    category: currentOcrData.detected_category || category,
+                    confidence_score: currentOcrData.confidence_score || 90,
+                    extracted_at: new Date().toISOString(),
+                } : null);
+
                 const insertData: any = {
                     title: docTitle,
                     file_name: file.name,
@@ -896,16 +949,17 @@ export function useDocuments() {
                     storage_path: filePath,
                     category: category,
                     document_type: documentType,
-                    supplier: supplier,
-                    po_number: poNumber,
+                    supplier: finalSupplier,
+                    po_number: finalPo,
                     parcel_batch: parcelBatch,
                     uploaded_by: uploadedBy,
                     notes: notes,
-                    Price: price,
+                    Price: finalPrice,
                     version: 1,
                     user_id: currentUserId || null,
                     session_id: userSessionId || null,
                     role: userRole || null,
+                    extracted: extractedRecord,
                 };
 
                 const { error: insertError } = await supabase
@@ -914,67 +968,92 @@ export function useDocuments() {
 
                 if (insertError) {
                     console.error('Insert error:', insertError);
-                    toast.error(`Failed to save ${file.name}: ${insertError.message}`);
+                    failedFiles.push({ name: file.name, reason: insertError.message || 'Database save error' });
                     continue;
                 }
 
-                uploadedCount++;
-                setUploadProgress(Math.round(((uploadedCount + skippedCount) / selectedFiles.length) * 100));
+                uploadedFiles.push(file.name);
+                setUploadProgress(Math.round(((uploadedFiles.length + skippedFiles.length + failedFiles.length) / selectedFiles.length) * 100));
             }
 
-            if (uploadedCount > 0 && skippedCount > 0) {
-                toast.warning(`Uploaded ${uploadedCount} file(s), skipped ${skippedCount} duplicate(s)`, {
+            const unuploadedItems = [
+                ...failedFiles.map(f => `• ${f.name} (Failed: ${f.reason})`),
+                ...skippedFiles.map(s => `• ${s.name} (Skipped: ${s.reason})`),
+            ];
+
+            // 1. Toast Notification to uploader
+            if (uploadedFiles.length === selectedFiles.length) {
+                toast.success(`All ${uploadedFiles.length} file(s) uploaded successfully!`, {
                     id: toastId,
-                    duration: 5000,
+                    duration: 4000,
                 });
-            } else if (uploadedCount > 0) {
-                toast.success(`Successfully uploaded ${uploadedCount} file(s)!`, {
-                    id: toastId,
-                    duration: 3000,
-                });
-            } else if (skippedCount > 0) {
-                toast.warning(`All ${skippedCount} file(s) already exist and were skipped`, {
-                    id: toastId,
-                    duration: 5000,
-                });
+            } else if (uploadedFiles.length > 0) {
+                toast.warning(
+                    `Uploaded ${uploadedFiles.length} of ${selectedFiles.length} file(s).\n${unuploadedItems.length} not uploaded:\n${unuploadedItems.join('\n')}`,
+                    {
+                        id: toastId,
+                        duration: 8000,
+                    }
+                );
             } else {
-                toast.error('No files were uploaded successfully', {
-                    id: toastId,
-                    duration: 5000,
-                });
+                toast.error(
+                    `None of the ${selectedFiles.length} file(s) could be uploaded:\n${unuploadedItems.join('\n')}`,
+                    {
+                        id: toastId,
+                        duration: 8000,
+                    }
+                );
             }
 
-            if (uploadedCount > 0 || skippedCount > 0) {
-                // Insert notification in notifications table for the uploader only
-                try {
-                    const notifData: any = {
-                        creator_name: uploadedBy || userName || DEFAULT_USER.name,
-                        creator_email: userEmail || DEFAULT_USER.email,
-                        title: `Document Uploaded: "${title.trim() || `${documentType} (${uploadedCount} file${uploadedCount > 1 ? 's' : ''})`}"`,
-                        message: `${uploadedCount} document(s) (${documentType}, ${category}) uploaded successfully.`,
-                        type: 'info',
-                        link: '/documents',
-                        role: userRole || 'User',
-                        reference_type: 'document_upload',
-                        is_read: false,
-                    };
+            // 2. In-app Notification record to the uploader
+            try {
+                let notifTitle = '';
+                let notifMsg = '';
+                let notifType = 'info';
 
-                    if (currentUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId)) {
-                        notifData.user_id = currentUserId;
-                    }
-
-                    const { error: notifErr } = await supabase
-                        .from('notifications')
-                        .insert(notifData);
-
-                    if (notifErr && notifData.user_id) {
-                        delete notifData.user_id;
-                        await supabase.from('notifications').insert(notifData);
-                    }
-                } catch (notifErr) {
-                    console.warn('Could not insert document upload notification:', notifErr);
+                if (uploadedFiles.length === selectedFiles.length) {
+                    notifTitle = `Upload Complete: All ${uploadedFiles.length} files uploaded`;
+                    notifMsg = `All ${uploadedFiles.length} document(s) (${documentType}, ${category}) were successfully verified and uploaded.`;
+                    notifType = 'info';
+                } else if (uploadedFiles.length > 0) {
+                    notifTitle = `Upload Partial: ${uploadedFiles.length}/${selectedFiles.length} files uploaded`;
+                    notifMsg = `Uploaded ${uploadedFiles.length} of ${selectedFiles.length} files.\n${unuploadedItems.length} file(s) were not uploaded:\n${unuploadedItems.join('\n')}`;
+                    notifType = 'alert';
+                } else {
+                    notifTitle = `Upload Failed: 0/${selectedFiles.length} files uploaded`;
+                    notifMsg = `Failed to upload ${selectedFiles.length} file(s):\n${unuploadedItems.join('\n')}`;
+                    notifType = 'alert';
                 }
 
+                const notifData: any = {
+                    creator_name: uploadedBy || userName || DEFAULT_USER.name,
+                    creator_email: userEmail || DEFAULT_USER.email,
+                    title: notifTitle,
+                    message: notifMsg,
+                    type: notifType,
+                    link: '/documents',
+                    role: userRole || 'User',
+                    reference_type: 'document_upload',
+                    is_read: false,
+                };
+
+                if (currentUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId)) {
+                    notifData.user_id = currentUserId;
+                }
+
+                const { error: notifErr } = await supabase
+                    .from('notifications')
+                    .insert(notifData);
+
+                if (notifErr && notifData.user_id) {
+                    delete notifData.user_id;
+                    await supabase.from('notifications').insert(notifData);
+                }
+            } catch (notifErr) {
+                console.warn('Could not insert document upload notification:', notifErr);
+            }
+
+            if (uploadedFiles.length > 0) {
                 clearAllCachedFilePreviewUrls();
                 setSelectedFiles([]);
                 setUploadProgress(0);
@@ -999,7 +1078,7 @@ export function useDocuments() {
     const handleConfirmForceUpload = async () => {
         if (selectedFiles.length === 0) return;
         setIsUploading(true);
-        const toastId = toast.loading('Uploading with Admin override...');
+        const toastId = toast.loading(`Uploading ${selectedFiles.length} file(s) with Admin override...`);
 
         try {
             let currentUserId = userId;
@@ -1008,49 +1087,81 @@ export function useDocuments() {
                 currentUserId = authUser?.id || null;
             }
 
+            const uploadedFiles: string[] = [];
+            const failedFiles: { name: string; reason: string }[] = [];
+
             for (const file of selectedFiles) {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
-                const filePath = `documents/${fileName}`;
+                try {
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
+                    const filePath = `documents/${fileName}`;
 
-                const { error: uploadError } = await supabase.storage
-                    .from('documents')
-                    .upload(filePath, file, { cacheControl: '3600', upsert: true });
+                    const { error: uploadError } = await supabase.storage
+                        .from('documents')
+                        .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
-                if (uploadError) throw uploadError;
+                    if (uploadError) {
+                        failedFiles.push({ name: file.name, reason: uploadError.message || 'Storage error' });
+                        continue;
+                    }
 
-                const insertData: any = {
-                    title: `Admin Override - ${file.name}`,
-                    file_name: file.name,
-                    file_size: file.size,
-                    file_type: file.type || fileExt || 'unknown',
-                    storage_path: filePath,
-                    category: 'documents',
-                    document_type: 'Other',
-                    uploaded_by: userName || DEFAULT_USER.name,
-                    version: 1,
-                    user_id: currentUserId || null,
-                    session_id: userSessionId || null,
-                    role: userRole || null,
-                    force_inserted_by: currentUserId || null,
-                };
+                    const insertData: any = {
+                        title: `Admin Override - ${file.name}`,
+                        file_name: file.name,
+                        file_size: file.size,
+                        file_type: file.type || fileExt || 'unknown',
+                        storage_path: filePath,
+                        category: 'documents',
+                        document_type: 'Other',
+                        uploaded_by: userName || DEFAULT_USER.name,
+                        version: 1,
+                        user_id: currentUserId || null,
+                        session_id: userSessionId || null,
+                        role: userRole || null,
+                        force_inserted_by: currentUserId || null,
+                        extracted: {
+                            text: null,
+                            description: `Document uploaded with Admin override: ${file.name}`,
+                            summary: `Admin Override Upload: ${file.name}`,
+                            visual_objects: [],
+                            extracted_at: new Date().toISOString(),
+                        },
+                    };
 
-                const { error: insertError } = await supabase
-                    .from('documents')
-                    .insert(insertData);
+                    const { error: insertError } = await supabase
+                        .from('documents')
+                        .insert(insertData);
 
-                if (insertError) throw insertError;
+                    if (insertError) {
+                        failedFiles.push({ name: file.name, reason: insertError.message || 'Database error' });
+                        continue;
+                    }
+
+                    uploadedFiles.push(file.name);
+                } catch (err: any) {
+                    failedFiles.push({ name: file.name, reason: err.message || 'Unexpected error' });
+                }
             }
 
-            toast.success('Files uploaded successfully with Admin override!', { id: toastId });
+            const unuploadedItems = failedFiles.map(f => `• ${f.name} (Failed: ${f.reason})`);
+
+            if (uploadedFiles.length === selectedFiles.length) {
+                toast.success(`All ${uploadedFiles.length} file(s) uploaded successfully with Admin override!`, { id: toastId, duration: 4000 });
+            } else if (uploadedFiles.length > 0) {
+                toast.warning(`Uploaded ${uploadedFiles.length} of ${selectedFiles.length} file(s) with override.\nFailed:\n${unuploadedItems.join('\n')}`, { id: toastId, duration: 8000 });
+            } else {
+                toast.error(`Admin override failed for all ${selectedFiles.length} file(s):\n${unuploadedItems.join('\n')}`, { id: toastId, duration: 8000 });
+            }
 
             // Insert notification in notifications table
             try {
                 const notifData: any = {
                     creator_name: userName || DEFAULT_USER.name,
                     creator_email: userEmail || DEFAULT_USER.email,
-                    title: `Admin Override Upload: ${selectedFiles.length} file(s)`,
-                    message: `Admin override upload of ${selectedFiles.length} document(s) completed by ${userName || DEFAULT_USER.name}.`,
+                    title: `Admin Override Upload: ${uploadedFiles.length}/${selectedFiles.length} file(s)`,
+                    message: uploadedFiles.length === selectedFiles.length
+                        ? `Admin override upload of all ${uploadedFiles.length} document(s) completed by ${userName || DEFAULT_USER.name}.`
+                        : `Admin override upload of ${uploadedFiles.length} of ${selectedFiles.length} document(s) completed. Failed:\n${unuploadedItems.join('\n')}`,
                     type: 'alert',
                     link: '/documents',
                     role: 'Admin',
@@ -1069,13 +1180,15 @@ export function useDocuments() {
                 console.warn('Could not insert admin override notification:', notifErr);
             }
 
-            clearAllCachedFilePreviewUrls();
-            setSelectedFiles([]);
-            setOcrWarning(null);
-            setIsUploadModalOpen(false);
-            await fetchStatistics();
-            await fetchDocuments(false);
-            await fetchActivities();
+            if (uploadedFiles.length > 0) {
+                clearAllCachedFilePreviewUrls();
+                setSelectedFiles([]);
+                setOcrWarning(null);
+                setIsUploadModalOpen(false);
+                await fetchStatistics();
+                await fetchDocuments(false);
+                await fetchActivities();
+            }
         } catch (err: any) {
             console.error('Force upload error:', err);
             toast.error(err.message || 'Failed to upload with override', { id: toastId });

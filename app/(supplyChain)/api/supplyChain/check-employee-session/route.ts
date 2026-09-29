@@ -1,10 +1,23 @@
-import { supabase } from '../../../lib/services/client/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || '';
+const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_ANON_KEY || '';
+
+const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+    },
+});
 
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const email = searchParams.get('email');
+        const clientToken = request.headers.get('x-session-token') || searchParams.get('session_token') || '';
 
         if (!email) {
             return NextResponse.json(
@@ -13,19 +26,37 @@ export async function GET(request: Request) {
             );
         }
 
-        // find session by email
-        const { data: session, error } = await supabase
-            .from('sessions')
-            .select('email, remember_me, expires_at, user_agent, hr_employee_name, user_id, session_token, is_active')
-            .eq('email', email)
-            .maybeSingle();
+        // find session by token first if provided, or by email ordered by latest updated_at
+        let session: any = null;
 
-        if (error) {
-            console.error('Database error:', error);
-            return NextResponse.json(
-                { found: false, message: 'Database error' },
-                { status: 500 }
-            );
+        if (clientToken) {
+            const { data } = await supabaseAdmin
+                .from('sessions')
+                .select('email, remember_me, expires_at, expires_at_remember, user_agent, hr_employee_name, user_id, session_token, is_active')
+                .eq('session_token', clientToken)
+                .maybeSingle();
+            session = data;
+        }
+
+        if (!session) {
+            const { data: sessions, error } = await supabaseAdmin
+                .from('sessions')
+                .select('email, remember_me, expires_at, expires_at_remember, user_agent, hr_employee_name, user_id, session_token, is_active')
+                .eq('email', email)
+                .order('updated_at', { ascending: false })
+                .limit(1);
+
+            if (error) {
+                console.error('Database error fetching session:', error);
+                return NextResponse.json(
+                    { found: false, message: 'Database error' },
+                    { status: 500 }
+                );
+            }
+
+            if (sessions && sessions.length > 0) {
+                session = sessions[0];
+            }
         }
 
         if (!session) {
@@ -35,18 +66,34 @@ export async function GET(request: Request) {
             );
         }
 
+        // check expiration against current time
+        const expiryDate = session.expires_at_remember || session.expires_at;
+        const isExpired = Boolean(expiryDate && new Date(expiryDate) < new Date());
+
+        // Cryptographic Device Validation:
+        // A device is remembered on this specific browser only if clientToken matches session_token, remember_me is true, and session is not expired
+        const isTokenMatch = Boolean(clientToken && session.session_token && clientToken === session.session_token);
+        const isRemembered = Boolean(session.remember_me && !isExpired && isTokenMatch);
+
+        // Check if actively logged in on another device:
+        const isCurrentlyActive = Boolean(session.is_active === true && !isExpired && !isTokenMatch);
+
         // get user role
         let userRole: string | undefined = undefined;
-        const { data: userData } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', session.user_id)
-            .maybeSingle();
+        if (session.user_id) {
+            const { data: userData } = await supabaseAdmin
+                .from('users')
+                .select('role')
+                .eq('id', session.user_id)
+                .maybeSingle();
 
-        if (userData?.role) {
-            userRole = userData.role;
-        } else {
-            const { data: hrData } = await supabase
+            if (userData?.role) {
+                userRole = userData.role;
+            }
+        }
+
+        if (!userRole) {
+            const { data: hrData } = await supabaseAdmin
                 .from('mock_employees')
                 .select('role, position')
                 .eq('email', email)
@@ -56,28 +103,34 @@ export async function GET(request: Request) {
                 const rawRole = (hrData.role || hrData.position || '').trim();
                 if (/manager/i.test(rawRole)) userRole = 'Manager';
                 else if (/operator/i.test(rawRole)) userRole = 'Operator';
+                else if (/executive/i.test(rawRole)) userRole = 'Executive';
+                else if (/admin/i.test(rawRole)) userRole = 'Admin';
                 else userRole = hrData.role || 'Employee';
+            } else {
+                const { data: supData } = await supabaseAdmin
+                    .from('suppliers_account')
+                    .select('id')
+                    .eq('email', email)
+                    .maybeSingle();
+
+                if (supData) {
+                    userRole = 'Supplier';
+                }
             }
         }
 
-        // check expiration
-        const isExpired = new Date(session.expires_at) < new Date();
-
-        // check if actively logged in on another device
-        const isCurrentlyActive = session.is_active === true && !isExpired;
-
         return NextResponse.json({
             found: true,
-            remember_me: session.remember_me,
+            remember_me: isRemembered,
+            is_same_device: isTokenMatch,
             expires_at: session.expires_at,
-            user_agent: session.user_agent || '',
             hr_employee_name: session.hr_employee_name,
             is_expired: isExpired,
             is_active: session.is_active,
             is_currently_active: isCurrentlyActive,
             role: userRole || 'Employee',
             user_id: session.user_id,
-            session_token: session.session_token
+            session_token: session.session_token,
         });
     } catch (error) {
         console.error('Error checking employee session:', error);

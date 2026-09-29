@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { InventoryItem } from '../../types';
 import { AppButton } from '../../../../components/ui/AppButton';
+import { useConfirm } from '../../../../components/ui/ConfirmModal';
 import Portal from '../../../../components/client/Portal';
 
 interface StockOutModalProps {
@@ -25,6 +26,7 @@ export function StockOutModal({
     preSelectedItem = '',
     loading = false
 }: StockOutModalProps) {
+    const { confirm } = useConfirm();
     const [formData, setFormData] = useState({
         item: preSelectedItem,
         quantity: 0,
@@ -51,6 +53,15 @@ export function StockOutModal({
             toast.error(`Insufficient stock! Available: ${currentItem.current_stock} ${currentItem.unit}`);
             return;
         }
+
+        const confirmed = await confirm({
+            title: 'Direct Stock Out (No Request)',
+            message: `Are you sure you want to remove ${formData.quantity} ${currentItem?.unit || 'unit(s)'} of "${formData.item}"? This is a direct stock-out with NO requisition request.`,
+            confirmText: 'Remove Stock (No Request)',
+            confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+
         await onStockOut(formData.item, formData.quantity, formData.department, formData.purpose, formData.remarks);
         onClose();
     };
@@ -90,6 +101,16 @@ export function StockOutModal({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                        <i className="fas fa-exclamation-circle text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                            <p className="font-bold">Direct Stock Out (No Request)</p>
+                            <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 leading-relaxed">
+                                Direct warehouse stock deduction without a prior requisition request. A confirmation step will be required upon submission.
+                            </p>
+                        </div>
+                    </div>
+
                     <div className="bg-[#ebf0f7] dark:bg-[#14151e] rounded-2xl p-3.5 border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                         <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Target Item</span>
                         <div className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate">

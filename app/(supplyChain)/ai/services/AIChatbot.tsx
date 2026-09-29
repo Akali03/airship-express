@@ -82,6 +82,21 @@ export interface MatchedDocument {
     target_label?: string;
     is_gallery: boolean;
     view_link: string;
+    price?: string | null;
+    extracted?: {
+        text?: string | null;
+        description?: string | null;
+        visual_objects?: string[];
+        vendor_name?: string | null;
+        po_number?: string | null;
+        price?: string | null;
+        summary?: string | null;
+        document_type?: string | null;
+        category?: string | null;
+        confidence_score?: number;
+        [key: string]: any;
+    } | null;
+    match_score?: number;
     match_reason?: string;
     matched_criteria?: {
         label: string;
@@ -369,17 +384,31 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
             setTimeout(() => setActionFeedback(null), 4000);
             return;
         }
+        const currentRole = user.getRole() || '';
+        const isOperatorRole = currentRole.toLowerCase().trim() === 'operator';
+
         const reader = new FileReader();
         reader.onload = () => {
             const dataUrl = reader.result as string;
-            setActiveMode('search');
-            setAttachedFile({
-                name: file.name,
-                type: file.type || "application/octet-stream",
-                size: file.size,
-                dataUrl,
-                mode: 'search_document',
-            });
+            if (isOperatorRole) {
+                setActiveMode('chat');
+                setAttachedFile({
+                    name: file.name,
+                    type: file.type || "application/octet-stream",
+                    size: file.size,
+                    dataUrl,
+                    mode: 'normal',
+                });
+            } else {
+                setActiveMode('search');
+                setAttachedFile({
+                    name: file.name,
+                    type: file.type || "application/octet-stream",
+                    size: file.size,
+                    dataUrl,
+                    mode: 'search_document',
+                });
+            }
         };
         reader.readAsDataURL(file);
         e.target.value = "";
@@ -390,6 +419,13 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
     };
 
     const handleModeSwitch = (mode: 'chat' | 'search') => {
+        const currentRole = user.getRole() || '';
+        const isOperatorRole = currentRole.toLowerCase().trim() === 'operator';
+        if (mode === 'search' && isOperatorRole) {
+            setActionFeedback("Search Document with Photo is disabled for Operators");
+            setTimeout(() => setActionFeedback(null), 3500);
+            return;
+        }
         setActiveMode(mode);
         if (attachedFile) {
             setAttachedFile(prev => prev ? {
@@ -822,6 +858,7 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                 const currentRole = user.getRole() || 'User';
                 const currentUserName = user.getName() || 'User';
                 const currentUserEmail = user.getEmail() || '';
+                const currentUserId = user.getUserId() || '';
                 const docRes = await fetch('/ai/api/analyze-document', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -834,6 +871,7 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                         },
                         mode: currentFile.mode || (activeMode === 'search' ? 'search_document' : 'normal'),
                         userPrompt: trimmed,
+                        userId: currentUserId,
                         role: currentRole,
                         userName: currentUserName,
                         userEmail: currentUserEmail,
@@ -1640,10 +1678,11 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
     };
 
     const renderMatchedDocumentsWidget = (msg: Message) => {
-        const docs = msg.matchedDocuments && msg.matchedDocuments.length > 0
+        const rawDocs = msg.matchedDocuments && msg.matchedDocuments.length > 0
             ? msg.matchedDocuments
             : (msg.matchedDocument ? [msg.matchedDocument] : []);
 
+        const docs = rawDocs.filter(d => (d.match_score || 0) >= 20 && Array.isArray(d.matched_criteria) && d.matched_criteria.length > 0);
         if (docs.length === 0) return null;
 
         const activeDocId = previewActiveTab[msg.id] || docs[0].id;
@@ -1662,13 +1701,20 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                     <div className="flex items-center gap-2 min-w-0">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                         <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                            <i className="fas fa-check-circle text-emerald-500 text-xs" />
-                            <span>System Match Found {docs.length > 1 ? `(${docs.length} records)` : ''}</span>
+                            <i className="fas fa-search-plus text-emerald-500 text-xs" />
+                            <span>Google Lens Match {docs.length > 1 ? `(${docs.length} records)` : ''}</span>
                         </span>
                     </div>
-                    <StatusBadge tone="emerald" size="xs">
-                        {currentDoc.target_label || (currentDoc.is_gallery ? 'Media Gallery' : 'Documents')}
-                    </StatusBadge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        {currentDoc.match_score ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60">
+                                {Math.min(99, Math.max(65, currentDoc.match_score))}% Match
+                            </span>
+                        ) : null}
+                        <StatusBadge tone="emerald" size="xs">
+                            {currentDoc.target_label || (currentDoc.is_gallery ? 'Media Gallery' : 'Documents')}
+                        </StatusBadge>
+                    </div>
                 </div>
 
                 {/* Multiple Matches Tabs / Selector */}
@@ -1767,8 +1813,8 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                                 <i className="fas fa-link text-[10px] text-emerald-600 dark:text-emerald-400" />
                                 <span>Why this record matched</span>
                             </span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 max-w-[190px] truncate">
-                                {currentDoc.match_reason || "System Record Match"}
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 max-w-[200px] truncate">
+                                {currentDoc.match_reason || "Google Lens Match"}
                             </span>
                         </div>
 
@@ -1838,12 +1884,34 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                                 )}
                             </div>
                         </div>
+
+                        {currentDoc.price && (
+                            <div>
+                                <span className="text-slate-400 block text-[10px]">Amount / Price:</span>
+                                <strong className="text-pink-600 dark:text-pink-400 truncate block font-bold text-[11px]">
+                                    ₱{currentDoc.price}
+                                </strong>
+                            </div>
+                        )}
+
                         {currentDoc.notes && (
                             <div className="col-span-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
                                 <span className="text-slate-400 block text-[10px]">Details:</span>
                                 <span className="text-slate-600 dark:text-slate-300 text-[10.5px]">
                                     {currentDoc.notes}
                                 </span>
+                            </div>
+                        )}
+
+                        {(currentDoc.extracted?.description || currentDoc.extracted?.text) && (
+                            <div className="col-span-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                                <span className="text-slate-400 block text-[10px] font-semibold flex items-center gap-1">
+                                    <i className="fas fa-eye text-emerald-500 text-[9px]" />
+                                    <span>Extracted Visual & OCR Content:</span>
+                                </span>
+                                <p className="text-slate-600 dark:text-slate-300 text-[10.5px] line-clamp-2 mt-0.5">
+                                    {currentDoc.extracted.description || currentDoc.extracted.text}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -2495,15 +2563,23 @@ export default function AIChatbot({ isOpen, onClose }: AIChatbotProps) {
                                 <button
                                     type="button"
                                     onClick={() => handleModeSwitch('search')}
-                                    disabled={isLoading || (isLockedOut && lockoutSeconds > 0)}
-                                    className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
-                                        activeMode === 'search'
-                                            ? 'bg-emerald-500/15 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 shadow-[3px_3px_6px_rgba(16,185,129,0.2),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)]'
-                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                                    disabled={isLoading || (isLockedOut && lockoutSeconds > 0) || (user.getRole() || '').toLowerCase().trim() === 'operator'}
+                                    className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 ${
+                                        (user.getRole() || '').toLowerCase().trim() === 'operator'
+                                            ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-100/50 dark:bg-slate-800/30'
+                                            : activeMode === 'search'
+                                                ? 'bg-emerald-500/15 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 shadow-[3px_3px_6px_rgba(16,185,129,0.2),-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5),-1px_-1px_3px_rgba(255,255,255,0.04)] cursor-pointer'
+                                                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer'
                                     }`}
+                                    title={(user.getRole() || '').toLowerCase().trim() === 'operator' ? "Search Document with Photo is disabled for Operators" : "Search Document with Photo"}
                                 >
                                     <i className="fas fa-camera text-xs" />
                                     <span>Search Document with Photo</span>
+                                    {(user.getRole() || '').toLowerCase().trim() === 'operator' && (
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 font-semibold">
+                                            Disabled
+                                        </span>
+                                    )}
                                 </button>
                             </div>
 

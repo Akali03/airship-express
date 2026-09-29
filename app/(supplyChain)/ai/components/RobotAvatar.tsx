@@ -102,22 +102,24 @@ export function RobotAvatar({
                         }}
                     />
                 ) : isResponding ? (
-                    <motion.path
-                        d="M 35 58 Q 50 68 65 58"
-                        stroke="#34d399"
-                        strokeWidth="3"
-                        fill="none"
-                        strokeLinecap="round"
-                        animate={{
-                            d: ['M 35 58 Q 50 68 65 58', 'M 35 60 Q 50 70 65 60']
-                        }}
+                    <motion.g
+                        animate={{ scaleY: [1, 1.4, 0.8, 1.3, 1] }}
+                        style={{ transformOrigin: '50px 58px' }}
                         transition={{
                             duration: 0.5,
                             repeat: Infinity,
                             ease: "easeInOut" as const,
                             repeatType: "loop" as const,
                         }}
-                    />
+                    >
+                        <path
+                            d="M 35 58 Q 50 68 65 58"
+                            stroke="#34d399"
+                            strokeWidth="3"
+                            fill="none"
+                            strokeLinecap="round"
+                        />
+                    </motion.g>
                 ) : (
                     <path
                         d="M 38 55 Q 50 48 62 55"

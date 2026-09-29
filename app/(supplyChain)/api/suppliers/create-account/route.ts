@@ -83,26 +83,38 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2. Notify Admin & Executive
+        // 2. Notify Admin & Executive & Record in user_activity
         try {
             await supabaseAdmin.from("notifications").insert([
                 {
+                    creator_name: invitedByName || "Administrator",
+                    creator_email: "procurement@airshipexpress.ph",
                     title: "New Supplier Account Registered",
                     message: `A supplier portal account for ${companyName} (${normalizedEmail}) was registered by ${invitedByName || "Administrator"}.`,
-                    target_role: "Executive",
+                    role: ["Admin", "Executive"],
                     type: "supplier_account",
-                    created_at: new Date().toISOString(),
-                },
-                {
-                    title: "New Supplier Account Registered",
-                    message: `A supplier portal account for ${companyName} (${normalizedEmail}) was registered by ${invitedByName || "Administrator"}.`,
-                    target_role: "Admin",
-                    type: "supplier_account",
+                    link: "/suppliers",
+                    is_read: false,
                     created_at: new Date().toISOString(),
                 },
             ]);
+
+            // Log to user_activity table
+            if (invitedBy) {
+                const userAgent = request.headers.get('user-agent') || 'Server';
+                const ipAddress = request.headers.get('x-forwarded-for') || '127.0.0.1';
+                await supabaseAdmin.from('user_activity').insert({
+                    user_id: invitedBy,
+                    action: 'SUPPLIER_ACCOUNT_CREATED',
+                    module: 'Suppliers',
+                    description: `${invitedByName || 'Executive'} registered a new supplier account for ${companyName} (${normalizedEmail}).`,
+                    ip_address: ipAddress,
+                    user_agent: userAgent,
+                    created_at: new Date().toISOString(),
+                });
+            }
         } catch (notifErr) {
-            console.warn("Notification insert notice:", notifErr);
+            console.warn("Notification/UserActivity insert notice:", notifErr);
         }
 
         // 3. Send Invitation Email with Role credentials & instructions

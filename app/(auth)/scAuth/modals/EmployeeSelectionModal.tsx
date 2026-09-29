@@ -232,7 +232,8 @@ export default function EmployeeSelectionModal({
                             <button
                                 type="button"
                                 onClick={handleCloseModal}
-                                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_4px_#c4d0df,inset_-2px_-2px_4px_#ffffff] dark:active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.7)] border border-white/60 dark:border-white/[0.08] transition-all p-2 rounded-xl cursor-pointer"
+                                disabled={isRequestingOTP || isCheckingRemembered}
+                                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#d1dbe7,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6),-2px_-2px_6px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_4px_#c4d0df,inset_-2px_-2px_4px_#ffffff] dark:active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.7)] border border-white/60 dark:border-white/[0.08] transition-all p-2 rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Close"
                             >
                                 <X size={18} />
@@ -549,7 +550,8 @@ export default function EmployeeSelectionModal({
                                         <button
                                             type="button"
                                             onClick={handleCloseModal}
-                                            className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] rounded-xl text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer border border-white/60 dark:border-white/[0.08]"
+                                            disabled={isRequestingOTP || isCheckingRemembered}
+                                            className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[4px_4px_8px_#d1dbe7,-4px_-4px_8px_#ffffff] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.6),-3px_-3px_8px_rgba(255,255,255,0.03)] active:shadow-[inset_2px_2px_5px_#c4d0df,inset_-2px_-2px_5px_#ffffff] dark:active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.7)] rounded-xl text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer border border-white/60 dark:border-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             Cancel
                                         </button>
@@ -686,9 +688,11 @@ export default function EmployeeSelectionModal({
                                             />
                                             <span>Remember me on this device</span>
                                         </label>
-                                        <span className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 bg-[#EEF2F6] dark:bg-[#1A1F2B] px-2.5 py-0.5 rounded-lg border border-white/60 dark:border-white/[0.08] shadow-[2px_2px_4px_rgba(0,0,0,0.05)] shrink-0">
-                                            {rememberMe ? '15 days' : '8 hours'}
-                                        </span>
+                                        {rememberMe && (
+                                            <span className="text-[10px] sm:text-xs font-bold text-accent dark:text-pink-400 bg-[#EEF2F6] dark:bg-[#1A1F2B] px-2.5 py-0.5 rounded-lg border border-accent/30 dark:border-pink-500/30 shadow-[2px_2px_4px_rgba(0,0,0,0.05)] shrink-0 animate-in fade-in zoom-in duration-150">
+                                                15 days
+                                            </span>
+                                        )}
                                     </div>
 
                                     {otpExpiresIn > 0 ? (
@@ -738,7 +742,7 @@ export default function EmployeeSelectionModal({
                                                     <span>Resending...</span>
                                                 </>
                                             ) : countdown > 0 ? (
-                                                <span>Resend in {countdown}s</span>
+                                                <span>Resend in {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}</span>
                                             ) : (
                                                 <span>Resend Code</span>
                                             )}

@@ -4,20 +4,76 @@ import { supabase } from "../../../lib/services/client/supabase";
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const po = searchParams.get('po');
+    const action = (searchParams.get('action') || 'confirm').toLowerCase();
+    const isReject = action === 'reject' || action === 'decline';
 
     if (!po) {
         return new Response('Missing PO number', { status: 400 });
     }
 
-    const { error } = await supabase
+    const targetStatus = isReject ? 'Cancelled' : 'Confirmed';
+
+    // 1. Update PO in database
+    const { data: updatedPo, error } = await supabase
         .from('purchase_orders')
-        .update({ status: 'Confirmed', updated_at: new Date().toISOString() })
-        .eq('po_number', po);
+        .update({ status: targetStatus, updated_at: new Date().toISOString() })
+        .eq('po_number', po)
+        .select('*')
+        .maybeSingle();
 
     if (error) {
-        console.error('Error confirming PO:', error);
-        return new Response('Failed to confirm PO', { status: 500 });
+        console.error('Error updating PO status:', error);
+        return new Response('Failed to update PO status', { status: 500 });
     }
+
+    // 2. Fetch full PO info if select didn't return (fallback)
+    let poData = updatedPo;
+    if (!poData) {
+        const { data: fetched } = await supabase
+            .from('purchase_orders')
+            .select('*')
+            .eq('po_number', po)
+            .maybeSingle();
+        poData = fetched;
+    }
+
+    const supplierName = poData?.supplier_name || 'Supplier';
+    const amountStr = poData?.total_amount ? ` (₱${Number(poData.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : '';
+
+    // 3. Notify Manager, Admin & Executive
+    try {
+        const title = isReject
+            ? `Purchase Order Declined by Supplier: #${po}`
+            : `Purchase Order Accepted by Supplier: #${po}`;
+
+        const message = isReject
+            ? `Supplier "${supplierName}" has declined Purchase Order #${po}${amountStr}. Action required: Review and re-procure items.`
+            : `Supplier "${supplierName}" has accepted & confirmed Purchase Order #${po}${amountStr}. Expected delivery schedule acknowledged.`;
+
+        await supabase
+            .from('notifications')
+            .insert({
+                creator_name: supplierName,
+                creator_email: 'supplier@email-action.com',
+                title,
+                message,
+                type: 'alert',
+                link: `/purchase-orders?search=${encodeURIComponent(po)}`,
+                role: ['Manager', 'Admin', 'Executive'],
+                is_read: false,
+                reference_type: 'purchase_order',
+                reference_id: poData?.id || null,
+                po_request_id: poData?.request_id || null,
+            });
+    } catch (notifErr) {
+        console.error('Error inserting supplier email action notification:', notifErr);
+    }
+
+    const statusTitle = isReject ? 'Purchase Order Declined' : 'Purchase Order Confirmed';
+    const statusSubtitle = isReject 
+        ? 'Your response has been recorded. The procurement team and managers have been notified that this order was declined.'
+        : 'Your confirmation has been recorded and updated across all procurement systems. The management team has been notified.';
+    const badgeText = isReject ? 'Declined / Cancelled' : 'Confirmed';
 
     return new Response(`
         <!DOCTYPE html>
@@ -25,7 +81,7 @@ export async function GET(request: NextRequest) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PO Confirmed — ${po}</title>
+    <title>${statusTitle} — ${po}</title>
     <style>
         :root {
             --bg: #f8fafc;
@@ -37,11 +93,11 @@ export async function GET(request: NextRequest) {
             --badge-bg: #f1f5f9;
             --badge-text: #0f172a;
             --badge-border: #cbd5e1;
-            --status-bg: #ecfdf5;
-            --status-text: #047857;
-            --status-border: #a7f3d0;
-            --ring: #dcfce7;
-            --check-fill: #10b981;
+            --status-bg: ${isReject ? '#fef2f2' : '#ecfdf5'};
+            --status-text: ${isReject ? '#b91c1c' : '#047857'};
+            --status-border: ${isReject ? '#fecaca' : '#a7f3d0'};
+            --ring: ${isReject ? '#fee2e2' : '#dcfce7'};
+            --check-fill: ${isReject ? '#ef4444' : '#10b981'};
         }
 
         @media (prefers-color-scheme: dark) {
@@ -55,11 +111,11 @@ export async function GET(request: NextRequest) {
                 --badge-bg: #1e293b;
                 --badge-text: #e2e8f0;
                 --badge-border: #334155;
-                --status-bg: rgba(6, 78, 59, 0.4);
-                --status-text: #34d399;
-                --status-border: rgba(5, 150, 105, 0.4);
-                --ring: rgba(16, 185, 129, 0.15);
-                --check-fill: #10b981;
+                --status-bg: ${isReject ? 'rgba(127, 29, 29, 0.4)' : 'rgba(6, 78, 59, 0.4)'};
+                --status-text: ${isReject ? '#f87171' : '#34d399'};
+                --status-border: ${isReject ? 'rgba(239, 68, 68, 0.4)' : 'rgba(5, 150, 105, 0.4)'};
+                --ring: ${isReject ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'};
+                --check-fill: ${isReject ? '#ef4444' : '#10b981'};
             }
         }
 
@@ -94,7 +150,6 @@ export async function GET(request: NextRequest) {
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Success Animated Icon */
         .icon-container {
             width: 72px;
             height: 72px;
@@ -114,7 +169,7 @@ export async function GET(request: NextRequest) {
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 4px 12px ${isReject ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'};
         }
 
         .icon-inner svg {
@@ -142,7 +197,6 @@ export async function GET(request: NextRequest) {
             margin-bottom: 24px;
         }
 
-        /* Order Details Box */
         .details-box {
             background: var(--badge-bg);
             border: 1px solid var(--border);
@@ -202,20 +256,24 @@ export async function GET(request: NextRequest) {
 </head>
 <body>
     <div class="card">
-        <!-- Success Icon -->
         <div class="icon-container">
             <div class="icon-inner">
+                ${isReject ? `
+                <svg viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                ` : `
                 <svg viewBox="0 0 24 24">
                     <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
+                `}
             </div>
         </div>
 
-        <!-- Headings -->
-        <h1>Purchase Order Confirmed</h1>
-        <p class="subtitle">Your confirmation has been recorded and updated across all procurement systems.</p>
+        <h1>${statusTitle}</h1>
+        <p class="subtitle">${statusSubtitle}</p>
 
-        <!-- Information Card -->
         <div class="details-box">
             <div>
                 <span class="details-label">Order Reference</span>
@@ -223,13 +281,12 @@ export async function GET(request: NextRequest) {
             </div>
             <div class="status-badge">
                 <span class="status-dot"></span>
-                Confirmed
+                ${badgeText}
             </div>
         </div>
 
-        <!-- Footer Note -->
         <p class="footer-note">
-            Thank you for confirming this order. You may now close this window safely.
+            Thank you for your response. You may now close this window safely.
         </p>
     </div>
 </body>

@@ -105,17 +105,17 @@ export async function POST(request: Request) {
             const validUserId = isValidUuid(rawId) ? rawId : null;
             const displayName = employeeName || existingUser?.display_name || hrUser?.employee_name || 'User';
 
-            // rate limit check - max 5 in past hour
-            const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+            // rate limit check - max 5 in past 5 minutes
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
             const { count } = await supabaseAdmin
                 .from('otp_codes')
                 .select('*', { count: 'exact', head: true })
                 .eq('email', normalizedEmail)
-                .gte('created_at', oneHourAgo);
+                .gte('created_at', fiveMinutesAgo);
 
             if (count && count >= 5) {
                 return NextResponse.json(
-                    { message: 'Too many OTP requests. Please wait an hour before trying again.' },
+                    { message: 'Too many OTP requests. Please wait 5 minutes before trying again.' },
                     { status: 429 }
                 );
             }

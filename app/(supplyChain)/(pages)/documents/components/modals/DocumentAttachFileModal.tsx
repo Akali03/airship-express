@@ -96,7 +96,7 @@ export function DocumentAttachFileModal({
             }
 
             // Proceed with upload
-            await executeAttachment(toastId, false);
+            await executeAttachment(toastId, false, ocrData?.extracted);
         } catch (err: any) {
             console.error('OCR Verification error:', err);
             setIsVerifying(false);
@@ -106,10 +106,16 @@ export function DocumentAttachFileModal({
 
     const handleForceAttach = async () => {
         const toastId = toast.loading('Uploading file with Admin override...');
-        await executeAttachment(toastId, true);
+        await executeAttachment(toastId, true, {
+            text: null,
+            description: `Document attached via Admin override: ${selectedFile?.name}`,
+            summary: `Admin Override Attachment: ${selectedFile?.name}`,
+            visual_objects: [],
+            extracted_at: new Date().toISOString(),
+        });
     };
 
-    const executeAttachment = async (toastId: string | number, isForce: boolean) => {
+    const executeAttachment = async (toastId: string | number, isForce: boolean, extractedData?: any) => {
         if (!selectedFile) return;
         setIsAttaching(true);
 
@@ -137,6 +143,10 @@ export function DocumentAttachFileModal({
                 storage_path: filePath,
                 updated_at: new Date().toISOString(),
             };
+
+            if (extractedData) {
+                updatePayload.extracted = extractedData;
+            }
 
             if (isForce) {
                 const { data: { user: authUser } } = await supabase.auth.getUser();

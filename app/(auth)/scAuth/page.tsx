@@ -77,7 +77,7 @@ export default function SupplyChainLoginPage() {
     const [otpSent, setOtpSent] = useState(false);
     const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
     const [isVerifying, setIsVerifying] = useState(false);
-    const [countdown, setCountdown] = useState(0); // Resend button cooldown (30s)
+    const [countdown, setCountdown] = useState(0); // Resend button cooldown (120s = 2 mins)
     const [otpExpiresIn, setOtpExpiresIn] = useState(0); // OTP code lifespan (300s = 5m)
     const [otpError, setOtpError] = useState<string | null>(null);
     const [otpSuccess, setOtpSuccess] = useState<string | null>(null);
@@ -419,7 +419,6 @@ export default function SupplyChainLoginPage() {
         setIsSelectionLocked(true);
 
         try {
-            const storedUserAgent = user.getUserAgent();
             const data = await checkEmployeeSessionApi(employee.email);
 
             if (data.found && data.user_id) {
@@ -444,21 +443,14 @@ export default function SupplyChainLoginPage() {
                 return;
             }
 
-            if (data.found && data.remember_me && !data.is_expired) {
-                const isSameDevice = data.user_agent === storedUserAgent;
-
-                if (isSameDevice) {
-                    setIsRemembered(true);
-                    setRememberedData({
-                        ...data,
-                        role: data.role || employee.role || 'Employee',
-                        user: { role: data.role || employee.role || 'Employee' },
-                    });
-                    toast.success(`${employee.display_name} is remembered on this device`);
-                } else {
-                    toast.warning('Different device. Please verify with OTP.');
-                    setIsRemembered(false);
-                }
+            if (data.found && data.remember_me && data.is_same_device && !data.is_expired) {
+                setIsRemembered(true);
+                setRememberedData({
+                    ...data,
+                    role: data.role || employee.role || 'Employee',
+                    user: { role: data.role || employee.role || 'Employee' },
+                });
+                toast.success(`${employee.display_name} is remembered on this device`);
             } else {
                 setIsRemembered(false);
             }
@@ -498,7 +490,7 @@ export default function SupplyChainLoginPage() {
                 user.getRole() ||
                 'Employee';
 
-            const sessionToken = rememberedData?.session_token || user.getSessionToken();
+            const sessionToken = rememberedData?.session_token || user.getRememberToken(selectedEmployee?.email) || user.getSessionToken();
 
             // verify password with supabase
             try {
@@ -521,64 +513,54 @@ export default function SupplyChainLoginPage() {
             }
 
             // activate remembered session
-            if (sessionToken) {
-                const currentUserAgent = navigator.userAgent;
-
-                const blockedDevice = await checkIfDeviceBlocked(rememberedData?.user_id || loggedInUser?.id, currentUserAgent);
-                if (blockedDevice) {
-                    setIsDeviceBlocked(true);
-                    setBlockedDeviceId(blockedDevice.id);
-                    toast.error(`This device is blocked. Reason: ${blockedDevice.reason || 'Blocked by admin'}`);
-                    setIsLoggingInWithRemembered(false);
-                    setShowRememberedPasswordModal(false);
-                    return false;
-                }
-
-                const { ok, status, data: activateData } = await activateSessionApi(sessionToken, currentUserAgent);
-
-                if (!ok) {
-                    if (activateData?.queued || status === 429) {
-                        setQueuePosition(activateData?.position || 1);
-                        setQueueActiveUsers(activateData?.tierActive ?? activateData?.activeUsers ?? 1);
-                        setQueueMaxCapacity(activateData?.tierSlots ?? activateData?.maxCapacity ?? 1);
-                        setShowQueueModal(true);
-                        setIsLoggingInWithRemembered(false);
-                        setShowRememberedPasswordModal(false);
-                        return 'queued';
-                    }
-                    toast.error(activateData?.message || 'Session activation failed. Please login with OTP.');
-                    setIsLoggingInWithRemembered(false);
-                    setShowRememberedPasswordModal(false);
-                    return false;
-                }
-
-                user.setUser({
-                    name: selectedEmployee.display_name,
-                    role: userRole,
-                    email: selectedEmployee.email,
-                    sessionToken: sessionToken,
-                    expiresAt: '',
-                    rememberMe: rememberMe,
-                    userId: rememberedData?.user_id || loggedInUser?.id,
-                });
-            } else {
-                const existingToken = user.getSessionToken();
-                if (!existingToken) {
-                    toast.error('No session found. Please login with OTP.');
-                    setIsLoggingInWithRemembered(false);
-                    setShowRememberedPasswordModal(false);
-                    return false;
-                }
-                user.setUser({
-                    name: selectedEmployee.display_name,
-                    role: userRole,
-                    email: selectedEmployee.email,
-                    sessionToken: existingToken,
-                    expiresAt: '',
-                    rememberMe: rememberMe,
-                    userId: rememberedData?.user_id || loggedInUser?.id,
-                });
+            if (!sessionToken) {
+                toast.error('No remembered session token found on this device. Please verify with OTP.');
+                setIsLoggingInWithRemembered(false);
+                setShowRememberedPasswordModal(false);
+                return false;
             }
+
+            const currentUserAgent = navigator.userAgent;
+
+            const blockedDevice = await checkIfDeviceBlocked(rememberedData?.user_id || loggedInUser?.id, currentUserAgent);
+            if (blockedDevice) {
+                setIsDeviceBlocked(true);
+                setBlockedDeviceId(blockedDevice.id);
+                toast.error(`This device is blocked. Reason: ${blockedDevice.reason || 'Blocked by admin'}`);
+                setIsLoggingInWithRemembered(false);
+                setShowRememberedPasswordModal(false);
+                return false;
+            }
+
+            const { ok, status, data: activateData } = await activateSessionApi(sessionToken, currentUserAgent);
+
+            if (!ok) {
+                if (activateData?.queued || status === 429) {
+                    setQueuePosition(activateData?.position || 1);
+                    setQueueActiveUsers(activateData?.tierActive ?? activateData?.activeUsers ?? 1);
+                    setQueueMaxCapacity(activateData?.tierSlots ?? activateData?.maxCapacity ?? 1);
+                    setShowQueueModal(true);
+                    setIsLoggingInWithRemembered(false);
+                    setShowRememberedPasswordModal(false);
+                    return 'queued';
+                }
+                toast.error(activateData?.message || 'Session activation failed. Please login with OTP.');
+                setIsLoggingInWithRemembered(false);
+                setShowRememberedPasswordModal(false);
+                return false;
+            }
+
+            const sessionExpiresAt = activateData?.session?.expires_at || rememberedData?.expires_at || new Date(Date.now() + 15 * 24 * 3600000).toISOString();
+
+            user.setUser({
+                name: selectedEmployee.display_name,
+                role: userRole,
+                email: selectedEmployee.email,
+                sessionToken: sessionToken,
+                expiresAt: sessionExpiresAt,
+                rememberMe: true,
+                userId: rememberedData?.user_id || loggedInUser?.id,
+            });
 
             toast.success('Login successful!');
             setShowRememberedPasswordModal(false);
@@ -741,8 +723,9 @@ export default function SupplyChainLoginPage() {
 
             if (!ok) {
                 if (status === 429) {
-                    toast.error('Rate limit exceeded. Please wait an hour.');
-                    setOtpError('Rate limit exceeded. Please wait an hour.');
+                    const msg = data?.message || 'Too many OTP requests. Please wait 5 minutes.';
+                    toast.error(msg);
+                    setOtpError(msg);
                 } else {
                     throw new Error(data.message || 'Failed to send OTP');
                 }
@@ -753,7 +736,7 @@ export default function SupplyChainLoginPage() {
             setOtpSuccess(`OTP sent to ${maskEmail(targetEmail)}`);
 
             setOtpSent(true);
-            setCountdown(30); // 30s resend cooldown
+            setCountdown(120); // 2 mins (120s) resend cooldown
             setOtpExpiresIn(300); // 5 minutes code validity
             setTimeout(() => document.getElementById('otp-0')?.focus(), 100);
         } catch (err: any) {
@@ -806,8 +789,9 @@ export default function SupplyChainLoginPage() {
 
             if (!ok) {
                 if (status === 429) {
-                    toast.error('Rate limit exceeded. Please wait an hour.');
-                    setOtpError('Rate limit exceeded. Please wait an hour.');
+                    const msg = data?.message || 'Too many OTP requests. Please wait 5 minutes.';
+                    toast.error(msg);
+                    setOtpError(msg);
                 } else {
                     throw new Error(data.message || 'Failed to resend OTP');
                 }
@@ -816,7 +800,7 @@ export default function SupplyChainLoginPage() {
 
             toast.success(`New OTP sent to ${maskEmail(targetEmail)}`);
             setOtpSuccess(`New OTP sent to ${maskEmail(targetEmail)}`);
-            setCountdown(30); // 30s resend cooldown
+            setCountdown(120); // 2 mins (120s) resend cooldown
             setOtpExpiresIn(300); // 5 minutes code validity
         } catch (err: any) {
             toast.error(err.message);
@@ -883,13 +867,16 @@ export default function SupplyChainLoginPage() {
             }
 
             if (data.userExists) {
+                const isRemember = Boolean(data.remember_me ?? rememberMe);
+                const sessionExpiry = data.expires_at || (isRemember ? new Date(Date.now() + 15 * 24 * 3600000).toISOString() : '');
+
                 user.setUser({
                     name: data.employee.display_name,
                     role: data.role,
                     email: data.employee.email,
                     sessionToken: data.session_token,
-                    expiresAt: '',
-                    rememberMe: rememberMe,
+                    expiresAt: sessionExpiry,
+                    rememberMe: isRemember,
                     userId: data.userId,
                 });
 
@@ -907,6 +894,7 @@ export default function SupplyChainLoginPage() {
                     session_token: data.session_token,
                     role: data.role,
                     user_id: data.userId,
+                    expires_at: sessionExpiry,
                 });
 
                 setShowRememberedPasswordModal(true);
@@ -1003,7 +991,7 @@ export default function SupplyChainLoginPage() {
                     role: data.role,
                     email: selectedEmployeeForPassword.email,
                     sessionToken: data.session_token,
-                    expiresAt: data.expires_at || '',
+                    expiresAt: data.expires_at || (rememberMe ? new Date(Date.now() + 15 * 24 * 3600000).toISOString() : ''),
                     rememberMe: data.remember_me || rememberMe,
                 });
 

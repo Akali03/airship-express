@@ -1,9 +1,21 @@
 // app/(supplyChain)/api/supplyChain/request-otp/route.ts
 
-import { supabase } from '../../../lib/services/client/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { sendOTPEmail } from '../../../lib/email/sendOTP';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || '';
+const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
+                       process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_ANON_KEY || '';
+
+const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+    },
+});
 
 function generateOTP(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -39,11 +51,11 @@ export async function POST(request: Request) {
         const isValidUuid = (str?: string | null) => !!str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
         const validUserId = isValidUuid(effectiveLoggedInUserId) ? effectiveLoggedInUserId : (isValidUuid(effectiveUserId) ? effectiveUserId : null);
 
-        // rate limiting - max 3 per hour
-        let countQuery = supabase
+        // rate limiting - max 3 per 5 minutes
+        let countQuery = supabaseAdmin
             .from('otp_codes')
             .select('*', { count: 'exact', head: true })
-            .gte('created_at', new Date(Date.now() - 3600000).toISOString());
+            .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString());
 
         if (validUserId && email) {
             countQuery = countQuery.or(`user_id.eq.${validUserId},email.eq.${email}`);
@@ -61,7 +73,7 @@ export async function POST(request: Request) {
 
         if (count && count >= 3) {
             return NextResponse.json(
-                { message: 'Too many OTP requests. Please wait an hour.' },
+                { message: 'Too many OTP requests. Please wait 5 minutes.' },
                 { status: 429 }
             );
         }
@@ -73,7 +85,7 @@ export async function POST(request: Request) {
 
         // execute database insert and email dispatch concurrently in parallel
         const [insertResult, emailResult] = await Promise.all([
-            supabase
+            supabaseAdmin
                 .from('otp_codes')
                 .insert({
                     user_id: validUserId,

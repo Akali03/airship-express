@@ -143,6 +143,7 @@ export async function POST(request: Request) {
             .from('sessions')
             .update({
                 is_active: false,
+                in_queue: false,
                 updated_at: new Date().toISOString(),
             })
             .eq('id', sessionId);

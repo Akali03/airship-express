@@ -393,62 +393,27 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
             window.removeEventListener('storage', handleStorageChange);
         };
     }, []);
-    // try restore on mount if needed
+    // restore from backup or cookie on mount if needed
     useEffect(() => {
         const currentToken = user.getSessionToken();
         if (!currentToken || currentToken === 'null' || currentToken === 'undefined' || currentToken === '') {
-            const restored = restoreSessionFromBackup();
-            if (restored) {
-                lastCheckRef.current = 0;
-                isCheckingRef.current = false;
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
-            }
+            restoreSessionFromBackup();
         }
     }, []);
-    // listen for storage clearing
+    // listen for storage changes across tabs
     useEffect(() => {
         const handleStorageClear = async (e: StorageEvent) => {
             if (e.key === 'session_token' && !e.newValue && e.oldValue) {
                 if (!isRestoringRef.current) {
                     isRestoringRef.current = true;
-                    const restored = restoreSessionFromBackup();
-                    if (restored) {
-                        toast.success('Session restored', {
-                            duration: 3000,
-                            position: 'top-right',
-                            id: 'session-restored',
-                        });
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 500);
-                    }
-                    else {
-                        lastCheckRef.current = 0;
-                        isCheckingRef.current = false;
-                    }
+                    restoreSessionFromBackup();
                     isRestoringRef.current = false;
                 }
             }
         };
         window.addEventListener('storage', handleStorageClear);
-        const checkInterval = setInterval(() => {
-            const token = user.getSessionToken();
-            if (!token || token === 'null' || token === 'undefined' || token === '') {
-                const restored = restoreSessionFromBackup();
-                if (restored) {
-                    toast.success('Session restored', {
-                        duration: 3000,
-                        position: 'top-right',
-                        id: 'session-restored-interval',
-                    });
-                }
-            }
-        }, 5000);
         return () => {
             window.removeEventListener('storage', handleStorageClear);
-            clearInterval(checkInterval);
         };
     }, []);
     // online/offline handling
@@ -578,10 +543,8 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
         if (restored) {
             return user.getSessionToken();
         }
-        const cookieToken = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('session_token='))
-            ?.split('=')[1];
+        const cookieMatch = document.cookie.match(/(?:session_token|sc_session_token)=([^;]+)/);
+        const cookieToken = cookieMatch && cookieMatch[1] ? decodeURIComponent(cookieMatch[1].trim()) : null;
         if (cookieToken && cookieToken !== 'null' && cookieToken !== 'undefined' && cookieToken !== '') {
             return cookieToken;
         }
@@ -593,8 +556,6 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
         }
         hasShownInvalidToastRef.current = true;
         isLoggingOutRef.current = true;
-        const token = getSessionToken();
-        await deactivateSession(token);
         clearSessionData();
         if (isMountedRef.current) {
             toast.error(message, { duration: 3000, position: 'top-right' });
@@ -615,7 +576,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                 }, 1000);
             }
         }
-    }, [getSessionToken, deactivateSession, clearSessionData, router]);
+    }, [clearSessionData, router]);
 
     const handleInactivityLogout = useCallback(async () => {
         if (isLoggingOutRef.current) return;
@@ -857,46 +818,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
             }
             if (isBlockedRef.current || isLoggingOutRef.current)
                 return;
-            if (!hasValidLocalStorage()) {
-                const cookieToken = document.cookie
-                    .split('; ')
-                    .find(row => row.startsWith('session_token='))
-                    ?.split('=')[1];
-                if (!cookieToken || cookieToken === 'null' || cookieToken === 'undefined' || cookieToken === '') {
-                    const restored = restoreSessionFromBackup();
-                    if (restored) {
-                        const restoredToken = user.getSessionToken();
-                        if (restoredToken) {
-                            lastCheckRef.current = 0;
-                            isCheckingRef.current = false;
-                            setTimeout(() => {
-                                if (isMountedRef.current) {
-                                    setGuardState('loading');
-                                }
-                            }, 100);
-                            return;
-                        }
-                    }
-                    if (pathname !== '/scAuth') {
-                        await handleInvalidSession('No session found. Please login again.', true);
-                    }
-                    else {
-                        setGuardState('authorized');
-                    }
-                    return;
-                }
-                if (cookieToken) {
-                    user.setUser({
-                        name: user.getName(),
-                        role: user.getRole(),
-                        email: user.getEmail(),
-                        sessionToken: cookieToken,
-                        expiresAt: user.getUser().expiresAt || '',
-                        rememberMe: true,
-                    });
-                    backupSessionData();
-                }
-            }
+
             const sessionToken = getSessionToken();
             if (!sessionToken) {
                 if (pathname !== '/scAuth') {
@@ -921,7 +843,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
             isCheckingRef.current = true;
             prevPathRef.current = pathname;
             try {
-                const res = await fetch('/api/auth/check-authorization', {
+                const res = await fetch('/api/supplyChain/validate-session', {
                     credentials: 'include',
                     headers: {
                         'x-session-token': sessionToken,
@@ -931,7 +853,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                 });
                 lastCheckRef.current = Date.now();
                 if (!res.ok) {
-                    const data: AuthResponse = await res.json();
+                    const data: AuthResponse = await res.json().catch(() => ({}));
                     if (data.session_cleared) {
                         setGuardState('denied');
                         clearSessionData();
@@ -1088,11 +1010,11 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                     const activeToken = getSessionToken();
                     if (newRecord && activeToken && newRecord.session_token === activeToken) {
                         if (newRecord.is_active === false) {
-                            console.warn('[SessionGuard Realtime] Session terminated event received:', newRecord);
-                            const reason = newRecord.deactivation_reason === 'device_blocked'
-                                ? 'Your device has been blocked by an administrator.'
-                                : 'Your session has been terminated by an administrator.';
-                            handleInvalidSession(reason, true);
+                            // If the user is currently logging out locally or has already cleared session, do nothing
+                            if (isLoggingOutRef.current || !user.getSessionToken()) {
+                                return;
+                            }
+                            handleInvalidSession('Your session has ended. Please login again.', true);
                         }
                     }
                 }
@@ -1130,18 +1052,13 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
             window.removeEventListener('focus', revalidate);
         };
     }, [guardState, getSessionToken, handleInvalidSession, pathname]);
-    // unload handling
+    // unload handling — ONLY back up session data, do NOT call logout
+    // (sendBeacon to logout was incorrectly firing on every refresh/navigation,
+    //  marking the session inactive in the DB and causing the user to get
+    //  logged out on the next page load)
     useEffect(() => {
         const handleUnload = () => {
             backupSessionData();
-            const token = getSessionToken();
-            if (navigator.sendBeacon) {
-                const formData = new FormData();
-                if (token) {
-                    formData.append('session_token', token);
-                }
-                navigator.sendBeacon('/api/supplyChain/logout', formData);
-            }
         };
         window.addEventListener('pagehide', handleUnload);
         return () => window.removeEventListener('pagehide', handleUnload);

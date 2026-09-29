@@ -48,6 +48,8 @@ export interface ExtractedReceiptJSON {
         quantity: number;
         unit_price: number;
     }>;
+    text?: string | null;
+    description?: string | null;
 }
 
 export interface FieldDiff {
@@ -91,6 +93,34 @@ function isVendorMatching(extracted?: string, expected?: string): boolean {
     const extWords = (extracted || '').toLowerCase().split(/\s+/).filter(w => w.length >= 4);
     const expWords = (expected || '').toLowerCase().split(/\s+/).filter(w => w.length >= 4);
     return extWords.some(w => expWords.includes(w));
+}
+
+const FALLBACK_MODELS = Array.from(new Set([
+    process.env.GEMINI_SUPPLYCHAIN_MODEL || 'gemini-3.5-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+])).filter(Boolean);
+
+async function generateWithModelFallback(genAI: any, contents: any[]) {
+    let lastError: any = null;
+    for (const model of FALLBACK_MODELS) {
+        try {
+            const response = await genAI.models.generateContent({
+                model,
+                contents,
+            });
+            if (response && response.text) {
+                return response;
+            }
+        } catch (err: any) {
+            console.warn(`[Gemini Receipt OCR] Model ${model} failed, trying next fallback:`, err?.message || err);
+            lastError = err;
+            continue;
+        }
+    }
+    throw lastError || new Error('All Gemini OCR models currently busy or unavailable. Please retry.');
 }
 
 /**
@@ -306,23 +336,20 @@ Return ONLY a valid JSON object matching the following structure without any mar
   ]
 }`;
 
-                const response = await genAI.models.generateContent({
-                    model: process.env.GEMINI_SUPPLYCHAIN_MODEL || 'gemini-2.5-flash',
-                    contents: [
-                        {
-                            role: 'user',
-                            parts: [
-                                { text: promptText },
-                                {
-                                    inlineData: {
-                                        data: pureBase64,
-                                        mimeType: fileType && fileType.startsWith('image/') ? fileType : 'image/png',
-                                    },
+                const response = await generateWithModelFallback(genAI, [
+                    {
+                        role: 'user',
+                        parts: [
+                            { text: promptText },
+                            {
+                                inlineData: {
+                                    data: pureBase64,
+                                    mimeType: fileType && fileType.startsWith('image/') ? fileType : 'image/png',
                                 },
-                            ],
-                        },
-                    ],
-                });
+                            },
+                        ],
+                    },
+                ]);
 
                 const rawText = response.text || '';
                 const cleanJsonStr = rawText
@@ -338,6 +365,8 @@ Return ONLY a valid JSON object matching the following structure without any mar
                     date: String(parsed.date || ''),
                     po_reference: String(parsed.po_reference || ''),
                     items: Array.isArray(parsed.items) ? parsed.items : [],
+                    text: rawText || null,
+                    description: `Official Receipt from ${parsed.vendor_name || po.supplier_name || 'Supplier'} for PO #${parsed.po_reference || po.po_number || 'N/A'}, total ₱${Number(parsed.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
                 };
             } catch (ocrErr) {
                 console.error('Gemini OCR Error:', ocrErr);
@@ -399,10 +428,15 @@ Return ONLY a valid JSON object matching the following structure without any mar
 
         // outcomes
         if (allMatched) {
-            // on match: insert record into documents table
+            // on match: insert record into documents table with extracted JSON
+            const fullDocPayload = {
+                ...docPayload,
+                extracted: extracted || null,
+            };
+
             const { data: insertedMatchedDoc, error: docError } = await supabaseAdmin
                 .from('documents')
-                .insert(docPayload)
+                .insert(fullDocPayload)
                 .select('id')
                 .single();
 
@@ -427,6 +461,7 @@ Return ONLY a valid JSON object matching the following structure without any mar
                         document_verification_id: dvId,
                         uploaded_by: userName ? String(userName).slice(0, 95) : 'Procurement',
                         notes: 'Verified via Gemini OCR (Matched)',
+                        extracted: extracted || null,
                     })
                     .select('id')
                     .single();
@@ -469,11 +504,11 @@ Return ONLY a valid JSON object matching the following structure without any mar
                     .eq('id', po.id);
             }
 
-            // emit notification
+            // emit activity log
             try {
                 await supabaseAdmin.from('activity_history').insert({
                     action_type: 'upload',
-                    action_name: 'Uploaded Verified Receipt',
+                    target_resource: 'Uploaded Verified Receipt',
                     document_id: newDocId,
                     document_title: docPayload.title,
                     user_id: validUserUUID || null,
@@ -496,7 +531,7 @@ Return ONLY a valid JSON object matching the following structure without any mar
                     message: `PO #${po.po_number} payment verified via OCR.`,
                     type: 'ocr_complete',
                     link: `/purchase-orders?po_id=${po.id}`,
-                    role: 'Admin',
+                    role: ['Admin', 'Executive', 'Manager'],
                     reference_type: 'document_verification',
                     reference_id: dvId,
                     is_read: false,
@@ -543,7 +578,7 @@ Return ONLY a valid JSON object matching the following structure without any mar
                     message: `PO #${po.po_number} receipt details do not match order. Review required.`,
                     type: 'ocr_mismatch',
                     link: `/purchase-orders?verification=${dvId}&po_id=${po.id}`,
-                    role: 'Admin',
+                    role: ['Admin', 'Executive', 'Manager'],
                     reference_type: 'document_verification',
                     reference_id: dvId,
                     is_read: false,
@@ -651,6 +686,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
                     supplier: po.supplier_name ? String(po.supplier_name).slice(0, 190) : null,
                     po_number: po.po_number ? String(po.po_number).slice(0, 48) : null,
                     purchase_id: po.id,
+                    extracted: dv.extracted_json || null,
                     updated_at: new Date().toISOString(),
                 })
                 .eq('id', dv.document_id)
@@ -694,6 +730,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
                     uploaded_by: userName ? String(userName).slice(0, 95) : 'Administrator',
                     notes: `Forced override by ${userName}: ${reason}`,
                     role: userRole || null,
+                    extracted: dv.extracted_json || null,
                 })
                 .select('id')
                 .single();
@@ -718,6 +755,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
                         document_verification_id: dv.id,
                         uploaded_by: userName ? String(userName).slice(0, 95) : 'Administrator',
                         notes: `Forced override by ${userName}: ${reason}`,
+                        extracted: dv.extracted_json || null,
                     })
                     .select('id')
                     .single();
@@ -763,11 +801,11 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
                 .eq('id', po.id);
         }
 
-        // emit notification
+        // emit activity log
         try {
             await supabaseAdmin.from('activity_history').insert({
                 action_type: 'upload',
-                action_name: 'Force Inserted Receipt (Admin Override)',
+                target_resource: 'Force Inserted Receipt (Admin Override)',
                 document_id: newDocId,
                 document_title: `Receipt (Forced) - ${po.po_number || po.supplier_name}`,
                 user_id: validUserUUID || null,
@@ -790,7 +828,7 @@ export async function forceInsertVerificationAction(input: ForceInsertInput) {
                 message: `PO #${po.po_number} was manually force-approved by ${userName} (${userRole}). Reason: ${reason}`,
                 type: 'ocr_complete',
                 link: `/purchase-orders?po_id=${po.id}`,
-                role: 'Admin',
+                role: ['Admin', 'Executive', 'Manager'],
                 reference_type: 'document_verification',
                 reference_id: dv.id,
                 is_read: false,

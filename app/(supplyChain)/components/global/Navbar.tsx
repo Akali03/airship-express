@@ -160,10 +160,21 @@ export function AceternityNavbar() {
         setIsLoggingOut(true);
         try {
             const sessionToken = user.getSessionToken();
-            if (sessionToken) {
+            const userEmail = user.getEmail();
+            const userId = user.getUserId();
+            if (sessionToken || userEmail || userId) {
                 await fetch('/api/supplyChain/logout', {
                     method: 'POST',
-                    headers: { 'x-session-token': sessionToken }
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        ...(sessionToken ? { 'x-session-token': sessionToken } : {})
+                    },
+                    body: JSON.stringify({
+                        action: 'LOGOUT',
+                        session_token: sessionToken,
+                        email: userEmail,
+                        user_id: userId
+                    })
                 });
             }
             user.clearUser();

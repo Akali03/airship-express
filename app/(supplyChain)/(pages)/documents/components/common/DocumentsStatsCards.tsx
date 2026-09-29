@@ -80,7 +80,7 @@ export function DocumentsStatsCards({
                 backBg="bg-ink dark:bg-ink/90"
                 backHeader="Archived Documents"
                 headerTextColor="text-muted dark:text-white/80"
-                backDescription={`Total archived documents: ${archiveCount}\n\n📦 Deleted files stored in archive\nHistorical record of deletions`}
+                backDescription={`Total archived documents: ${archiveCount}\n\nDeleted files stored in archive\nHistorical record of deletions`}
                 tooltip="View archive"
                 tooltipLink="/archive?tab=documents"
                 badge={`${archiveCount} archived`}

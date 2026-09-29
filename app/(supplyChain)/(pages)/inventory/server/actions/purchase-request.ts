@@ -132,7 +132,7 @@ export async function createScopedPurchaseRequestAction(params: CreateScopedPRPa
                 message: notifMsg,
                 type: 'purchase_request',
                 link: notifLink,
-                role: 'Admin',
+                role: ['Admin', 'Executive'],
                 is_read: false,
                 po_request_id: data.id || requestNumber,
             });

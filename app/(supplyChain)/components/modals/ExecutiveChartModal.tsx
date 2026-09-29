@@ -79,7 +79,7 @@ export default function ExecutiveChartModal({
     onDownload,
     downloadLabel = "Download Report (CSV)",
     filters = [],
-    maxDisplayCount = 15,
+    maxDisplayCount = 10,
 }: ExecutiveChartModalProps) {
     const [rawSearchTerm, setRawSearchTerm] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -118,32 +118,51 @@ export default function ExecutiveChartModal({
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, onClose]);
 
-    // extract unique filter options
+    // extract unique filter options (deduplicating categories and badges per item)
     const activeFilterOptions = useMemo(() => {
         if (filters.length > 0) return filters;
 
-        const tagsMap = new Map<string, number>();
+        const tagsMap = new Map<string, { label: string; count: number }>();
         items.forEach(item => {
+            const itemKeys = new Map<string, string>(); // normalizedKey -> displayLabel
             if (item.category) {
-                tagsMap.set(item.category, (tagsMap.get(item.category) || 0) + 1);
+                const cleanCat = item.category.trim();
+                const normKey = cleanCat.toLowerCase().replace(/_/g, ' ');
+                itemKeys.set(normKey, cleanCat.replace(/_/g, ' '));
             }
             if (item.badge) {
-                tagsMap.set(item.badge, (tagsMap.get(item.badge) || 0) + 1);
+                const cleanBadge = item.badge.trim();
+                const normKey = cleanBadge.toLowerCase().replace(/_/g, ' ');
+                itemKeys.set(normKey, cleanBadge.replace(/_/g, ' '));
             }
             if (item.tags) {
-                item.tags.forEach(t => tagsMap.set(t, (tagsMap.get(t) || 0) + 1));
+                item.tags.forEach(t => {
+                    const cleanTag = t.trim();
+                    const normKey = cleanTag.toLowerCase().replace(/_/g, ' ');
+                    itemKeys.set(normKey, cleanTag.replace(/_/g, ' '));
+                });
             }
+
+            itemKeys.forEach((label, normKey) => {
+                const existing = tagsMap.get(normKey);
+                if (existing) {
+                    existing.count += 1;
+                } else {
+                    tagsMap.set(normKey, { label, count: 1 });
+                }
+            });
         });
 
         const list: FilterOption[] = [{ label: "All Records", value: "all", count: items.length }];
-        tagsMap.forEach((count, key) => {
-            list.push({ label: key, value: key.toLowerCase(), count });
+        tagsMap.forEach(({ label, count }, normKey) => {
+            list.push({ label, value: normKey, count });
         });
         return list;
     }, [filters, items]);
 
     // search and filter processing
     const filteredItems = useMemo(() => {
+        const normFilter = selectedFilter.toLowerCase().replace(/_/g, ' ');
         return items.filter((item) => {
             if (debouncedSearch) {
                 const titleMatch = item.title?.toLowerCase().includes(debouncedSearch);
@@ -157,9 +176,9 @@ export default function ExecutiveChartModal({
 
             if (selectedFilter === "all") return true;
 
-            const matchesCategory = item.category?.toLowerCase() === selectedFilter;
-            const matchesBadge = item.badge?.toLowerCase() === selectedFilter;
-            const matchesTags = item.tags?.some(t => t.toLowerCase() === selectedFilter);
+            const matchesCategory = item.category?.toLowerCase().replace(/_/g, ' ') === normFilter;
+            const matchesBadge = item.badge?.toLowerCase().replace(/_/g, ' ') === normFilter;
+            const matchesTags = item.tags?.some(t => t.toLowerCase().replace(/_/g, ' ') === normFilter);
 
             return matchesCategory || matchesBadge || matchesTags;
         });
@@ -242,7 +261,7 @@ export default function ExecutiveChartModal({
 
                         {/* High-level Summary Metrics */}
                         {metrics.length > 0 && (
-                            <div className={`grid grid-cols-2 ${metrics.length >= 3 ? "sm:grid-cols-3" : ""} gap-3`}>
+                            <div className={`grid grid-cols-2 ${metrics.length === 3 ? "sm:grid-cols-3" : metrics.length >= 4 ? "sm:grid-cols-4" : ""} gap-3`}>
                                 {metrics.map((m, idx) => (
                                     <div
                                         key={idx}
@@ -421,21 +440,32 @@ export default function ExecutiveChartModal({
                                         </div>
                                     ))}
 
-                                    {/* Toggle button to view all items or download prompt */}
+                                    {/* Link to view full page or toggle */}
                                     {filteredItems.length > maxDisplayCount && (
                                         <div className="pt-2 pb-1 text-center">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowAllItems(!showAllItems)}
-                                                className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors cursor-pointer"
-                                            >
-                                                <span>
-                                                    {showAllItems
-                                                        ? `Collapse to top ${maxDisplayCount} records`
-                                                        : `View all ${filteredItems.length} records in modal (+${filteredItems.length - maxDisplayCount} more)`}
-                                                </span>
-                                                <i className={`fas ${showAllItems ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px]`}></i>
-                                            </button>
+                                            {viewAllLink ? (
+                                                <Link
+                                                    href={viewAllLink}
+                                                    onClick={onClose}
+                                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors cursor-pointer group"
+                                                >
+                                                    <span>view the page to see all</span>
+                                                    <i className="fas fa-arrow-right text-[10px] group-hover:translate-x-0.5 transition-transform" />
+                                                </Link>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAllItems(!showAllItems)}
+                                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors cursor-pointer"
+                                                >
+                                                    <span>
+                                                        {showAllItems
+                                                            ? `Collapse to top ${maxDisplayCount} records`
+                                                            : `view the page to see all`}
+                                                    </span>
+                                                    <i className={`fas ${showAllItems ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px]`}></i>
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>

@@ -56,16 +56,26 @@ export interface CreateAuthUserParams {
 // clear session tokens and logout
 export async function clearUserSession(): Promise<void> {
     const sessionToken = user.getSessionToken();
+    const userEmail = user.getEmail();
+    const userId = user.getUserId();
 
-    if (sessionToken) {
-        try {
-            await fetch('/api/supplyChain/logout', {
-                method: 'POST',
-                headers: { 'x-session-token': sessionToken },
-            });
-        } catch {
-            // ignore network issues during logout
-        }
+    try {
+        await fetch('/api/supplyChain/logout', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 
+                'Content-Type': 'application/json',
+                ...(sessionToken ? { 'x-session-token': sessionToken } : {})
+            },
+            body: JSON.stringify({
+                action: 'LOGOUT',
+                session_token: sessionToken,
+                email: userEmail,
+                user_id: userId
+            }),
+        });
+    } catch {
+        // ignore network issues during logout
     }
 
     await supabase.auth.signOut();
@@ -73,7 +83,11 @@ export async function clearUserSession(): Promise<void> {
     user.clearUser();
     if (typeof window !== 'undefined') {
         localStorage.removeItem('session_backup');
+        localStorage.removeItem('session_backup_2');
+        localStorage.removeItem('session_backup_3');
         document.cookie = 'session_backup=; path=/; max-age=0';
+        document.cookie = 'session_backup_2=; path=/; max-age=0';
+        document.cookie = 'session_backup_3=; path=/; max-age=0';
     }
 }
 
@@ -113,8 +127,20 @@ export async function restoreSupabaseSession(): Promise<void> {
 }
 
 // check active employee session status
-export async function checkEmployeeSessionApi(email: string): Promise<any> {
-    const res = await fetch(`/api/supplyChain/check-employee-session?email=${encodeURIComponent(email)}`);
+export async function checkEmployeeSessionApi(email: string, sessionToken?: string | null): Promise<any> {
+    const token = sessionToken || (typeof window !== 'undefined' ? (user.getRememberToken(email) || user.getSessionToken()) : null);
+    const headers: Record<string, string> = {};
+    if (token) {
+        headers['x-session-token'] = token;
+    }
+    const params = new URLSearchParams();
+    params.append('email', email);
+    if (token) {
+        params.append('session_token', token);
+    }
+    const res = await fetch(`/api/supplyChain/check-employee-session?${params.toString()}`, {
+        headers,
+    });
     return await res.json();
 }
 
@@ -135,8 +161,19 @@ export async function fetchHREmployeesApi(role: string, userEmail?: string): Pro
     params.append('role', role);
     if (userEmail) params.append('email', userEmail);
 
+    const token = typeof window !== 'undefined' ? (user.getRememberToken(userEmail) || user.getSessionToken()) : null;
+    const tokensMap = typeof window !== 'undefined' ? user.getAllRememberTokens() : {};
+
+    const headers: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'x-remember-tokens': JSON.stringify(tokensMap),
+    };
+    if (token) {
+        headers['x-session-token'] = token;
+    }
+
     const res = await fetch(`/api/supplyChain/employees?${params.toString()}`, {
-        headers: { 'Content-Type': 'application/json' },
+        headers,
     });
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };

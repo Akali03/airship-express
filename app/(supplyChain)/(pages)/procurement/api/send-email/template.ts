@@ -142,11 +142,22 @@ export function buildEmailTemplate({
 
                             <!-- Primary Action CTA -->
                             <div style="text-align: center; margin: 28px 0 20px;">
-                                <a href="${confirmLink}" target="_blank" style="display: inline-block; background-color: #0f172a; color: #ffffff; text-decoration: none; padding: 12px 28px; font-size: 13.5px; font-weight: 700; border-radius: 8px; letter-spacing: 0.01em;">
-                                    Confirm Purchase Order &rarr;
-                                </a>
-                                <p style="font-size: 11px; color: #94a3b8; margin: 8px 0 0;">
-                                    Click above to confirm availability and acknowledge receipt.
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                                    <tr>
+                                        <td style="padding: 0 6px;">
+                                            <a href="${confirmLink}&action=accept" target="_blank" style="display: inline-block; background-color: #0f172a; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 13.5px; font-weight: 700; border-radius: 8px; letter-spacing: 0.01em;">
+                                                Accept & Confirm Order &rarr;
+                                            </a>
+                                        </td>
+                                        <td style="padding: 0 6px;">
+                                            <a href="${confirmLink}&action=reject" target="_blank" style="display: inline-block; background-color: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; text-decoration: none; padding: 11px 20px; font-size: 13px; font-weight: 600; border-radius: 8px; letter-spacing: 0.01em;">
+                                                Decline Order
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="font-size: 11px; color: #94a3b8; margin: 10px 0 0;">
+                                    Click above to confirm availability or decline this order.
                                 </p>
                             </div>
 

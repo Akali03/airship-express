@@ -258,15 +258,16 @@ export async function POST(request: Request) {
         // create custom session
         const sessionToken = generateSessionToken();
         const expiresAt = rememberMe
-            ? new Date(Date.now() + 15 * 24 * 3600000)
-            : new Date(Date.now() + 8 * 3600000);
+            ? new Date(Date.now() + 15 * 24 * 3600000).toISOString()
+            : null;
 
         const { error: sessionError } = await supabase
             .from('sessions')
             .insert({
                 user_id: userId,
                 session_token: sessionToken,
-                expires_at: expiresAt.toISOString(),
+                expires_at: expiresAt,
+                expires_at_remember: expiresAt,
                 email: email,
                 hr_employee_name: displayName,
                 is_active: true,
@@ -292,7 +293,7 @@ export async function POST(request: Request) {
                     user_id: userId,
                     action: 'USER_CREATED',
                     module: 'Authentication',
-                    description: `User created: ${email} with role ${role} (${rememberMe ? '15 days' : '8 hours'})`,
+                    description: `User created: ${email} with role ${role} (${rememberMe ? '15 days remembered' : 'Session only'})`,
                     ip_address: ipAddress,
                     user_agent: userAgent,
                     created_at: new Date().toISOString(),
@@ -321,7 +322,7 @@ export async function POST(request: Request) {
             redirect_url: redirectUrl,
             role: role,
             remember_me: rememberMe || false,
-            expires_at: expiresAt.toISOString(),
+            expires_at: expiresAt,
             access_token: authData?.session?.access_token || null,
             refresh_token: authData?.session?.refresh_token || null,
             message: 'Account created successfully!'

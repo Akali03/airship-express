@@ -162,6 +162,17 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                 const statuses = Object.keys(data.procurementStatusBreakdown);
                 const values = Object.values(data.procurementStatusBreakdown);
 
+                const statusColorMap: Record<string, string> = {
+                    approved: CHART_COLORS.success,
+                    completed: CHART_COLORS.success,
+                    pending: CHART_COLORS.warning,
+                    rejected: CHART_COLORS.danger,
+                    cancelled: CHART_COLORS.danger,
+                };
+                const bgColors = statuses.length > 0
+                    ? statuses.map(s => statusColorMap[s.toLowerCase()] || CHART_COLORS.secondary)
+                    : [CHART_COLORS.warning, CHART_COLORS.success, CHART_COLORS.danger, CHART_COLORS.secondary];
+
                 procurementChartInstance.current = new Chart(ctx, {
                     type: 'bar',
                     data: {
@@ -169,7 +180,7 @@ export default function OverviewTab({ data, onOpenModal }: OverviewTabProps) {
                         datasets: [{
                             label: 'Requests',
                             data: values.length > 0 ? values : [0, 0, 0, 0],
-                            backgroundColor: [CHART_COLORS.warning, CHART_COLORS.success, CHART_COLORS.danger, CHART_COLORS.secondary],
+                            backgroundColor: bgColors,
                             borderRadius: 6,
                         }]
                     },

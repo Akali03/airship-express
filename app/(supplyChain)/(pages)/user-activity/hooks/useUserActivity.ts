@@ -583,8 +583,8 @@ export function useUserActivity() {
                 .from('sessions')
                 .update({
                     is_active: false,
-                    ended_at: new Date().toISOString(),
-                    deactivation_reason: 'device_blocked',
+                    in_queue: false,
+                    updated_at: new Date().toISOString(),
                 })
                 .eq('id', sessionId);
 
@@ -593,8 +593,8 @@ export function useUserActivity() {
                     .from('sessions')
                     .update({
                         is_active: false,
-                        ended_at: new Date().toISOString(),
-                        deactivation_reason: 'device_blocked',
+                        in_queue: false,
+                        updated_at: new Date().toISOString(),
                     })
                     .eq('email', userEmail);
             }
@@ -933,8 +933,8 @@ export function useUserActivity() {
                             .from('sessions')
                             .update({
                                 is_active: false,
-                                ended_at: new Date().toISOString(),
-                                deactivation_reason: 'device_blocked',
+                                in_queue: false,
+                                updated_at: new Date().toISOString(),
                             })
                             .eq('id', sessionId);
                     })

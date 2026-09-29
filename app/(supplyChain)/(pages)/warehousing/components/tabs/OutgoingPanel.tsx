@@ -42,10 +42,13 @@ interface Courier {
 }
 
 const FALLBACK_DRIVERS = [
-    "MAGAT, ROSANT CARLO",
-    "MANAAY, ANTHONY",
-    "MELENCION, JAMES",
-    "NUEVAS, KENNETH",
+    "ROSANT CARLO MAGAT",
+    "ANTHONY MANAAY",
+    "JAMES MELENCION",
+    "KENNETH NUEVAS",
+    "BRUCE ESCO",
+    "SHERWIN PAJARILLO",
+    "ANGELO EGOS",
 ];
 
 export default function OutgoingPanel({ isVisible = true }) {
@@ -62,6 +65,7 @@ export default function OutgoingPanel({ isVisible = true }) {
     const [selectedDriver, setSelectedDriver] = useState<string>("");
     const [driverList, setDriverList] = useState<string[]>(FALLBACK_DRIVERS);
     const [driverEmailMap, setDriverEmailMap] = useState<Record<string, string>>({});
+    const [driverPositionMap, setDriverPositionMap] = useState<Record<string, string>>({});
     const [showDriverModal, setShowDriverModal] = useState(false);
     const [driverSearchTerm, setDriverSearchTerm] = useState("");
     const [debouncedDriverSearch, setDebouncedDriverSearch] = useState("");
@@ -176,36 +180,28 @@ export default function OutgoingPanel({ isVisible = true }) {
 
                 if (!error && data && data.length > 0) {
                     const drivers = data.filter((emp: any) => {
-                        const pos = (emp.position || '').toLowerCase();
-                        const dept = (emp.department || '').toLowerCase();
-                        const role = (emp.role || '').toLowerCase();
-                        return (
-                            pos.includes('rider') ||
-                            pos.includes('driver') ||
-                            pos.includes('drop-off') ||
-                            pos.includes('pick-up') ||
-                            dept.includes('rider') ||
-                            dept.includes('driver') ||
-                            role.includes('rider') ||
-                            role.includes('driver')
-                        );
+                        const pos = (emp.position || '').toLowerCase().trim();
+                        return pos === 'drop-off pick-up rider' || pos === 'airship driver';
                     });
 
                     const emailMap: Record<string, string> = {};
+                    const posMap: Record<string, string> = {};
                     const driverNames = drivers
                         .map((emp: any) => {
                             const name = (emp.display_name || '').trim();
-                            if (name && emp.email) {
-                                emailMap[name] = emp.email.trim();
+                            if (name) {
+                                if (emp.email) emailMap[name] = emp.email.trim();
+                                if (emp.position) posMap[name] = emp.position.trim();
                             }
                             return name;
                         })
                         .filter(Boolean);
 
                     setDriverEmailMap(emailMap);
+                    setDriverPositionMap(posMap);
 
                     if (driverNames.length > 0) {
-                        const uniqueDrivers = Array.from(new Set([...driverNames, ...FALLBACK_DRIVERS]));
+                        const uniqueDrivers = Array.from(new Set(driverNames)).sort((a, b) => a.localeCompare(b));
                         setDriverList(uniqueDrivers);
                     }
                 }
@@ -1628,7 +1624,9 @@ export default function OutgoingPanel({ isVisible = true }) {
                                             </div>
                                             <div className="min-w-0">
                                                 <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{driver}</div>
-                                                <div className="text-[10px] text-pink-600 dark:text-pink-400 font-semibold">Drop-Off Pick-Up Driver</div>
+                                                <div className="text-[10px] text-pink-600 dark:text-pink-400 font-semibold">
+                                                    {driverPositionMap[driver] || 'Drop-Off Pick-Up Rider / Airship Driver'}
+                                                </div>
                                             </div>
                                         </div>
 

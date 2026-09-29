@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { supabase } from '../../../lib/services/client/supabase';
 import { NextResponse } from 'next/server';
 import { createHash, randomBytes } from 'crypto';
 
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
         const hashedInputOTP = hashOTP(otp);
 
         // get latest valid otp by user_id or email
-        let otpQuery = supabase
+        let otpQuery = supabaseAdmin
             .from('otp_codes')
             .select('*')
             .is('used_at', null)
@@ -68,7 +67,7 @@ export async function POST(request: Request) {
 
         if (otpError || !otpRecords || otpRecords.length === 0) {
             // check if the specific inputted OTP was issued and is now expired
-            let expiredQuery = supabase
+            let expiredQuery = supabaseAdmin
                 .from('otp_codes')
                 .select('*')
                 .eq('code_hash', hashedInputOTP)
@@ -96,7 +95,7 @@ export async function POST(request: Request) {
             }
 
             // check if any recent unused OTP is expired
-            let recentQuery = supabase
+            let recentQuery = supabaseAdmin
                 .from('otp_codes')
                 .select('*')
                 .is('used_at', null)
@@ -144,7 +143,7 @@ export async function POST(request: Request) {
         const isValid = otpRecord.code_hash === hashedInputOTP;
 
         if (!isValid) {
-            await supabase
+            await supabaseAdmin
                 .from('otp_codes')
                 .update({ attempts: (otpRecord.attempts || 0) + 1 })
                 .eq('id', otpRecord.id);
@@ -156,20 +155,20 @@ export async function POST(request: Request) {
         }
 
         // mark otp as used
-        await supabase
+        await supabaseAdmin
             .from('otp_codes')
             .update({ used_at: new Date().toISOString() })
             .eq('id', otpRecord.id);
 
         // check if user exists
-        const { data: existingUser } = await supabase
+        const { data: existingUser } = await supabaseAdmin
             .from('users')
             .select('id, email, role, display_name, position, department')
             .eq('email', email)
             .maybeSingle();
 
         // get hr data from mock_employees table for password check
-        const { data: hrData } = await supabase
+        const { data: hrData } = await supabaseAdmin
             .from('mock_employees')
             .select('*')
             .eq('email', email)
@@ -181,17 +180,31 @@ export async function POST(request: Request) {
             'Unknown';
         const userAgent = request.headers.get('user-agent') || 'Unknown';
 
-        // determine session expiry
+        // determine session expiry (15 days when rememberMe is checked, 24 hours for standard sessions)
         const expiresAt = rememberMe
-            ? new Date(Date.now() + 15 * 24 * 3600000)
-            : new Date(Date.now() + 8 * 3600000);
+            ? new Date(Date.now() + 15 * 24 * 3600000).toISOString()
+            : new Date(Date.now() + 24 * 3600000).toISOString();
 
         if (existingUser) {
             // resolve and synchronize accurate role and position in users table
             const userPosition = (hrData?.position || existingUser.position || '').trim();
             let effectiveRole = existingUser.role;
 
-            if (userPosition && effectiveRole !== 'Admin' && effectiveRole !== 'Executive') {
+            let isSupplier = existingUser.role === 'Supplier' || employeeRole === 'Supplier';
+            if (!isSupplier && !hrData) {
+                const { data: supplierAcc } = await supabaseAdmin
+                    .from('suppliers_account')
+                    .select('id')
+                    .eq('email', email)
+                    .maybeSingle();
+                if (supplierAcc) {
+                    isSupplier = true;
+                }
+            }
+
+            if (isSupplier) {
+                effectiveRole = 'Supplier';
+            } else if (userPosition && effectiveRole !== 'Admin' && effectiveRole !== 'Executive' && effectiveRole !== 'Supplier') {
                 const p = userPosition.toUpperCase().replace(/\s+/g, ' ');
                 if (
                     p === 'OFFICE-IN-CHARGE' ||
@@ -211,7 +224,7 @@ export async function POST(request: Request) {
             }
 
             try {
-                await supabase
+                await supabaseAdmin
                     .from('users')
                     .update({
                         role: effectiveRole,
@@ -318,7 +331,8 @@ export async function POST(request: Request) {
                     .upsert({
                         user_id: existingUser.id,
                         session_token: randomBytes(32).toString('hex'),
-                        expires_at: expiresAt.toISOString(),
+                        expires_at: expiresAt,
+                        expires_at_remember: expiresAt,
                         email: email,
                         hr_employee_name: existingUser.display_name,
                         is_active: false,
@@ -373,7 +387,8 @@ export async function POST(request: Request) {
                     .from('sessions')
                     .update({
                         session_token: sessionToken,
-                        expires_at: expiresAt.toISOString(),
+                        expires_at: expiresAt,
+                        expires_at_remember: expiresAt,
                         ip_address: ipAddress,
                         user_agent: userAgent,
                         is_active: true,
@@ -397,7 +412,8 @@ export async function POST(request: Request) {
                     .insert({
                         user_id: existingUser.id,
                         session_token: sessionToken,
-                        expires_at: expiresAt.toISOString(),
+                        expires_at: expiresAt,
+                        expires_at_remember: expiresAt,
                         email: email,
                         hr_employee_name: existingUser.display_name,
                         is_active: true,
@@ -435,6 +451,8 @@ export async function POST(request: Request) {
                 session_token: sessionToken,
                 redirect_url: roleRedirects[existingUser.role] || '/suppliers_page/purchase-orders',
                 role: existingUser.role,
+                remember_me: rememberMe || false,
+                expires_at: expiresAt,
                 employee: {
                     email: email,
                     display_name: existingUser.display_name,
@@ -444,7 +462,7 @@ export async function POST(request: Request) {
         } else {
             // Check if this is a Supplier account logging in
             if (employeeRole === 'Supplier' || !hrData) {
-                const { data: supplierAcc } = await supabase
+                const { data: supplierAcc } = await supabaseAdmin
                     .from('suppliers_account')
                     .select('*, suppliers(name)')
                     .eq('email', email)

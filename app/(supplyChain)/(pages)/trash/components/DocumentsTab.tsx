@@ -44,6 +44,30 @@ interface ArchivedDocument {
 
 const ITEMS_PER_PAGE = 10;
 
+const formatArchivedDocument = (doc: any): ArchivedDocument => ({
+    id: doc.id,
+    title: sanitizeText(doc.title || doc.file_name || 'Untitled'),
+    file_name: sanitizeText(doc.file_name),
+    file_size: sanitizeNumber(doc.file_size),
+    file_type: sanitizeText(doc.file_type),
+    storage_path: sanitizeText(doc.storage_path || ''),
+    category: sanitizeText(doc.category || 'documents'),
+    document_type: sanitizeText(doc.document_type || 'Other'),
+    supplier: doc.supplier ? sanitizeText(doc.supplier) : null,
+    po_number: doc.po_number ? sanitizeText(doc.po_number) : null,
+    parcel_batch: doc.parcel_batch ? sanitizeText(doc.parcel_batch) : null,
+    uploaded_by: doc.uploaded_by ? sanitizeText(doc.uploaded_by) : null,
+    notes: doc.notes ? sanitizeText(doc.notes) : null,
+    created_at: doc.created_at,
+    updated_at: doc.updated_at,
+    version: sanitizeNumber(doc.version || 1),
+    deleted_at: doc.deleted_at || new Date().toISOString(),
+    deleted_by: sanitizeText(doc.deleted_by || 'Unknown'),
+    original_id: doc.original_id || doc.id,
+    role: doc.role ? sanitizeText(doc.role) : null,
+    session_id: doc.session_id ? sanitizeText(doc.session_id) : null,
+});
+
 export function DocumentsTab() {
     const { confirm } = useConfirm();
 
@@ -85,29 +109,7 @@ export function DocumentsTab() {
 
             if (error) throw error;
 
-            const transformedData: ArchivedDocument[] = (data || []).map((doc: any) => ({
-                id: doc.id,
-                title: sanitizeText(doc.title || doc.file_name || 'Untitled'),
-                file_name: sanitizeText(doc.file_name),
-                file_size: sanitizeNumber(doc.file_size),
-                file_type: sanitizeText(doc.file_type),
-                storage_path: sanitizeText(doc.storage_path || ''),
-                category: sanitizeText(doc.category || 'documents'),
-                document_type: sanitizeText(doc.document_type || 'Other'),
-                supplier: doc.supplier ? sanitizeText(doc.supplier) : null,
-                po_number: doc.po_number ? sanitizeText(doc.po_number) : null,
-                parcel_batch: doc.parcel_batch ? sanitizeText(doc.parcel_batch) : null,
-                uploaded_by: doc.uploaded_by ? sanitizeText(doc.uploaded_by) : null,
-                notes: doc.notes ? sanitizeText(doc.notes) : null,
-                created_at: doc.created_at,
-                updated_at: doc.updated_at,
-                version: sanitizeNumber(doc.version || 1),
-                deleted_at: doc.deleted_at || new Date().toISOString(),
-                deleted_by: sanitizeText(doc.deleted_by || 'Unknown'),
-                original_id: doc.original_id || doc.id,
-                role: doc.role ? sanitizeText(doc.role) : null,
-                session_id: doc.session_id ? sanitizeText(doc.session_id) : null,
-            }));
+            const transformedData: ArchivedDocument[] = (data || []).map(formatArchivedDocument);
 
             trashCache.set('documents', transformedData);
             setArchivedDocuments(transformedData);
@@ -426,7 +428,64 @@ export function DocumentsTab() {
             }
         });
 
-        return unsubscribe;
+        // Realtime subscription for documents_archive table
+        const channelId = `trash_documents_realtime_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const channel = supabase
+            .channel(channelId)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'documents_archive' },
+                (payload: any) => {
+                    if (payload.eventType === 'INSERT') {
+                        const newDoc = formatArchivedDocument(payload.new);
+                        setArchivedDocuments(prev => {
+                            if (prev.some(d => d.id === newDoc.id)) {
+                                return prev.map(d => d.id === newDoc.id ? newDoc : d);
+                            }
+                            const updated = [newDoc, ...prev];
+                            trashCache.set('documents', updated);
+                            return updated;
+                        });
+                    } else if (payload.eventType === 'UPDATE') {
+                        const updatedDoc = formatArchivedDocument(payload.new);
+                        setArchivedDocuments(prev => {
+                            const updated = prev.map(d => d.id === updatedDoc.id ? updatedDoc : d);
+                            trashCache.set('documents', updated);
+                            return updated;
+                        });
+                    } else if (payload.eventType === 'DELETE') {
+                        const deletedId = payload.old?.id;
+                        if (deletedId) {
+                            setArchivedDocuments(prev => {
+                                const updated = prev.filter(d => d.id !== deletedId);
+                                trashCache.set('documents', updated);
+                                return updated;
+                            });
+                            setSelectedDocIds(prev => {
+                                if (prev.has(deletedId)) {
+                                    const updated = new Set(prev);
+                                    updated.delete(deletedId);
+                                    return updated;
+                                }
+                                return prev;
+                            });
+                        }
+                    }
+                }
+            )
+            .subscribe((status, err) => {
+                if (err && status !== 'CLOSED') {
+                    const errMsg = String(err?.message || err);
+                    if (!errMsg.includes('1006') && !errMsg.includes('closed')) {
+                        console.warn('[Realtime Trash Documents] Subscription error:', err);
+                    }
+                }
+            });
+
+        return () => {
+            unsubscribe();
+            supabase.removeChannel(channel);
+        };
     }, [fetchArchivedDocuments]);
 
     return (

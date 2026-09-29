@@ -94,7 +94,7 @@ export interface ExecutiveDataPayload {
     lastUpdated: string;
 }
 
-const CACHE_KEY = "AIRSHIP_EXECUTIVE_DATA_CACHE_V7";
+const CACHE_KEY = "AIRSHIP_EXECUTIVE_DATA_CACHE_V8";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 interface FetchDataOptions {
@@ -114,6 +114,16 @@ export function useExecutiveData() {
     useEffect(() => {
         isMounted.current = true;
         try {
+            // Clean up any stale older cache versions (V1 to V7)
+            if (typeof window !== "undefined") {
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    if (key && key.startsWith("AIRSHIP_EXECUTIVE_DATA_CACHE_") && key !== CACHE_KEY) {
+                        sessionStorage.removeItem(key);
+                    }
+                }
+            }
+
             const cachedStr = sessionStorage.getItem(CACHE_KEY);
             if (cachedStr) {
                 const parsed = JSON.parse(cachedStr);
@@ -153,17 +163,14 @@ export function useExecutiveData() {
                 supabase
                     .from('parcels')
                     .select('id, barcode, tracking_number, customer_name, sender_name, destination, courier, status, created_at, region, city')
-                    .order('created_at', { ascending: false })
-                    .limit(500),
+                    .order('created_at', { ascending: false }),
                 supabase
                     .from('inventory_items')
-                    .select('id, item_code, item_name, category, current_stock, minimum_stock, status, purchase_price, supplier')
-                    .limit(500),
+                    .select('id, item_code, item_name, category, current_stock, minimum_stock, status, purchase_price, supplier'),
                 supabase
                     .from('purchase_requests')
-                    .select('id, request_number, type, department, supplier_name, amount, priority, status, date, created_at')
-                    .order('created_at', { ascending: false })
-                    .limit(200),
+                    .select('id, request_number, type, description, requested_by, department, supplier_name, amount, priority, status, date, created_at')
+                    .order('created_at', { ascending: false }),
                 supabase
                     .from('documents')
                     .select('id, title, file_type, category, document_type, supplier, created_at')

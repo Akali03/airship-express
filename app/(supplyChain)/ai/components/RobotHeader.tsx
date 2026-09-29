@@ -29,10 +29,8 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
         return '#ec4899';
     };
 
-    // FIX: Define mouth paths with proper string values
     const mouthSmile = "M 43 55 Q 50 58 57 55";
     const mouthTalking1 = "M 43 55 Q 50 61 57 55";
-    const mouthTalking2 = "M 43 56 Q 50 63 57 56";
 
     return (
         <motion.div
@@ -178,21 +176,24 @@ export function RobotHeader({ size = 36, isThinking = false, isResponding = fals
                         }}
                     />
                 ) : isResponding ? (
-                    <motion.path
-                        d={mouthTalking1}
-                        stroke="#10b981"
-                        strokeWidth="2"
-                        fill="none"
-                        strokeLinecap="round"
-                        animate={{
-                            d: [mouthTalking1, mouthTalking2, mouthTalking1],
-                        }}
+                    <motion.g
+                        animate={{ scaleY: [1, 1.5, 0.75, 1.3, 1] }}
+                        style={{ transformOrigin: '50px 56px' }}
                         transition={{
-                            duration: 0.6,
+                            duration: 0.5,
                             repeat: Infinity,
                             ease: "easeInOut" as const,
+                            repeatType: "loop" as const,
                         }}
-                    />
+                    >
+                        <path
+                            d={mouthTalking1}
+                            stroke="#10b981"
+                            strokeWidth="2"
+                            fill="none"
+                            strokeLinecap="round"
+                        />
+                    </motion.g>
                 ) : (
                     <path
                         d={mouthSmile}

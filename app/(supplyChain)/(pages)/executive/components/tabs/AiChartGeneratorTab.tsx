@@ -13,13 +13,13 @@ interface AiChartGeneratorTabProps {
     onOpenModal?: (reportType: string, extraData?: any) => void;
 }
 
-const STORAGE_KEY = "AIRSHIP_EXECUTIVE_AI_CHARTS_CACHE_V1";
+const STORAGE_KEY = "AIRSHIP_EXECUTIVE_AI_CHARTS_CACHE_V3";
 
 const QUICK_SUGGESTIONS = [
     { label: "Cross-Table Record Synthesis", prompt: "Show data in different tables in 1 chart or summary: compare inventory_items, suppliers, couriers, user_activity, and documents.", mode: "both" as const, domain: "all" },
     { label: "Inventory Stock by Category", prompt: "Show inventory stock unit distribution and low stock items across categories.", mode: "both" as const, domain: "inventory" },
     { label: "User Activity & Security Logs", prompt: "Analyze recent user activity logs and system security events.", mode: "both" as const, domain: "user-activity" },
-    { label: "Compliance Documents Audit", prompt: "Audit all archived compliance documents by type and supplier.", mode: "both" as const, domain: "documents" },
+    { label: "Compliance Documents Audit", prompt: "Audit all active and archived compliance documents by type and supplier.", mode: "both" as const, domain: "documents" },
     { label: "Registered Courier Partners", prompt: "Compare registered courier partners and carrier allocation capacity.", mode: "chart" as const, domain: "parcels" },
     { label: "Trash & Archives Inspection", prompt: "Check trash and archived records across all modules.", mode: "text" as const, domain: "trash" },
     { label: "Suppliers & Vendor Network", prompt: "Analyze approved suppliers by business category and location.", mode: "both" as const, domain: "suppliers" },
@@ -47,16 +47,37 @@ export default function AiChartGeneratorTab({ data: executiveData }: AiChartGene
     const modalCanvasRef = useRef<HTMLCanvasElement>(null);
     const modalChartInstanceRef = useRef<Chart | null>(null);
 
-    // 1. Load cached queries from localStorage on mount
+    // 1. Load cached queries from localStorage on mount (purging stale caches)
     useEffect(() => {
         try {
+            // Clean up old V1 and V2 caches if present
+            localStorage.removeItem("AIRSHIP_EXECUTIVE_AI_CHARTS_CACHE_V1");
+            localStorage.removeItem("AIRSHIP_EXECUTIVE_AI_CHARTS_CACHE_V2");
+
             const cached = localStorage.getItem(STORAGE_KEY);
             if (cached) {
                 const parsed: AIChartResult[] = JSON.parse(cached);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    const limited = parsed.length > 4 ? parsed.slice(parsed.length - 4) : parsed;
-                    setSavedQueries(limited);
-                    setActiveQueryId(limited[limited.length - 1]?.id || limited[0].id);
+                    // Filter out stale queries that reported 0 documents or truncated 300/500 parcels
+                    const valid = parsed.filter(q => {
+                        const hasStaleDocs = q.metrics?.some(m => 
+                            (m.label?.toLowerCase().includes('document') && (m.value === 0 || m.value === '0' || m.change === '0.0%')) ||
+                            (m.label?.toLowerCase().includes('compliance') && m.value === 'Pending')
+                        );
+                        const hasTruncatedParcels = q.metrics?.some(m =>
+                            m.label?.toLowerCase().includes('parcel') &&
+                            (m.value === 300 || m.value === '300' || m.value === '300 Parcels' || m.value === 500 || m.value === '500' || m.value === '500 Parcels')
+                        );
+                        return !hasStaleDocs && !hasTruncatedParcels;
+                    });
+
+                    if (valid.length > 0) {
+                        const limited = valid.length > 4 ? valid.slice(valid.length - 4) : valid;
+                        setSavedQueries(limited);
+                        setActiveQueryId(limited[limited.length - 1]?.id || limited[0].id);
+                    } else {
+                        localStorage.removeItem(STORAGE_KEY);
+                    }
                 }
             }
         } catch (e) {
