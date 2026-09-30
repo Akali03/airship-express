@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../library/supabase/server";
 
-//get cookies from request
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -22,11 +21,10 @@ export async function POST(request: Request) {
     const supabase = await createClient();
 
     // Authenticate with Supabase Auth
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (authError || !authData.user) {
       console.error("Staff login error:", authError);
@@ -40,23 +38,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get staff profile
-    const { data: profile, error: profileError } =
-      await supabase
-        .from("profiles")
-        .select("id, email, role")
-        .eq("id", authData.user.id)
-        .maybeSingle();
+    // Get unified profile
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role, mfa_enabled, mfa_email_verified")
+      .eq("id", authData.user.id)
+      .maybeSingle();
 
     if (profileError) {
       console.error("Profile error:", profileError);
-
       await supabase.auth.signOut();
 
       return NextResponse.json(
         {
           success: false,
-          error: "Unable to load staff profile",
+          error: "Unable to load profile",
         },
         { status: 500 }
       );
@@ -75,29 +71,36 @@ export async function POST(request: Request) {
       );
     }
 
-    // Login successful
+    // If MFA is enabled, reset email_verified flag so MFA is required for this new session
+    if (profile.mfa_enabled) {
+      await supabase
+        .from("profiles")
+        .update({ mfa_email_verified: false })
+        .eq("id", authData.user.id);
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "MFA_REQUIRED",
+          mfaRequired: true,
+        },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Staff login successful",
-
       user: {
         id: authData.user.id,
         email: authData.user.email,
-      },
-
-      profile: {
-        id: profile.id,
-        email: profile.email,
+        full_name: profile.full_name,
         role: profile.role,
+        mfaEnabled: profile.mfa_enabled,
       },
-
-      session: {
-        expires_at: authData.session?.expires_at,
-      },
+      session: authData.session,
     });
   } catch (error) {
-    console.error("Customer service login API error:", error);
-
+    console.error("Login error:", error);
     return NextResponse.json(
       {
         success: false,

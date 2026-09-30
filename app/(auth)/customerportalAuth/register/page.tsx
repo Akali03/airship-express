@@ -8,7 +8,11 @@ import { getCurrentUser } from "@/app/(crbc)/library/auth/getCurrentUser"
 export default async function Register() {
       const user = await getCurrentUser();
 
-          if (user?.customer.role === "customer") {
+          if (user?.profile?.role === "customer") {
+                 // Unconfirmed accounts must confirm their email first.
+                 if (!user.authUser.email_confirmed_at) {
+                     redirect("/customerportalAuth/verify-email");
+                 }
                  redirect("/customer/dashboard");
              }
 

@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../library/supabase/server";
 
-//login test
-//get cookies from request
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const email = body.email;
+    const email = body.email?.trim();
     const password = body.password;
 
     if (!email || !password) {
@@ -22,74 +20,94 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    // Login through Supabase
-    const { data, error } =
-      await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    // Authenticate with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    if (error) {
-      console.error("Supabase login error:", error);
+    if (authError || !authData.user) {
+      console.error("Customer login error:", authError);
 
       return NextResponse.json(
         {
           success: false,
-          error: error.message,
+          error: "Invalid email or password",
         },
         { status: 401 }
       );
     }
 
-    if (!data.user || !data.session) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unable to authenticate",
-        },
-        { status: 401 }
-      );
-    }
+    // Get unified profile
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role, mfa_enabled, mfa_email_verified")
+      .eq("id", authData.user.id)
+      .maybeSingle();
 
-    // Verify customer role
-    const { data: profile, error: profileError } =
-      await supabase
-        .from("customers")
-        .select("id, email, full_name, role")
-        .eq("id", data.user.id)
-        .single();
-
-    if (
-      profileError ||
-      !profile ||
-      profile.role !== "customer"
-    ) {
+    if (profileError) {
+      console.error("Profile error:", profileError);
       await supabase.auth.signOut();
 
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid customer account",
+          error: "Unable to load profile",
+        },
+        { status: 500 }
+      );
+    }
+
+    // Make sure this is a customer account
+    if (!profile || profile.role !== "customer") {
+      await supabase.auth.signOut();
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Customer access required",
         },
         { status: 403 }
       );
     }
 
+    // If MFA is enabled, reset email_verified flag so MFA is required for this new session
+    if (profile.mfa_enabled) {
+      await supabase
+        .from("profiles")
+        .update({ mfa_email_verified: false })
+        .eq("id", authData.user.id);
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "MFA_REQUIRED",
+          mfaRequired: true,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Get customer business data
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("profile_id", authData.user.id)
+      .single();
+
     return NextResponse.json({
       success: true,
-
       user: {
-        id: data.user.id,
-        email: data.user.email,
+        id: authData.user.id,
+        email: authData.user.email,
+        role: profile.role,
+        mfaEnabled: profile.mfa_enabled,
       },
-      customer: profile,
-      session: {
-        expires_at: data.session.expires_at,
-      },
+      customer: customer || null,
+      session: authData.session,
     });
   } catch (error) {
-    console.error("Customer login API error:", error);
-
+    console.error("Login error:", error);
     return NextResponse.json(
       {
         success: false,
