@@ -149,6 +149,10 @@ export async function GET(request: Request) {
                 id: session.id,
                 email: session.email,
                 hr_employee_name: session.hr_employee_name,
+                allowed_time_start: session.allowed_time_start || '07:00',
+                allowed_time_end: session.allowed_time_end || '17:00',
+                allowed_days: session.allowed_days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+                is_allow: session.is_allow !== null && session.is_allow !== undefined ? Boolean(session.is_allow) : true,
             },
             user: {
                 id: userId,
@@ -156,6 +160,10 @@ export async function GET(request: Request) {
                 email: userEmail,
                 role: userRole,
                 department: userDepartment,
+                allowed_time_start: session.allowed_time_start || '07:00',
+                allowed_time_end: session.allowed_time_end || '17:00',
+                allowed_days: session.allowed_days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+                is_allow: session.is_allow !== null && session.is_allow !== undefined ? Boolean(session.is_allow) : true,
             }
         });
     } catch (error) {

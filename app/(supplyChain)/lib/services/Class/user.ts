@@ -9,6 +9,9 @@ interface UserData {
     userAgent: string;
     ipAddress: string;
     userId: string | null;
+    allowedTimeEnd?: string | null;
+    allowedTimeStart?: string | null;
+    allowedDays?: string[] | null;
 }
 
 class UserService {
@@ -39,6 +42,9 @@ class UserService {
         userAgent?: string;
         ipAddress?: string;
         userId?: string;
+        allowedTimeEnd?: string;
+        allowedTimeStart?: string;
+        allowedDays?: string[] | string;
     }) {
         if (typeof window === 'undefined') return;
 
@@ -55,6 +61,12 @@ class UserService {
         localStorage.setItem('user_agent', userAgent);
         localStorage.setItem('user_ip', ipAddress);
         localStorage.setItem('user_id', data.userId || '');
+        if (data.allowedTimeEnd) localStorage.setItem('user_allowed_time_end', data.allowedTimeEnd);
+        if (data.allowedTimeStart) localStorage.setItem('user_allowed_time_start', data.allowedTimeStart);
+        if (data.allowedDays) {
+            const daysStr = Array.isArray(data.allowedDays) ? JSON.stringify(data.allowedDays) : data.allowedDays;
+            localStorage.setItem('user_allowed_days', daysStr);
+        }
 
         // Session backup object
         const backup = {
@@ -161,6 +173,12 @@ class UserService {
             }
         }
 
+        let parsedDays: string[] | null = null;
+        const storedDays = localStorage.getItem('user_allowed_days');
+        if (storedDays) {
+            try { parsedDays = JSON.parse(storedDays); } catch { parsedDays = storedDays.split(','); }
+        }
+
         return {
             name: name || 'User',
             role: role || 'User',
@@ -170,7 +188,20 @@ class UserService {
             userAgent: localStorage.getItem('user_agent') || '',
             ipAddress: localStorage.getItem('user_ip') || '',
             userId: localStorage.getItem('user_id') || null,
+            allowedTimeEnd: localStorage.getItem('user_allowed_time_end') || null,
+            allowedTimeStart: localStorage.getItem('user_allowed_time_start') || null,
+            allowedDays: parsedDays,
         };
+    }
+
+    getAllowedTimeEnd(): string | null {
+        if (typeof window === 'undefined') return null;
+        return localStorage.getItem('user_allowed_time_end') || null;
+    }
+
+    getAllowedTimeStart(): string | null {
+        if (typeof window === 'undefined') return null;
+        return localStorage.getItem('user_allowed_time_start') || null;
     }
 
     getUserId(): string | null {
@@ -282,6 +313,9 @@ class UserService {
         localStorage.removeItem('user_agent');
         localStorage.removeItem('user_ip');
         localStorage.removeItem('user_id');
+        localStorage.removeItem('user_allowed_time_end');
+        localStorage.removeItem('user_allowed_time_start');
+        localStorage.removeItem('user_allowed_days');
         localStorage.removeItem('session_backup');
         localStorage.removeItem('session_backup_2');
         localStorage.removeItem('session_backup_3');
@@ -295,7 +329,17 @@ class UserService {
         document.cookie = 'session_backup=; path=/; max-age=0';
     }
 
-    updateUser(data: Partial<{ name: string; role: string; email: string; userAgent: string; ipAddress: string; userId: string }>) {
+    updateUser(data: Partial<{
+        name: string;
+        role: string;
+        email: string;
+        userAgent: string;
+        ipAddress: string;
+        userId: string;
+        allowedTimeEnd?: string;
+        allowedTimeStart?: string;
+        allowedDays?: string[] | string;
+    }>) {
         if (typeof window === 'undefined') return;
 
         if (data.name) localStorage.setItem('user_name', data.name);
@@ -304,6 +348,12 @@ class UserService {
         if (data.userAgent) localStorage.setItem('user_agent', data.userAgent);
         if (data.ipAddress) localStorage.setItem('user_ip', data.ipAddress);
         if (data.userId) localStorage.setItem('user_id', data.userId);
+        if (data.allowedTimeEnd) localStorage.setItem('user_allowed_time_end', data.allowedTimeEnd);
+        if (data.allowedTimeStart) localStorage.setItem('user_allowed_time_start', data.allowedTimeStart);
+        if (data.allowedDays) {
+            const daysStr = Array.isArray(data.allowedDays) ? JSON.stringify(data.allowedDays) : data.allowedDays;
+            localStorage.setItem('user_allowed_days', daysStr);
+        }
     }
 }
 

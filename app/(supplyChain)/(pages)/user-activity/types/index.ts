@@ -15,12 +15,20 @@ export interface Session {
         display_name: string;
         email: string;
         role: string;
+        department?: string;
     };
     is_blocked?: boolean;
     blocked_device_id?: string;
     strikes?: number;
     is_locked_out?: boolean;
     lockout_remaining_seconds?: number;
+    is_allow?: boolean;
+    allowed_days?: string[];
+    allowed_time_start?: string;
+    allowed_time_end?: string;
+    auth_requested?: boolean;
+    auth_requested_at?: string | null;
+    auth_request_message?: string | null;
 }
 
 export interface BlockedDevice {
@@ -70,4 +78,5 @@ export interface UserActivity {
     };
 }
 
-export type ActivityTab = 'active_users' | 'sessions' | 'blocked' | 'activity' | 'appeals';
+export type ActivityTab = 'active_users' | 'sessions' | 'access_control' | 'blocked' | 'activity' | 'appeals';
+

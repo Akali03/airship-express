@@ -218,13 +218,13 @@ export default function RememberedPasswordModal({
         const email = selectedEmployee.email;
         const result = await handleVerifyRememberedPassword();
 
-        if (result === 'queued') {
-            // Password was correct, but user is placed in the concurrency queue
+        if (result === 'queued' || result === 'not_allowed' || result === 'blocked' || result === 'error') {
+            // Not an invalid password error (e.g., authorization, queue, or device block error already handled)
             return;
         }
 
         if (result === false) {
-            // increment failed attempts
+            // increment failed attempts ONLY when password was truly invalid
             const newAttempts = failedAttempts + 1;
 
             if (newAttempts >= 3) {

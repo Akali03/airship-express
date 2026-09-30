@@ -3,6 +3,7 @@
 import { supabase } from '../../../lib/services/client/supabase';
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
+import { saveUserAccessRule, DEFAULT_ALLOWED_DAYS, DEFAULT_TIME_START, DEFAULT_TIME_END } from '../../../lib/services/userAccessService';
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -273,6 +274,8 @@ export async function POST(request: Request) {
             ? new Date(Date.now() + 15 * 24 * 3600000).toISOString()
             : null;
 
+        const isManagerOrAdmin = ['admin', 'executive'].includes((effectiveRole || role || '').toLowerCase().trim());
+
         const { error: sessionError } = await supabase
             .from('sessions')
             .insert({
@@ -287,6 +290,11 @@ export async function POST(request: Request) {
                 user_agent: userAgent,
                 ip_address: ipAddress,
                 created_at: new Date().toISOString(),
+                is_allow: isManagerOrAdmin, // Admin/Executive default to true
+                allowed_days: DEFAULT_ALLOWED_DAYS,
+                allowed_time_start: DEFAULT_TIME_START,
+                allowed_time_end: DEFAULT_TIME_END,
+                auth_requested: false,
             });
 
         if (sessionError) {
@@ -295,6 +303,24 @@ export async function POST(request: Request) {
                 { message: 'Failed to create session: ' + sessionError.message },
                 { status: 500 }
             );
+        }
+
+        // initialize default access control rule (default is_allow: false, allowed days: Mon-Fri, 7am-5pm)
+        try {
+            const isManagerOrAdmin = ['admin', 'executive'].includes((role || '').toLowerCase().trim());
+            await saveUserAccessRule({
+                email,
+                user_id: userId,
+                display_name: displayName,
+                role: effectiveRole,
+                is_allow: isManagerOrAdmin, // Admins/Executives allowed by default, staff/operators default false
+                allowed_days: DEFAULT_ALLOWED_DAYS,
+                allowed_time_start: DEFAULT_TIME_START,
+                allowed_time_end: DEFAULT_TIME_END,
+                auth_requested: false,
+            }, 'Account Creator');
+        } catch (accessErr) {
+            console.warn('Failed to seed user access rule:', accessErr);
         }
 
         // log activity

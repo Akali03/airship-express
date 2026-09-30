@@ -43,6 +43,7 @@ import {
     updateAppeal,
     deleteAppeal,
     maskEmail,
+    requestLoginAuthorizationApi,
 } from './services';
 import { settingsService } from '../../(supplyChain)/lib/services/settingsService';
 
@@ -462,6 +463,26 @@ export default function SupplyChainLoginPage() {
         }
     };
 
+    // notify admin when login is not authorized
+    const handleNotifyAdmin = async (userInfo: { email: string; userId?: string; displayName?: string; role?: string }) => {
+        toast.loading('Sending authorization request to Administrator...', { id: 'auth-req' });
+        try {
+            const { ok, data } = await requestLoginAuthorizationApi({
+                email: userInfo.email,
+                userId: userInfo.userId,
+                displayName: userInfo.displayName,
+                role: userInfo.role,
+            });
+            if (ok) {
+                toast.success(data?.message || 'Authorization request sent to Administrator. Please wait for approval.', { id: 'auth-req', duration: 5000 });
+            } else {
+                toast.error(data?.error || 'Failed to send request. Please try again.', { id: 'auth-req' });
+            }
+        } catch {
+            toast.error('Failed to notify admin. Please check your connection.', { id: 'auth-req' });
+        }
+    };
+
     // show password modal for remembered login
     const handleLoginWithRemembered = () => {
         if (!selectedEmployee || isDeviceBlocked) {
@@ -535,6 +556,25 @@ export default function SupplyChainLoginPage() {
             const { ok, status, data: activateData } = await activateSessionApi(sessionToken, currentUserAgent);
 
             if (!ok) {
+                if (activateData?.notAllowed || status === 403) {
+                    const msg = activateData?.message || 'You are not authorized to login at this time.';
+                    toast.error(msg, {
+                        duration: 8000,
+                        action: {
+                            label: 'Notify Admin',
+                            onClick: () => handleNotifyAdmin({
+                                email: selectedEmployee?.email || rememberedData?.email || '',
+                                userId: rememberedData?.user_id || loggedInUser?.id || selectedEmployee?.id,
+                                displayName: selectedEmployee?.display_name,
+                                role: userRole,
+                            }),
+                        },
+                    });
+                    setIsLoggingInWithRemembered(false);
+                    setShowRememberedPasswordModal(false);
+                    return 'not_allowed';
+                }
+
                 if (activateData?.queued || status === 429) {
                     setQueuePosition(activateData?.position || 1);
                     setQueueActiveUsers(activateData?.tierActive ?? activateData?.activeUsers ?? 1);
@@ -547,7 +587,7 @@ export default function SupplyChainLoginPage() {
                 toast.error(activateData?.message || 'Session activation failed. Please login with OTP.');
                 setIsLoggingInWithRemembered(false);
                 setShowRememberedPasswordModal(false);
-                return false;
+                return 'error';
             }
 
             const sessionExpiresAt = activateData?.session?.expires_at || rememberedData?.expires_at || new Date(Date.now() + 15 * 24 * 3600000).toISOString();
@@ -560,6 +600,9 @@ export default function SupplyChainLoginPage() {
                 expiresAt: sessionExpiresAt,
                 rememberMe: true,
                 userId: rememberedData?.user_id || loggedInUser?.id,
+                allowedTimeEnd: activateData?.session?.allowed_time_end || rememberedData?.allowed_time_end,
+                allowedTimeStart: activateData?.session?.allowed_time_start || rememberedData?.allowed_time_start,
+                allowedDays: activateData?.session?.allowed_days || rememberedData?.allowed_days,
             });
 
             toast.success('Login successful!');
@@ -604,6 +647,25 @@ export default function SupplyChainLoginPage() {
             const { ok, status, data } = await loginSupplyChainApi(email, password);
 
             if (!ok) {
+                if (data?.notAllowed || status === 403) {
+                    const userTarget = data?.user || { email };
+                    const msg = data?.message || 'You are not authorized to login at this time.';
+                    setLoginError(msg);
+                    toast.error(msg, {
+                        duration: 8000,
+                        action: {
+                            label: 'Notify Admin',
+                            onClick: () => handleNotifyAdmin({
+                                email: userTarget.email || email,
+                                userId: userTarget.id,
+                                displayName: userTarget.display_name,
+                                role: userTarget.role,
+                            }),
+                        },
+                    });
+                    return;
+                }
+
                 const nextAttempts = (loginAttempts || 0) + 1;
                 setLoginAttempts(nextAttempts);
                 localStorage.setItem(getLoginAttemptsKey(), nextAttempts.toString());
@@ -855,6 +917,26 @@ export default function SupplyChainLoginPage() {
             });
 
             if (!ok) {
+                if (data?.notAllowed || status === 403) {
+                    const userTarget = data?.user || selectedEmployee || { email: selectedEmployee?.email };
+                    const msg = data?.message || 'You are not authorized to login at this time.';
+                    setOtpError(msg);
+                    toast.error(msg, {
+                        duration: 8000,
+                        action: {
+                            label: 'Notify Admin',
+                            onClick: () => handleNotifyAdmin({
+                                email: userTarget.email || selectedEmployee?.email,
+                                userId: userTarget.id || selectedEmployee?.id,
+                                displayName: userTarget.display_name || selectedEmployee?.display_name,
+                                role: userTarget.role || selectedEmployee?.role,
+                            }),
+                        },
+                    });
+                    setIsVerifying(false);
+                    return;
+                }
+
                 if (data?.queued || status === 429) {
                     setQueuePosition(data?.position || 1);
                     setQueueActiveUsers(data?.tierActive ?? data?.activeUsers ?? 1);

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useConfirm } from "../ui/ConfirmModal";
 import { NotificationBell } from "./NotificationBell";
 import { UserProfileMenu } from "./UserProfileMenu";
+import { SessionLogoutTimer } from "./SessionLogoutTimer";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { AppButton } from "../ui/AppButton";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -283,6 +284,8 @@ export function AceternityNavbar() {
                 </div>
 
                 <div className="hidden lg:flex items-center gap-2 xl:gap-2.5 shrink-0">
+                    <SessionLogoutTimer />
+
                     <UserProfileMenu />
 
                     <NotificationBell />
@@ -317,6 +320,7 @@ export function AceternityNavbar() {
                     </button>
 
                     <div className="flex items-center gap-2">
+                        <SessionLogoutTimer compact />
                         <ThemeToggle />
                         <NotificationBell />
                         <MobileNavToggle isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}/>

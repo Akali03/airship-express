@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateUserLoginAuthorization } from '../../../lib/services/userAccessService';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || '';
 const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
@@ -45,14 +46,37 @@ export async function POST(request: Request) {
             );
         }
 
-        // Check user role for tiered slot admission
+        // Check user role
         const { data: userRecord } = await supabaseAdmin
             .from('users')
-            .select('role')
+            .select('id, email, display_name, role')
             .eq('id', session.user_id)
             .maybeSingle();
 
         const role = userRecord?.role || 'Employee';
+
+        // Check user access control (schedule & permission)
+        const authValidation = await validateUserLoginAuthorization({
+            userId: session.user_id,
+            email: session.email || userRecord?.email || '',
+            role: role,
+        });
+
+        if (!authValidation.allowed) {
+            return NextResponse.json(
+                {
+                    message: authValidation.reason,
+                    notAllowed: true,
+                    user: {
+                        id: session.user_id,
+                        email: session.email || userRecord?.email || '',
+                        display_name: userRecord?.display_name || session.email,
+                        role: role,
+                    },
+                },
+                { status: 403 }
+            );
+        }
 
         // 1. Fetch system concurrency slot configuration
         const { data: settingsRow } = await supabaseAdmin

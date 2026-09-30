@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { createHash, randomBytes } from 'crypto';
+import { validateUserLoginAuthorization } from '../../../lib/services/userAccessService';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_URL || '';
 const serviceRoleKey = process.env.NEXT_PUBLIC_SUPPLYCHAIN_SUPABASE_SERVICE_ROLE_KEY || 
@@ -249,6 +250,30 @@ export async function POST(request: Request) {
                 (existingUser as any).position = userPosition || null;
             } catch (updateRoleErr) {
                 console.error('Error synchronizing user role and position:', updateRoleErr);
+            }
+
+            // Check login authorization & schedule access rules
+            const authCheck = await validateUserLoginAuthorization({
+                email,
+                userId: existingUser.id,
+                role: effectiveRole,
+            });
+
+            if (!authCheck.allowed) {
+                return NextResponse.json(
+                    {
+                        message: authCheck.reason || 'You are not allowed to log in at this time. Please request authorization from an administrator.',
+                        notAllowed: true,
+                        reason: authCheck.reason,
+                        user: {
+                            id: existingUser.id,
+                            email,
+                            role: effectiveRole,
+                            display_name: existingUser.display_name,
+                        },
+                    },
+                    { status: 403 }
+                );
             }
 
             // Tiered Concurrency Slot Rate Limiter

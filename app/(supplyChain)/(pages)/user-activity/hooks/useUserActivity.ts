@@ -15,6 +15,7 @@ export function useUserActivity() {
 
     // raw data from supabase
     const [sessions, setSessions] = useState<Session[]>([]);
+    const [accessControlList, setAccessControlList] = useState<Session[]>([]);
     const [activeUsers, setActiveUsers] = useState<Session[]>([]);
     const [blockedDevices, setBlockedDevices] = useState<BlockedDevice[]>([]);
     const [activities, setActivities] = useState<UserActivity[]>([]);
@@ -27,6 +28,7 @@ export function useUserActivity() {
 
     // search & filter state
     const [sessionSearchTerm, setSessionSearchTerm] = useState('');
+    const [accessControlSearchTerm, setAccessControlSearchTerm] = useState('');
     const [activeUserSearchTerm, setActiveUserSearchTerm] = useState('');
     const [activitySearchTerm, setActivitySearchTerm] = useState('');
     const [activityActionFilter, setActivityActionFilter] = useState<string>('all');
@@ -43,6 +45,7 @@ export function useUserActivity() {
 
     // pagination states
     const [sessionPage, setSessionPage] = useState(1);
+    const [accessControlPage, setAccessControlPage] = useState(1);
     const [activeUserPage, setActiveUserPage] = useState(1);
     const [blockedPage, setBlockedPage] = useState(1);
     const [appealPage, setAppealPage] = useState(1);
@@ -81,10 +84,10 @@ export function useUserActivity() {
         }, delay);
     }, []);
 
-    // 1. Fetch Sessions (Sessions Tab)
+    // 1. Fetch Sessions & Access Control Rules (Sessions & Access Control Tabs)
     const fetchSessions = useCallback(async (isSilent = false) => {
         try {
-            const [blockedResult, sessionsResult] = await Promise.all([
+            const [blockedResult, sessionsResult, accessRulesRes, usersResult] = await Promise.all([
                 supabase
                     .from('blocked_devices')
                     .select('id, user_agent, ip_address, email, status')
@@ -99,7 +102,11 @@ export function useUserActivity() {
                             role
                         )
                     `)
-                    .order('created_at', { ascending: false })
+                    .order('created_at', { ascending: false }),
+                fetch('/api/supplyChain/user-access-control').then(r => r.ok ? r.json() : null).catch(() => null),
+                supabase
+                    .from('users')
+                    .select('id, display_name, email, role, department')
             ]);
 
             if (blockedResult.error) throw blockedResult.error;
@@ -107,6 +114,8 @@ export function useUserActivity() {
 
             const blockedData = blockedResult.data || [];
             const sessionsData = sessionsResult.data || [];
+            const accessRulesMap = (accessRulesRes?.rules || {}) as Record<string, any>;
+            const usersData = usersResult.data || [];
 
             // fetch ai chatbot moderation strike and lockout states
             const moderationMap = new Map();
@@ -132,9 +141,31 @@ export function useUserActivity() {
 
             const sessionsWithBlockStatus: Session[] = sessionsData.map(session => {
                 const sessionEmail = session.email || session.users?.email || '';
+                const emailKey = sessionEmail.toLowerCase().trim();
                 const key = `${session.user_agent}_${session.ip_address || 'unknown'}_${sessionEmail}`;
                 const blockedDeviceId = blockedMap.get(key);
                 const modState = moderationMap.get(session.user_id) || moderationMap.get(sessionEmail) || moderationMap.get(session.ip_address);
+                const accessRule = accessRulesMap[emailKey];
+                const isManagement = ['admin', 'executive'].includes((session.users?.role || '').toLowerCase().trim());
+
+                const isAllowValue = session.is_allow !== null && session.is_allow !== undefined
+                    ? Boolean(session.is_allow)
+                    : (accessRule !== undefined ? Boolean(accessRule.is_allow) : isManagement);
+                
+                let allowedDaysValue = session.allowed_days;
+                if (typeof allowedDaysValue === 'string') {
+                    try { allowedDaysValue = JSON.parse(allowedDaysValue); } catch { allowedDaysValue = allowedDaysValue.split(',').map((d: string) => d.trim()); }
+                }
+                if (!Array.isArray(allowedDaysValue) || allowedDaysValue.length === 0) {
+                    allowedDaysValue = accessRule?.allowed_days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                }
+
+                const startTimeValue = session.allowed_time_start || accessRule?.allowed_time_start || '07:00';
+                const endTimeValue = session.allowed_time_end || accessRule?.allowed_time_end || '17:00';
+                const authReqValue = session.auth_requested !== null && session.auth_requested !== undefined
+                    ? Boolean(session.auth_requested)
+                    : Boolean(accessRule?.auth_requested);
+                const authReqAtValue = session.auth_requested_at || accessRule?.auth_requested_at || null;
 
                 return {
                     ...session,
@@ -143,11 +174,74 @@ export function useUserActivity() {
                     strikes: modState?.strikes || 0,
                     is_locked_out: modState?.isLockedOut || false,
                     lockout_remaining_seconds: modState?.lockoutRemainingSeconds || 0,
+                    is_allow: isAllowValue,
+                    allowed_days: allowedDaysValue,
+                    allowed_time_start: startTimeValue,
+                    allowed_time_end: endTimeValue,
+                    auth_requested: authReqValue,
+                    auth_requested_at: authReqAtValue,
+                    auth_request_message: accessRule?.auth_request_message || null,
                 };
+            });
+
+            // Combine unique accounts into access control list (excluding Executive accounts)
+            const seenEmails = new Set<string>();
+            const fullAccessList: Session[] = [];
+
+            sessionsWithBlockStatus.forEach(s => {
+                const sRole = (s.users?.role || '').toLowerCase().trim();
+                if (sRole === 'executive') return; // Executive is completely excluded from Access Control
+
+                const em = (s.email || s.users?.email || '').toLowerCase().trim();
+                if (em && !seenEmails.has(em)) {
+                    seenEmails.add(em);
+                    fullAccessList.push(s);
+                }
+            });
+
+            usersData.forEach(u => {
+                const uRole = (u.role || '').toLowerCase().trim();
+                if (uRole === 'executive') return; // Executive is completely excluded from Access Control
+
+                const em = (u.email || '').toLowerCase().trim();
+                if (em && !seenEmails.has(em)) {
+                    seenEmails.add(em);
+                    const accessRule = accessRulesMap[em];
+                    const isAdmin = uRole === 'admin';
+
+                    fullAccessList.push({
+                        id: `user_${u.id}`,
+                        user_id: u.id,
+                        session_token: '',
+                        expires_at: '',
+                        expires_at_remember: null,
+                        ip_address: '—',
+                        user_agent: '—',
+                        created_at: new Date().toISOString(),
+                        is_active: false,
+                        email: u.email,
+                        hr_employee_name: u.display_name,
+                        remember_me: false,
+                        users: {
+                            display_name: u.display_name,
+                            email: u.email,
+                            role: u.role,
+                            department: u.department,
+                        },
+                        is_allow: accessRule !== undefined ? Boolean(accessRule.is_allow) : isAdmin,
+                        allowed_days: accessRule?.allowed_days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+                        allowed_time_start: accessRule?.allowed_time_start || '07:00',
+                        allowed_time_end: accessRule?.allowed_time_end || '17:00',
+                        auth_requested: Boolean(accessRule?.auth_requested),
+                        auth_requested_at: accessRule?.auth_requested_at || null,
+                        auth_request_message: accessRule?.auth_request_message || null,
+                    });
+                }
             });
 
             if (isMounted.current) {
                 setSessions(sessionsWithBlockStatus);
+                setAccessControlList(fullAccessList);
             }
         } catch (error) {
             console.error('Error fetching sessions:', error);
@@ -426,6 +520,17 @@ export function useUserActivity() {
         );
     }, [sessions, sessionSearchTerm]);
 
+    const filteredAccessControl = useMemo(() => {
+        if (!accessControlSearchTerm.trim()) return accessControlList;
+        const term = accessControlSearchTerm.toLowerCase();
+        return accessControlList.filter(session =>
+            session.email?.toLowerCase().includes(term) ||
+            session.hr_employee_name?.toLowerCase().includes(term) ||
+            session.users?.display_name?.toLowerCase().includes(term) ||
+            session.users?.role?.toLowerCase().includes(term)
+        );
+    }, [accessControlList, accessControlSearchTerm]);
+
     const filteredActiveUsers = useMemo(() => {
         if (!activeUserSearchTerm.trim()) return activeUsers;
         const term = activeUserSearchTerm.toLowerCase();
@@ -462,6 +567,7 @@ export function useUserActivity() {
 
     // Total pages calculations
     const sessionTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE)), [filteredSessions]);
+    const accessControlTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredAccessControl.length / ITEMS_PER_PAGE)), [filteredAccessControl]);
     const activeUserTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredActiveUsers.length / ITEMS_PER_PAGE)), [filteredActiveUsers]);
     const blockedTotalPages = useMemo(() => Math.max(1, Math.ceil(blockedDevices.length / ITEMS_PER_PAGE)), [blockedDevices]);
     const appealTotalPages = useMemo(() => Math.max(1, Math.ceil(appeals.length / ITEMS_PER_PAGE)), [appeals]);
@@ -471,6 +577,11 @@ export function useUserActivity() {
     const filterSessions = useCallback((term: string) => {
         setSessionSearchTerm(term);
         setSessionPage(1);
+    }, []);
+
+    const filterAccessControl = useCallback((term: string) => {
+        setAccessControlSearchTerm(term);
+        setAccessControlPage(1);
     }, []);
 
     const filterActiveUsers = useCallback((term: string) => {
@@ -1375,6 +1486,7 @@ export function useUserActivity() {
         // data helpers & fetch
         getPaginatedData,
         filterSessions,
+        filterAccessControl,
         filterActiveUsers,
         filterActivities,
         fetchAllData,
@@ -1383,6 +1495,84 @@ export function useUserActivity() {
         fetchBlockedDevices,
         fetchActivities,
         fetchAppeals,
+
+        // access control
+        accessControlList,
+        filteredAccessControl,
+        accessControlPage,
+        setAccessControlPage,
+        accessControlTotalPages,
+        handleUpdateAccessRule: async (rule: {
+            email: string;
+            user_id?: string;
+            display_name?: string;
+            role?: string;
+            is_allow: boolean;
+            allowed_days: string[];
+            allowed_time_start: string;
+            allowed_time_end: string;
+            auth_requested?: boolean;
+        }) => {
+            try {
+                const res = await fetch('/api/supplyChain/user-access-control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        rule,
+                        updatedBy: user.getUser()?.name || userRole || 'Admin',
+                    }),
+                });
+
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    toast.error(data.message || 'Failed to update access rule');
+                    return;
+                }
+
+                toast.success(`Access permissions updated for ${rule.display_name || rule.email}`);
+                await fetchSessions(true);
+            } catch (err: any) {
+                console.error('Error updating access rule:', err);
+                toast.error('Network error updating access rule');
+            }
+        },
+
+        handleBulkUpdateAccessRules: async (rules: Array<{
+            email: string;
+            user_id?: string;
+            display_name?: string;
+            role?: string;
+            is_allow: boolean;
+            allowed_days: string[];
+            allowed_time_start: string;
+            allowed_time_end: string;
+            auth_requested?: boolean;
+        }>) => {
+            try {
+                const res = await fetch('/api/supplyChain/user-access-control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        rules,
+                        updatedBy: user.getUser()?.name || userRole || 'Admin',
+                    }),
+                });
+
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    toast.error(data.message || 'Failed to bulk update access rules');
+                    return false;
+                }
+
+                toast.success(`Access permissions updated for ${rules.length} account(s)`);
+                await fetchSessions(true);
+                return true;
+            } catch (err: any) {
+                console.error('Error bulk updating access rules:', err);
+                toast.error('Network error updating access rules');
+                return false;
+            }
+        },
 
         // moderation
         handleResetStrikes,

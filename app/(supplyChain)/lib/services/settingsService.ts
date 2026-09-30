@@ -239,19 +239,22 @@ class SettingsService {
 
     private rebuildPerformanceCache(settings: SystemSettings) {
         this.routeRolesCache.clear();
-        for (const [route, roles] of Object.entries(settings.pagePermissions)) {
-            const cleanKey = route.toLowerCase().replace(/\/$/, '') || '/';
-            // Ensure Executive always retains permission in cache
-            const roleSet = new Set(roles);
-            roleSet.add('Executive');
-            // Ensure Operator is explicitly enabled for core operations & media routes
-            if (['/documents', '/gallery', '/trash', '/warehousing', '/inventory'].includes(cleanKey)) {
-                roleSet.add('Operator');
+        if (settings.pagePermissions && typeof settings.pagePermissions === 'object') {
+            for (const [route, roles] of Object.entries(settings.pagePermissions)) {
+                if (!Array.isArray(roles)) continue;
+                const cleanKey = route.toLowerCase().replace(/\/$/, '') || '/';
+                // Ensure Executive always retains permission in cache
+                const roleSet = new Set(roles);
+                roleSet.add('Executive');
+                // Ensure Operator is explicitly enabled for core operations & media routes
+                if (['/documents', '/gallery', '/trash', '/warehousing', '/inventory'].includes(cleanKey)) {
+                    roleSet.add('Operator');
+                }
+                this.routeRolesCache.set(cleanKey, Array.from(roleSet));
             }
-            this.routeRolesCache.set(cleanKey, Array.from(roleSet));
         }
 
-        if (!settings.inactivity.enabled) {
+        if (!settings.inactivity || !settings.inactivity.enabled) {
             this.cachedTimeoutMs = Number.MAX_SAFE_INTEGER;
             this.cachedWarningMs = 0;
         } else {
@@ -281,10 +284,17 @@ class SettingsService {
             const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw) as Partial<SystemSettings>;
-                const rawPerms = {
+                const rawPerms: Record<string, UserRole[]> = {
                     ...DEFAULT_SETTINGS.pagePermissions,
-                    ...(parsed.pagePermissions || {}),
                 };
+
+                if (parsed.pagePermissions && typeof parsed.pagePermissions === 'object') {
+                    Object.entries(parsed.pagePermissions).forEach(([r, val]) => {
+                        if (Array.isArray(val)) {
+                            rawPerms[r] = val as UserRole[];
+                        }
+                    });
+                }
 
                 // Ensure Operator is always included in documents, gallery, trash
                 ['/documents', '/gallery', '/trash', '/warehousing', '/inventory'].forEach((route) => {
@@ -588,7 +598,18 @@ class SettingsService {
                     },
                     (payload) => {
                         const row: any = payload.new;
-                        if (!row || !row.id) return;
+                        if (!row || row.id !== 'default_settings') return;
+
+                        const rawPerms: Record<string, UserRole[]> = {
+                            ...DEFAULT_SETTINGS.pagePermissions,
+                        };
+                        if (row.page_permissions && typeof row.page_permissions === 'object') {
+                            Object.entries(row.page_permissions).forEach(([r, val]) => {
+                                if (Array.isArray(val)) {
+                                    rawPerms[r] = val as UserRole[];
+                                }
+                            });
+                        }
 
                         const updated: SystemSettings = {
                             inactivity: {
@@ -599,10 +620,7 @@ class SettingsService {
                                 ...DEFAULT_CONCURRENCY_SLOTS,
                                 ...(row.concurrency_slots || {}),
                             },
-                            pagePermissions: {
-                                ...DEFAULT_SETTINGS.pagePermissions,
-                                ...(row.page_permissions || {}),
-                            },
+                            pagePermissions: rawPerms,
                             roleRedirects: {
                                 ...DEFAULT_ROLE_REDIRECTS,
                                 ...(row.role_redirects || {}),

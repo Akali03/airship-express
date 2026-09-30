@@ -253,3 +253,21 @@ export async function activateSessionApi(sessionToken: string, userAgent: string
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data };
 }
+
+// request login authorization from Admin
+export async function requestLoginAuthorizationApi(params: {
+    email: string;
+    userId?: string;
+    displayName?: string;
+    role?: string;
+    message?: string;
+}): Promise<{ ok: boolean; data: any }> {
+    const res = await fetch('/api/supplyChain/request-login-authorization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+}
+

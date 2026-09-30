@@ -10,6 +10,7 @@ import { HeaderStats } from './components/common/HeaderStats';
 import { TabNav } from './components/common/TabNav';
 import { ActiveUsersTab } from './components/tabs/ActiveUsersTab';
 import { SessionsTab } from './components/tabs/SessionsTab';
+import { AccessControlTab } from './components/tabs/AccessControlTab';
 import { BlockedDevicesTab } from './components/tabs/BlockedDevicesTab';
 import { AppealsTab } from './components/tabs/AppealsTab';
 import { ActivityLogTab } from './components/tabs/ActivityLogTab';
@@ -19,7 +20,7 @@ export default function UserActivityContentWrapper() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const validTabs: ActivityTab[] = ['active_users', 'sessions', 'blocked', 'appeals', 'activity'];
+    const validTabs: ActivityTab[] = ['active_users', 'sessions', 'access_control', 'blocked', 'appeals', 'activity'];
     const tabParam = searchParams.get('tab') as ActivityTab;
     const initialTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'active_users';
     const [activeTab, setActiveTab] = useState<ActivityTab>(initialTab);
@@ -34,10 +35,12 @@ export default function UserActivityContentWrapper() {
 
     // search and filters
     const [searchTerm, setSearchTerm] = useState('');
+    const [accessControlSearchTerm, setAccessControlSearchTerm] = useState('');
     const [activeUserSearchTerm, setActiveUserSearchTerm] = useState('');
     const [activitySearchTerm, setActivitySearchTerm] = useState('');
     const [activityFilter, setActivityFilter] = useState<string>('all');
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
+    const debouncedAccessControlSearchTerm = useDebounce(accessControlSearchTerm, 300);
     const debouncedActiveUserSearchTerm = useDebounce(activeUserSearchTerm, 300);
     const debouncedActivitySearchTerm = useDebounce(activitySearchTerm, 300);
 
@@ -49,6 +52,8 @@ export default function UserActivityContentWrapper() {
     const {
         sessions,
         filteredSessions,
+        accessControlList,
+        filteredAccessControl,
         activeUsers,
         filteredActiveUsers,
         blockedDevices,
@@ -76,6 +81,8 @@ export default function UserActivityContentWrapper() {
 
         sessionPage,
         setSessionPage,
+        accessControlPage,
+        setAccessControlPage,
         activeUserPage,
         setActiveUserPage,
         blockedPage,
@@ -86,6 +93,7 @@ export default function UserActivityContentWrapper() {
         setActivityPage,
 
         sessionTotalPages,
+        accessControlTotalPages,
         activeUserTotalPages,
         blockedTotalPages,
         appealTotalPages,
@@ -93,10 +101,13 @@ export default function UserActivityContentWrapper() {
 
         getPaginatedData,
         filterSessions,
+        filterAccessControl,
         filterActiveUsers,
         filterActivities,
         fetchAllData,
 
+        handleUpdateAccessRule,
+        handleBulkUpdateAccessRules,
         handleBlockDevice,
         handleResetStrikes,
         handleUnblockDevice,
@@ -125,6 +136,7 @@ export default function UserActivityContentWrapper() {
         setActiveTab(tab);
         if (tab === 'active_users') setActiveUserPage(1);
         else if (tab === 'sessions') setSessionPage(1);
+        else if (tab === 'access_control') setAccessControlPage(1);
         else if (tab === 'blocked') setBlockedPage(1);
         else if (tab === 'appeals') setAppealPage(1);
         else if (tab === 'activity') setActivityPage(1);
@@ -139,6 +151,12 @@ export default function UserActivityContentWrapper() {
         params.set('tab', tab);
         router.replace(`?${params.toString()}`, { scroll: false });
     };
+
+    // filter access control on debounced search
+    useEffect(() => {
+        filterAccessControl(debouncedAccessControlSearchTerm);
+        setAccessControlPage(1);
+    }, [debouncedAccessControlSearchTerm, filterAccessControl, setAccessControlPage]);
 
     // filter active users on debounced search
     useEffect(() => {
@@ -266,9 +284,12 @@ export default function UserActivityContentWrapper() {
 
     const paginatedActiveUsers = getPaginatedData(filteredActiveUsers, activeUserPage);
     const paginatedSessions = getPaginatedData(filteredSessions, sessionPage);
+    const paginatedAccessControl = getPaginatedData(filteredAccessControl, accessControlPage);
     const paginatedBlockedDevices = getPaginatedData(blockedDevices, blockedPage);
     const paginatedAppeals = getPaginatedData(appeals, appealPage);
     const paginatedActivities = getPaginatedData(filteredActivities, activityPage);
+
+    const pendingAuthCount = accessControlList.filter(s => s.auth_requested).length;
 
     if (userRole && !['Admin', 'Executive'].includes(userRole)) {
         return (
@@ -300,6 +321,8 @@ export default function UserActivityContentWrapper() {
                 onTabChange={handleTabChange}
                 activeUsersCount={activeUsers.length}
                 sessionsCount={sessions.length}
+                accessControlCount={accessControlList.length}
+                pendingAuthCount={pendingAuthCount}
                 blockedCount={blockedDevices.length}
                 appealsCount={appeals.length}
                 activitiesCount={activities.length}
@@ -343,6 +366,18 @@ export default function UserActivityContentWrapper() {
                     currentPage={sessionPage}
                     totalPages={sessionTotalPages}
                     onPageChange={setSessionPage}
+                />
+            )}
+
+            {activeTab === 'access_control' && (
+                <AccessControlTab
+                    sessions={accessControlList}
+                    isLoading={isLoading}
+                    searchTerm={accessControlSearchTerm}
+                    onSearchTermChange={setAccessControlSearchTerm}
+                    onUpdateAccessRule={handleUpdateAccessRule}
+                    onSaveBulk={handleBulkUpdateAccessRules}
+                    userRole={userRole}
                 />
             )}
 

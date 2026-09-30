@@ -96,9 +96,9 @@ export const HeaderStats: React.FC<HeaderStatsProps> = ({
                     onClick={onRefresh}
                     disabled={isRefreshing}
                     title="Refresh all tabs"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-60 shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#1e1f2c] hover:bg-[#e4ebf5] dark:hover:bg-[#282a3a] border border-white/90 dark:border-white/[0.08] shadow-[3px_3px_6px_rgba(166,175,195,0.35),-3px_-3px_6px_rgba(255,255,255,0.95)] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.5)] rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-50 shrink-0"
                 >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-pink-500' : ''}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-pink-500' : 'text-slate-500 dark:text-slate-400'}`} />
                     <span>{isRefreshing ? 'Syncing...' : 'Sync Now'}</span>
                 </button>
             )}

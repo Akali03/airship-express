@@ -193,93 +193,65 @@ export function NotificationBell() {
 
         const targetRoles = normalizeRoles(typeof notif === 'string' ? notif : notif.role);
         const uRole = (userRole || '').toLowerCase().trim();
-        const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null);
-        const currentEmail = (userEmail || (typeof window !== 'undefined' ? user.getEmail() : '')).toLowerCase().trim();
+        const currentUserId = (userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '').toLowerCase().trim();
+        const currentEmail = (userEmail || (typeof window !== 'undefined' ? user.getEmail() : '') || '').toLowerCase().trim();
 
-        // Check recipient_user_ids: if present as an array, verify the user has not deleted/dismissed it
-        if (typeof notif !== 'string' && notif.recipient_user_ids !== undefined && notif.recipient_user_ids !== null) {
-            if (Array.isArray(notif.recipient_user_ids)) {
-                // If the array is empty, all recipients dismissed it
-                if (notif.recipient_user_ids.length === 0) return false;
+        if (typeof notif === 'string') {
+            return targetRoles.some(nR => nR === 'all' || nR === uRole);
+        }
 
-                // If current user is known, they MUST exist in the recipient array and NOT be marked deleted
-                if (currentUserId) {
-                    const found = notif.recipient_user_ids.find((item: any) => {
-                        const uid = typeof item === 'string' ? item : item?.user_id;
-                        return uid && String(uid).toLowerCase() === currentUserId.toLowerCase();
-                    });
-                    if (!found || (typeof found === 'object' && (found.is_deleted || found.deleted))) {
-                        return false;
-                    }
-                }
+        // Check if the current user explicitly dismissed/deleted this notification
+        if (Array.isArray(notif.recipient_user_ids) && notif.recipient_user_ids.length > 0 && currentUserId) {
+            const found = notif.recipient_user_ids.find((item: any) => {
+                const uid = typeof item === 'string' ? item : item?.user_id;
+                return uid && String(uid).toLowerCase() === currentUserId;
+            });
+            if (found && typeof found === 'object' && (found.is_deleted || found.deleted)) {
+                return false;
             }
         }
 
-        if (typeof notif === 'string') {
-            return targetRoles.some(nR => {
-                if (nR === 'all') return true;
-                if (nR === uRole) return true;
-                if (['admin', 'executive'].includes(uRole) && ['admin', 'executive'].includes(nR)) return true;
-                return false;
-            });
-        }
-
+        const notifUserId = (notif.user_id || '').toLowerCase().trim();
+        const creatorEmail = (notif.creator_email || '').toLowerCase().trim();
         const refType = (notif.reference_type || '').toLowerCase();
         const link = (notif.link || '').toLowerCase();
         const title = (notif.title || '').toLowerCase();
 
-        // 1. If notification is related to documents (upload, pending, attach, or link is /documents):
-        // It is strictly isolated and ONLY delivered if the user_id or creator_email matches the current user
+        // 1. Direct recipient match (by user_id or creator_email)
+        const isDirectRecipient = (notifUserId && currentUserId && notifUserId === currentUserId) ||
+                                  (creatorEmail && currentEmail && creatorEmail === currentEmail);
+
+        // 2. Document-related notification (strictly isolated to the uploader/recipient)
         const isDocNotification =
             refType.includes('document') ||
             link.includes('/documents') ||
+            title.startsWith('upload') ||
             title.startsWith('document uploaded') ||
             title.startsWith('missing file');
 
         if (isDocNotification) {
-            if (notif.user_id && currentUserId) {
-                return notif.user_id.toLowerCase().trim() === currentUserId.toLowerCase().trim();
-            }
-            if (notif.creator_email && currentEmail) {
-                return notif.creator_email.toLowerCase().trim() === currentEmail;
-            }
-            return false;
+            return isDirectRecipient;
         }
 
-        // 2. Explicit direct-to-user notification (role is 'user' with targeted user_id)
+        // 3. Explicit direct-to-user notification
         if (targetRoles.includes('user')) {
-            if (notif.user_id && currentUserId && notif.user_id.toLowerCase().trim() === currentUserId.toLowerCase().trim()) return true;
-            if (notif.creator_email && currentEmail && notif.creator_email.toLowerCase().trim() === currentEmail) return true;
-            return false;
+            return isDirectRecipient;
         }
 
-        // 3. Role-based notifications (Requisitions, purchase requests, system alerts, notices)
-        // Strictly matched to the user's role. A manager or staff member who created an alert addressed to Admin & Executive must NOT receive it.
-        return targetRoles.some(nR => {
-            if (nR === 'all') return true;
-            if (nR === uRole) return true;
-            if (['admin', 'executive'].includes(uRole) && ['admin', 'executive'].includes(nR)) return true;
-            return false;
-        });
+        // 4. Login Authorization Request (Strictly Admin only, NOT Executive)
+        if (title.includes('login authorization') || link.includes('access_control')) {
+            return uRole === 'admin';
+        }
+
+        // 5. If direct recipient match on general notification, allow it
+        if (isDirectRecipient) {
+            return true;
+        }
+
+        // 6. Role-based notifications (Requisitions, purchase requests, system alerts, notices)
+        // Strictly matched to user's role. Admin and Executive are separate.
+        return targetRoles.some(nR => nR === 'all' || nR === uRole);
     }, [userRole, userId, userEmail]);
-
-    const getRoleFilterQuery = useCallback(() => {
-        const uRole = (userRole || '').toLowerCase().trim();
-        const rolesToMatch = ['All'];
-        if (['admin', 'executive'].includes(uRole)) {
-            rolesToMatch.push('Admin', 'Executive');
-        } else if (uRole === 'manager') {
-            rolesToMatch.push('Manager');
-        } else if (uRole === 'staff') {
-            rolesToMatch.push('Staff');
-        } else if (uRole) {
-            rolesToMatch.push(userRole);
-        }
-        
-        // JSONB containment filter clauses strictly by role target
-        const jsonbFilters = rolesToMatch.map(r => `role.cs.["${r}"]`);
-        return jsonbFilters.join(',');
-    }, [userRole]);
 
     // get user role and email from storage and keep updated
     useEffect(() => {
@@ -415,30 +387,15 @@ export function NotificationBell() {
     // count unread notifications
     const fetchUnreadCount = useCallback(async () => {
         try {
-            const roleFilter = getRoleFilterQuery();
-            const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
-            let queryData: any = null;
-
+            const currentUserId = userId || (typeof window !== 'undefined' ? (user.getUserId() || localStorage.getItem('user_id')) : null) || '';
             const res = await supabase
                 .from('notifications')
-                .select('id, role, user_id, creator_email, reference_type, po_request_id, is_read, recipient_user_ids')
-                .or(roleFilter)
+                .select('id, role, user_id, creator_email, reference_type, po_request_id, is_read, recipient_user_ids, title, link')
                 .order('created_at', { ascending: false })
                 .limit(100);
 
-            if (!res.error && res.data) {
-                queryData = res.data;
-            } else {
-                // Fallback query without or() filter
-                const fallback = await supabase
-                    .from('notifications')
-                    .select('id, role, user_id, creator_email, reference_type, po_request_id, is_read, recipient_user_ids')
-                    .order('created_at', { ascending: false })
-                    .limit(100);
-                queryData = fallback.data || [];
-            }
-
-            const visible = (queryData || []).filter((n: any) => isNotificationForUser(n));
+            const queryData = res.data || [];
+            const visible = queryData.filter((n: any) => isNotificationForUser(n));
             const deduplicated = deduplicateNotifications(visible as Notification[]);
             const unread = deduplicated.filter(n => !isNotificationReadByUser(n, currentUserId)).length;
             setTotalUnread(unread);
@@ -446,7 +403,7 @@ export function NotificationBell() {
         } catch (error) {
             console.error('Error fetching unread count:', error);
         }
-    }, [getRoleFilterQuery, isNotificationForUser, userId]);
+    }, [isNotificationForUser, userId]);
 
     const isNotificationForUserRef = useRef(isNotificationForUser);
     useEffect(() => {
@@ -472,43 +429,16 @@ export function NotificationBell() {
         }
 
         try {
-            const roleFilter = getRoleFilterQuery();
-            let rawData: any[] = [];
-            let total = 0;
-
-            const countRes = await supabase
-                .from('notifications')
-                .select('*', { count: 'exact', head: true })
-                .or(roleFilter);
-
-            if (!countRes.error) {
-                total = countRes.count ?? 0;
-            }
-
             const from = pageNum * PAGE_SIZE;
             const to = from + PAGE_SIZE - 1;
 
             const res = await supabase
                 .from('notifications')
                 .select('*')
-                .or(roleFilter)
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
-            if (!res.error && res.data) {
-                rawData = res.data;
-            } else {
-                // Fallback query
-                const fallback = await supabase
-                    .from('notifications')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .range(from, to);
-                rawData = fallback.data || [];
-                total = rawData.length;
-            }
-
-            setTotalCount(total);
+            const rawData = res.data || [];
 
             if (rawData.length === 0 && pageNum === 0) {
                 setHasMore(false);
@@ -519,13 +449,14 @@ export function NotificationBell() {
             }
 
             const notificationsData = rawData.filter((n: any) => isNotificationForUser(n));
+            const currentUserId = userId || (typeof window !== 'undefined' ? (user.getUserId() || localStorage.getItem('user_id')) : null) || '';
 
             if (append) {
                 setNotifications(prev => {
                     const existingIds = new Set(prev.map(n => n.id));
                     const freshItems = notificationsData.filter(n => !existingIds.has(n.id));
                     const merged = deduplicateNotifications([...prev, ...freshItems]);
-                    setHasMore(rawData.length === PAGE_SIZE && merged.length < total);
+                    setHasMore(rawData.length === PAGE_SIZE);
                     setTotalCount(merged.length);
                     return merged;
                 });
@@ -534,9 +465,10 @@ export function NotificationBell() {
                 setNotifications(uniqueData);
                 setTotalCount(uniqueData.length);
                 saveToCache(uniqueData);
-                setHasMore(rawData.length === PAGE_SIZE && uniqueData.length < total);
-                const unread = uniqueData.filter(n => !n.is_read).length;
+                setHasMore(rawData.length === PAGE_SIZE);
+                const unread = uniqueData.filter(n => !isNotificationReadByUser(n, currentUserId)).length;
                 setUnreadCount(unread);
+                setTotalUnread(unread);
             }
 
             await fetchUnreadCount();
@@ -548,7 +480,7 @@ export function NotificationBell() {
             setIsLoading(false);
             setIsLoadingMore(false);
         }
-    }, [getRoleFilterQuery, saveToCache, fetchUnreadCount, isNotificationForUser]);
+    }, [saveToCache, fetchUnreadCount, isNotificationForUser, userId]);
 
     // load initial notifications
     useEffect(() => {
@@ -1334,19 +1266,19 @@ export function NotificationBell() {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    {totalUnread > 0 && (
+                                    {notifications.length > 0 && (
                                         <button
                                             onClick={handleMarkAllAsRead}
-                                            className="px-3 py-1.5 text-xs font-semibold 
-                                            text-pink-600 dark:text-pink-400 
-                                            bg-[#ebf0f7] dark:bg-[#1b1d2a] 
-                                            shadow-[3px_3px_7px_#c5cfdd,-3px_-3px_7px_#ffffff] dark:shadow-[3px_3px_7px_#0d0e14,-3px_-3px_7px_#262838] 
-                                            hover:shadow-[inset_2px_2px_4px_#c5cfdd,inset_-2px_-2px_4px_#ffffff] dark:hover:shadow-[inset_2px_2px_4px_#0d0e14,inset_-2px_-2px_4px_#262838] 
-                                            active:scale-95 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                                            disabled={totalUnread === 0}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                                                totalUnread > 0
+                                                    ? 'text-pink-600 dark:text-pink-400 bg-[#ebf0f7] dark:bg-[#1b1d2a] shadow-[3px_3px_7px_#c5cfdd,-3px_-3px_7px_#ffffff] dark:shadow-[3px_3px_7px_#0d0e14,-3px_-3px_7px_#262838] hover:shadow-[inset_2px_2px_4px_#c5cfdd,inset_-2px_-2px_4px_#ffffff] dark:hover:shadow-[inset_2px_2px_4px_#0d0e14,inset_-2px_-2px_4px_#262838]'
+                                                    : 'text-slate-400 dark:text-slate-600 bg-slate-100/50 dark:bg-slate-800/30 cursor-not-allowed opacity-60'
+                                            }`}
+                                            title="Mark all notifications as read"
                                         >
                                             <Check className="h-3.5 w-3.5" />
-                                            <span className="hidden xs:inline">Mark all read</span>
-                                            <span className="xs:hidden">Read all</span>
+                                            <span>Mark all read</span>
                                         </button>
                                     )}
 
@@ -1571,26 +1503,6 @@ export function NotificationBell() {
                                     </>
                                 )}
                             </div>
-
-                            {/* Footer Link */}
-                            {notifications.length > 0 && (
-                                <div className="p-3 border-t border-slate-100 dark:border-slate-700/60 
-                            bg-white dark:bg-[#2a2a2e] text-center shrink-0">
-                                    <button
-                                        onClick={() => {
-                                            router.push('/notifications');
-                                            setIsOpen(false);
-                                        }}
-                                        className="w-full py-1.5 text-xs font-semibold 
-                          text-slate-600 dark:text-slate-400 
-                          hover:text-pink-600 dark:hover:text-pink-400 
-                          hover:bg-slate-50 dark:hover:bg-slate-700/30 
-                          rounded-lg transition-colors"
-                                    >
-                                        View all in activity center →
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     </>
                 )}

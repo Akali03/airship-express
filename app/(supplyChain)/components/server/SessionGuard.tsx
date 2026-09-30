@@ -342,6 +342,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
     const hasShownInvalidToastRef = useRef<boolean>(false);
     const hasShownSessionClearedToastRef = useRef<boolean>(false);
     const hasShownOfflineToastRef = useRef<boolean>(false);
+    const hasShown10MinShiftToastRef = useRef<boolean>(false);
     const isLoggingOutRef = useRef<boolean>(false);
     const isMountedRef = useRef<boolean>(true);
     const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -550,15 +551,36 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
         }
         return null;
     }, []);
-    const handleInvalidSession = useCallback(async (message: string, redirectToAuth: boolean = true) => {
+    const handleInvalidSession = useCallback(async (message: string, redirectToAuth: boolean = true, reason?: string, action?: string) => {
         if (hasShownInvalidToastRef.current || isLoggingOutRef.current) {
             return;
         }
         hasShownInvalidToastRef.current = true;
         isLoggingOutRef.current = true;
+
+        const token = getSessionToken();
+        const currentUser = user.getUser();
+
+        try {
+            if (token) {
+                await deactivateSession(token, reason || 'session_invalidated', action || 'SESSION_EXPIRED');
+            } else if (currentUser?.userId || currentUser?.email) {
+                await fetch('/api/supplyChain/deactivate-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.userId,
+                        email: currentUser.email,
+                    }),
+                });
+            }
+        } catch (e) {
+            console.error('Error deactivating session in DB:', e);
+        }
+
         clearSessionData();
         if (isMountedRef.current) {
-            toast.error(message, { duration: 3000, position: 'top-right' });
+            toast.error(message, { duration: 4000, position: 'top-right' });
             setGuardState('denied');
             if (redirectToAuth) {
                 setTimeout(() => {
@@ -576,7 +598,7 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                 }, 1000);
             }
         }
-    }, [clearSessionData, router]);
+    }, [getSessionToken, deactivateSession, clearSessionData, router]);
 
     const handleInactivityLogout = useCallback(async () => {
         if (isLoggingOutRef.current) return;
@@ -690,6 +712,48 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
 
             const timeoutMs = settingsService.getInactivityTimeoutMs();
             const warningMs = settingsService.getInactivityWarningMs();
+
+            // Check shift expiration and 10-minute warning for non-exempt roles
+            const currentRole = user.getRole();
+            if (currentRole && currentRole !== 'Admin' && currentRole !== 'Executive') {
+                const allowedEnd = user.getAllowedTimeEnd();
+                if (allowedEnd) {
+                    const parts = allowedEnd.split(':');
+                    if (parts.length >= 2) {
+                        const endH = parseInt(parts[0], 10);
+                        const endM = parseInt(parts[1], 10);
+                        if (!isNaN(endH) && !isNaN(endM)) {
+                            const now = new Date();
+                            const shiftEnd = new Date();
+                            shiftEnd.setHours(endH, endM, 0, 0);
+                            const remainingShiftMs = shiftEnd.getTime() - now.getTime();
+                            const h12 = endH % 12 || 12;
+                            const ampm = endH >= 12 ? 'PM' : 'AM';
+                            const formattedEnd = `${h12}:${parts[1]} ${ampm}`;
+
+                            if (remainingShiftMs <= 0) {
+                                handleInvalidSession(
+                                    `Your scheduled access hours have ended (Shift ended at ${formattedEnd}). You have been logged out.`,
+                                    true,
+                                    'shift_ended',
+                                    'SHIFT_SCHEDULE_END'
+                                );
+                                return;
+                            } else if (remainingShiftMs <= 10 * 60 * 1000 && remainingShiftMs > 0) {
+                                if (!hasShown10MinShiftToastRef.current) {
+                                    hasShown10MinShiftToastRef.current = true;
+                                    const minsLeft = Math.max(1, Math.ceil(remainingShiftMs / 60000));
+                                    toast.warning(`Shift Ending Soon: Your shift ends in ${minsLeft} minute${minsLeft === 1 ? '' : 's'} (at ${formattedEnd}). Please save your active work before automatic logout.`, {
+                                        duration: 12000,
+                                        position: 'top-center',
+                                        id: 'shift-10min-warning',
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             if (timeoutMs >= Number.MAX_SAFE_INTEGER) {
                 // Inactivity timer is disabled in settings
@@ -886,8 +950,15 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                     await handleInvalidSession('Invalid user role. Please contact support.', true);
                     return;
                 }
-                if (data.user?.role) {
-                    user.updateUser({ role: data.user.role });
+                if (data.user) {
+                    const userData = data.user as any;
+                    user.updateUser({
+                        role: userData.role || userRole,
+                        name: userData.display_name || user.getName(),
+                        allowedTimeStart: userData.allowed_time_start,
+                        allowedTimeEnd: userData.allowed_time_end,
+                        allowedDays: userData.allowed_days,
+                    });
                 }
                 if (!settingsService.canAccessPage(userRole, pathname, requiredRole)) {
                     setGuardState('denied');
@@ -1008,13 +1079,18 @@ export function SessionGuard({ children, requiredRole }: SessionGuardProps) {
                     if (isBlockedRef.current || isLoggingOutRef.current) return;
                     const newRecord = payload.new as any;
                     const activeToken = getSessionToken();
-                    if (newRecord && activeToken && newRecord.session_token === activeToken) {
-                        if (newRecord.is_active === false) {
+                    const recordEmail = (newRecord?.email || '').toLowerCase().trim();
+
+                    if (newRecord && ((activeToken && newRecord.session_token === activeToken) || (currentEmail && recordEmail === currentEmail))) {
+                        if (newRecord.is_active === false || newRecord.is_allow === false) {
                             // If the user is currently logging out locally or has already cleared session, do nothing
                             if (isLoggingOutRef.current || !user.getSessionToken()) {
                                 return;
                             }
-                            handleInvalidSession('Your session has ended. Please login again.', true);
+                            const reasonMsg = newRecord.is_allow === false
+                                ? 'Your login access has been disabled by an Administrator.'
+                                : 'Your session has ended. Please login again.';
+                            handleInvalidSession(reasonMsg, true);
                         }
                     }
                 }
