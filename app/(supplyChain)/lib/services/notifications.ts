@@ -180,11 +180,13 @@ export async function markNotificationAsReadForUser(
     if (!notificationId) return false;
 
     try {
+        const cleanUserId = (userId || '').toLowerCase().trim();
+
         // 1. Try calling the PostgreSQL RPC function first
-        if (userId) {
+        if (cleanUserId) {
             const { error: rpcError } = await supabase.rpc('mark_notification_read_for_user', {
                 p_notification_id: notificationId,
-                p_user_id: userId,
+                p_user_id: cleanUserId,
             });
 
             if (!rpcError) {
@@ -193,8 +195,16 @@ export async function markNotificationAsReadForUser(
         }
 
         // 2. Fallback in JavaScript
+        // Fetch fresh notification to avoid stale recipient_user_ids
+        const { data: freshNotif } = await supabase
+            .from('notifications')
+            .select('id, user_id, recipient_user_ids')
+            .eq('id', notificationId)
+            .maybeSingle();
+
         // A. Direct notification to this user
-        if (notifUserId && userId && notifUserId.toLowerCase() === userId.toLowerCase()) {
+        const targetUserId = (freshNotif?.user_id || notifUserId || '').toLowerCase().trim();
+        if (targetUserId && cleanUserId && targetUserId === cleanUserId) {
             const { error } = await supabase
                 .from('notifications')
                 .update({ is_read: true, read_at: new Date().toISOString() })
@@ -204,10 +214,16 @@ export async function markNotificationAsReadForUser(
         }
 
         // B. Broadcast notification with recipient_user_ids
-        if (Array.isArray(currentRecipientUserIds) && currentRecipientUserIds.length > 0 && userId) {
-            const updated = currentRecipientUserIds.map(item => {
+        const recipients = Array.isArray(freshNotif?.recipient_user_ids)
+            ? freshNotif.recipient_user_ids
+            : (Array.isArray(currentRecipientUserIds) ? currentRecipientUserIds : null);
+
+        if (Array.isArray(recipients) && recipients.length > 0 && cleanUserId) {
+            let found = false;
+            const updated = recipients.map((item: any) => {
                 const uid = typeof item === 'string' ? item : item?.user_id;
-                if (uid && uid.toLowerCase() === userId.toLowerCase()) {
+                if (uid && uid.toLowerCase() === cleanUserId) {
+                    found = true;
                     return {
                         user_id: uid,
                         is_read: true,
@@ -218,6 +234,14 @@ export async function markNotificationAsReadForUser(
                     ? { user_id: item, is_read: false, read_at: null }
                     : item;
             });
+
+            if (!found) {
+                updated.push({
+                    user_id: cleanUserId,
+                    is_read: true,
+                    read_at: new Date().toISOString(),
+                });
+            }
 
             const { error } = await supabase
                 .from('notifications')
@@ -250,11 +274,12 @@ export async function markAllNotificationsAsReadForUser(
     if (!notifications || notifications.length === 0) return true;
 
     try {
+        const cleanUserId = (userId || '').toLowerCase().trim();
         const ids = notifications.map(n => n.id);
-        if (userId) {
+        if (cleanUserId) {
             const { error: rpcError } = await supabase.rpc('mark_all_notifications_read_for_user', {
                 p_notification_ids: ids,
-                p_user_id: userId,
+                p_user_id: cleanUserId,
             });
 
             if (!rpcError) {
@@ -264,7 +289,7 @@ export async function markAllNotificationsAsReadForUser(
 
         await Promise.all(
             notifications.map(n =>
-                markNotificationAsReadForUser(n.id, userId, n.recipient_user_ids, n.user_id)
+                markNotificationAsReadForUser(n.id, cleanUserId, n.recipient_user_ids, n.user_id)
             )
         );
         return true;
@@ -289,6 +314,21 @@ export async function deleteNotificationForUser(
     if (!notificationId) return false;
 
     try {
+        const cleanUserId = (userId || '').toLowerCase().trim();
+
+        // 1. Try calling the PostgreSQL RPC function first
+        if (cleanUserId) {
+            const { error: rpcError } = await supabase.rpc('delete_notification_for_user', {
+                p_notification_id: notificationId,
+                p_user_id: cleanUserId,
+            });
+
+            if (!rpcError) {
+                return true;
+            }
+        }
+
+        // 2. Fallback in JavaScript
         // Fetch fresh notification row from Supabase to ensure accurate recipient array
         const { data: freshNotif } = await supabase
             .from('notifications')
@@ -299,7 +339,8 @@ export async function deleteNotificationForUser(
         if (!freshNotif) return true; // Already deleted
 
         // A. Direct single-user notification targeted specifically to this user
-        if (freshNotif.user_id && userId && freshNotif.user_id.toLowerCase() === userId.toLowerCase()) {
+        const targetUserId = (freshNotif.user_id || notifUserId || '').toLowerCase().trim();
+        if (targetUserId && cleanUserId && targetUserId === cleanUserId) {
             const { error: delError } = await supabase
                 .from('notifications')
                 .delete()
@@ -313,10 +354,10 @@ export async function deleteNotificationForUser(
             ? freshNotif.recipient_user_ids
             : (Array.isArray(currentRecipientUserIds) ? currentRecipientUserIds : null);
 
-        if (Array.isArray(recipients) && recipients.length > 0 && userId) {
+        if (Array.isArray(recipients) && recipients.length > 0 && cleanUserId) {
             const remaining = recipients.filter((item: any) => {
                 const uid = typeof item === 'string' ? item : item?.user_id;
-                return uid && uid.toLowerCase() !== userId.toLowerCase();
+                return uid && uid.toLowerCase() !== cleanUserId;
             });
 
             if (remaining.length === 0) {

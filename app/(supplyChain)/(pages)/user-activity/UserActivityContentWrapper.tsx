@@ -105,6 +105,7 @@ export default function UserActivityContentWrapper() {
         filterActiveUsers,
         filterActivities,
         fetchAllData,
+        fetchSessions,
 
         handleUpdateAccessRule,
         handleBulkUpdateAccessRules,
@@ -378,6 +379,8 @@ export default function UserActivityContentWrapper() {
                     onUpdateAccessRule={handleUpdateAccessRule}
                     onSaveBulk={handleBulkUpdateAccessRules}
                     userRole={userRole}
+                    isRealtimeActive={isRealtimeActive}
+                    onRefresh={() => fetchSessions(true)}
                 />
             )}
 

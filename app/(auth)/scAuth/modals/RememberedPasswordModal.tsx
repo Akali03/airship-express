@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import {
     LogIn,
     Loader2,
@@ -13,10 +14,19 @@ import {
     RotateCcw,
     CheckCircle2,
     Lock,
-    ShieldAlert
+    ShieldAlert,
+    Clock,
+    Bell
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { maskEmail } from '../services/scAuthService';
+import {
+    maskEmail,
+    getNoticeCategory,
+    getNotifyTimestamps,
+    recordNotificationSent,
+    getRemainingNotifyCooldown,
+    formatNotifyCooldown,
+    MAX_NOTIFICATIONS_PER_WINDOW,
+} from '../services/scAuthService';
 
 const isUUID = (str?: string | null): boolean => {
     if (!str) return false;
@@ -41,6 +51,9 @@ interface RememberedPasswordModalProps {
     getRoleColor: (role: string) => string;
     handleVerifyRememberedPassword: () => Promise<boolean | string | void> | boolean | string | void;
     setShowRememberedPasswordModal: (v: boolean) => void;
+    authRestrictionMessage?: string | null;
+    setAuthRestrictionMessage?: (msg: string | null) => void;
+    onNotifyAdmin?: () => Promise<boolean | void | any> | boolean | void | any;
 }
 
 type ModalViewMode = 'login' | 'forgot_otp' | 'reset_password' | 'success';
@@ -54,6 +67,9 @@ export default function RememberedPasswordModal({
     getRoleColor,
     handleVerifyRememberedPassword,
     setShowRememberedPasswordModal,
+    authRestrictionMessage,
+    setAuthRestrictionMessage,
+    onNotifyAdmin,
 }: RememberedPasswordModalProps) {
     // view state
     const [viewMode, setViewMode] = useState<ModalViewMode>('login');
@@ -67,6 +83,39 @@ export default function RememberedPasswordModal({
     const [isLockedOut, setIsLockedOut] = useState(false);
     const [remainingLockoutSeconds, setRemainingLockoutSeconds] = useState(0);
     const [failedAttempts, setFailedAttempts] = useState(0);
+
+    // notify admin loading and rate limit states (max 2 per 5 minutes per category)
+    const [isNotifyingAdmin, setIsNotifyingAdmin] = useState(false);
+    const [notifyCooldown, setNotifyCooldown] = useState(0);
+    const [notifyAttemptsCount, setNotifyAttemptsCount] = useState(0);
+
+    const employeeEmail = selectedEmployee?.email || '';
+    const currentCategory = getNoticeCategory(authRestrictionMessage);
+
+    // Sync notification rate limit cooldown
+    useEffect(() => {
+        if (!employeeEmail || !authRestrictionMessage) return;
+        const remaining = getRemainingNotifyCooldown(currentCategory, employeeEmail);
+        const timestamps = getNotifyTimestamps(currentCategory, employeeEmail);
+        setNotifyCooldown(remaining);
+        setNotifyAttemptsCount(timestamps.length);
+    }, [employeeEmail, authRestrictionMessage, currentCategory, showRememberedPasswordModal]);
+
+    // Live countdown timer for notifyCooldown
+    useEffect(() => {
+        if (notifyCooldown <= 0) return;
+        const timer = setInterval(() => {
+            setNotifyCooldown(prev => {
+                if (prev <= 1) {
+                    const timestamps = getNotifyTimestamps(currentCategory, employeeEmail);
+                    setNotifyAttemptsCount(timestamps.length);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [notifyCooldown, currentCategory, employeeEmail]);
 
     // forgot password & reset states
     const [otpCode, setOtpCode] = useState<string[]>(['', '', '', '', '', '']);
@@ -235,7 +284,6 @@ export default function RememberedPasswordModal({
                 setIsLockedOut(true);
                 setRemainingLockoutSeconds(120);
                 setFailedAttempts(3);
-                setRememberedPassword('');
                 toast.error('Too many failed attempts. Form disabled for 2 minutes.');
             } else {
                 localStorage.setItem(getAttemptsKey(email), newAttempts.toString());
@@ -472,6 +520,7 @@ export default function RememberedPasswordModal({
     const handleClose = () => {
         setShowRememberedPasswordModal(false);
         setRememberedPassword('');
+        setAuthRestrictionMessage?.(null);
         setViewMode('login');
     };
 
@@ -532,6 +581,76 @@ export default function RememberedPasswordModal({
                                             {selectedEmployee.role}
                                         </span>
                                     </div>
+
+                                    {/* access restriction notice (e.g. login allowed time schedule / admin notification) */}
+                                    {authRestrictionMessage && (
+                                        <div className="mb-4 p-3.5 sm:p-4 bg-[#EAF0F6] dark:bg-[#13161F] shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.6),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] rounded-2xl border border-sky-500/20 dark:border-sky-500/30 text-xs flex flex-col gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-9 h-9 shrink-0 rounded-xl bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#cbd6e4,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.6),-2px_-2px_5px_rgba(255,255,255,0.03)] border border-sky-500/30 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                                                    <Bell size={18} className="animate-pulse" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                                                        Access Notice
+                                                    </p>
+                                                    <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 mt-1 font-medium leading-relaxed">
+                                                        {authRestrictionMessage}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {onNotifyAdmin && (
+                                                <button
+                                                    type="button"
+                                                    disabled={isNotifyingAdmin || notifyCooldown > 0}
+                                                    onClick={async () => {
+                                                        if (isNotifyingAdmin || notifyCooldown > 0) return;
+                                                        const remaining = getRemainingNotifyCooldown(currentCategory, employeeEmail);
+                                                        if (remaining > 0) {
+                                                            setNotifyCooldown(remaining);
+                                                            return;
+                                                        }
+                                                        setIsNotifyingAdmin(true);
+                                                        try {
+                                                            await onNotifyAdmin();
+                                                            recordNotificationSent(currentCategory, employeeEmail);
+                                                            const updatedCooldown = getRemainingNotifyCooldown(currentCategory, employeeEmail);
+                                                            const updatedTimestamps = getNotifyTimestamps(currentCategory, employeeEmail);
+                                                            setNotifyCooldown(updatedCooldown);
+                                                            setNotifyAttemptsCount(updatedTimestamps.length);
+                                                        } catch (err) {
+                                                            console.error('Error notifying admin:', err);
+                                                        } finally {
+                                                            setIsNotifyingAdmin(false);
+                                                        }
+                                                    }}
+                                                    className={`self-end px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                                                        notifyCooldown > 0
+                                                            ? 'text-slate-400 dark:text-slate-500 bg-[#E2E8F0] dark:bg-[#151821] border-slate-300 dark:border-slate-800 cursor-not-allowed opacity-80 shadow-none'
+                                                            : isNotifyingAdmin
+                                                            ? 'text-sky-700 dark:text-sky-300 bg-[#EEF2F6] dark:bg-[#1A1F2B] border-sky-500/30 opacity-60 cursor-not-allowed pointer-events-none'
+                                                            : 'text-sky-700 dark:text-sky-300 bg-[#EEF2F6] dark:bg-[#1A1F2B] shadow-[3px_3px_6px_#cbd6e4,-3px_-3px_6px_#ffffff] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.6),-2px_-2px_5px_rgba(255,255,255,0.03)] hover:shadow-[inset_2px_2px_4px_#cbd6e4,inset_-2px_-2px_4px_#ffffff] dark:hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6),inset_-2px_-2px_4px_rgba(255,255,255,0.02)] active:scale-95 cursor-pointer border-sky-500/30'
+                                                    }`}
+                                                >
+                                                    {isNotifyingAdmin ? (
+                                                        <>
+                                                            <Loader2 size={13} className="animate-spin text-sky-600 dark:text-sky-400" />
+                                                            <span>Notifying...</span>
+                                                        </>
+                                                    ) : notifyCooldown > 0 ? (
+                                                        <>
+                                                            <Clock size={13} className="text-slate-400 dark:text-slate-500" />
+                                                            <span>Retry in {formatNotifyCooldown(notifyCooldown)}</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Bell size={13} className="text-sky-600 dark:text-sky-400" />
+                                                            <span>Notify Admin {notifyAttemptsCount === 1 ? '(1 left)' : ''}</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* lockout banner if locked out */}
                                     {isLockedOut && (

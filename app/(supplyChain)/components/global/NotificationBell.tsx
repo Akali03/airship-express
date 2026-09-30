@@ -37,20 +37,29 @@ interface Notification {
 }
 
 function isNotificationReadByUser(notif: Notification, currentUserId: string | null): boolean {
-    if (!currentUserId) return notif.is_read;
-    if (notif.user_id && notif.user_id.toLowerCase() === currentUserId.toLowerCase()) {
-        return notif.is_read;
+    const uidClean = (currentUserId || (typeof window !== 'undefined' ? (user.getUserId() || localStorage.getItem('user_id')) : null) || '').toLowerCase().trim();
+    
+    if (notif.user_id && uidClean && notif.user_id.toLowerCase() === uidClean) {
+        return Boolean(notif.is_read);
     }
+    
     if (Array.isArray(notif.recipient_user_ids) && notif.recipient_user_ids.length > 0) {
+        if (!uidClean) return Boolean(notif.is_read);
         const found = notif.recipient_user_ids.find((item: any) => {
             const uid = typeof item === 'string' ? item : item?.user_id;
-            return uid && uid.toLowerCase() === currentUserId.toLowerCase();
+            return uid && String(uid).toLowerCase() === uidClean;
         });
-        if (found && typeof found === 'object') {
-            return Boolean(found.is_read);
+        if (found) {
+            if (typeof found === 'object') {
+                return Boolean(found.is_read);
+            }
+            return Boolean(notif.is_read);
         }
+        // If current user is not in the recipient array, they are not an active recipient for this notification
+        return true;
     }
-    return notif.is_read;
+    
+    return Boolean(notif.is_read);
 }
 
 interface PurchaseRequest {
@@ -70,8 +79,8 @@ interface PurchaseRequest {
     created_at: string;
 }
 
-const PAGE_SIZE = 10;
-const CACHE_KEY_BASE = 'notifications_cache_v3';
+const PAGE_SIZE = 3;
+const CACHE_KEY_BASE = 'notifications_cache_v4';
 const LEGACY_CACHE_KEY = 'notifications_cache';
 const CACHE_DURATION = 5 * 60 * 1000;
 
@@ -133,6 +142,7 @@ export function NotificationBell() {
     const { confirm } = useConfirm();
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [visibleCount, setVisibleCount] = useState(3);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -153,6 +163,13 @@ export function NotificationBell() {
     useEffect(() => {
         userNameRef.current = userName;
     }, [userName]);
+
+    // Reset visible count to 3 when opening dropdown
+    useEffect(() => {
+        if (isOpen) {
+            setVisibleCount(3);
+        }
+    }, [isOpen]);
 
     // Modal states
     const [showModal, setShowModal] = useState(false);
@@ -192,23 +209,12 @@ export function NotificationBell() {
         };
 
         const targetRoles = normalizeRoles(typeof notif === 'string' ? notif : notif.role);
-        const uRole = (userRole || '').toLowerCase().trim();
-        const currentUserId = (userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '').toLowerCase().trim();
-        const currentEmail = (userEmail || (typeof window !== 'undefined' ? user.getEmail() : '') || '').toLowerCase().trim();
+        const uRole = (userRole || (typeof window !== 'undefined' ? user.getRole() : '') || '').toLowerCase().trim();
+        const currentUserId = (userId || (typeof window !== 'undefined' ? (user.getUserId() || localStorage.getItem('user_id')) : null) || '').toLowerCase().trim();
+        const currentEmail = (userEmail || (typeof window !== 'undefined' ? (user.getEmail() || localStorage.getItem('user_email')) : '') || '').toLowerCase().trim();
 
         if (typeof notif === 'string') {
             return targetRoles.some(nR => nR === 'all' || nR === uRole);
-        }
-
-        // Check if the current user explicitly dismissed/deleted this notification
-        if (Array.isArray(notif.recipient_user_ids) && notif.recipient_user_ids.length > 0 && currentUserId) {
-            const found = notif.recipient_user_ids.find((item: any) => {
-                const uid = typeof item === 'string' ? item : item?.user_id;
-                return uid && String(uid).toLowerCase() === currentUserId;
-            });
-            if (found && typeof found === 'object' && (found.is_deleted || found.deleted)) {
-                return false;
-            }
         }
 
         const notifUserId = (notif.user_id || '').toLowerCase().trim();
@@ -217,11 +223,27 @@ export function NotificationBell() {
         const link = (notif.link || '').toLowerCase();
         const title = (notif.title || '').toLowerCase();
 
-        // 1. Direct recipient match (by user_id or creator_email)
+        // 1. If user deleted/dismissed this notification from their recipient list, block immediately
+        if (Array.isArray(notif.recipient_user_ids) && notif.recipient_user_ids.length > 0 && currentUserId) {
+            const found = notif.recipient_user_ids.find((item: any) => {
+                const uid = typeof item === 'string' ? item : item?.user_id;
+                return uid && String(uid).toLowerCase() === currentUserId;
+            });
+            if (!found || (typeof found === 'object' && (found.is_deleted || found.deleted))) {
+                return false;
+            }
+        }
+
+        // 2. Login Authorization Request (Strictly Admin only, NEVER Executive, NEVER other roles)
+        if (title.includes('login authorization') || link.includes('access_control')) {
+            return uRole === 'admin';
+        }
+
+        // 3. Direct recipient match (by user_id or creator_email)
         const isDirectRecipient = (notifUserId && currentUserId && notifUserId === currentUserId) ||
                                   (creatorEmail && currentEmail && creatorEmail === currentEmail);
 
-        // 2. Document-related notification (strictly isolated to the uploader/recipient)
+        // 4. Document-related notification (strictly isolated to the uploader/recipient)
         const isDocNotification =
             refType.includes('document') ||
             link.includes('/documents') ||
@@ -233,23 +255,17 @@ export function NotificationBell() {
             return isDirectRecipient;
         }
 
-        // 3. Explicit direct-to-user notification
+        // 5. Explicit direct-to-user notification
         if (targetRoles.includes('user')) {
             return isDirectRecipient;
         }
 
-        // 4. Login Authorization Request (Strictly Admin only, NOT Executive)
-        if (title.includes('login authorization') || link.includes('access_control')) {
-            return uRole === 'admin';
-        }
-
-        // 5. If direct recipient match on general notification, allow it
-        if (isDirectRecipient) {
+        // 6. Direct recipient match for personal notification
+        if (isDirectRecipient && targetRoles.includes('all')) {
             return true;
         }
 
-        // 6. Role-based notifications (Requisitions, purchase requests, system alerts, notices)
-        // Strictly matched to user's role. Admin and Executive are separate.
+        // 7. Role-based notifications (Strict match to user's role: Admin is Admin, Executive is Executive)
         return targetRoles.some(nR => nR === 'all' || nR === uRole);
     }, [userRole, userId, userEmail]);
 
@@ -420,57 +436,29 @@ export function NotificationBell() {
         fetchUnreadCountRef.current = fetchUnreadCount;
     }, [fetchUnreadCount]);
 
-    // fetch notifications with pagination
-    const fetchNotifications = useCallback(async (pageNum: number, append: boolean = false) => {
-        if (pageNum === 0) {
-            setIsLoading(true);
-        } else {
-            setIsLoadingMore(true);
-        }
+    // fetch notifications with progressive loading (3 initially, +3 on load more)
+    const fetchNotifications = useCallback(async (_pageNum: number = 0, _append: boolean = false) => {
+        setIsLoading(true);
 
         try {
-            const from = pageNum * PAGE_SIZE;
-            const to = from + PAGE_SIZE - 1;
-
             const res = await supabase
                 .from('notifications')
                 .select('*')
                 .order('created_at', { ascending: false })
-                .range(from, to);
+                .limit(100);
 
             const rawData = res.data || [];
-
-            if (rawData.length === 0 && pageNum === 0) {
-                setHasMore(false);
-                setNotifications([]);
-                setUnreadCount(0);
-                setTotalUnread(0);
-                return;
-            }
-
             const notificationsData = rawData.filter((n: any) => isNotificationForUser(n));
             const currentUserId = userId || (typeof window !== 'undefined' ? (user.getUserId() || localStorage.getItem('user_id')) : null) || '';
+            const uniqueData = deduplicateNotifications(notificationsData);
 
-            if (append) {
-                setNotifications(prev => {
-                    const existingIds = new Set(prev.map(n => n.id));
-                    const freshItems = notificationsData.filter(n => !existingIds.has(n.id));
-                    const merged = deduplicateNotifications([...prev, ...freshItems]);
-                    setHasMore(rawData.length === PAGE_SIZE);
-                    setTotalCount(merged.length);
-                    return merged;
-                });
-            } else {
-                const uniqueData = deduplicateNotifications(notificationsData);
-                setNotifications(uniqueData);
-                setTotalCount(uniqueData.length);
-                saveToCache(uniqueData);
-                setHasMore(rawData.length === PAGE_SIZE);
-                const unread = uniqueData.filter(n => !isNotificationReadByUser(n, currentUserId)).length;
-                setUnreadCount(unread);
-                setTotalUnread(unread);
-            }
+            setNotifications(uniqueData);
+            setTotalCount(uniqueData.length);
+            saveToCache(uniqueData);
 
+            const unread = uniqueData.filter(n => !isNotificationReadByUser(n, currentUserId)).length;
+            setUnreadCount(unread);
+            setTotalUnread(unread);
             await fetchUnreadCount();
 
         } catch (error) {
@@ -525,11 +513,29 @@ export function NotificationBell() {
                             }
                             if (shouldShowToastForNotification(newNotif, userEmailRef.current, userNameRef.current)) {
                                 const toastKey = newNotif.po_request_id || newNotif.id || `${newNotif.title}_${newNotif.message}`;
-                                toast.info(newNotif.title, {
-                                    id: `notif_${toastKey}`,
-                                    description: newNotif.message,
-                                    duration: 6000,
-                                });
+                                const isLoginAuthReq = newNotif.title === 'Login Authorization Request' || (newNotif.link && newNotif.link.includes('access_control'));
+                                if (isLoginAuthReq) {
+                                    const targetLink = newNotif.link && newNotif.link.includes('edit_email')
+                                        ? newNotif.link
+                                        : `/user-activity?tab=access_control&edit_email=${encodeURIComponent(newNotif.creator_email || '')}`;
+                                    toast.info(newNotif.title, {
+                                        id: `notif_${toastKey}`,
+                                        description: newNotif.message,
+                                        duration: 8000,
+                                        action: {
+                                            label: 'Extend',
+                                            onClick: () => {
+                                                router.push(targetLink);
+                                            },
+                                        },
+                                    });
+                                } else {
+                                    toast.info(newNotif.title, {
+                                        id: `notif_${toastKey}`,
+                                        description: newNotif.message,
+                                        duration: 6000,
+                                    });
+                                }
                             }
                         }
                     } else if (payload.eventType === 'UPDATE') {
@@ -827,9 +833,7 @@ export function NotificationBell() {
     };
 
     const handleLoadMore = () => {
-        const nextPage = page + 1;
-        fetchNotifications(nextPage, true);
-        setPage(nextPage);
+        setVisibleCount(prev => prev + 3);
     };
 
     const handleNotificationClick = async (notification: Notification) => {
@@ -853,7 +857,11 @@ export function NotificationBell() {
                 document.body.removeChild(a);
                 toast.success('Downloading attached manifest (.xlsx)...');
             } else {
-                router.push(notification.link);
+                let targetUrl = notification.link;
+                if ((notification.title === 'Login Authorization Request' || targetUrl.includes('tab=access_control')) && !targetUrl.includes('edit_email') && notification.creator_email) {
+                    targetUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}edit_email=${encodeURIComponent(notification.creator_email)}`;
+                }
+                router.push(targetUrl);
             }
             setIsOpen(false);
         }
@@ -1336,7 +1344,7 @@ export function NotificationBell() {
                                     </div>
                                 ) : (
                                     <>
-                                        {notifications.map((notification) => {
+                                        {notifications.slice(0, visibleCount).map((notification) => {
                                             const currentUserId = userId || (typeof window !== 'undefined' ? user.getUserId() : null) || '';
                                             const isRead = isNotificationReadByUser(notification, currentUserId);
 
@@ -1419,6 +1427,34 @@ export function NotificationBell() {
                                                             </div>
                                                         )}
 
+                                                        {/* Login Authorization Request - Extend Action */}
+                                                        {(notification.title === 'Login Authorization Request' || (notification.link && notification.link.includes('tab=access_control'))) && (
+                                                            <div className="mt-2.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/60 flex items-center justify-between gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (!isRead) {
+                                                                            handleMarkAsRead(notification.id);
+                                                                        }
+                                                                        const targetLink = notification.link && notification.link.includes('edit_email')
+                                                                            ? notification.link
+                                                                            : `/user-activity?tab=access_control&edit_email=${encodeURIComponent(notification.creator_email || '')}`;
+                                                                        router.push(targetLink);
+                                                                        setIsOpen(false);
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-xl text-sky-700 dark:text-sky-300 bg-[#e5f3fc] dark:bg-[#142330] shadow-[3px_3px_7px_#c5dbe9,-3px_-3px_7px_#ffffff] dark:shadow-[3px_3px_7px_#091118,-2px_-2px_6px_#1c3345] hover:shadow-[inset_2px_2px_4px_#c5dbe9,inset_-2px_-2px_4px_#ffffff] dark:hover:shadow-[inset_2px_2px_4px_#091118,inset_-2px_-2px_4px_#1c3345] active:scale-95 transition-all cursor-pointer"
+                                                                >
+                                                                    <Clock className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                                                                    <span>Extend</span>
+                                                                </button>
+                                                                <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium px-2 py-0.5 rounded-md bg-[#e1effa] dark:bg-[#111e29] shadow-[inset_1px_1px_2px_#c2d8e7,inset_-1px_-1px_2px_#ffffff] flex items-center gap-1">
+                                                                    <Shield className="h-3 w-3" />
+                                                                    <span>Access Request</span>
+                                                                </span>
+                                                            </div>
+                                                        )}
+
                                                         {/* Neumorphic Footer Chips */}
                                                         <div className="flex items-center gap-1.5 mt-2.5 flex-wrap text-[10px] text-slate-400 dark:text-slate-500">
                                                             <span className="px-2 py-0.5 rounded-md bg-[#e3e9f3] dark:bg-[#14151e] shadow-[inset_1px_1px_2px_#ccd5e2,inset_-1px_-1px_2px_#ffffff] dark:shadow-[inset_1px_1px_2px_#0d0e14,inset_-1px_-1px_2px_#1f212d] text-slate-600 dark:text-slate-400 font-medium">
@@ -1467,33 +1503,24 @@ export function NotificationBell() {
                                         })}
 
                                         {/* Neumorphic Load More Button */}
-                                        {hasMore && totalCount > 0 && (
+                                        {visibleCount < notifications.length && (
                                             <div className="pt-2 pb-1">
                                                 <button
                                                     onClick={handleLoadMore}
-                                                    disabled={isLoadingMore}
                                                     className="w-full py-2.5 px-4 text-xs font-semibold 
                                                     text-pink-600 dark:text-pink-400 
                                                     bg-[#ebf0f7] dark:bg-[#1c1e2b] 
                                                     shadow-[4px_4px_10px_#c5cfdd,-4px_-4px_10px_#ffffff] dark:shadow-[4px_4px_10px_#0d0e14,-4px_-4px_10px_#262838] 
                                                     hover:shadow-[inset_2px_2px_5px_#c5cfdd,inset_-2px_-2px_5px_#ffffff] dark:hover:shadow-[inset_2px_2px_5px_#0d0e14,inset_-2px_-2px_5px_#262838] 
                                                     active:scale-98 rounded-2xl transition-all 
-                                                    disabled:opacity-50 disabled:cursor-not-allowed 
                                                     flex items-center justify-center gap-2 cursor-pointer"
                                                 >
-                                                    {isLoadingMore ? (
-                                                        <>
-                                                            <Loader2 className="animate-spin h-3.5 w-3.5" />
-                                                            Loading...
-                                                        </>
-                                                    ) : (
-                                                        `Load older notifications (${notifications.length} of ${totalCount})`
-                                                    )}
+                                                    {`Load older notifications (${Math.min(visibleCount, notifications.length)} of ${notifications.length})`}
                                                 </button>
                                             </div>
                                         )}
 
-                                        {!hasMore && notifications.length > 0 && (
+                                        {visibleCount >= notifications.length && notifications.length > 3 && (
                                             <div className="py-2 text-center">
                                                 <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                                                     Showing all {notifications.length} notifications

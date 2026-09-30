@@ -271,3 +271,60 @@ export async function requestLoginAuthorizationApi(params: {
     return { ok: res.ok, data };
 }
 
+export const NOTIFY_WINDOW_SECONDS = 300; // 5 minutes
+export const MAX_NOTIFICATIONS_PER_WINDOW = 2; // max 2 notifications per window
+
+export function getNoticeCategory(msg?: string | null): 'disabled' | 'schedule' | 'general' {
+    if (!msg) return 'general';
+    const lower = msg.toLowerCase();
+    if (lower.includes('disabled') || lower.includes('deactivated') || lower.includes('suspended')) {
+        return 'disabled';
+    }
+    if (lower.includes('permitted between') || lower.includes('allowed') || lower.includes('schedule') || lower.includes('hours') || lower.includes('time')) {
+        return 'schedule';
+    }
+    return 'general';
+}
+
+export function getNotifyRateLimitKey(category: string, email: string): string {
+    return `notify_admin_attempts_${category}_${email.toLowerCase().trim()}`;
+}
+
+export function getNotifyTimestamps(category: string, email: string): number[] {
+    if (!email || typeof window === 'undefined') return [];
+    try {
+        const stored = localStorage.getItem(getNotifyRateLimitKey(category, email));
+        if (!stored) return [];
+        const parsed: number[] = JSON.parse(stored);
+        const now = Date.now();
+        return parsed.filter(t => now - t < NOTIFY_WINDOW_SECONDS * 1000);
+    } catch {
+        return [];
+    }
+}
+
+export function recordNotificationSent(category: string, email: string): void {
+    if (!email || typeof window === 'undefined') return;
+    const current = getNotifyTimestamps(category, email);
+    const updated = [...current, Date.now()];
+    localStorage.setItem(getNotifyRateLimitKey(category, email), JSON.stringify(updated));
+}
+
+export function getRemainingNotifyCooldown(category: string, email: string): number {
+    const timestamps = getNotifyTimestamps(category, email);
+    if (timestamps.length < MAX_NOTIFICATIONS_PER_WINDOW) return 0;
+    const oldest = Math.min(...timestamps);
+    const elapsed = Date.now() - oldest;
+    return Math.max(0, Math.ceil((NOTIFY_WINDOW_SECONDS * 1000 - elapsed) / 1000));
+}
+
+export function formatNotifyCooldown(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) {
+        return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+    }
+    return `${s}s`;
+}
+
+

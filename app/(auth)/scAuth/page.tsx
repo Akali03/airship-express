@@ -44,6 +44,10 @@ import {
     deleteAppeal,
     maskEmail,
     requestLoginAuthorizationApi,
+    getNoticeCategory,
+    recordNotificationSent,
+    getRemainingNotifyCooldown,
+    formatNotifyCooldown,
 } from './services';
 import { settingsService } from '../../(supplyChain)/lib/services/settingsService';
 
@@ -109,6 +113,7 @@ export default function SupplyChainLoginPage() {
     // remembered password modal
     const [showRememberedPasswordModal, setShowRememberedPasswordModal] = useState(false);
     const [rememberedPassword, setRememberedPassword] = useState('');
+    const [authRestrictionMessage, setAuthRestrictionMessage] = useState<string | null>(null);
 
     // login queue modal (100-user concurrency limit)
     const [showQueueModal, setShowQueueModal] = useState(false);
@@ -463,8 +468,15 @@ export default function SupplyChainLoginPage() {
         }
     };
 
-    // notify admin when login is not authorized
-    const handleNotifyAdmin = async (userInfo: { email: string; userId?: string; displayName?: string; role?: string }) => {
+    // notify admin when login is not authorized (max 2 per 5 minutes per notice category)
+    const handleNotifyAdmin = async (userInfo: { email: string; userId?: string; displayName?: string; role?: string; reason?: string }) => {
+        const category = getNoticeCategory(userInfo.reason || authRestrictionMessage || loginError || otpError);
+        const remaining = getRemainingNotifyCooldown(category, userInfo.email);
+        if (remaining > 0) {
+            toast.error(`Rate limit reached: Max 2 notifications allowed every 5 minutes for this notice. Please wait ${formatNotifyCooldown(remaining)}.`, { id: 'auth-req' });
+            return false;
+        }
+
         toast.loading('Sending authorization request to Administrator...', { id: 'auth-req' });
         try {
             const { ok, data } = await requestLoginAuthorizationApi({
@@ -472,14 +484,19 @@ export default function SupplyChainLoginPage() {
                 userId: userInfo.userId,
                 displayName: userInfo.displayName,
                 role: userInfo.role,
+                message: userInfo.reason || authRestrictionMessage || loginError || otpError || undefined,
             });
             if (ok) {
+                recordNotificationSent(category, userInfo.email);
                 toast.success(data?.message || 'Authorization request sent to Administrator. Please wait for approval.', { id: 'auth-req', duration: 5000 });
+                return true;
             } else {
-                toast.error(data?.error || 'Failed to send request. Please try again.', { id: 'auth-req' });
+                toast.error(data?.error || data?.message || 'Failed to send request. Please try again.', { id: 'auth-req' });
+                return false;
             }
         } catch {
             toast.error('Failed to notify admin. Please check your connection.', { id: 'auth-req' });
+            return false;
         }
     };
 
@@ -494,6 +511,7 @@ export default function SupplyChainLoginPage() {
 
         setShowRememberedPasswordModal(true);
         setRememberedPassword('');
+        setAuthRestrictionMessage(null);
     };
 
     const handleVerifyRememberedPassword = async (): Promise<boolean | string> => {
@@ -503,6 +521,7 @@ export default function SupplyChainLoginPage() {
         }
 
         setIsLoggingInWithRemembered(true);
+        setAuthRestrictionMessage(null);
 
         try {
             const userRole = rememberedData?.role ||
@@ -521,14 +540,12 @@ export default function SupplyChainLoginPage() {
                 );
 
                 if (signInError) {
-                    setRememberedPassword('');
                     setIsLoggingInWithRemembered(false);
                     return false;
                 }
             } catch (authError) {
                 console.error('Auth error:', authError);
                 toast.error('Authentication failed. Please try again.');
-                setRememberedPassword('');
                 setIsLoggingInWithRemembered(false);
                 return false;
             }
@@ -558,7 +575,8 @@ export default function SupplyChainLoginPage() {
             if (!ok) {
                 if (activateData?.notAllowed || status === 403) {
                     const msg = activateData?.message || 'You are not authorized to login at this time.';
-                    toast.error(msg, {
+                    setAuthRestrictionMessage(msg);
+                    toast.info(msg, {
                         duration: 8000,
                         action: {
                             label: 'Notify Admin',
@@ -571,7 +589,6 @@ export default function SupplyChainLoginPage() {
                         },
                     });
                     setIsLoggingInWithRemembered(false);
-                    setShowRememberedPasswordModal(false);
                     return 'not_allowed';
                 }
 
@@ -651,7 +668,7 @@ export default function SupplyChainLoginPage() {
                     const userTarget = data?.user || { email };
                     const msg = data?.message || 'You are not authorized to login at this time.';
                     setLoginError(msg);
-                    toast.error(msg, {
+                    toast.info(msg, {
                         duration: 8000,
                         action: {
                             label: 'Notify Admin',
@@ -921,7 +938,7 @@ export default function SupplyChainLoginPage() {
                     const userTarget = data?.user || selectedEmployee || { email: selectedEmployee?.email };
                     const msg = data?.message || 'You are not authorized to login at this time.';
                     setOtpError(msg);
-                    toast.error(msg, {
+                    toast.info(msg, {
                         duration: 8000,
                         action: {
                             label: 'Notify Admin',
@@ -1450,6 +1467,14 @@ export default function SupplyChainLoginPage() {
                     getRoleColor={getRoleColor}
                     handleVerifyRememberedPassword={handleVerifyRememberedPassword}
                     setShowRememberedPasswordModal={setShowRememberedPasswordModal}
+                    authRestrictionMessage={authRestrictionMessage}
+                    setAuthRestrictionMessage={setAuthRestrictionMessage}
+                    onNotifyAdmin={() => handleNotifyAdmin({
+                        email: selectedEmployee?.email || rememberedData?.email || '',
+                        userId: rememberedData?.user_id || loggedInUser?.id || selectedEmployee?.id,
+                        displayName: selectedEmployee?.display_name,
+                        role: rememberedData?.role || selectedEmployee?.role || loggedInUser?.role || 'Employee',
+                    })}
                 />
 
                 <AppealModal

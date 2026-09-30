@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     Clock,
     Shield,
@@ -99,6 +99,148 @@ function SettingsSkeleton() {
                     <SkeletonBlock variant="rounded" height={400} />
                 </div>
             </div>
+        </div>
+    );
+}
+
+function TierInfoBadge({
+    tierLabel,
+    tierColor,
+    minSlots,
+    activeSlots,
+    defaultSlots,
+    maxSlots,
+}: {
+    tierLabel: string;
+    tierColor: 'pink' | 'amber' | 'blue' | 'emerald';
+    minSlots: number;
+    activeSlots: number;
+    defaultSlots: number;
+    maxSlots?: number;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleMouseEnter = () => {
+        if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current);
+            closeTimeoutRef.current = null;
+        }
+        setIsOpen(true);
+    };
+
+    const handleMouseLeave = () => {
+        closeTimeoutRef.current = setTimeout(() => {
+            setIsOpen(false);
+        }, 200);
+    };
+
+    const handleDismiss = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current);
+        }
+        setIsOpen(false);
+    };
+
+    const colorClasses = {
+        pink: {
+            badge: 'bg-pink-500/15 text-pink-700 dark:text-pink-300 border-pink-500/30',
+            btn: 'bg-pink-500/25 text-pink-700 dark:text-pink-300 hover:bg-pink-500/40 border-pink-500/40',
+            accent: 'text-pink-600 dark:text-pink-400',
+            dot: 'bg-pink-500',
+        },
+        amber: {
+            badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+            btn: 'bg-amber-500/25 text-amber-700 dark:text-amber-300 hover:bg-amber-500/40 border-amber-500/40',
+            accent: 'text-amber-600 dark:text-amber-400',
+            dot: 'bg-amber-500',
+        },
+        blue: {
+            badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+            btn: 'bg-blue-500/25 text-blue-700 dark:text-blue-300 hover:bg-blue-500/40 border-blue-500/40',
+            accent: 'text-blue-600 dark:text-blue-400',
+            dot: 'bg-blue-500',
+        },
+        emerald: {
+            badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+            btn: 'bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/40 border-emerald-500/40',
+            accent: 'text-emerald-600 dark:text-emerald-400',
+            dot: 'bg-emerald-500',
+        },
+    }[tierColor];
+
+    return (
+        <div
+            className="relative inline-block"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+        >
+            <div className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition-all ${colorClasses.badge}`}>
+                <span>{tierLabel}</span>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsOpen(prev => !prev);
+                    }}
+                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black leading-none border transition-all cursor-pointer ${colorClasses.btn}`}
+                    title="View slot specifications and active capacity"
+                    aria-label="Tier specifications"
+                >
+                    !
+                </button>
+            </div>
+
+            {/* Floating Tooltip / Popover Panel */}
+            {isOpen && (
+                <div
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                    className="absolute left-0 top-full mt-2 w-64 p-3.5 rounded-2xl bg-[#EEF2F6] dark:bg-[#181C26] shadow-[6px_6px_16px_#cbd6e4,-4px_-4px_12px_#ffffff] dark:shadow-[8px_8px_22px_rgba(0,0,0,0.7),-2px_-2px_8px_rgba(255,255,255,0.04)] border border-white/90 dark:border-white/[0.08] z-50 text-xs space-y-2.5 animate-in fade-in zoom-in-95 duration-150"
+                >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70 dark:border-white/10">
+                        <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${colorClasses.dot}`} />
+                            <span className={`font-bold ${colorClasses.accent}`}>
+                                {tierLabel} Specs
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleDismiss}
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200/50 dark:hover:bg-white/10 transition-all cursor-pointer"
+                            title="Close"
+                            aria-label="Close tooltip"
+                        >
+                            <X className="w-3 h-3" />
+                        </button>
+                    </div>
+
+                    <div className="space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500 dark:text-slate-400">Minimum Allowed:</span>
+                            <strong className="font-semibold text-slate-900 dark:text-white">{minSlots} slots</strong>
+                        </div>
+                        {activeSlots > 0 && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-500 dark:text-slate-400">Currently Active:</span>
+                                <strong className={`font-bold ${colorClasses.accent}`}>{activeSlots} user{activeSlots === 1 ? '' : 's'}</strong>
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500 dark:text-slate-400">Default Allocation:</span>
+                            <strong className="font-semibold text-slate-900 dark:text-white">{defaultSlots} slots</strong>
+                        </div>
+                        {maxSlots !== undefined && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-500 dark:text-slate-400">Max Capacity:</span>
+                                <strong className="font-semibold text-slate-900 dark:text-white">{maxSlots} slots</strong>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -1509,9 +1651,14 @@ export default function SettingsContentWrapper() {
                         <div className="p-5 rounded-2xl sm:rounded-3xl bg-[#EEF2F6] dark:bg-[#161A23] shadow-[5px_5px_12px_#d1dbe7,-5px_-5px_12px_#ffffff] dark:shadow-[6px_6px_16px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.03)] border border-white/80 dark:border-white/[0.08] flex flex-col justify-between space-y-4">
                             <div>
                                 <div className="flex items-center justify-between">
-                                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/30">
-                                        Tier 1: VIP (Min: {getDynamicMinSlot('executiveSlots')}{activeSlotCounts.executiveSlots > 0 ? ` • ${activeSlotCounts.executiveSlots} Active` : ''} • Default: 10)
-                                    </span>
+                                    <TierInfoBadge
+                                        tierLabel="Tier 1: VIP"
+                                        tierColor="pink"
+                                        minSlots={getDynamicMinSlot('executiveSlots')}
+                                        activeSlots={activeSlotCounts.executiveSlots || 0}
+                                        defaultSlots={10}
+                                        maxSlots={500}
+                                    />
                                     {!isExecutiveUser ? (
                                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-200/80 dark:bg-amber-400/20 text-amber-900 dark:text-amber-200 font-mono font-bold tracking-wider">
                                             LOCKED (EXEC ONLY)
@@ -1577,9 +1724,14 @@ export default function SettingsContentWrapper() {
                         <div className="p-5 rounded-2xl sm:rounded-3xl bg-[#EEF2F6] dark:bg-[#161A23] shadow-[5px_5px_12px_#d1dbe7,-5px_-5px_12px_#ffffff] dark:shadow-[6px_6px_16px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.03)] border border-white/80 dark:border-white/[0.08] flex flex-col justify-between space-y-4">
                             <div>
                                 <div className="flex items-center justify-between">
-                                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                                        Tier 2: Leadership (Min: {getDynamicMinSlot('managerSlots')}{activeSlotCounts.managerSlots > 0 ? ` • ${activeSlotCounts.managerSlots} Active` : ''} • Default: 20)
-                                    </span>
+                                    <TierInfoBadge
+                                        tierLabel="Tier 2: Leadership"
+                                        tierColor="amber"
+                                        minSlots={getDynamicMinSlot('managerSlots')}
+                                        activeSlots={activeSlotCounts.managerSlots || 0}
+                                        defaultSlots={20}
+                                        maxSlots={500}
+                                    />
                                     <span className="text-[10px] font-mono font-bold text-slate-400">PRIORITY 2</span>
                                 </div>
                                 <h4 className="text-base font-bold text-slate-900 dark:text-white mt-2">
@@ -1633,9 +1785,14 @@ export default function SettingsContentWrapper() {
                         <div className="p-5 rounded-2xl sm:rounded-3xl bg-[#EEF2F6] dark:bg-[#161A23] shadow-[5px_5px_12px_#d1dbe7,-5px_-5px_12px_#ffffff] dark:shadow-[6px_6px_16px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.03)] border border-white/80 dark:border-white/[0.08] flex flex-col justify-between space-y-4">
                             <div>
                                 <div className="flex items-center justify-between">
-                                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
-                                        Tier 3: Standard (Min: {getDynamicMinSlot('employeeSlots')}{activeSlotCounts.employeeSlots > 0 ? ` • ${activeSlotCounts.employeeSlots} Active` : ''} • Default: 70)
-                                    </span>
+                                    <TierInfoBadge
+                                        tierLabel="Tier 3: Standard"
+                                        tierColor="blue"
+                                        minSlots={getDynamicMinSlot('employeeSlots')}
+                                        activeSlots={activeSlotCounts.employeeSlots || 0}
+                                        defaultSlots={70}
+                                        maxSlots={650}
+                                    />
                                     <span className="text-[10px] font-mono font-bold text-slate-400">STAFF</span>
                                 </div>
                                 <h4 className="text-base font-bold text-slate-900 dark:text-white mt-2">
@@ -1689,9 +1846,14 @@ export default function SettingsContentWrapper() {
                         <div className="p-5 rounded-2xl sm:rounded-3xl bg-[#EEF2F6] dark:bg-[#161A23] shadow-[5px_5px_12px_#d1dbe7,-5px_-5px_12px_#ffffff] dark:shadow-[6px_6px_16px_rgba(0,0,0,0.6),-3px_-3px_10px_rgba(255,255,255,0.03)] border border-white/80 dark:border-white/[0.08] flex flex-col justify-between space-y-4">
                             <div>
                                 <div className="flex items-center justify-between">
-                                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                                        Tier 4: Vendor Portal (Min: {getDynamicMinSlot('supplierSlots')}{activeSlotCounts.supplierSlots > 0 ? ` • ${activeSlotCounts.supplierSlots} Active` : ''} • Default: 10)
-                                    </span>
+                                    <TierInfoBadge
+                                        tierLabel="Tier 4: Vendor Portal"
+                                        tierColor="emerald"
+                                        minSlots={getDynamicMinSlot('supplierSlots')}
+                                        activeSlots={activeSlotCounts.supplierSlots || 0}
+                                        defaultSlots={10}
+                                        maxSlots={50}
+                                    />
                                     <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">SUPPLIER</span>
                                 </div>
                                 <h4 className="text-base font-bold text-slate-900 dark:text-white mt-2">

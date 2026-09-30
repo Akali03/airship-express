@@ -448,12 +448,15 @@ export function useUserActivity() {
                     debouncedFetch('appeals', () => fetchAppeals(true));
                 }
             )
-            // 5. Active Users tab: slot allocations & capacity realtime updates
+            // 5. Active Users & Access Control: slot allocations, capacity & user permissions realtime updates
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'sc_system_settings' },
                 () => {
-                    debouncedFetch('settings', () => fetchActiveUsers(true));
+                    debouncedFetch('settings', () => {
+                        fetchSessions(true);
+                        fetchActiveUsers(true);
+                    });
                 }
             )
             // 6. User accounts & role changes across all tabs
@@ -468,6 +471,26 @@ export function useUserActivity() {
                     });
                 }
             )
+            // 7. Instant Broadcast Events for Access Control & Auth Requests
+            .on(
+                'broadcast',
+                { event: 'access_control_update' },
+                () => {
+                    debouncedFetch('sessions', () => {
+                        fetchSessions(true);
+                        fetchActiveUsers(true);
+                    });
+                }
+            )
+            .on(
+                'broadcast',
+                { event: 'auth_requested' },
+                () => {
+                    debouncedFetch('sessions', () => {
+                        fetchSessions(true);
+                    });
+                }
+            )
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED' && isMounted.current) {
                     setIsRealtimeActive(true);
@@ -478,12 +501,13 @@ export function useUserActivity() {
                 }
             });
 
-        // live background polling interval: keeps active sessions, slots, and queued users updated in realtime
+        // live background polling interval: keeps active sessions, access control permissions, slots, and queued users updated in realtime
         const liveQueueInterval = setInterval(() => {
             if (isMounted.current) {
                 fetchActiveUsers(true);
+                fetchSessions(true);
             }
-        }, 4000);
+        }, 5000);
 
         // interval: updates active countdowns dynamically when any strike exists
         const pollInterval = setInterval(() => {
@@ -1513,6 +1537,46 @@ export function useUserActivity() {
             allowed_time_end: string;
             auth_requested?: boolean;
         }) => {
+            const targetEmail = rule.email.toLowerCase().trim();
+
+            // Optimistic update for instant UI feedback
+            setAccessControlList(prev =>
+                prev.map(item => {
+                    const itemEmail = (item.email || item.users?.email || '').toLowerCase().trim();
+                    if (itemEmail === targetEmail) {
+                        return {
+                            ...item,
+                            is_allow: rule.is_allow,
+                            allowed_days: rule.allowed_days,
+                            allowed_time_start: rule.allowed_time_start,
+                            allowed_time_end: rule.allowed_time_end,
+                            auth_requested: rule.auth_requested !== undefined ? rule.auth_requested : false,
+                            auth_requested_at: rule.auth_requested ? new Date().toISOString() : null,
+                        };
+                    }
+                    return item;
+                })
+            );
+
+            setSessions(prev =>
+                prev.map(s => {
+                    const sEmail = (s.email || s.users?.email || '').toLowerCase().trim();
+                    if (sEmail === targetEmail) {
+                        return {
+                            ...s,
+                            is_allow: rule.is_allow,
+                            allowed_days: rule.allowed_days,
+                            allowed_time_start: rule.allowed_time_start,
+                            allowed_time_end: rule.allowed_time_end,
+                            auth_requested: rule.auth_requested !== undefined ? rule.auth_requested : false,
+                            auth_requested_at: rule.auth_requested ? new Date().toISOString() : null,
+                            ...(rule.is_allow === false ? { is_active: false } : {}),
+                        };
+                    }
+                    return s;
+                })
+            );
+
             try {
                 const res = await fetch('/api/supplyChain/user-access-control', {
                     method: 'POST',
@@ -1526,6 +1590,7 @@ export function useUserActivity() {
                 const data = await res.json();
                 if (!res.ok || !data.success) {
                     toast.error(data.message || 'Failed to update access rule');
+                    await fetchSessions(true);
                     return;
                 }
 
@@ -1534,6 +1599,7 @@ export function useUserActivity() {
             } catch (err: any) {
                 console.error('Error updating access rule:', err);
                 toast.error('Network error updating access rule');
+                await fetchSessions(true);
             }
         },
 
@@ -1548,6 +1614,46 @@ export function useUserActivity() {
             allowed_time_end: string;
             auth_requested?: boolean;
         }>) => {
+            const rulesMap = new Map(rules.map(r => [r.email.toLowerCase().trim(), r]));
+
+            // Optimistic bulk update
+            setAccessControlList(prev =>
+                prev.map(item => {
+                    const itemEmail = (item.email || item.users?.email || '').toLowerCase().trim();
+                    const matchingRule = rulesMap.get(itemEmail);
+                    if (matchingRule) {
+                        return {
+                            ...item,
+                            is_allow: matchingRule.is_allow,
+                            allowed_days: matchingRule.allowed_days,
+                            allowed_time_start: matchingRule.allowed_time_start,
+                            allowed_time_end: matchingRule.allowed_time_end,
+                            auth_requested: matchingRule.auth_requested !== undefined ? matchingRule.auth_requested : false,
+                        };
+                    }
+                    return item;
+                })
+            );
+
+            setSessions(prev =>
+                prev.map(s => {
+                    const sEmail = (s.email || s.users?.email || '').toLowerCase().trim();
+                    const matchingRule = rulesMap.get(sEmail);
+                    if (matchingRule) {
+                        return {
+                            ...s,
+                            is_allow: matchingRule.is_allow,
+                            allowed_days: matchingRule.allowed_days,
+                            allowed_time_start: matchingRule.allowed_time_start,
+                            allowed_time_end: matchingRule.allowed_time_end,
+                            auth_requested: matchingRule.auth_requested !== undefined ? matchingRule.auth_requested : false,
+                            ...(matchingRule.is_allow === false ? { is_active: false } : {}),
+                        };
+                    }
+                    return s;
+                })
+            );
+
             try {
                 const res = await fetch('/api/supplyChain/user-access-control', {
                     method: 'POST',
@@ -1561,6 +1667,7 @@ export function useUserActivity() {
                 const data = await res.json();
                 if (!res.ok || !data.success) {
                     toast.error(data.message || 'Failed to bulk update access rules');
+                    await fetchSessions(true);
                     return false;
                 }
 
@@ -1570,6 +1677,7 @@ export function useUserActivity() {
             } catch (err: any) {
                 console.error('Error bulk updating access rules:', err);
                 toast.error('Network error updating access rules');
+                await fetchSessions(true);
                 return false;
             }
         },

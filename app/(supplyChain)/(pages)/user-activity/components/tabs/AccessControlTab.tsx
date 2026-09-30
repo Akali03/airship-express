@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Session } from '../../types';
 import { EditAccessScheduleModal } from '../modals/EditAccessScheduleModal';
 import { useConfirm } from '../../../../components/ui/ConfirmModal';
@@ -38,6 +39,8 @@ interface AccessControlTabProps {
     currentPage?: number;
     totalPages?: number;
     onPageChange?: (page: number) => void;
+    isRealtimeActive?: boolean;
+    onRefresh?: () => void;
 }
 
 export const AccessControlTab: React.FC<AccessControlTabProps> = ({
@@ -48,10 +51,19 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
     onSearchTermChange: externalOnSearchTermChange,
     onUpdateAccessRule,
     onSaveBulk,
+    isRealtimeActive = true,
+    onRefresh,
 }) => {
     const { confirm } = useConfirm();
+    const searchParams = useSearchParams();
     const isViewerExecutive = (userRole || '').toLowerCase().trim() === 'executive';
     
+    // Auto-open target from search params (e.g. from notification 'Extend' action)
+    const editEmailParam = searchParams?.get('edit_email');
+    const editUserParam = searchParams?.get('edit_user');
+    const autoOpenTarget = editEmailParam || editUserParam;
+    const hasAutoOpenedRef = useRef<string | null>(null);
+
     // Local Search & Debouncing
     const [localSearchInput, setLocalSearchInput] = useState(externalSearchTerm);
     const debouncedSearch = useDebounce(localSearchInput, 300);
@@ -99,6 +111,26 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
     const nonExecutiveSessions = useMemo(() => {
         return sessions.filter(s => (s.users?.role || '').toLowerCase().trim() !== 'executive');
     }, [sessions]);
+
+    // Auto-open EditAccessScheduleModal when navigated with edit_email / edit_user param
+    useEffect(() => {
+        if (!autoOpenTarget || nonExecutiveSessions.length === 0) return;
+        const targetClean = autoOpenTarget.toLowerCase().trim();
+        if (hasAutoOpenedRef.current === targetClean) return;
+
+        const matched = nonExecutiveSessions.find(s =>
+            (s.email && s.email.toLowerCase().trim() === targetClean) ||
+            (s.user_id && s.user_id.toLowerCase().trim() === targetClean) ||
+            (s.id && s.id.toLowerCase().trim() === targetClean) ||
+            (s.users?.email && s.users.email.toLowerCase().trim() === targetClean)
+        );
+
+        if (matched) {
+            hasAutoOpenedRef.current = targetClean;
+            setSelectedSessionForEdit(matched);
+            setShowEditModal(true);
+        }
+    }, [autoOpenTarget, nonExecutiveSessions]);
 
     // Filtered list based on search and status
     const filteredList = useMemo(() => {
@@ -225,34 +257,6 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
         }
     };
 
-    // Single Approve handler
-    const handleQuickApprove = async (session: Session) => {
-        const email = session.email || session.users?.email || '';
-        if (!email) return;
-
-        const isTargetAdmin = (session.users?.role || '').toLowerCase().trim() === 'admin';
-        if (isTargetAdmin && !isViewerExecutive) {
-            return;
-        }
-
-        setUpdatingEmail(email);
-        try {
-            await onUpdateAccessRule({
-                email,
-                user_id: session.user_id,
-                display_name: session.users?.display_name || session.hr_employee_name,
-                role: session.users?.role,
-                is_allow: true,
-                allowed_days: session.allowed_days && session.allowed_days.length > 0 ? session.allowed_days : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-                allowed_time_start: session.allowed_time_start || '07:00',
-                allowed_time_end: session.allowed_time_end || '17:00',
-                auth_requested: false,
-            });
-        } finally {
-            setUpdatingEmail(null);
-        }
-    };
-
     // Bulk Allow Action
     const handleBulkAllow = async () => {
         const actionable = selectedSessionsList.filter(s => {
@@ -363,6 +367,34 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
 
     return (
         <div className="space-y-4">
+            {/* Live Realtime Status & Pending Requests Alert Banner */}
+            {pendingRequestsCount > 0 && (
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-400/40 dark:border-amber-700/50 shadow-[3px_3px_8px_rgba(217,119,6,0.15),-2px_-2px_6px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.4)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-3">
+                        <span className="relative flex h-3 w-3 shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                        </span>
+                        <div>
+                            <p className="text-xs sm:text-sm font-bold text-amber-900 dark:text-amber-200">
+                                {pendingRequestsCount} Pending Login Authorization Request{pendingRequestsCount > 1 ? 's' : ''}
+                            </p>
+                            <p className="text-[11px] text-amber-700/90 dark:text-amber-300/80">
+                                Users outside allowed hours or without active permissions are awaiting approval.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => handleStatusFilterChange('pending')}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white border border-amber-400/80 shadow-[2px_2px_5px_rgba(217,119,6,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                        <i className="fas fa-filter text-[10px]" />
+                        <span>Review Requests</span>
+                    </button>
+                </div>
+            )}
+
             {/* Control Bar: Search & Status Filters */}
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
                 {/* Search with Debounce Indicator */}
@@ -386,8 +418,32 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
                     )}
                 </div>
 
-                {/* Status Filter Buttons */}
+                {/* Status Filter Buttons + Realtime Status Badge */}
                 <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                    {/* Live Realtime Indicator */}
+                    <div
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-[#ebf0f7] dark:bg-[#1d1e28] border border-white/80 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.3),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] shrink-0"
+                        title={isRealtimeActive ? 'Realtime sync connected: Instant updates for schedule & permission changes' : 'Reconnecting realtime...'}
+                    >
+                        <span className="relative flex h-2 w-2">
+                            {isRealtimeActive && (
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            )}
+                            <span className={`relative inline-flex rounded-full h-2 w-2 ${isRealtimeActive ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                        </span>
+                        <span className="text-slate-600 dark:text-slate-300">Live</span>
+                        {onRefresh && (
+                            <button
+                                type="button"
+                                onClick={onRefresh}
+                                className="ml-1 text-slate-400 hover:text-pink-600 dark:hover:text-pink-400 cursor-pointer transition-colors p-0.5"
+                                title="Sync now"
+                            >
+                                <i className={`fas fa-rotate-right text-[10px] ${isLoading ? 'fa-spin text-pink-500' : ''}`} />
+                            </button>
+                        )}
+                    </div>
+
                     <button
                         type="button"
                         onClick={() => handleStatusFilterChange('all')}
@@ -747,23 +803,21 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
                                             {/* Actions */}
                                             <td className="py-3.5 px-4 text-right">
                                                 <div className="flex items-center justify-end gap-1.5">
-                                                    {isRequested && canModifyLogin && (
+                                                    {isRequested ? (
                                                         <button
                                                             type="button"
                                                             disabled={isRowUpdating || isBulkUpdating}
-                                                            onClick={() => handleQuickApprove(session)}
-                                                            className="px-3.5 py-1.5 rounded-full text-xs font-bold text-white bg-amber-500 hover:bg-amber-400 border border-amber-300/80 shadow-[2px_2px_5px_rgba(217,119,6,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                                                            title="Approve login authorization request"
+                                                            onClick={() => {
+                                                                setSelectedSessionForEdit(session);
+                                                                setShowEditModal(true);
+                                                            }}
+                                                            className="px-3.5 py-1.5 rounded-full text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 border border-sky-400/80 shadow-[2px_2px_5px_rgba(2,132,199,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                                                            title="Extend schedule and configure authorization"
                                                         >
-                                                            {isRowUpdating ? (
-                                                                <i className="fas fa-circle-notch fa-spin text-[10px]" />
-                                                            ) : (
-                                                                <i className="fas fa-check text-[10px]" />
-                                                            )}
-                                                            <span>Approve</span>
+                                                            <i className="fas fa-clock text-[10px]" />
+                                                            <span>Extend</span>
                                                         </button>
-                                                    )}
-                                                    {canSchedule && (
+                                                    ) : canSchedule ? (
                                                         <button
                                                             type="button"
                                                             disabled={isRowUpdating || isBulkUpdating}
@@ -777,7 +831,7 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
                                                             <i className="fas fa-sliders text-[10px] text-pink-500" />
                                                             <span>Schedule</span>
                                                         </button>
-                                                    )}
+                                                    ) : null}
                                                 </div>
                                             </td>
                                         </tr>

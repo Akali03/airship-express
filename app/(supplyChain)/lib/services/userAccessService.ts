@@ -272,7 +272,7 @@ export async function requestLoginAuthorization(params: {
                 title: 'Login Authorization Request',
                 message: `${userLabel} (${params.email}) is requesting login authorization.`,
                 type: 'security',
-                link: '/user-activity?tab=access_control',
+                link: `/user-activity?tab=access_control&edit_email=${encodeURIComponent(params.email)}`,
                 role: ['Admin'], // STRICTLY ADMIN ONLY
                 is_read: false,
                 created_at: new Date().toISOString(),
