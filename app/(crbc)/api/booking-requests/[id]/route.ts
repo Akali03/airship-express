@@ -3,9 +3,15 @@ import { createClient } from "../../../library/supabase/server";
 import { adminCreateClient } from "../../../library/supabase/admin";
 import { isServiceCall } from "../../../library/auth/service-call";
 import { getBookingRequestById } from "../../../services/booking-request.service";
+import {corsOptionsResponse, getCorsHeaders, CORS_METHODS} from "../../../library/utils/cors";
+
 
 const STAFF_ALLOWED_STATUSES = ["ACCEPTED", "REJECTED"] as const;
 const CUSTOMER_ALLOWED_STATUSES = ["CANCELLED"] as const;
+
+export async function OPTIONS() {
+  return corsOptionsResponse(CORS_METHODS.PATCH)
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -25,7 +31,7 @@ export async function PATCH(
 
     const serviceCall = isServiceCall(request);
     const supabase = serviceCall
-      ? adminCreateClient()
+      ? await adminCreateClient()
       : await createClient();
 
     if (serviceCall) {
@@ -86,11 +92,13 @@ export async function PATCH(
       const isStaff = profile?.role === "staff";
 
       if (!isStaff) {
+        // Ownership is carried by customers.auth_user_id. customers.id is a
+        // gen_random_uuid() primary key and never equals auth.uid().
         const { data: customer } = await supabase
           .from("customers")
           .select("id")
-          .eq("id", (await supabase.auth.getUser()).data.user?.id)
-          .single();
+          .eq("auth_user_id", (await supabase.auth.getUser()).data.user?.id)
+          .maybeSingle();
 
         if (!customer || existing.customer_id !== customer.id) {
           return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
@@ -117,7 +125,11 @@ export async function PATCH(
       );
     }
 
-    return NextResponse.json({ success: true, status });
+    return NextResponse.json({ 
+      success: true, status
+     },{
+       headers: getCorsHeaders(CORS_METHODS.PATCH)
+    });
   } catch (error) {
     console.error("PATCH /api/booking-requests/[id] error:", error);
     return NextResponse.json(

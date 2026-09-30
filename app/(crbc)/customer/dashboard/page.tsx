@@ -10,13 +10,13 @@ import {
   CheckCircle,
 } from "lucide-react";
 
-
-
 const statusStyle: Record<string, string> = {
-  Completed: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-  "In Transit": "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
-  Pending: "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
-  Cancelled: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+  ACCEPTED: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
+  SUBMITTED: "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
+  PENDING: "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
+  CANCELLED: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+  DRAFT: "bg-gray-50 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400",
+  REJECTED: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
 };
 
 export default async function CustomerDashboard() {
@@ -26,39 +26,45 @@ export default async function CustomerDashboard() {
     return null;
   }
 
-  const customerId = currentUser.customer.customer_id;
+  const customerId = currentUser.customer?.customer_id;
 
-  const [customer, shipments, documents] = await Promise.all([
-    getCustomerById(customerId),
-    getShipmentsByCustomerId(customerId),
-    getDocumentsByCustomerId(customerId),
-  ]);
+  // No CRM record yet is a valid state for an online customer: they get an
+  // empty portal rather than a redirect. Booking data is keyed on the CRM
+  // record, so it stays empty until the first shipment request creates one.
+  const [customer, shipments, documents] = customerId
+    ? await Promise.all([
+        getCustomerById(customerId),
+        getShipmentsByCustomerId(customerId),
+        getDocumentsByCustomerId(customerId),
+      ])
+    : [null, [], []];
 
   const active = shipments.filter(
     (s) =>
-      s.status === "In Transit" ||
-      s.status === "Pending"
+      s.status === "SUBMITTED" ||
+      s.status === "PENDING" ||
+      s.status === "ACCEPTED"
   );
 
   const delivered = shipments.filter(
-    (s) => s.status === "Completed"
+    (s) => s.status === "CANCELLED" || s.status === "REJECTED"
   );
 
   const kpis = [
     {
-      label: "Total Shipments",
+      label: "Active Shipments",
       value: active.length,
       icon: Package,
       color: "text-blue-500 dark:text-blue-400",
     },
     {
-      label: "On Going",
+      label: "Completed",
       value: delivered.length,
       icon: CheckCircle,
       color: "text-emerald-500 dark:text-emerald-400",
     },
     {
-      label: "Delivered",
+      label: "Documents",
       value: documents.length,
       icon: FileText,
       color: "text-purple-500 dark:text-purple-400",
@@ -69,11 +75,11 @@ export default async function CustomerDashboard() {
     <div className="w-full py-6 space-y-6">
       <div>
         <h1 className="text-foreground text-xl font-semibold">
-          Welcome, {customer?.full_name}
+          Welcome, {customer?.full_name ?? currentUser.profile.full_name ?? currentUser.profile.email}
         </h1>
 
         <p className="text-muted text-sm mt-0.5">
-          {customer?.customer_id}
+          {customer?.customer_id ?? currentUser.profile.email}
         </p>
       </div>
 
@@ -117,16 +123,16 @@ export default async function CustomerDashboard() {
           <div className="divide-y divide-line/50">
             {active.map((s) => (
               <div
-                key={s.shipmentId}
+                key={s.id}
                 className="px-5 py-3.5 flex items-center justify-between"
               >
                 <div>
                   <p className="text-foreground text-xs font-medium">
-                    {s.shipmentId}
+                    {s.request_id}
                   </p>
 
                   <p className="text-muted text-xs">
-                    {s.origin} → {s.destination}
+                    {s.receiver_province} → {s.receiver_city}
                   </p>
                 </div>
 

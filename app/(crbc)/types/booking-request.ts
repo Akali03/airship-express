@@ -1,12 +1,3 @@
-// Canonical types for CRM booking requests and customer interactions.
-//
-// Boundary notes:
-// - Interaction channel records HOW the customer reached us. It lives on
-//   interactions/requests, never on the customers record.
-// - BookingRequest.status is the CRM REQUEST lifecycle only. Operational
-//   shipment statuses (BOOKED, IN_TRANSIT, DELIVERED, ...) are owned by
-//   Freight Operations and must not be merged into this enum.
-
 export type InteractionChannel = "WALK_IN" | "PHONE_CALL" | "PORTAL";
 
 export const INTERACTION_CHANNELS: InteractionChannel[] = [
@@ -37,6 +28,13 @@ export type BookingRequestStatus =
   | "REJECTED"
   | "CANCELLED";
 
+export type ReceiverAddress = {
+  province: string | null;
+  city: string | null;
+  barangay: string | null;
+  full_address: string | null;
+};
+
 export type BookingRequest = {
   id: string;
   request_id: string;
@@ -44,7 +42,10 @@ export type BookingRequest = {
   request_channel: InteractionChannel;
   receiver_name: string;
   receiver_contact?: string | null;
-  receiver_address: string;
+  receiver_province: string | null;
+  receiver_city: string | null;
+  receiver_barangay: string | null;
+  receiver_full_address: string | null;
   package_quantity: number;
   package_type: PackageType;
   item_category?: string | null;

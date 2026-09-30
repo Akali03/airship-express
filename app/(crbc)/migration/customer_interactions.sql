@@ -1,5 +1,10 @@
--- Customer Interactions
--- Channel (WALK_IN / PHONE_CALL / PORTAL) belongs here, NOT on the customers record.
+-- ============================================================
+-- TABLE: customer_interactions
+-- Run after customers.sql.
+--
+-- Channel (WALK_IN / PHONE_CALL / PORTAL) belongs here, not on the customer
+-- record: it is transactional history, not permanent identity.
+-- ============================================================
 
 create table public.customer_interactions (
   id uuid not null default gen_random_uuid (),
@@ -19,12 +24,25 @@ create table public.customer_interactions (
   )
 ) TABLESPACE pg_default;
 
+-- ============================================================
+-- INDEXES
+-- ============================================================
+
 create index if not exists customer_interactions_customer_id_idx
   on public.customer_interactions (customer_id);
 
+-- ============================================================
+-- ROW LEVEL SECURITY
+-- ============================================================
+
 alter table public.customer_interactions enable row level security;
 
--- Staff policies
+-- ============================================================
+-- RLS POLICIES
+-- ============================================================
+
+-- Staff
+
 create policy "Staff can read customer interactions"
   on public.customer_interactions for select
   using (
@@ -55,7 +73,8 @@ create policy "Staff can update customer interactions"
     )
   );
 
--- Customer policies: customers can only see their own interactions
+-- Customer
+
 create policy "Customers can read own interactions"
   on public.customer_interactions for select
   using (
@@ -74,7 +93,11 @@ create policy "Customers can create own interactions"
     )
   );
 
--- Remove channel from the permanent customer identity.
--- Channel is transactional: it lives on customer_interactions / booking_requests.
+-- ============================================================
+-- CLEANUP
+-- Remove channel from the permanent customer identity. It lives on
+-- customer_interactions and booking_requests instead.
+-- ============================================================
+
 alter table public.customers drop constraint if exists customers_source_check;
 alter table public.customers drop column if exists source;

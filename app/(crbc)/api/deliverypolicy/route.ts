@@ -1,11 +1,17 @@
 import { createClient } from "../../library/supabase/server";
-import { adminCreateClient } from "../../library/supabase/admin";
 import { mapDeliveryPolicyRow } from "../../types/delivery-policy";
 import { NextRequest, NextResponse } from "next/server";
-import { validatePolicyInput, validateId, getAuthenticatedClient } from "../../library/validation/delivery.policy.validate";
+import { validatePolicyInput, validateId, getStaffClient } from "../../library/validation/delivery.policy.validate";
 
 export async function GET() {
-  const supabase = adminCreateClient();
+  const { client: supabase, error: authError } = await getStaffClient(createClient);
+
+  if (!supabase) {
+    return NextResponse.json(
+      { error: authError === "Forbidden" ? "Forbidden" : "Unauthorized" },
+      { status: authError === "Forbidden" ? 403 : 401 }
+    );
+  }
 
   const { data, error } = await supabase
     .from("delivery_policies")
@@ -16,17 +22,17 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data.map(mapDeliveryPolicyRow));
+  return NextResponse.json((data ?? []).map(mapDeliveryPolicyRow));
 }
 
 
 export async function POST(request: NextRequest) {
-  const supabase = await getAuthenticatedClient(createClient);
+  const { client: supabase, error: authError } = await getStaffClient(createClient);
 
   if (!supabase) {
     return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
+      { error: authError === "Forbidden" ? "Forbidden" : "Unauthorized" },
+      { status: authError === "Forbidden" ? 403 : 401 }
     );
   }
 
@@ -35,6 +41,7 @@ export async function POST(request: NextRequest) {
   const {
     policy,
     coverage,
+    region,
     minDays,
     maxDays,
   } = body;
@@ -42,6 +49,7 @@ export async function POST(request: NextRequest) {
   const validationError = validatePolicyInput({
     policy,
     coverage,
+    region,
     minDays,
     maxDays,
   });
@@ -58,6 +66,7 @@ export async function POST(request: NextRequest) {
     .insert({
       policy: policy.trim(),
       coverage: coverage.trim(),
+      region,
       min_days: minDays,
       max_days: maxDays,
     })
@@ -80,12 +89,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = await getAuthenticatedClient(createClient);
+  const { client: supabase, error: authError } = await getStaffClient(createClient);
 
   if (!supabase) {
     return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
+      { error: authError === "Forbidden" ? "Forbidden" : "Unauthorized" },
+      { status: authError === "Forbidden" ? 403 : 401 }
     );
   }
 
@@ -95,6 +104,7 @@ export async function PATCH(request: NextRequest) {
     id,
     policy,
     coverage,
+    region,
     minDays,
     maxDays,
   } = body;
@@ -111,6 +121,7 @@ export async function PATCH(request: NextRequest) {
   const validationError = validatePolicyInput({
     policy,
     coverage,
+    region,
     minDays,
     maxDays,
   });
@@ -127,8 +138,10 @@ export async function PATCH(request: NextRequest) {
     .update({
       policy: policy.trim(),
       coverage: coverage.trim(),
+      region,
       min_days: minDays,
       max_days: maxDays,
+      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()
@@ -156,12 +169,12 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = await getAuthenticatedClient(createClient);
+  const { client: supabase, error: authError } = await getStaffClient(createClient);
 
   if (!supabase) {
     return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
+      { error: authError === "Forbidden" ? "Forbidden" : "Unauthorized" },
+      { status: authError === "Forbidden" ? 403 : 401 }
     );
   }
 

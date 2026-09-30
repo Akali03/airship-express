@@ -12,20 +12,26 @@ const PACKAGE_TYPES: PackageType[] = ["box", "parcel", "document"];
 
 export interface BookingRequestDraft {
   // Step 1 — sender (CRM staff only - customer_id is UUID)
-  customer_id?: string; // UUID of existing customer
+  customer_id?: string;
   new_customer?: {
     full_name: string;
     customer_type: string;
     email?: string;
     phone?: string;
-    address?: string;
+    province?: string;
+    city?: string;
+    barangay?: string;
+    full_address?: string;
   };
   request_channel: InteractionChannel;
 
   // Step 2 — receiver
   receiver_name: string;
   receiver_contact?: string;
-  receiver_address: string;
+  receiver_province: string | null;
+  receiver_city: string | null;
+  receiver_barangay: string | null;
+  receiver_full_address: string | null;
 
   // Step 3 — package
   package_quantity: number;
@@ -39,11 +45,13 @@ export interface BookingRequestDraft {
 }
 
 export interface CustomerPortalBookingRequestDraft {
-  // Customer Portal - NO customer_id, resolved from auth
   request_channel: "PORTAL";
   receiver_name: string;
   receiver_contact?: string;
-  receiver_address: string;
+  receiver_province: string | null;
+  receiver_city: string | null;
+  receiver_barangay: string | null;
+  receiver_full_address: string | null;
   package_quantity: number;
   package_type: PackageType;
   item_category?: string;
@@ -75,8 +83,11 @@ export function validateDraft(draft: BookingRequestDraft): string | null {
   if (!draft.receiver_name?.trim()) {
     errors.push("Receiver name is required.");
   }
-  if (!draft.receiver_address?.trim()) {
-    errors.push("Receiver address is required.");
+  if (!draft.receiver_province) {
+    errors.push("Receiver province is required.");
+  }
+  if (!draft.receiver_city) {
+    errors.push("Receiver city is required.");
   }
   if (draft.receiver_contact?.trim() && !isValidPhone(draft.receiver_contact)) {
     errors.push("Enter a valid Philippine mobile number for the receiver.");
@@ -95,7 +106,6 @@ export function validateDraft(draft: BookingRequestDraft): string | null {
     errors.push("Declared value must be 0 or greater.");
   }
 
-  // Validate new customer fields if provided
   if (hasNew) {
     const nc = draft.new_customer!;
     if (!nc.full_name?.trim()) {
@@ -122,8 +132,11 @@ export function validatePortalDraft(draft: CustomerPortalBookingRequestDraft): s
   if (!draft.receiver_name?.trim()) {
     errors.push("Receiver name is required.");
   }
-  if (!draft.receiver_address?.trim()) {
-    errors.push("Receiver address is required.");
+  if (!draft.receiver_province) {
+    errors.push("Receiver province is required.");
+  }
+  if (!draft.receiver_city) {
+    errors.push("Receiver city is required.");
   }
   if (draft.receiver_contact?.trim() && !isValidPhone(draft.receiver_contact)) {
     errors.push("Enter a valid Philippine mobile number for the receiver.");

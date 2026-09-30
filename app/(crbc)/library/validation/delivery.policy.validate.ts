@@ -1,15 +1,17 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { SLA_TIERS } from "../../services/delivery-policy";
 
 
 type DeliveryPolicyInput = {
   policy: string;
   coverage: string;
+  region?: unknown;
   minDays: number;
   maxDays: number;
 };
 
 export function validatePolicyInput(data: DeliveryPolicyInput) {
-  const { policy, coverage, minDays, maxDays } = data;
+  const { policy, coverage, region, minDays, maxDays } = data;
 
   if (!policy || typeof policy !== "string") {
     return "Policy name is required.";
@@ -17,6 +19,12 @@ export function validatePolicyInput(data: DeliveryPolicyInput) {
 
   if (!coverage || typeof coverage !== "string") {
     return "Coverage is required.";
+  }
+
+  // A policy without a tier is invisible to SLA evaluation, so it cannot be
+  // saved. Only the two confirmed tiers are accepted — there is no "Unknown".
+  if (typeof region !== "string" || !(SLA_TIERS as readonly string[]).includes(region)) {
+    return `Region is required and must be one of: ${SLA_TIERS.join(", ")}.`;
   }
 
   if (!Number.isFinite(minDays) || !Number.isFinite(maxDays)) {
@@ -54,4 +62,29 @@ export async function getAuthenticatedClient(createClient: () => Promise<Supabas
   }
 
   return supabase;
+}
+
+
+export async function getStaffClient(createClient: () => Promise<SupabaseClient>) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { client: null, error: "Unauthorized" as const };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role !== "staff") {
+    return { client: null, error: "Forbidden" as const };
+  }
+
+  return { client: supabase, error: null };
 }

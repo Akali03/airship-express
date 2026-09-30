@@ -21,6 +21,8 @@ import { useState } from "react"
 import { logout } from "../../actions/auth"
 import { useTheme } from "@/app/components/ThemeProvider"
 import type { Customers as Customer } from "../../types/customer"
+import type { User as AuthUser } from "@supabase/supabase-js"
+import Image from "next/image"
 
 const nav = [
     { href: "/customer/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,22 +33,31 @@ const nav = [
 ]
 
 type CustomerNavbarProps = {
-    customer: Customer
+    /**
+     * The CRM/sender master record. Null for an online customer who has not
+     * submitted a shipment request yet. Name and email fall back to the
+     * authenticated user in that case.
+     */
+    customer: Customer | null
+    user?: AuthUser | null
 }
 
-export default function CustomerNavbar({ customer }: CustomerNavbarProps) {
+export default function CustomerNavbar({ customer, user }: CustomerNavbarProps) {
     const pathname = usePathname()
     const { theme, toggleTheme } = useTheme()
     const [menuOpen, setMenuOpen] = useState(false)
     const [drawerOpen, setDrawerOpen] = useState(false)
 
+    // Display identity: prefer the CRM record, fall back to auth/profile data.
+    const displayName = customer?.full_name ?? user?.user_metadata?.full_name ?? user?.email ?? "Customer"
+    const displayEmail = customer?.email ?? customer?.customer_id ?? user?.email ?? ""
+
     return (
         <>
             <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-background border-b border-line flex items-center px-4 gap-4">
                 {/* Brand */}
-                <span className="font-bricolage font-semibold text-sm text-foreground shrink-0">
-                    Airship Xpress
-                </span>
+                <Image src="/images/airship.png" alt="Logo" width={36} height={36} className="shrink-0 w-auto" />
+             
 
                 {/* Nav links — desktop */}
                 <nav className="hidden md:flex items-center justify-center gap-0.5 flex-1">
@@ -87,8 +98,8 @@ export default function CustomerNavbar({ customer }: CustomerNavbarProps) {
                             className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] text-muted hover:text-foreground hover:bg-line/50 transition-colors cursor-pointer"
                         >
                             <User size={14} className="shrink-0" />
-                            <span className="hidden sm:block max-w-[120px] truncate text-foreground font-medium">
-                                {customer.full_name}
+                            <span className="hidden sm:block max-w-30 truncate text-foreground font-medium">
+                                {displayName}
                             </span>
                             <ChevronDown size={13} className={`transition-transform ${menuOpen ? "rotate-180" : ""}`} />
                         </button>
@@ -166,8 +177,8 @@ export default function CustomerNavbar({ customer }: CustomerNavbarProps) {
                                     <User size={16} />
                                 </span>
                                 <div className="min-w-0">
-                                    <p className="text-sm font-medium text-foreground truncate">{customer.full_name}</p>
-                                    <p className="text-xs text-muted truncate">{customer.email ?? customer.customer_id}</p>
+                                    <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+                                    <p className="text-xs text-muted truncate">{displayEmail}</p>
                                 </div>
                             </div>
                         </div>

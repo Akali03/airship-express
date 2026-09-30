@@ -18,9 +18,19 @@ const statusStyles: Record<BookingRequestStatus, string> = {
 
 export default async function ShipmentsPage() {
   const currentUser = await getCurrentUser();
-  if (!currentUser) redirect("/login");
+  if (!currentUser) redirect("/customerportalAuth/login");
 
-  const requests = await getBookingRequests({ customerUuid: currentUser.customer.id });
+  if (currentUser.profile.role !== "customer") {
+    redirect("/crbc/dashboard");
+  }
+
+  // No CRM record yet is a valid state: show an empty list rather than
+  // redirecting. The customer gets a CRM record when they first request a
+  // shipment.
+  const customer = currentUser.customer;
+  const requests = customer
+    ? await getBookingRequests({ customerUuid: customer.id })
+    : [];
 
   return (
     <div className="py-6 max-w-4xl mx-auto">
@@ -35,7 +45,7 @@ export default async function ShipmentsPage() {
         </div>
         <Link
           href="/customer/shipments/new"
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-dark transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-foreground/90 transition-colors"
         >
           <PlusCircle size={15} />
           New Request
@@ -51,7 +61,7 @@ export default async function ShipmentsPage() {
           </p>
           <Link
             href="/customer/shipments/new"
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark transition-colors"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-foreground/90 transition-colors"
           >
             <PlusCircle size={14} />
             Request Shipment
@@ -80,7 +90,7 @@ export default async function ShipmentsPage() {
                     {r.receiver_name}
                   </td>
                   <td className="px-5 py-3.5 text-muted hidden sm:table-cell max-w-45 truncate">
-                    {r.receiver_address}
+                    {r.receiver_full_address}
                   </td>
                   <td className="px-5 py-3.5 text-muted hidden md:table-cell whitespace-nowrap">
                     {new Date(r.created_at).toLocaleDateString("en-PH", {

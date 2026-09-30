@@ -3,7 +3,6 @@
 import { useId, useEffect, useMemo, useState, useTransition } from "react";
 import type { ComponentType } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Package,
@@ -20,6 +19,7 @@ import { requestShipment } from "../../actions/shipment";
 import type { BookingPackageDetails } from "../../actions/customer";
 import { getQuote, type Quote } from "../../services/pricing.service";
 import type { Customers as Customer } from "../../types/customer";
+import PhilippineAddressSelect from "../../components/ui/PhilippineAddressSelect";
 
 const ITEM_CATEGORIES = [
   "Parcel",
@@ -86,16 +86,22 @@ function SectionCard({
 type Confirmation = {
   booking_id: string;
   receiverName: string;
-  receiverAddress: string;
+  receiverProvince: string;
+  receiverCity: string;
+  receiverBarangay: string;
+  receiverFullAddress: string;
   total: number;
 };
 
-export default function RequestShipmentForm({ customer }: { customer: Customer }) {
+export default function   RequestShipmentForm({ customer }: { customer: Customer }) {
   const formId = useId();
 
   const [receiverName, setReceiverName] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
-  const [receiverAddress, setReceiverAddress] = useState("");
+  const [receiverProvince, setReceiverProvince] = useState("");
+  const [receiverCity, setReceiverCity] = useState("");
+  const [receiverBarangay, setReceiverBarangay] = useState("");
+  const [receiverFullAddress, setReceiverFullAddress] = useState("");
   const [packageQuantity, setPackageQuantity] = useState(1);
   const [packageType, setPackageType] =
     useState<BookingPackageDetails["package_type"]>("box");
@@ -115,10 +121,10 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 
   // Show warning if customer address is missing
-  const addressMissing = !customer.address || customer.address.trim() === "";
+  const addressMissing = !customer.full_address || customer.full_address.trim() === "";
 
   const actualWeight = parseFloat(weight) || 0;
-
+  // Sample only
   // Quote comes from the pricing service (Tariff/Rate Management boundary).
   // Debounced so typing in weight/dimension fields doesn't spam recomputes.
   const hasDims =
@@ -168,8 +174,14 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
     setFormError(null);
 
     if (!receiverName.trim()) return setFormError("Receiver name is required.");
-    if (!receiverAddress.trim())
+    if (!receiverFullAddress.trim())
       return setFormError("Delivery address is required.");
+    if (!receiverProvince.trim())
+      return setFormError("Please select a province.");
+    if (!receiverCity.trim())
+      return setFormError("Please select a city/municipality.");
+    if (!receiverBarangay.trim())
+      return setFormError("Please select a barangay.");
     if (!weight || parseFloat(weight) <= 0)
       return setFormError("Weight is required and must be greater than zero.");
     if (addressMissing)
@@ -181,7 +193,10 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
       const res = await requestShipment({
         receiverName,
         receiverPhone: receiverPhone || undefined,
-        receiverAddress,
+        receiverProvince: receiverProvince || null,
+        receiverCity: receiverCity || null,
+        receiverBarangay: receiverBarangay || null,
+        receiverFullAddress: receiverFullAddress || null,
         packageDetails: {
           package_quantity: packageQuantity,
           package_type: packageType,
@@ -209,7 +224,10 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
         setConfirmation({
           booking_id: res.booking.booking_id,
           receiverName,
-          receiverAddress,
+          receiverProvince,
+          receiverCity,
+          receiverBarangay,
+          receiverFullAddress,
           total,
         });
         toast.success("Shipment request submitted!", {
@@ -263,7 +281,7 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
             <div className="flex items-center justify-between gap-4">
               <dt className="text-muted">Delivery to</dt>
               <dd className="max-w-[60%] truncate text-right font-medium text-foreground">
-                {confirmation.receiverAddress}
+                {confirmation.receiverFullAddress}, {confirmation.receiverBarangay}, {confirmation.receiverCity}, {confirmation.receiverProvince}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-line pt-3">
@@ -293,7 +311,10 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
                 setConfirmation(null);
                 setReceiverName("");
                 setReceiverPhone("");
-                setReceiverAddress("");
+                setReceiverProvince("");
+                setReceiverCity("");
+                setReceiverBarangay("");
+                setReceiverFullAddress("");
                 setWeight("");
                 setDimLength("");
                 setDimWidth("");
@@ -357,7 +378,7 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
           {customer.address && customer.address.trim() !== "" && (
             <div className="space-y-0.5 sm:col-span-2">
               <dt className={labelCls}>Address</dt>
-              <dd className="text-foreground">{customer.address.trim()}</dd>
+              <dd className="text-foreground">{customer.full_address?.trim()}</dd>
             </div>
           )}
           {addressMissing && (
@@ -417,15 +438,30 @@ export default function RequestShipmentForm({ customer }: { customer: Customer }
             </div>
           </div>
 
+          <PhilippineAddressSelect
+            namePrefix="rs"
+            initialValues={{
+              province: receiverProvince ? { name: receiverProvince, regionCode: "", regionName: "" } : undefined,
+              municipality: receiverCity ? { name: receiverCity, provinceName: "", regionCode: "" } : undefined,
+              barangay: receiverBarangay ? { name: receiverBarangay, municipalityName: "", provinceName: "", regionCode: "" } : undefined,
+            }}
+            onChange={(sel) => {
+              setReceiverProvince(sel.province?.name || "");
+              setReceiverCity(sel.municipality?.name || "");
+              setReceiverBarangay(sel.barangay?.name || "");
+            }}
+            required
+            disabled={false}
+          />
           <div className="space-y-1.5">
-            <label htmlFor="rs-address" className={labelCls}>
-              Delivery Address {requiredMark}
+            <label htmlFor="rs-full-address" className={labelCls}>
+              Street Address {requiredMark}
             </label>
             <textarea
-              id="rs-address"
-              value={receiverAddress}
-              onChange={(e) => setReceiverAddress(e.target.value)}
-              placeholder="House/unit no., street, barangay, city, province"
+              id="rs-full-address"
+              value={receiverFullAddress}
+              onChange={(e) => setReceiverFullAddress(e.target.value)}
+              placeholder="House/unit no., street name"
               rows={2}
               required
               className={`${inputBase} resize-none`}

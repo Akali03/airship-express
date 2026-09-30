@@ -1,50 +1,79 @@
-import { getDashboardMetrics, getCustomers, getAllShipments } from "../../services/crm.service"
+import { getDashboardMetrics } from "../../services/crm.service"
 import { getPendingDocumentsCount } from "../../services/document.service"
-import { Users, Package, Truck, CheckCircle2, Clock, AlertTriangle, UserPlus } from "lucide-react"
+import { getSlaOverviewData } from "../../services/sla.service"
+import { Users, Package, Truck, CheckCircle2, Clock, AlertTriangle, UserPlus, ShieldCheck } from "lucide-react"
 import ThemeToggle from "@/app/components/ThemeToggle"
+import { SHIPMENT_STATUSES } from "../../types/freight-ops"
 
+/**
+ * Styles for the REAL Freight Ops `shipment_status` enum.
+ *
+ * These are the values that actually arrive from the adapter. The previous
+ * map ("Booked" / "In Transit" / "Issue" / ...) was produced by converting
+ * CRBC booking statuses, which is not the same thing: ACCEPTED means CRBC
+ * approved the request, not that a parcel is moving.
+ */
 const statusStyle: Record<string, string> = {
   Booked: "bg-amber-50 text-amber-600",
+  Intake: "bg-zinc-100 text-zinc-600",
+  Batched: "bg-teal-50 text-teal-600",
+  "Handed Over": "bg-cyan-50 text-cyan-600",
   "In Transit": "bg-blue-50 text-blue-600",
-  "Out for Delivery": "bg-indigo-50 text-indigo-600",
+  "Customs Hold": "bg-purple-50 text-purple-600",
+  Delayed: "bg-orange-50 text-orange-600",
   Delivered: "bg-emerald-50 text-emerald-600",
-  Issue: "bg-red-50 text-red-600",
+  Cancelled: "bg-zinc-50 text-zinc-600",
+  Archived: "bg-zinc-50 text-zinc-500",
 }
 
 const statusDot: Record<string, string> = {
   Booked: "bg-amber-500",
+  Intake: "bg-zinc-400",
+  Batched: "bg-teal-500",
+  "Handed Over": "bg-cyan-500",
   "In Transit": "bg-blue-500",
-  "Out for Delivery": "bg-indigo-500",
+  "Customs Hold": "bg-purple-500",
+  Delayed: "bg-orange-500",
   Delivered: "bg-emerald-500",
-  Issue: "bg-red-500",
+  Cancelled: "bg-zinc-500",
+  Archived: "bg-zinc-400",
 }
 
 export default async function CrmDashboard() {
-  const [metrics, pendingDocs, allShipments] = await Promise.all([
+  const [metrics, pendingDocs, overview] = await Promise.all([
     getDashboardMetrics(),
     getPendingDocumentsCount(),
-    getAllShipments(),
+    // One call: policies, bookings and the Freight Ops adapter are read once
+    // and reused for the status counts, the recent list and the SLA figure.
+    getSlaOverviewData(),
   ])
 
-  const shipmentStatusCounts = allShipments.reduce<Record<string, number>>((acc, s) => {
+  const { shipments, summary } = overview
+
+  // Counts come from the real Freight Ops shipment_status enum.
+  const shipmentStatusCounts = shipments.reduce<Record<string, number>>((acc, s) => {
     acc[s.status] = (acc[s.status] ?? 0) + 1
     return acc
   }, {})
 
-  const statusOrder = ["Booked", "In Transit", "Out for Delivery", "Delivered", "Issue"]
+  // Only statuses actually present, in enum order.
+  const statusOrder = SHIPMENT_STATUSES.filter((s) => shipmentStatusCounts[s])
 
-  const recentShipments = allShipments
-    .sort((a, b) => (a.bookingDate < b.bookingDate ? 1 : -1))
+  // Newest by the SLA clock origin, which is the operational arrival of the
+  // booking — not the Freight Ops row's created_at.
+  const recentShipments = [...shipments]
+    .sort((a, b) => (a.booking_created_at < b.booking_created_at ? 1 : -1))
     .slice(0, 5)
 
 
   const kpis = [
     { label: "Total Customers", value: metrics.totalCustomers, icon: Users, color: "text-indigo-500" },
-    { label: "Active Shipments", value: metrics.activeShipments, icon: Package, color: "text-blue-500" },
+    { label: "Active Requests", value: metrics.activeShipments, icon: Package, color: "text-blue-500" },
     { label: "In Transit", value: shipmentStatusCounts["In Transit"] ?? 0, icon: Truck, color: "text-blue-500" },
     { label: "Delivered", value: shipmentStatusCounts["Delivered"] ?? 0, icon: CheckCircle2, color: "text-emerald-500" },
+    { label: "SLA Compliance", value: `${summary.compliance}%`, icon: ShieldCheck, color: "text-emerald-500" },
     { label: "Pending Documents", value: pendingDocs, icon: Clock, color: "text-amber-500" },
-    { label: "Issues", value: shipmentStatusCounts["Issue"] ?? 0, icon: AlertTriangle, color: "text-red-500" },
+    { label: "Rejected Requests", value: metrics.rejectedRequests, icon: AlertTriangle, color: "text-red-500" },
   ]
 
   const activity = [
@@ -100,9 +129,9 @@ export default async function CrmDashboard() {
           </div>
           <div className="divide-y divide-line">
             {recentShipments.map((s) => (
-              <div key={s.shipmentId} className="px-5 py-3 flex items-center justify-between">
+              <div key={s.shipment_id} className="px-5 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-foreground text-xs font-medium">{s.shipmentId}</p>
+                  <p className="text-foreground text-xs font-medium">{s.reference}</p>
                   <p className="text-muted text-xs">{s.origin} → {s.destination}</p>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${statusStyle[s.status]}`}>{s.status}</span>

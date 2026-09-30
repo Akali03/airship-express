@@ -1,6 +1,13 @@
--- CRM Booking Requests
+-- ============================================================
+-- SEQUENCE
+-- ============================================================
 
 create sequence if not exists booking_request_id_seq;
+
+-- ============================================================
+-- TABLE: booking_requests
+-- Run after customers.sql.
+-- ============================================================
 
 create table public.booking_requests (
   id uuid not null default gen_random_uuid (),
@@ -15,7 +22,11 @@ create table public.booking_requests (
   request_channel text not null default 'WALK_IN'::text,
   receiver_name text not null,
   receiver_contact text null,
-  receiver_address text not null,
+  -- Structured receiver address, replaces the original `receiver_address text`.
+  receiver_province text null,
+  receiver_city text null,
+  receiver_barangay text null,
+  receiver_full_address text null,
   package_quantity integer not null default 1,
   package_type text not null default 'box'::text,
   item_category text null,
@@ -64,12 +75,25 @@ create table public.booking_requests (
   )
 ) TABLESPACE pg_default;
 
+-- ============================================================
+-- INDEXES
+-- ============================================================
+
 create index if not exists booking_requests_customer_id_idx
   on public.booking_requests (customer_id);
 
+-- ============================================================
+-- ROW LEVEL SECURITY
+-- ============================================================
+
 alter table public.booking_requests enable row level security;
 
--- Staff policies: staff users can read all booking requests
+-- ============================================================
+-- RLS POLICIES
+-- ============================================================
+
+-- Staff
+
 create policy "Staff can read all booking requests"
   on public.booking_requests for select
   using (
@@ -80,7 +104,6 @@ create policy "Staff can read all booking requests"
     )
   );
 
--- Staff can create booking requests for any customer
 create policy "Staff can create booking requests"
   on public.booking_requests for insert
   with check (
@@ -91,7 +114,6 @@ create policy "Staff can create booking requests"
     )
   );
 
--- Staff can update any booking request
 create policy "Staff can update booking requests"
   on public.booking_requests for update
   using (
@@ -102,32 +124,36 @@ create policy "Staff can update booking requests"
     )
   );
 
--- Customer policies: customers can only read their own booking requests
+-- Customer
+--
+-- Ownership uses `customers.auth_user_id`, not `customers.id`: the latter is
+-- a gen_random_uuid() default and never equals auth.uid(). Corrected in
+-- booking_requests_rls_fix.sql.
+
 create policy "Customers can read own booking requests"
   on public.booking_requests for select
   using (
     customer_id in (
       select id from customers
-      where customers.auth_user_id = auth.uid()
+      where id = auth.uid()
     )
   );
 
--- Customers can only create booking requests for themselves
 create policy "Customers can create own booking requests"
   on public.booking_requests for insert
   with check (
     customer_id in (
       select id from customers
-      where customers.auth_user_id = auth.uid()
+      where id = auth.uid()
     )
   );
 
--- Customers can only update their own booking requests
 create policy "Customers can update own booking requests"
   on public.booking_requests for update
   using (
     customer_id in (
       select id from customers
-      where customers.auth_user_id = auth.uid()
+      where id = auth.uid()
     )
   );
+

@@ -68,37 +68,37 @@ export default async function AnalyticsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Customer Growth */}
-        <div className="bg-backrgound border border-line rounded-xl p-5">
+        <div className="bg-background border border-line rounded-xl p-5">
           <h2 className="text-foreground text-sm font-medium mb-1">Customer Growth</h2>
           <p className="text-foreground text-xs mb-3">Monthly customer count</p>
           <BarChart data={data.customerGrowth} valueKey="customers" labelKey="month" />
         </div>
 
         {/* Monthly Shipments */}
-        <div className="bg-backrgound border border-line rounded-xl p-5">
+        <div className="bg-background border border-line rounded-xl p-5">
           <h2 className="text-foreground text-sm font-medium mb-1">Monthly Shipments</h2>
           <p className="text-foreground text-xs mb-3">Shipments booked per month</p>
           <BarChart data={data.monthlyShipments} valueKey="count" labelKey="month" />
         </div>
 
         {/* Shipments by Destination */}
-        <div className="bg-backrgound border border-line rounded-xl p-5">
+        <div className="bg-background border border-line rounded-xl p-5">
           <h2 className="text-foreground text-sm font-medium mb-1">Shipments by Destination</h2>
-          <PillRow items={data.shipmentsByDestination.map((d) => ({ label: d.destination, value: d.count, color: "bg-indigo-400" }))} />
+          <PillRow items={data.shipmentsByDestination.map((d) => ({ label: d.region, value: d.count, color: "bg-indigo-400" }))} />
         </div>
 
         {/* Shipments by Status */}
-        <div className="bg-backrgound border border-line rounded-xl p-5">
+        <div className="bg-background border border-line rounded-xl p-5">
           <h2 className="text-foreground text-sm font-medium mb-1">Shipments by Status</h2>
           <PillRow items={data.shipmentsByStatus.map((d) => ({
             label: d.status,
             value: d.count,
-            color: d.status === "Completed" ? "bg-emerald-400" : d.status === "In Transit" ? "bg-blue-400" : "bg-amber-400",
+            color: d.color,
           }))} />
         </div>
 
         {/* Customer Breakdown */}
-        <div className="bg-backrgound border border-line rounded-xl p-5">
+        <div className="bg-background border border-line rounded-xl p-5">
           <h2 className="text-foreground text-sm font-medium mb-1">Active vs Inactive Customers</h2>
           <PillRow items={[
             { label: "Active", value: data.activeCustomers, color: "bg-emerald-400" },
@@ -107,7 +107,7 @@ export default async function AnalyticsPage() {
         </div>
 
         {/* SLA Performance */}
-        <div className="bg-backrgound border border-line rounded-xl p-5">
+        <div className="bg-background border border-line rounded-xl p-5">
           <h2 className="text-foreground text-sm font-medium mb-1">SLA Performance</h2>
           <div className="mt-4 flex items-center justify-center">
             <div className="relative w-28 h-28">

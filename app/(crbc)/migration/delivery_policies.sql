@@ -1,3 +1,8 @@
+
+-- ============================================================
+-- TABLE: delivery_policies
+-- ============================================================
+
 create table public.delivery_policies (
   id uuid not null default gen_random_uuid (),
   policy text not null,

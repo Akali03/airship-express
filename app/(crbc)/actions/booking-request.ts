@@ -15,11 +15,13 @@ export async function cancelBookingRequest(
 
   if (authError || !user) return { error: "Unauthorized" };
 
+  // Ownership is carried by customers.auth_user_id. customers.id is a
+  // gen_random_uuid() primary key and never equals auth.uid().
   const { data: customer } = await supabase
     .from("customers")
     .select("id")
-    .eq("id", user.id)
-    .single();
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
 
   if (!customer) return { error: "Customer profile not found." };
 

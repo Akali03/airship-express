@@ -15,9 +15,17 @@ export default async function CustomerLayoutPage({
 }) {
   const currentUser = await getCurrentUser();
 
-  if (!currentUser) {
-    redirect("/customerportalAuth/login");
-  }
+if (!currentUser) {
+  redirect("/customerportalAuth/login");
+}
+
+if (currentUser.authUser.email_confirmed_at === null) {
+  redirect("/customerportalAuth/verify-email");
+}
+
+if (currentUser.profile.role !== "customer") {
+  redirect("/crbc/dashboard");
+}
 
   return (
     <CustomerLayout

@@ -18,7 +18,10 @@ export type RequestShipmentResult = {
 export async function requestShipment(input: {
   receiverName: string;
   receiverPhone?: string;
-  receiverAddress: string;
+  receiverProvince: string | null;
+  receiverCity: string | null;
+  receiverBarangay: string | null;
+  receiverFullAddress: string | null;
   packageDetails: Partial<BookingPackageDetails>;
 }): Promise<RequestShipmentResult> {
   try {
@@ -37,7 +40,10 @@ export async function requestShipment(input: {
       request_channel: "PORTAL",
       receiver_name: input.receiverName,
       receiver_contact: input.receiverPhone,
-      receiver_address: input.receiverAddress,
+      receiver_province: input.receiverProvince,
+      receiver_city: input.receiverCity,
+      receiver_barangay: input.receiverBarangay,
+      receiver_full_address: input.receiverFullAddress,
       package_quantity: input.packageDetails.package_quantity ?? 1,
       package_type: input.packageDetails.package_type ?? "parcel",
       item_category: input.packageDetails.item_category,

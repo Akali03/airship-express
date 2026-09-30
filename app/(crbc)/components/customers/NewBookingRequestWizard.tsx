@@ -27,6 +27,7 @@ import {
   isValidPhone,
   normalizePhone,
 } from "../../library/validation/customer.data.validate";
+import PhilippineAddressSelect from "@/app/(crbc)/components/ui/PhilippineAddressSelect";
 
 interface CustomerSearchResult {
   id: string;
@@ -34,7 +35,10 @@ interface CustomerSearchResult {
   full_name: string;
   email: string | null;
   phone: string | null;
-  address: string | null;
+  province: string | null;
+  city: string | null;
+  barangay: string | null;
+  full_address: string | null;
   role: string;
   created_at: string;
 }
@@ -46,12 +50,18 @@ interface BookingRequestDraft {
     customer_type: string;
     email?: string;
     phone?: string;
-    address?: string;
+    province?: string;
+    city?: string;
+    barangay?: string;
+    full_address?: string;
   };
   request_channel: InteractionChannel;
   receiver_name: string;
   receiver_contact?: string;
-  receiver_address: string;
+  receiver_province: string | null;
+  receiver_city: string | null;
+  receiver_barangay: string | null;
+  receiver_full_address: string | null;
   package_quantity: number;
   package_type: PackageType;
   item_category?: string;
@@ -80,7 +90,10 @@ type SenderState = {
     full_name: string;
     customer_type: string;
     phone: string;
-    address: string;
+    province: string;
+    city: string;
+    barangay: string;
+    full_address: string;
   };
   channel: InteractionChannel;
 };
@@ -88,7 +101,10 @@ type SenderState = {
 type ReceiverState = {
   name: string;
   contact: string;
-  address: string;
+  province: string | null;
+  city: string | null;
+  barangay: string | null;
+  full_address: string;
 };
 
 type PackageState = {
@@ -142,11 +158,14 @@ const initialWizardState: WizardState = {
       full_name: "",
       customer_type: "Individual",
       phone: "",
-      address: "",
+      province: "",
+      city: "",
+      barangay: "",
+      full_address: "",
     },
     channel: "WALK_IN",
   },
-  receiver: { name: "", contact: "", address: "" },
+  receiver: { name: "", contact: "", province: null, city: null, barangay: null, full_address: "" },
   package: {
     quantity: 1,
     type: "box",
@@ -209,10 +228,11 @@ function RadioOption({
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors ${current === value
+      className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+        current === value
           ? "border-accent/40 bg-accent/5 text-foreground"
           : "border-line bg-background text-muted hover:border-muted/50 hover:text-foreground"
-        }`}
+      }`}
     >
       <input
         type="radio"
@@ -409,7 +429,8 @@ export default function NewBookingRequestWizard({
       case 3: {
         const r = wizard.receiver;
         if (!r.name.trim()) return "Receiver name is required.";
-        if (!r.address.trim()) return "Receiver address is required.";
+        if (!r.province) return "Receiver province is required.";
+        if (!r.city) return "Receiver city is required.";
         if (r.contact.trim() && !isValidPhone(r.contact)) {
           return "Enter a valid Philippine mobile number for the receiver.";
         }
@@ -473,20 +494,26 @@ export default function NewBookingRequestWizard({
       new_customer:
         wizard.sender.mode === "new"
           ? {
-            full_name: wizard.sender.newCustomer.full_name,
-            customer_type: wizard.sender.newCustomer.customer_type,
-            phone: wizard.sender.newCustomer.phone
-              ? normalizePhone(wizard.sender.newCustomer.phone)
-              : undefined,
-            address: wizard.sender.newCustomer.address || undefined,
-          }
+              full_name: wizard.sender.newCustomer.full_name,
+              customer_type: wizard.sender.newCustomer.customer_type,
+              phone: wizard.sender.newCustomer.phone
+                ? normalizePhone(wizard.sender.newCustomer.phone)
+                : undefined,
+              province: wizard.sender.newCustomer.province || undefined,
+              city: wizard.sender.newCustomer.city || undefined,
+              barangay: wizard.sender.newCustomer.barangay || undefined,
+              full_address: wizard.sender.newCustomer.full_address || undefined,
+            }
           : undefined,
       request_channel: wizard.sender.channel,
       receiver_name: wizard.receiver.name,
       receiver_contact: wizard.receiver.contact
         ? normalizePhone(wizard.receiver.contact)
         : undefined,
-      receiver_address: wizard.receiver.address,
+      receiver_province: wizard.receiver.province,
+      receiver_city: wizard.receiver.city,
+      receiver_barangay: wizard.receiver.barangay,
+      receiver_full_address: wizard.receiver.full_address || null,
       package_quantity: p.quantity,
       package_type: p.type,
       item_category: p.item_category,
@@ -838,22 +865,39 @@ export default function NewBookingRequestWizard({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label htmlFor="nc-address" className={labelCls}>
-                      Address
+                    <label className={labelCls}>Address <span className="text-muted font-normal">(optional)</span></label>
+                    <PhilippineAddressSelect
+                      namePrefix="nc"
+                      onChange={(sel) =>
+                        patchSender({
+                          newCustomer: {
+                            ...wizard.sender.newCustomer,
+                            province: sel.province?.name || "",
+                            city: sel.municipality?.name || "",
+                            barangay: sel.barangay?.name || "",
+                          },
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="nc-full-address" className={labelCls}>
+                      Street / Full Address
                     </label>
                     <input
-                      id="nc-address"
+                      id="nc-full-address"
                       type="text"
-                      value={wizard.sender.newCustomer.address}
+                      value={wizard.sender.newCustomer.full_address}
                       onChange={(e) =>
                         patchSender({
                           newCustomer: {
                             ...wizard.sender.newCustomer,
-                            address: e.target.value,
+                            full_address: e.target.value,
                           },
                         })
                       }
-                      placeholder="Street, barangay, city"
+                      placeholder="House/unit no., street name"
                       autoComplete="off"
                       className={inputBase}
                     />
@@ -925,19 +969,33 @@ export default function NewBookingRequestWizard({
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="rc-address" className={labelCls}>
+                <label className={labelCls}>
                   Receiver Address {requiredMark}
                 </label>
-                <textarea
-                  id="rc-address"
-                  value={wizard.receiver.address}
-                  onChange={(e) =>
-                    patchReceiver({ address: e.target.value })
+                <PhilippineAddressSelect
+                  namePrefix="rc"
+                  required
+                  onChange={(sel) =>
+                    patchReceiver({
+                      province: sel.province?.name ?? null,
+                      city: sel.municipality?.name ?? null,
+                      barangay: sel.barangay?.name ?? null,
+                    })
                   }
-                  placeholder="House/unit no., street, barangay, city, province"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="rc-full-address" className={labelCls}>
+                  Street / Full Address
+                </label>
+                <input
+                  id="rc-full-address"
+                  type="text"
+                  value={wizard.receiver.full_address}
+                  onChange={(e) => patchReceiver({ full_address: e.target.value })}
+                  placeholder="House/unit no., street name"
                   autoComplete="off"
-                  rows={2}
-                  className={`${inputBase} resize-none`}
+                  className={inputBase}
                 />
               </div>
               <p className="text-[11px] text-muted">
@@ -1221,8 +1279,20 @@ export default function NewBookingRequestWizard({
                     }
                   />
                   <ReviewRow
-                    label="Address"
-                    value={wizard.receiver.address}
+                    label="Province"
+                    value={wizard.receiver.province ?? "-"}
+                  />
+                  <ReviewRow
+                    label="City"
+                    value={wizard.receiver.city ?? "-"}
+                  />
+                  <ReviewRow
+                    label="Barangay"
+                    value={wizard.receiver.barangay ?? "-"}
+                  />
+                  <ReviewRow
+                    label="Street"
+                    value={wizard.receiver.full_address || "-"}
                   />
                 </div>
               </div>

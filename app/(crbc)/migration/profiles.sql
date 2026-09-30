@@ -1,3 +1,8 @@
+-- ============================================================
+-- TABLE: profiles
+-- Run first. MFA columns are added by profiles_unify_auth.sql.
+-- ============================================================
+
 create table public.profiles (
   id uuid not null,
   email text not null,

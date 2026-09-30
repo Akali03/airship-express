@@ -1,5 +1,5 @@
-import { getSLARecords, getSLASummary } from "../../services/sla.service"
-import { CheckCircle, AlertTriangle, Clock } from "lucide-react"
+import { getSlaOverviewData } from "../../services/sla.service"
+import { CheckCircle, AlertTriangle, Clock, HelpCircle, Truck } from "lucide-react"
 
 const slaStatusStyle: Record<string, string> = {
   "On Time": "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",
@@ -8,23 +8,29 @@ const slaStatusStyle: Record<string, string> = {
 }
 
 export default async function SLAPage() {
-  const [records, summary] = await Promise.all([getSLARecords(), getSLASummary()])
+  // One call: policies are read once and reused for records and summary.
+  const { records, summary } = await getSlaOverviewData()
 
   const kpis = [
     { label: "SLA Compliance", value: `${summary.compliance}%`, icon: CheckCircle, color: "text-emerald-500" },
     { label: "On Time", value: summary.onTime, icon: CheckCircle, color: "text-blue-500" },
-    { label: "Delayed", value: summary.delayed, icon: AlertTriangle, color: "text-red-500" },
-    { label: "Pending", value: summary.total - summary.onTime - summary.delayed, icon: Clock, color: "text-amber-500" },
+    { label: "Late Delivery", value: summary.late, icon: AlertTriangle, color: "text-red-500" },
+    { label: "Overdue In-Transit", value: summary.overdue, icon: Truck, color: "text-orange-500" },
+    { label: "Pending", value: summary.pending, icon: Clock, color: "text-amber-500" },
+    { label: "Not Evaluable", value: summary.notEvaluable, icon: HelpCircle, color: "text-zinc-500" },
   ]
 
   return (
     <div className="w-full py-4 space-y-6">
       <div>
         <h1 className="text-foreground text-xl font-semibold">SLA Monitoring</h1>
-        <p className="text-muted text-sm mt-0.5">Monitor delivery performance against SLA policies</p>
+        <p className="text-muted text-sm mt-0.5">
+          Monitor delivery performance against SLA policies · compliance counts delivered
+          shipments only, as of {summary.evaluationDate}
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {kpis.map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-background border border-line rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -53,8 +59,17 @@ export default async function SLAPage() {
               {records.map((r) => (
                 <tr key={r.shipmentId} className="border-b border-line last:border-0 hover:bg-line/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-accent text-xs">{r.shipmentId}</td>
-                  <td className="px-4 py-3 text-muted text-xs">{r.region}</td>
-                  <td className="px-4 py-3 text-muted text-xs">{r.expectedDelivery}</td>
+                  <td className="px-4 py-3 text-muted text-xs">
+                    {r.region ?? (
+                      <span
+                        className="text-zinc-500"
+                        title="Not Evaluable — destination province is missing"
+                      >
+                        Not Evaluable
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-muted text-xs">{r.expectedDelivery ?? "—"}</td>
                   <td className="px-4 py-3 text-muted text-xs">{r.actualDelivery ?? "—"}</td>
                   <td className="px-4 py-3 text-xs">
                     {r.daysVariance === null ? (

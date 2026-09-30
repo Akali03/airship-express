@@ -8,13 +8,17 @@ import {
   getBookingRequests,
 } from "../../services/booking-request.service";
 import { validateDraft, validatePortalDraft } from "../../library/validation/booking-request.validate";
+import {corsOptionsResponse, getCorsHeaders, CORS_METHODS} from "../../library/utils/cors";
 
+export async function OPTIONS() {
+  return corsOptionsResponse(CORS_METHODS.GET)
+}
 
 export async function GET(request: NextRequest) {
   try {
     const serviceCall = isServiceCall(request);
     const supabase = serviceCall
-      ? adminCreateClient()
+      ? await adminCreateClient()
       : await createClient();
 
     let customerUuid: string | undefined;
@@ -47,7 +51,7 @@ export async function GET(request: NextRequest) {
         .select("id")
         .eq("auth_user_id", user.id)
         .maybeSingle();
-
+      
       const isCustomer = !customerError && !!customer;
 
       if (!isStaff && !isCustomer) {
@@ -87,6 +91,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: requests,
+    },{
+      headers: getCorsHeaders(CORS_METHODS.GET),
     });
   } catch (error) {
     console.error("GET /api/crbc/booking-requests error:", error);

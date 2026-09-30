@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { useState } from "react"
-import { customerServiceLogout } from "../../actions/auth"
+import { logout } from "../../actions/auth"
 import {
     Users, FileText, FolderOpen, BarChart2, LogOut,
     ChevronDown, Menu, Settings,
@@ -12,7 +12,11 @@ import {
 
 const topModules = [
     { href: "/crbc/dashboard", label: "Dashboard", icon: BarChart2 },
-    { href: "/crbc/customers", label: "CRM", icon: Users },
+]
+
+const crmSubModules = [
+    { href: "/crbc/customers", label: "Customer Management" },
+    { href: "/crbc/customers/interactions", label: "Interaction History" },
 ]
 
 const contractModules = [
@@ -52,8 +56,10 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
     const pathname = usePathname()
     const isDocActive = pathname.startsWith("/crbc/documents") || pathname.startsWith("/crbc/compliance")
     const isContractActive = pathname.startsWith("/crbc/contracts") || pathname.startsWith("/crbc/delivery-policies") || pathname.startsWith("/crbc/sla-monitoring")
+    const isCrmActive = pathname.startsWith("/crbc/customers")
     const [docOpen, setDocOpen] = useState(isDocActive)
     const [contractOpen, setContractOpen] = useState(isContractActive)
+    const [crmOpen, setCrmOpen] = useState(isCrmActive)
 
     return (
         <>
@@ -70,7 +76,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                 {/* Logo */}
                 <div className="h-14 flex bg-background items-center gap-2.5 px-4 border-b border-line shrink-0">
                     {!collapsed && (
-                        <Image src="/images/airship.png" alt="Logo" width={30} height={30} className="shrink-0" />
+                        <Image src="/images/airship.png" alt="Logo" width={36} height={36} className="shrink-0 h-auto" />
                     )}
                     {!collapsed && (
                         <div>
@@ -101,6 +107,37 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                             </Link>
                         )
                     })}
+
+                    {/* CRM */}
+                    <SectionLabel collapsed={collapsed}>CRM</SectionLabel>
+                    <div>
+                        <button
+                            onClick={() => collapsed ? (setCollapsed(false), setCrmOpen(true)) : setCrmOpen(!crmOpen)}
+                            title={collapsed ? "CRM" : undefined}
+                            className={groupBtn(isCrmActive, collapsed)}
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <Users size={15} className="shrink-0" />
+                                {!collapsed && <span>CRM</span>}
+                            </div>
+                            {!collapsed && <ChevronDown size={12} className={`transition-transform text-muted ${crmOpen ? "rotate-180" : ""}`} />}
+                        </button>
+                        {crmOpen && !collapsed && (
+                            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-line pl-3">
+                                {crmSubModules.map(({ href, label }) => {
+                                    const isActive = pathname.startsWith(href)
+                                    return (
+                                        <Link key={href} href={href}
+                                            className={`flex items-center gap-2 py-1.5 px-2 text-xs rounded-md transition-colors ${isActive ? "text-accent font-medium" : "text-muted hover:text-foreground"}`}
+                                        >
+                                            <span className="w-1 h-1 rounded-full bg-current shrink-0" />
+                                            {label}
+                                        </Link>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
 
                     {/* Contract & SLA */}
                     <SectionLabel collapsed={collapsed}>Agreements</SectionLabel>
@@ -194,7 +231,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
 
                 <div className="p-2 border-t border-line bg-background">
                     <button
-                        onClick={() => customerServiceLogout()}
+                        onClick={() => logout()}
                         title={collapsed ? "Logout" : undefined}
                         className={`flex items-center gap-2.5 rounded-md text-xs font-medium bg-red-100/70 dark:bg-red-950/40 text-red-700 dark:text-red-400 hover:bg-red-200/70 dark:hover:bg-red-900/50 transition-colors w-full cursor-pointer ${collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2"}`}
                     >

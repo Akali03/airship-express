@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Plus, RefreshCw, Trash2, Pencil, Check, X } from "lucide-react";
-import { createDeliveryPolicy } from "../../services/delivery-policy";
+import { createDeliveryPolicy, SLA_TIERS } from "../../services/delivery-policy";
 import { DeliveryPolicy } from "../../types/delivery-policy";
+import type { SlaTier } from "../../types/sla";
 import { toast } from "sonner";
 
 function formatDelivery(minDays: number, maxDays: number) {
@@ -14,6 +15,7 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
   const [policies, setPolicies] = useState<DeliveryPolicy[]>(Policies);
   const [policy, setPolicy] = useState("");
   const [coverage, setCoverage] = useState("");
+  const [region, setRegion] = useState<SlaTier | "">("");
   const [minDays, setMinDays] = useState("");
   const [maxDays, setMaxDays] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -23,12 +25,12 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const confirmTarget = policies.find((p) => p.id === confirmDeleteId);
-  const [editForm, setEditForm] = useState({ policy: "", coverage: "", minDays: "", maxDays: "" });
+  const [editForm, setEditForm] = useState({ policy: "", coverage: "", region: "" as SlaTier | "", minDays: "", maxDays: "" });
   const [isSaving, setIsSaving] = useState(false);
 
   function startEdit(p: DeliveryPolicy) {
     setEditingId(p.id);
-    setEditForm({ policy: p.policy, coverage: p.coverage, minDays: String(p.minDays), maxDays: String(p.maxDays) });
+    setEditForm({ policy: p.policy, coverage: p.coverage, region: p.region ?? "", minDays: String(p.minDays), maxDays: String(p.maxDays) });
   }
 
   async function handleEdit(id: string) {
@@ -87,16 +89,26 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // The tier is what SLA evaluation keys on. Without it the row would be
+    // invisible to the SLA lookup, so it is required before submitting.
+    if (!region) {
+      setError("Region is required.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const newPolicy = await createDeliveryPolicy({
         policy,
         coverage,
+        region,
         minDays: Number(minDays),
         maxDays: Number(maxDays),
       });
       setPolicy("");
       setCoverage("");
+      setRegion("");
       setMinDays("");
       setMaxDays("");
       setPolicies((prev) => [...prev, newPolicy]);
@@ -151,6 +163,27 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
             </div>
 
             <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Region Tier</label>
+              <p className="text-[11px] text-muted">
+                The SLA tier this policy applies to. Metro Manila covers the NCR
+                and all of its district naming variants. Province covers every
+                destination outside it, including nearby provinces such as
+                Cavite, Rizal, Bulacan and Laguna.
+              </p>
+              <select
+                value={region}
+                onChange={(e) => setRegion(e.target.value as SlaTier | "")}
+                className="w-full max-w-xs text-sm px-3 py-2 rounded-lg border border-line bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
+                required
+              >
+                <option value="">Select a region…</option>
+                {SLA_TIERS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground">Expected Delivery</label>
               <div className="flex items-center gap-2 max-w-xs">
                 <input
@@ -197,17 +230,17 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line text-left">
-                {["Policy", "Coverage", "Expected Delivery", "Action"].map((h) => (
+                {["Policy", "Coverage", "Region", "Expected Delivery", "Action"].map((h) => (
                   <th key={h} className="px-4 py-3 font-medium text-xs text-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td colSpan={4} className="px-4 py-10 text-center text-muted text-sm">Loading...</td></tr>
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-muted text-sm">Loading...</td></tr>
               )}
               {!isLoading && policies.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-10 text-center text-muted text-sm">No policies yet — create one above.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-muted text-sm">No policies yet — create one above.</td></tr>
               )}
               {!isLoading && policies.map((p) => (
                 <tr key={p.id} className="border-b border-line/60 last:border-0 hover:bg-accent/5 transition-colors">
@@ -220,6 +253,15 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
                       <td className="px-3 py-2">
                         <input value={editForm.coverage} onChange={(e) => setEditForm({ ...editForm, coverage: e.target.value })}
                           className="w-full text-sm px-2 py-1 rounded border border-line bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/15" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <select value={editForm.region} onChange={(e) => setEditForm({ ...editForm, region: e.target.value as SlaTier | "" })}
+                          className="w-full text-sm px-2 py-1 rounded border border-line bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent/15">
+                          <option value="">Select…</option>
+                          {SLA_TIERS.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
@@ -241,6 +283,16 @@ export default function DeliveryPolicyClient({ Policies }: { Policies: DeliveryP
                     <>
                       <td className="px-4 py-3 font-medium text-accent">{p.policy}</td>
                       <td className="px-4 py-3 text-muted">{p.coverage}</td>
+                      <td className="px-4 py-3 text-muted">
+                        {p.region ?? (
+                          <span
+                            className="text-zinc-500"
+                            title="No tier — this policy is not used by SLA evaluation"
+                          >
+                            Not set
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-muted">{formatDelivery(p.minDays, p.maxDays)}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-start gap-6">

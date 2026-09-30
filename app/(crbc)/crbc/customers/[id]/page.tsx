@@ -2,13 +2,20 @@ import {
   getCustomerById,
   getInteractionsByCustomerId,
   getBookingRequestsByCustomerId,
-  getShipmentsByCustomerId,
 } from "@/app/(crbc)/services/crm.service"
 import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { formatDate } from "@/app/(crbc)/library/utils/formattedate"
 import Link from "next/link"
 import { CustomerProfileTabs } from "@/app/(crbc)/components/customers/CustomerProfileTabs"
+import type { BookingRequest } from "@/app/(crbc)/types/booking-request"
+
+interface Shipment extends BookingRequest {
+  shipmentId: string;
+  origin: string;
+  destination: string;
+  bookingDate: string;
+}
 
 export default async function CustomerProfilePage({
   params,
@@ -16,14 +23,16 @@ export default async function CustomerProfilePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [customer, interactions, requests, shipments] = await Promise.all([
+  const [customer, interactions, requests] = await Promise.all([
     getCustomerById(id),
     getInteractionsByCustomerId(id),
     getBookingRequestsByCustomerId(id),
-    getShipmentsByCustomerId(id),
   ])
 
   if (!customer) notFound()
+
+  // Shipments are owned by Freight Ops, not CRM — use empty array (demo data placeholder)
+  const transformedShipments: Shipment[] = [];
 
   const infoRows: { label: string; value: string }[] = [
     { label: "Customer ID", value: customer.customer_id },
@@ -31,7 +40,7 @@ export default async function CustomerProfilePage({
     { label: "Customer Type", value: customer.role === "customer" ? "Individual" : customer.role },
     { label: "Email", value: customer.email ?? "-" },
     { label: "Phone", value: customer.phone ?? "-" },
-    { label: "Address", value: customer.address ?? "-" },
+    { label: "Address", value: customer.full_address ?? "-" },
     { label: "Registered", value: formatDate(customer.created_at) },
   ]
 
@@ -74,7 +83,7 @@ export default async function CustomerProfilePage({
       </section>
 
       <CustomerProfileTabs
-        shipments={shipments}
+        shipments={transformedShipments}
         requests={requests}
         interactions={interactions}
       />

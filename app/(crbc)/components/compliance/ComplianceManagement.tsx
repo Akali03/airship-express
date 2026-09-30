@@ -76,7 +76,7 @@ export default function ComplianceManagement({
       </div>
 
       {/* Filters */}
-      <div className="bg-backrground border border-line rounded-xl p-3 flex flex-wrap items-center gap-3">
+      <div className="bg-background border border-line rounded-xl p-3 flex flex-wrap items-center gap-3">
 
         {/* Search */}
         <div className="relative flex-1 min-w-52">
@@ -131,7 +131,7 @@ export default function ComplianceManagement({
       </div>
 
       {/* Table */}
-      <div className="bg-backrground border border-line rounded-xl overflow-hidden">
+      <div className="bg-background border border-line rounded-xl overflow-hidden">
 
         <table className="w-full text-sm">
 
@@ -200,7 +200,7 @@ export default function ComplianceManagement({
                 </td>
 
                 {/* Reviewed */}
-                <td className="px-4 py-3text-xs">
+                <td className="px-4 py-3 text-xs">
                   {record.reviewed_at
                     ? formatDate(record.reviewed_at)
                     : "—"}

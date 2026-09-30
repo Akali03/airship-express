@@ -1,3 +1,8 @@
+-- ============================================================
+-- TABLE: customers
+-- Run before booking_requests.sql and customer_interactions.sql.
+-- ============================================================
+
 create table public.customers (
   id uuid not null default gen_random_uuid (),
   customer_id text not null default (
@@ -9,7 +14,11 @@ create table public.customers (
   ),
   full_name text not null,
   phone text null,
-  address text null,
+  -- Structured address, replaces the original `address text` column.
+  province text null,
+  city text null,
+  barangay text null,
+  full_address text null,
   created_at timestamp with time zone not null default now(),
   email text null,
   status text not null default 'active'::text,
@@ -34,9 +43,18 @@ create table public.customers (
   )
 ) TABLESPACE pg_default;
 
+-- ============================================================
+-- ROW LEVEL SECURITY
+-- ============================================================
+
 alter table public.customers enable row level security;
 
--- STAFF
+-- ============================================================
+-- RLS POLICIES
+-- ============================================================
+
+-- Staff
+
 create policy "Staff can read customers"
 on public.customers
 for select
@@ -76,7 +94,13 @@ using (
   )
 );
 
--- CUSTOMER
+-- Customer
+--
+-- These use `id = auth.uid()`, which is never true: customers.id is a
+-- gen_random_uuid() default and never equals the auth id. The working
+-- policies come from profiles_unify_auth.sql, which keys on profile_id.
+-- Unauthenticated fallback stays for pre-migration databases.
+
 create policy "Customers can read own customer record"
 on public.customers
 for select

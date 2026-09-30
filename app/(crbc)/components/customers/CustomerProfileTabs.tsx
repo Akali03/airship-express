@@ -35,7 +35,7 @@ const shipmentStatusStyle: Record<string, string> = {
   Cancelled: "bg-red-50 text-red-600",
 }
 
-const requestStatusStyle: Record<string, string> = {
+const requestStatusStyle: Record<BookingRequestStatus, string> = {
   DRAFT: "bg-zinc-100 text-zinc-600",
   SUBMITTED: "bg-blue-50 text-blue-600",
   PENDING: "bg-amber-50 text-amber-600",
@@ -66,7 +66,7 @@ export function CustomerProfileTabs({
   return (
     <div className="bg-background border border-line rounded-xl overflow-hidden">
       {/* Tab bar */}
-      <div className="flex border-b border-line overflow-x-auto">
+      <div className="flex border-b border-line">
         {TABS.map((tab) => (
           <button
             key={tab.id}

@@ -1,5 +1,6 @@
 import { tariffCard, type TariffCard } from "../data/tariffs";
 
+//Sample only for demo purposes
 
 async function getTariffCard(): Promise<TariffCard> {
   return tariffCard;
