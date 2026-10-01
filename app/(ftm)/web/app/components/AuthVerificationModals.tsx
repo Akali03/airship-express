@@ -39,15 +39,16 @@ function ModalShell({ children, labelledBy, onCancel }: ModalShellProps) {
 }
 
 type OtpModalProps = {
-  open: boolean; email: string; code: string; busy: boolean; error: string; attemptsRemaining: number | null;
+  open: boolean; email: string; code: string; busy: boolean; deliveryState: "sending" | "sent" | "failed"; error: string; attemptsRemaining: number | null;
   secondsRemaining: number; resendSeconds: number; onCodeChange: (code: string) => void;
   onVerify: () => void; onResend: () => void; onCancel: () => void;
 };
 
-export function OtpVerificationModal({ open, email, code, busy, error, attemptsRemaining, secondsRemaining, resendSeconds, onCodeChange, onVerify, onResend, onCancel }: OtpModalProps) {
+export function OtpVerificationModal({ open, email, code, busy, deliveryState, error, attemptsRemaining, secondsRemaining, resendSeconds, onCodeChange, onVerify, onResend, onCancel }: OtpModalProps) {
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
   useEffect(() => { if (open) window.setTimeout(() => inputs.current[0]?.focus(), 100); }, [open]);
-  const expired = secondsRemaining <= 0;
+  const expired = deliveryState === "sent" && secondsRemaining <= 0;
+  const codeUnavailable = deliveryState !== "sent" || expired;
   const updateDigit = (index: number, value: string) => {
     const digits = value.replace(/\D/g, "").slice(-1);
     const next = code.padEnd(6, " ").split("");
@@ -81,16 +82,16 @@ export function OtpVerificationModal({ open, email, code, busy, error, attemptsR
       </div>
       <p className="mt-5 text-sm leading-6 text-slate-600 dark:text-slate-300">Enter the 6-digit code sent to <strong className="break-all text-slate-900 dark:text-white">{email}</strong>.</p>
       <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">The code is sent from the Airship Express security mailbox. If it is not in your inbox, check Spam, Junk, Promotions, and your Gmail filters before requesting another code.</p>
-      <div className={`mt-5 flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold ${expired ? "border-rose-300/50 bg-rose-500/10 text-rose-700 dark:text-rose-200" : "border-amber-400/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"}`} aria-live="polite">
+      <div className={`mt-5 flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold ${deliveryState === "failed" || expired ? "border-rose-300/50 bg-rose-500/10 text-rose-700 dark:text-rose-200" : "border-amber-400/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"}`} aria-live="polite">
         <Timer size={18} className="shrink-0" aria-hidden="true" />
-        <span>{expired ? "This code has expired. Request a new code to continue." : <>Code expires in <strong className="ml-1 text-slate-900 dark:text-white">{clock}</strong></>}</span>
+        <span>{deliveryState === "sending" ? "Sending your verification code…" : deliveryState === "failed" ? "We couldn’t send a code. Retry to continue." : expired ? "This code has expired. Request a new code to continue." : <>Code expires in <strong className="ml-1 text-slate-900 dark:text-white">{clock}</strong></>}</span>
       </div>
       <div className="mt-6 grid grid-cols-6 gap-2 sm:gap-3" role="group" aria-label="Six-digit email verification code">
-        {Array.from({ length: 6 }, (_, index) => <input key={index} ref={(element) => { inputs.current[index] = element; }} value={code[index] || ""} onChange={(event) => updateDigit(index, event.target.value)} onPaste={paste} onKeyDown={(event) => { if (event.key === "Backspace" && !code[index] && index > 0) inputs.current[index - 1]?.focus(); }} inputMode="numeric" autoComplete={index === 0 ? "one-time-code" : "off"} aria-label={`Verification digit ${index + 1}`} disabled={busy || expired} maxLength={1} className="h-12 min-w-0 rounded-xl border border-transparent bg-[#EAF0F6] text-center font-mono text-xl font-bold text-slate-900 shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] outline-none transition focus:border-pink-500/40 focus:ring-2 focus:ring-pink-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#13161F] dark:text-white dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] sm:h-14" />)}
+        {Array.from({ length: 6 }, (_, index) => <input key={index} ref={(element) => { inputs.current[index] = element; }} value={code[index] || ""} onChange={(event) => updateDigit(index, event.target.value)} onPaste={paste} onKeyDown={(event) => { if (event.key === "Backspace" && !code[index] && index > 0) inputs.current[index - 1]?.focus(); }} inputMode="numeric" autoComplete={index === 0 ? "one-time-code" : "off"} aria-label={`Verification digit ${index + 1}`} disabled={busy || codeUnavailable} maxLength={1} className="h-12 min-w-0 rounded-xl border border-transparent bg-[#EAF0F6] text-center font-mono text-xl font-bold text-slate-900 shadow-[inset_3px_3px_6px_#cbd6e4,inset_-3px_-3px_6px_#ffffff] outline-none transition focus:border-pink-500/40 focus:ring-2 focus:ring-pink-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#13161F] dark:text-white dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)] sm:h-14" />)}
       </div>
       {error && <p role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-300/50 bg-rose-500/10 px-3.5 py-3 text-sm font-semibold leading-5 text-rose-700 dark:text-rose-200"><AlertCircle size={17} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{error}</span></p>}
       {attemptsRemaining !== null && !error.includes("Too many") && <p className="mt-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{attemptsRemaining} attempt{attemptsRemaining === 1 ? "" : "s"} remaining</p>}
-      <button type="button" onClick={onVerify} disabled={busy || expired || code.length !== 6} className="mt-6 w-full rounded-xl bg-[#e60067] px-5 py-3.5 text-sm font-bold text-white shadow-[5px_5px_12px_rgba(230,0,103,0.22)] transition hover:bg-[#c90059] focus:outline-none focus:ring-4 focus:ring-pink-400/30 disabled:cursor-not-allowed disabled:opacity-50" aria-busy={busy}>{busy ? "Verifying secure code..." : "Verify code"}</button>
+      <button type="button" onClick={onVerify} disabled={busy || codeUnavailable || code.length !== 6} className="mt-6 w-full rounded-xl bg-[#e60067] px-5 py-3.5 text-sm font-bold text-white shadow-[5px_5px_12px_rgba(230,0,103,0.22)] transition hover:bg-[#c90059] focus:outline-none focus:ring-4 focus:ring-pink-400/30 disabled:cursor-not-allowed disabled:opacity-50" aria-busy={busy}>{busy ? deliveryState === "sending" ? "Sending verification code..." : "Verifying secure code..." : "Verify code"}</button>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-300/70 pt-4 text-sm dark:border-white/10">
         <button type="button" onClick={onCancel} disabled={busy} className="font-semibold text-slate-600 underline decoration-slate-400/50 underline-offset-4 transition hover:text-slate-900 disabled:opacity-40 dark:text-slate-300 dark:decoration-white/25 dark:hover:text-white">Use another account</button>
         <button type="button" onClick={onResend} disabled={busy || resendSeconds > 0} className="font-bold text-pink-700 underline decoration-pink-500/30 underline-offset-4 transition hover:text-pink-900 disabled:text-slate-400 dark:text-pink-300 dark:hover:text-pink-100 dark:disabled:text-slate-500">{resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}</button>

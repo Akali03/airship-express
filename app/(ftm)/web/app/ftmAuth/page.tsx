@@ -57,6 +57,7 @@ import { getDashboardRouteForRole, normalizeRole } from "../lib/roleAccess";
 import { supabase } from "../lib/supabaseClient";
 
 type SecurityStep = "otp" | "passkey" | null;
+type OtpDeliveryState = "sending" | "sent" | "failed";
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
@@ -65,6 +66,7 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<SecurityStep>(null);
+  const [otpDeliveryState, setOtpDeliveryState] = useState<OtpDeliveryState>("sending");
   const [pendingRole, setPendingRole] = useState<any>(null);
   const [otpCode, setOtpCode] = useState("");
   const [otpBusy, setOtpBusy] = useState(false);
@@ -102,6 +104,8 @@ export default function AuthPage() {
   const sendOtp = async () => {
     setOtpBusy(true);
     setError("");
+    setStep("otp");
+    setOtpDeliveryState("sending");
     try {
       const result = await requestEmailMfaCode(email.trim());
       setOtpCode("");
@@ -109,8 +113,9 @@ export default function AuthPage() {
       setOtpExpiresAt(result.expiresAt);
       setResendAvailableAt(result.resendAvailableAt);
       setNow(Date.now());
-      setStep("otp");
+      setOtpDeliveryState("sent");
     } catch (err) {
+      setOtpDeliveryState("failed");
       setError(getUserFriendlyAuthError(err, "otp"));
     } finally {
       setOtpBusy(false);
@@ -425,6 +430,7 @@ export default function AuthPage() {
         email={email}
         code={otpCode}
         busy={otpBusy}
+        deliveryState={otpDeliveryState}
         error={error}
         attemptsRemaining={attemptsRemaining}
         secondsRemaining={Math.max(0, Math.ceil((otpExpiresAt - now) / 1000))}
