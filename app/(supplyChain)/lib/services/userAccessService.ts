@@ -107,7 +107,7 @@ export async function getAllUserAccessRules(): Promise<Record<string, UserAccess
         if (!sessionErr && Array.isArray(sessionsData)) {
             sessionsData.forEach((s: any) => {
                 const em = (s.email || s.users?.email || '').toLowerCase().trim();
-                if (em) {
+                if (em && !rulesMap[em]) {
                     let parsedDays = DEFAULT_ALLOWED_DAYS;
                     if (Array.isArray(s.allowed_days)) {
                         parsedDays = s.allowed_days;
