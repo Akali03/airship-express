@@ -13,6 +13,7 @@ import { user } from "../../../../lib/services/Class/user";
 import { CrudActionButton } from "../../../../components/ui/CrudActionButton";
 import { AppButton } from "../../../../components/ui/AppButton";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { SearchableDropdown, SearchableDropdownOption } from "../../../../components/ui/SearchableDropdown";
 import { TableRowsSkeleton } from "../../../../components/ui/SkeletonLoader";
 import { Pagination } from "../../../../components/global/pagination";
 import { Send, X, Check, Search, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
@@ -83,6 +84,15 @@ export default function OutgoingPanel({ isVisible = true }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const driverSelectRef = useRef<HTMLSelectElement>(null);
     const { confirm } = useConfirm();
+
+    const driverOptions: SearchableDropdownOption[] = useMemo(() => {
+        return driverList.map((driver) => ({
+            value: driver,
+            label: driver,
+            subLabel: driverPositionMap[driver] || (driverEmailMap[driver] ? driverEmailMap[driver] : undefined),
+            icon: 'fas fa-id-badge',
+        }));
+    }, [driverList, driverPositionMap, driverEmailMap]);
 
     useEffect(() => {
         setMounted(true);
@@ -980,71 +990,53 @@ export default function OutgoingPanel({ isVisible = true }) {
                 </div>
             </div>
 
-            <div className={`flex flex-wrap items-center gap-3 p-4 bg-[#f0f3f8] dark:bg-[#191a24] rounded-2xl border transition-all ${
-                !selectedDriver
-                    ? 'border-amber-400/80 dark:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                    : 'border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_10px_rgba(166,175,195,0.3),-4px_-4px_10px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)]'
-            }`}>
+            <div className="flex flex-wrap items-center gap-3 p-4 bg-[#f0f3f8] dark:bg-[#191a24] rounded-2xl border border-white/80 dark:border-[#2c2d3c] shadow-[4px_4px_10px_rgba(166,175,195,0.3),-4px_-4px_10px_rgba(255,255,255,0.9),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[4px_4px_12px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all">
                 <label htmlFor="assign-driver-select" className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <i className="fas fa-truck text-pink-500 dark:text-pink-400"></i>
                     Assign Driver:
                 </label>
 
                 <div className="flex items-center gap-2">
-                    <div className="relative">
-                        <select
-                            ref={driverSelectRef}
-                            id="assign-driver-select"
-                            value={selectedDriver}
-                            onChange={(e) => {
-                                setSelectedDriver(e.target.value);
-                                setPage(1);
-                                if (e.target.value) {
-                                    toast.success(`Driver selected: ${e.target.value}`, { duration: 2000 });
-                                } else {
-                                    toast.info('Driver filter cleared', { duration: 2000 });
-                                }
-                                if (isListening && inputRef.current) {
-                                    setTimeout(() => inputRef.current?.focus(), 100);
-                                }
-                            }}
-                            className={`appearance-none bg-[#ebf0f7] dark:bg-[#14151c] rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] transition-all cursor-pointer min-w-[200px] border ${
-                                !selectedDriver
-                                    ? 'border-amber-500/80 dark:border-amber-500/70 ring-2 ring-amber-500/20'
-                                    : 'border-slate-200/60 dark:border-slate-800'
-                            }`}
-                        >
-                            <option value="" className="dark:bg-slate-900 text-slate-400">-- Select Driver --</option>
-                            {driverList.map((driver) => (
-                                <option key={driver} value={driver} className="dark:bg-slate-900 dark:text-slate-200">
-                                    {driver}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
+                    <SearchableDropdown
+                        value={selectedDriver}
+                        onChange={(val) => {
+                            setSelectedDriver(val);
+                            setPage(1);
+                            if (val) {
+                                toast.success(`Driver selected: ${val}`, { duration: 2000 });
+                            } else {
+                                toast.info('Driver filter cleared', { duration: 2000 });
+                            }
+                            if (isListening && inputRef.current) {
+                                setTimeout(() => inputRef.current?.focus(), 100);
+                            }
+                        }}
+                        options={driverOptions}
+                        placeholder="-- Select Driver --"
+                        allOptionLabel="All Drivers / Clear"
+                        searchPlaceholder="Search driver name..."
+                        icon="fas fa-truck"
+                        className="min-w-[210px]"
+                        title="Assign Driver"
+                        tone="amber"
+                    />
 
                     <button
                         type="button"
                         onClick={handleOpenDriverSelect}
-                        className="px-2.5 py-2 bg-[#ebf0f7] dark:bg-[#14151c] hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                        className={`px-2.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 border ${
+                            !selectedDriver
+                                ? 'bg-amber-50/60 dark:bg-amber-950/40 hover:bg-amber-100/70 dark:hover:bg-amber-900/50 border-amber-300/80 dark:border-amber-700/60 text-amber-700 dark:text-amber-300'
+                                : 'bg-[#ebf0f7] dark:bg-[#14151c] hover:bg-slate-200/70 dark:hover:bg-slate-800 border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                        }`}
                         title="Browse & Select Driver"
                     >
-                        <i className="fas fa-list text-[11px] text-pink-500" />
+                        <i className={`fas fa-list text-[11px] ${!selectedDriver ? 'text-amber-500' : 'text-pink-500'}`} />
                         <span>Browse</span>
                     </button>
                 </div>
 
-                {!selectedDriver ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/50 border border-amber-300/80 dark:border-amber-800/60 text-xs font-bold text-amber-700 dark:text-amber-400 animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                        Driver required before scanning
-                    </span>
-                ) : (
+                {selectedDriver && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] text-xs font-bold text-emerald-700 dark:text-emerald-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                         Driver: {selectedDriver}
@@ -1059,30 +1051,6 @@ export default function OutgoingPanel({ isVisible = true }) {
 
             <div className="bg-[#f0f3f8] dark:bg-[#191a24] rounded-3xl border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-slate-900 dark:text-slate-100">
                 <div className="lg:col-span-2 space-y-4">
-                    {!selectedDriver && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-800 dark:text-amber-300">
-                            <div className="flex items-center gap-2.5">
-                                <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
-                                    <i className="fas fa-exclamation-triangle text-xs" />
-                                </span>
-                                <div className="text-xs">
-                                    <strong className="font-semibold block">Driver Selection Required Before Scanning</strong>
-                                    <span className="text-amber-700/90 dark:text-amber-400/90 text-[11px]">
-                                        Please assign a Driver above before scanning outgoing parcels.
-                                    </span>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleOpenDriverSelect}
-                                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-semibold shrink-0 cursor-pointer shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 active:scale-95"
-                            >
-                                <i className="fas fa-truck text-xs" />
-                                <span>Select Driver</span>
-                            </button>
-                        </div>
-                    )}
-
                     <div className="space-y-1.5">
                         <label
                             htmlFor="outgoing-barcode"
@@ -1113,7 +1081,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                     readOnly={!isListening || isScanning}
                                     className={`w-full rounded-2xl border py-3 pl-10 pr-28 text-sm font-mono text-slate-800 dark:text-slate-200 transition-all outline-hidden bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)] ${
                                         !selectedDriver
-                                            ? 'border-amber-400/80 dark:border-amber-500/70 focus:border-amber-500'
+                                            ? 'border-amber-400/60 dark:border-amber-500/50 focus:border-amber-500'
                                             : isListening
                                                 ? 'border-emerald-500/80 dark:border-emerald-600/80'
                                                 : 'border-slate-300/60 dark:border-slate-800/60'
@@ -1141,15 +1109,17 @@ export default function OutgoingPanel({ isVisible = true }) {
                                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                     }`}
                                 >
-                                    <span
-                                        className={`w-1.5 h-1.5 rounded-full ${
-                                            !selectedDriver
-                                                ? 'bg-amber-500 animate-pulse'
-                                                : isListening
+                                    {!selectedDriver ? (
+                                        <i className="fas fa-triangle-exclamation text-amber-500 text-[11px]" aria-hidden="true" />
+                                    ) : (
+                                        <span
+                                            className={`w-1.5 h-1.5 rounded-full ${
+                                                isListening
                                                     ? 'bg-emerald-500 dark:bg-emerald-400 animate-pulse'
                                                     : 'bg-slate-400 dark:bg-slate-500'
-                                        }`}
-                                    />
+                                            }`}
+                                        />
+                                    )}
                                     {!selectedDriver ? 'driver required' : isListening ? (isScanning ? 'processing...' : 'listening') : 'paused'}
                                 </span>
                             </div>

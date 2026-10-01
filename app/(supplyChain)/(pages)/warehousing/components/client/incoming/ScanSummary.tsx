@@ -40,16 +40,19 @@ export function ScanSummary({ lastScan, trackingNumber, lastScanStatus }: ScanSu
     };
 
     return (
-        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-2 sm:gap-4 font-medium">
-            <span>
-                Last scan: <span className="font-mono font-semibold text-slate-900 dark:text-slate-200">{lastScan}</span>
+        <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/[0.06] text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-2 sm:gap-4 font-medium">
+            <span className="flex items-center gap-2 flex-wrap">
+                <span>Last scan:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-slate-100 bg-[#ebf0f7] dark:bg-[#12131d] px-2.5 py-0.5 rounded-lg border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
+                    {lastScan}
+                </span>
                 {trackingNumber && (
-                    <span className="ml-1 text-slate-400 dark:text-slate-500">
-                        (TRK: <span className="font-mono text-slate-600 dark:text-slate-300">{trackingNumber}</span>)
+                    <span className="text-slate-400 dark:text-slate-500 text-[11px]">
+                        (TRK: <span className="font-mono text-slate-600 dark:text-slate-300 font-semibold">{trackingNumber}</span>)
                     </span>
                 )}
                 {lastScanStatus && (
-                    <span className="ml-2 inline-flex align-middle">
+                    <span className="inline-flex align-middle">
                         <StatusBadge
                             tone={getStatusTone(lastScanStatus)}
                             icon={`fas ${getStatusIcon(lastScanStatus)}`}

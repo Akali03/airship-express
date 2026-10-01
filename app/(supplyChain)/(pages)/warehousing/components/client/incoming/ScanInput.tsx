@@ -235,9 +235,9 @@ export default function ScanInput({
                                     ? "Scan barcode or type and press Enter..."
                                     : "Click Start to enable scanning mode"
                             }
-                            className={`w-full rounded-xl border py-2.5 pl-10 pr-24 text-sm font-mono text-slate-800 dark:text-slate-200 transition-colors outline-hidden bg-slate-50 dark:bg-slate-800/80 ${isListening
-                                ? 'border-emerald-500/80 dark:border-emerald-600/80 focus:border-emerald-500'
-                                : 'border-slate-200 dark:border-slate-700'
+                            className={`w-full rounded-2xl border py-2.5 pl-10 pr-24 text-sm font-mono text-slate-800 dark:text-slate-200 transition-all outline-hidden bg-[#ebf0f7] dark:bg-[#12131d] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] ${isListening
+                                ? 'border-emerald-500/60 dark:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20'
+                                : 'border-white/80 dark:border-white/[0.06]'
                                 }`}
                         />
 
@@ -255,21 +255,21 @@ export default function ScanInput({
                     {isListening && (
                         <div className="mt-1.5 flex items-center gap-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 transition-all">
                             <span className="flex items-center gap-1.5">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                                 Scanner active and ready
                             </span>
                         </div>
                     )}
                 </div>
 
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 gap-2.5">
                     <button
                         type="button"
                         onClick={handleStart}
-                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer border ${
                             isListening
-                                ? 'bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600'
+                                ? 'bg-[#ebf0f7] dark:bg-[#181926] text-amber-700 dark:text-amber-400 border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] active:scale-95'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 shadow-[2px_2px_6px_rgba(16,185,129,0.35)] active:scale-95'
                         }`}
                     >
                         {isListening ? (
@@ -283,7 +283,7 @@ export default function ScanInput({
                     <button
                         type="button"
                         onClick={() => setShowScanner(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-pink-600 hover:bg-pink-700 text-white border border-pink-600 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white border border-pink-500 shadow-[2px_2px_6px_rgba(236,72,153,0.35)] active:scale-95 transition-all cursor-pointer"
                     >
                         <i className="fas fa-camera text-xs" />
                         <span>Camera</span>

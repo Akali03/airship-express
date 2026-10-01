@@ -165,11 +165,7 @@ export default function Procurement() {
             return ['admin', 'executive', 'manager'].includes(normalizedRole);
         }
 
-        // Approved: Only Admin and Executive can edit unless sent, confirmed, delivered
-        if (reqStatus === 'approved') {
-            return ['admin', 'executive'].includes(normalizedRole);
-        }
-
+        // Approved or Rejected: No editing once approved or rejected
         return false;
     }, [normalizedRole, purchaseOrders]);
 

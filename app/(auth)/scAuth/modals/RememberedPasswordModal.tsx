@@ -434,7 +434,7 @@ export default function RememberedPasswordModal({
             }
 
             setResetToken(data.resetToken);
-            toast.success('Code verified successfully.');
+            toast.success('Security code has been used and verified successfully.');
             setViewMode('reset_password');
         } catch (err: any) {
             toast.error(err.message || 'Verification failed');

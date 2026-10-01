@@ -14,6 +14,7 @@ import { CardsSkeleton, TableRowsSkeleton } from '../../../components/ui/Skeleto
 import { CrudActionButton } from '../../../components/ui/CrudActionButton';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 import { AppButton } from '../../../components/ui/AppButton';
+import { SearchableDropdown, SearchableDropdownOption } from '../../../components/ui/SearchableDropdown';
 import { trashCache } from '../utils/trashCache';
 import { TrashRetentionBadge } from './TrashRetentionBadge';
 
@@ -500,6 +501,15 @@ export function ParcelsTab() {
     }, [filteredParcels, parcelPage]);
 
     const parcelStatuses = useMemo(() => ['all', ...Array.from(new Set(archivedParcels.map(p => p.status)))], [archivedParcels]);
+    const statusOptions: SearchableDropdownOption[] = useMemo(() => {
+        return parcelStatuses
+            .filter(status => status !== 'all')
+            .map(status => ({
+                value: status,
+                label: status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                icon: 'fas fa-box',
+            }));
+    }, [parcelStatuses]);
     const isAllParcelsSelected = filteredParcels.length > 0 && selectedParcelIds.size === filteredParcels.length;
 
     useEffect(() => {
@@ -714,19 +724,19 @@ export function ParcelsTab() {
                             </kbd>
                         </div>
                     </div>
-                    <div className="relative min-w-[150px]">
-                        <select
-                            className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_4px_rgba(255,255,255,0.85)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
-                            value={parcelStatusFilter}
-                            onChange={(e) => setParcelStatusFilter(e.target.value)}
-                        >
-                            {parcelStatuses.map(status => (
-                                <option key={status} value={status} className="dark:bg-[#1c1d25]">
-                                    {status === 'all' ? 'All Statuses' : status.replace(/_/g, ' ')}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <SearchableDropdown
+                        value={parcelStatusFilter}
+                        onChange={(val) => setParcelStatusFilter(val || 'all')}
+                        options={statusOptions}
+                        placeholder="All Statuses"
+                        allOptionLabel="All Statuses"
+                        searchPlaceholder="Search status..."
+                        icon="fas fa-box"
+                        className="min-w-[150px]"
+                        title="Filter by status"
+                        emptyValue="all"
+                        align="right"
+                    />
                     {(parcelSearchTerm || parcelStatusFilter !== 'all' || selectedParcelIds.size > 0) && (
                         <AppButton
                             type="button"

@@ -385,13 +385,13 @@ export function DocumentAttachFileModal({
 
                         {/* Loading Banner */}
                         {(isVerifying || isAttaching) && (
-                            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 border border-pink-500/30 text-xs space-y-2 animate-in fade-in duration-200">
+                            <div className="p-3.5 rounded-2xl bg-pink-50 dark:bg-pink-950/30 border border-pink-300 dark:border-pink-800/60 text-xs space-y-2 animate-in fade-in duration-200">
                                 <div className="flex items-center gap-2 font-bold text-pink-600 dark:text-pink-400">
                                     <i className="fas fa-circle-notch fa-spin text-sm"></i>
                                     <span>{isVerifying ? 'Running AI OCR Verification on selected file...' : 'Attaching & saving file...'}</span>
                                 </div>
-                                <div className="w-full bg-slate-200/80 dark:bg-slate-800/80 rounded-full h-2 overflow-hidden shadow-inner">
-                                    <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 h-2 rounded-full w-3/4 animate-pulse"></div>
+                                <div className="w-full bg-pink-100/80 dark:bg-pink-950/60 rounded-full h-2 overflow-hidden shadow-inner border border-pink-200/60 dark:border-pink-900/40">
+                                    <div className="bg-pink-600 dark:bg-pink-500 h-2 rounded-full w-3/4 animate-pulse"></div>
                                 </div>
                             </div>
                         )}

@@ -16,7 +16,7 @@ export function TablePagination({
     page,
     totalPages,
     totalItems,
-    pageSize = 15,
+    pageSize = 30,
     onPageChange,
     isLoading = false,
 }: TablePaginationProps) {

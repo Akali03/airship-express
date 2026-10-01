@@ -212,6 +212,23 @@ export async function POST(request: Request) {
                 .limit(1);
 
             if (otpError || !otpRecords || otpRecords.length === 0) {
+                // check if the code was already used
+                const { data: usedRecords } = await supabase
+                    .from('otp_codes')
+                    .select('*')
+                    .eq('email', normalizedEmail)
+                    .eq('code_hash', hashedInputOTP)
+                    .not('used_at', 'is', null)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+
+                if (usedRecords && usedRecords.length > 0) {
+                    return NextResponse.json(
+                        { message: 'This verification code has already been used and verified. Please request a new code.' },
+                        { status: 400 }
+                    );
+                }
+
                 return NextResponse.json(
                     { message: 'Invalid or expired verification code. Please request a new one.' },
                     { status: 400 }

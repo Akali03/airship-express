@@ -35,10 +35,18 @@ export default function UserActivityContentWrapper() {
 
     // search and filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [accessControlSearchTerm, setAccessControlSearchTerm] = useState('');
+    const editEmailParam = searchParams.get('edit_email') || searchParams.get('edit_user') || searchParams.get('search');
+    const [accessControlSearchTerm, setAccessControlSearchTerm] = useState(editEmailParam || '');
     const [activeUserSearchTerm, setActiveUserSearchTerm] = useState('');
     const [activitySearchTerm, setActivitySearchTerm] = useState('');
     const [activityFilter, setActivityFilter] = useState<string>('all');
+
+    useEffect(() => {
+        if (editEmailParam) {
+            setAccessControlSearchTerm(editEmailParam);
+        }
+    }, [editEmailParam]);
+
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
     const debouncedAccessControlSearchTerm = useDebounce(accessControlSearchTerm, 300);
     const debouncedActiveUserSearchTerm = useDebounce(activeUserSearchTerm, 300);

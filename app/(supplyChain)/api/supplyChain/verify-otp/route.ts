@@ -67,6 +67,35 @@ export async function POST(request: Request) {
         const { data: otpRecords, error: otpError } = await otpQuery;
 
         if (otpError || !otpRecords || otpRecords.length === 0) {
+            // check if the specific inputted OTP was already used and verified
+            let usedQuery = supabaseAdmin
+                .from('otp_codes')
+                .select('*')
+                .eq('code_hash', hashedInputOTP)
+                .not('used_at', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (email && validUserId) {
+                usedQuery = usedQuery.or(`user_id.eq.${validUserId},email.eq.${email}`);
+            } else if (email) {
+                usedQuery = usedQuery.eq('email', email);
+            } else if (validUserId) {
+                usedQuery = usedQuery.eq('user_id', validUserId);
+            }
+
+            const { data: matchingUsed } = await usedQuery;
+
+            if (matchingUsed && matchingUsed.length > 0) {
+                return NextResponse.json(
+                    {
+                        used: true,
+                        message: 'This OTP has already been used and verified. Please request a new code if needed.'
+                    },
+                    { status: 400 }
+                );
+            }
+
             // check if the specific inputted OTP was issued and is now expired
             let expiredQuery = supabaseAdmin
                 .from('otp_codes')

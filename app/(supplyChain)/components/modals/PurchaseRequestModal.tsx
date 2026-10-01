@@ -315,7 +315,7 @@ export function PurchaseRequestModal({
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="text"
-                                                className="flex-1 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 disabled:opacity-85 disabled:cursor-not-allowed"
+                                                className="flex-1 h-11 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 disabled:opacity-85 disabled:cursor-not-allowed"
                                                 placeholder="Item name (e.g. Oil Filter, Brake Pad)"
                                                 value={item.name}
                                                 onChange={(e) => updateItem(index, "name", e.target.value)}
@@ -326,7 +326,7 @@ export function PurchaseRequestModal({
                                             {!readOnly && (
                                                 <button
                                                     type="button"
-                                                    className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors shrink-0 cursor-pointer"
+                                                    className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors shrink-0 cursor-pointer"
                                                     onClick={() => removeItem(index)}
                                                     title="Remove item"
                                                 >
@@ -343,7 +343,7 @@ export function PurchaseRequestModal({
                                                 <input
                                                     type="number"
                                                     min="1"
-                                                    className="w-full h-9 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-center disabled:opacity-85 disabled:cursor-not-allowed"
+                                                    className="w-full h-11 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-2.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-center disabled:opacity-85 disabled:cursor-not-allowed"
                                                     placeholder="Qty"
                                                     value={item.quantity || ""}
                                                     onChange={(e) => updateItem(index, "quantity", parseInt(e.target.value) || 0)}
@@ -355,12 +355,12 @@ export function PurchaseRequestModal({
                                             <div className="flex items-center gap-1.5 flex-1">
                                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Unit Price:</span>
                                                 <div className="relative flex-1">
-                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">₱</span>
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">₱</span>
                                                     <input
                                                         type="number"
                                                         step="1"
                                                         min="0"
-                                                        className="w-full h-9 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-lg pl-6 pr-2.5 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-right disabled:opacity-85 disabled:cursor-not-allowed"
+                                                        className="w-full h-11 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl pl-7 pr-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-right disabled:opacity-85 disabled:cursor-not-allowed"
                                                         placeholder="0"
                                                         value={item.unit_price || ""}
                                                         onChange={(e) => updateItem(index, "unit_price", e.target.value)}
@@ -369,7 +369,7 @@ export function PurchaseRequestModal({
                                                 </div>
                                             </div>
 
-                                            <div className="text-right pl-2 text-slate-700 dark:text-slate-300 font-semibold min-w-[70px]">
+                                            <div className="text-right pl-2 text-slate-700 dark:text-slate-300 font-bold min-w-[70px]">
                                                 ₱{rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </div>
                                         </div>

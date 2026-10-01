@@ -107,7 +107,7 @@ export function PurchaseRequestDetailModal({
 
         const locked =
             ['sent', 'confirmed', 'delivered', 'completed'].includes(reqStatus) ||
-            ['sent', 'confirmed', 'delivered'].includes(poStatus);
+            ['sent', 'confirmed', 'delivered', 'completed'].includes(poStatus);
 
         const adminOrExec = ['admin', 'executive', 'super_admin', 'superadmin', 'administrator'].includes(currentUserRole);
         const isManager = ['manager', 'warehouse_manager', 'inventory_manager'].includes(currentUserRole);
@@ -130,29 +130,14 @@ export function PurchaseRequestDetailModal({
             };
         }
 
-        // When Approved: Only Admin and Executive can edit (unless sent, confirmed, delivered)
-        if (reqStatus === 'approved') {
-            return {
-                canEdit: adminOrExec,
-                canDelete: false, // Approved requests should not be casually deleted
-                canApproveReject: false,
-                isLocked: false,
-                isAdminOrExec: adminOrExec,
-            };
-        }
-
-        // When Rejected: Admin and Executive can delete
-        if (reqStatus === 'rejected') {
-            return {
-                canEdit: false,
-                canDelete: adminOrExec,
-                canApproveReject: false,
-                isLocked: false,
-                isAdminOrExec: adminOrExec,
-            };
-        }
-
-        return { canEdit: false, canDelete: false, canApproveReject: false, isLocked: false, isAdminOrExec: adminOrExec };
+        // When Approved or Rejected: NO EDITING for anyone (including Admin and Executive)
+        return {
+            canEdit: false,
+            canDelete: reqStatus === 'rejected' ? adminOrExec : false,
+            canApproveReject: false,
+            isLocked: true,
+            isAdminOrExec: adminOrExec,
+        };
     }, [request, linkedPO, currentUserRole]);
 
     const handleItemChange = (index: number, field: string, val: any) => {
@@ -288,6 +273,8 @@ export function PurchaseRequestDetailModal({
         try {
             await patchPurchaseRequest({ id: request.id, action: 'approve', role: currentUserRole });
             toast.success(`Purchase request ${request.request_number || ''} approved successfully`);
+            setIsEditing(false);
+            setEditForm(null);
             setRequest((prev: any) => (prev ? { ...prev, status: 'Approved' } : null));
             onSuccess?.();
         } catch (err: any) {
@@ -315,6 +302,8 @@ export function PurchaseRequestDetailModal({
         try {
             await patchPurchaseRequest({ id: request.id, action: 'reject', role: currentUserRole });
             toast.success(`Purchase request ${request.request_number || ''} marked as rejected`);
+            setIsEditing(false);
+            setEditForm(null);
             setRequest((prev: any) => (prev ? { ...prev, status: 'Rejected' } : null));
             onSuccess?.();
         } catch (err: any) {
@@ -384,7 +373,7 @@ export function PurchaseRequestDetailModal({
                                     )}
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
-                                    {isEditing ? 'Modify request line items, quantities, and parameters' : 'Review replenishment request status and authorization actions'}
+                                    Review and manage request details below
                                 </p>
                             </div>
                         </div>
@@ -433,25 +422,13 @@ export function PurchaseRequestDetailModal({
                                                 <select
                                                     value={editForm?.priority || 'Normal'}
                                                     onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
-                                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-pink-300 dark:border-pink-800 text-pink-600 dark:text-pink-400 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] focus:outline-none cursor-pointer"
+                                                    className="h-10 px-3 py-2 rounded-xl text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-pink-300 dark:border-pink-800 text-pink-600 dark:text-pink-400 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] focus:outline-none cursor-pointer"
                                                 >
                                                     <option value="Low">Low Priority</option>
                                                     <option value="Normal">Normal Priority</option>
                                                     <option value="Urgent">Urgent Priority</option>
                                                     <option value="Critical">Critical Priority</option>
                                                 </select>
-
-                                                {isAdminOrExec && (
-                                                    <select
-                                                        value={editForm?.status || request.status || 'Pending'}
-                                                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                                                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-indigo-300 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] focus:outline-none cursor-pointer"
-                                                    >
-                                                        <option value="Pending">Pending</option>
-                                                        <option value="Approved">Approved</option>
-                                                        <option value="Rejected">Rejected</option>
-                                                    </select>
-                                                )}
                                             </div>
                                         ) : (
                                             <StatusBadge
@@ -527,8 +504,8 @@ export function PurchaseRequestDetailModal({
                                         <textarea
                                             value={editForm?.reason || ''}
                                             onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
-                                            rows={2}
-                                            className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] resize-none"
+                                            rows={3}
+                                            className="w-full min-h-[75px] bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] resize-none leading-relaxed"
                                             placeholder="Provide reason for request"
                                         />
                                     ) : (
@@ -573,32 +550,32 @@ export function PurchaseRequestDetailModal({
                                                         const total = qty * price;
                                                         return (
                                                             <tr key={idx} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                                                                <td className="py-2 px-2">
+                                                                <td className="py-2.5 px-2">
                                                                     <input
                                                                         type="text"
                                                                         value={item.name || item.item_name || ''}
                                                                         onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
                                                                         placeholder="Item name"
-                                                                        className="w-full h-9 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                        className="w-full h-11 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                     />
                                                                 </td>
-                                                                <td className="py-2 px-2 text-center">
+                                                                <td className="py-2.5 px-2 text-center">
                                                                     <input
                                                                         type="number"
                                                                         min="1"
                                                                         value={item.quantity || 1}
                                                                         onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                                                                        className="w-20 h-9 text-center bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-2 py-2 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                        className="w-20 h-11 text-center bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2.5 py-2.5 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                     />
                                                                 </td>
-                                                                <td className="py-2 px-2 text-right">
+                                                                <td className="py-2.5 px-2 text-right">
                                                                     <input
                                                                         type="number"
                                                                         min="0"
                                                                         step="1"
                                                                         value={item.unit_price ?? item.price ?? 0}
                                                                         onChange={(e) => handleItemChange(idx, 'unit_price', e.target.value)}
-                                                                        className="w-24 h-9 text-right bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-2 py-2 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                        className="w-28 h-11 text-right bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                     />
                                                                 </td>
                                                                 <td className="py-2 px-2.5 text-right font-bold text-slate-900 dark:text-white font-mono">

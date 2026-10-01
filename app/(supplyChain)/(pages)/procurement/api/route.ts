@@ -422,7 +422,7 @@ export async function PUT(request: NextRequest) {
             );
         }
 
-        // Check if status allows editing: cannot edit if sent, confirmed, delivered, completed
+        // Check if status allows editing: only pending requests can be edited (approved or rejected cannot be edited)
         const statusLower = (existing.status || '').toLowerCase();
         if (['sent', 'confirmed', 'delivered', 'completed'].includes(statusLower)) {
             return NextResponse.json(
@@ -431,9 +431,9 @@ export async function PUT(request: NextRequest) {
             );
         }
 
-        if (statusLower !== 'pending' && statusLower !== 'approved') {
+        if (statusLower !== 'pending') {
             return NextResponse.json(
-                { success: false, error: 'Only pending and approved requests can be edited' },
+                { success: false, error: `Purchase requests with status "${existing.status}" cannot be edited. Only pending requests can be edited.` },
                 { status: 400 }
             );
         }
@@ -449,33 +449,22 @@ export async function PUT(request: NextRequest) {
             const poStatus = (linkedPO.status || '').toLowerCase();
             if (['sent', 'confirmed', 'delivered', 'completed'].includes(poStatus)) {
                 return NextResponse.json(
-                    { success: false, error: 'This request has a sent, confirmed, or delivered purchase order and can no longer be edited' },
+                    { success: false, error: 'This request has an active/delivered purchase order and can no longer be edited' },
                     { status: 400 }
                 );
             }
         }
 
-        // Role verification:
-        // When approved: only admin and executive can edit
-        // When pending: managers, admins, executives can edit
+        // Role verification: managers, admins, executives can edit pending requests
         const callerRole = (headersList.get('x-user-role') || updateData.role || '').trim().toLowerCase();
         const isAdminOrExec = ['admin', 'executive', 'super_admin', 'superadmin', 'administrator'].includes(callerRole);
         const isManager = ['manager', 'warehouse_manager', 'inventory_manager'].includes(callerRole);
 
-        if (statusLower === 'approved') {
-            if (!isAdminOrExec) {
-                return NextResponse.json(
-                    { success: false, error: 'When approved, only Admin and Executive can edit this request' },
-                    { status: 403 }
-                );
-            }
-        } else if (statusLower === 'pending') {
-            if (!isAdminOrExec && !isManager) {
-                return NextResponse.json(
-                    { success: false, error: 'Only managers, admins, and executives can edit pending requests' },
-                    { status: 403 }
-                );
-            }
+        if (!isAdminOrExec && !isManager) {
+            return NextResponse.json(
+                { success: false, error: 'Only managers, admins, and executives can edit pending requests' },
+                { status: 403 }
+            );
         }
 
         // sanitize

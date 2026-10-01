@@ -10,6 +10,7 @@ import { TableContentLoader } from "../../../../components/global/Loader";
 import { CrudActionButton } from "../../../../components/ui/CrudActionButton";
 import { AppButton } from "../../../../components/ui/AppButton";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { SearchableDropdown, SearchableDropdownOption } from "../../../../components/ui/SearchableDropdown";
 import { Clipboard, Eye } from "lucide-react";
 import { useUserRole } from "../../../../components/global/UnauthorizedEmptyState";
 interface Parcel {
@@ -141,7 +142,23 @@ export default function SortingPanel() {
     });
     const limit = 10;
     const { confirm } = useConfirm();
-    const debouncedSearch = useDebounce(searchTerm, 300); // sanitize qr
+    const debouncedSearch = useDebounce(searchTerm, 300);
+
+    const regionOptions: SearchableDropdownOption[] = useMemo(() => {
+        return allRegions.map((region) => ({
+            value: region,
+            label: region,
+            icon: 'fas fa-map-marker-alt',
+        }));
+    }, [allRegions]);
+
+    const cityOptions: SearchableDropdownOption[] = useMemo(() => {
+        return allCities.map((city) => ({
+            value: city,
+            label: city,
+            icon: 'fas fa-city',
+        }));
+    }, [allCities]);
     const sanitizeForQr = useCallback((text: string): string => {
         return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20) || 'DEFAULT';
     }, []);
@@ -1294,41 +1311,37 @@ export default function SortingPanel() {
                             </button>)}
                     </div>
 
-                    <div className="relative">
-                        <select className="appearance-none bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:outline-none focus:border-pink-500 transition-all cursor-pointer min-w-[130px]" value={locationRegionFilter} onChange={(e) => {
-            setLocationRegionFilter(e.target.value);
-            setLocationCityFilter('');
-        }}>
-                            <option value="" className="dark:bg-slate-900 dark:text-slate-200">All Regions</option>
-                            {allRegions.map((region) => (<option key={region} value={region} className="dark:bg-slate-900 dark:text-slate-200">
-                                    {region}
-                                </option>))}
-                        </select>
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </div>
-                    </div>
+                    <SearchableDropdown
+                        value={locationRegionFilter}
+                        onChange={(val) => {
+                            setLocationRegionFilter(val);
+                            setLocationCityFilter('');
+                        }}
+                        options={regionOptions}
+                        placeholder="All Regions"
+                        allOptionLabel="All Regions"
+                        searchPlaceholder="Search region..."
+                        icon="fas fa-map-marker-alt"
+                        className="min-w-[140px]"
+                        title="Filter by Region"
+                    />
 
-                    <div className="relative">
-                        <select className="appearance-none bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)] focus:outline-none focus:border-pink-500 transition-all cursor-pointer min-w-[130px]" value={locationCityFilter} onChange={(e) => {
-            setLocationCityFilter(e.target.value);
-            if (e.target.value) {
-                setLocationRegionFilter('');
-            }
-        }}>
-                            <option value="" className="dark:bg-slate-900 dark:text-slate-200">All Cities</option>
-                            {allCities.map((city) => (<option key={city} value={city} className="dark:bg-slate-900 dark:text-slate-200">
-                                    {city}
-                                </option>))}
-                        </select>
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </div>
-                    </div>
+                    <SearchableDropdown
+                        value={locationCityFilter}
+                        onChange={(val) => {
+                            setLocationCityFilter(val);
+                            if (val) {
+                                setLocationRegionFilter('');
+                            }
+                        }}
+                        options={cityOptions}
+                        placeholder="All Cities"
+                        allOptionLabel="All Cities"
+                        searchPlaceholder="Search city..."
+                        icon="fas fa-city"
+                        className="min-w-[140px]"
+                        title="Filter by City"
+                    />
 
                     <AppButton
                         type="button"

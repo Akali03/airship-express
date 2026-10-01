@@ -95,25 +95,25 @@ export function DocumentUploadModal({
 
                         {/* Upload Progress Status Banner */}
                         {isUploading && (
-                            <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 border border-pink-500/30 text-xs space-y-2.5 animate-in fade-in duration-200">
+                            <div className="p-4 rounded-2xl bg-pink-50 dark:bg-pink-950/30 border border-pink-300 dark:border-pink-800/60 text-xs space-y-2.5 animate-in fade-in duration-200">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 font-bold text-pink-600 dark:text-pink-400">
                                         <i className="fas fa-circle-notch fa-spin text-sm"></i>
                                         <span>AI OCR Validation &amp; Upload in Progress</span>
                                     </div>
-                                    <span className="font-mono font-bold text-pink-600 dark:text-pink-400 bg-pink-500/15 px-2 py-0.5 rounded-md border border-pink-500/20">
+                                    <span className="font-mono font-bold text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/40 px-2.5 py-0.5 rounded-md border border-pink-300 dark:border-pink-700/50">
                                         {uploadProgress}%
                                     </span>
                                 </div>
-                                <div className="w-full bg-slate-200/80 dark:bg-slate-800/80 rounded-full h-2.5 overflow-hidden shadow-inner">
+                                <div className="w-full bg-pink-100/80 dark:bg-pink-950/60 rounded-full h-2.5 overflow-hidden shadow-inner border border-pink-200/60 dark:border-pink-900/40">
                                     <div
-                                        className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 h-2.5 rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(236,72,153,0.6)]"
+                                        className="bg-pink-600 dark:bg-pink-500 h-2.5 rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(236,72,153,0.5)]"
                                         style={{ width: `${Math.max(5, uploadProgress)}%` }}
                                     ></div>
                                 </div>
                                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                                     <span>Processing {selectedFiles.length} file(s)...</span>
-                                    <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                    <span className="text-pink-600 dark:text-pink-400 font-semibold flex items-center gap-1">
                                         <i className="fas fa-lock text-[10px]"></i> Inputs locked
                                     </span>
                                 </div>

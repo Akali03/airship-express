@@ -44,7 +44,7 @@ export default function IncomingPanel() {
     const [isOnline, setIsOnline] = useState(true);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [mounted, setMounted] = useState(false);
-    const limit = 15;
+    const limit = 30;
     const isMounted = useRef(true);
     const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const subscriptionRef = useRef<any>(null);
@@ -181,15 +181,17 @@ export default function IncomingPanel() {
             });
             const offlineList = getOfflineScans();
             if (result.success && isMounted.current) {
+                const total = Math.max(result.pagination.total + offlineList.length, parcels.length);
+                setTotalItems(total);
                 setStats({
-                    ...result.stats,
-                    scanned: result.stats.scanned + offlineList.length,
+                    topCourier: result.stats.topCourier,
+                    scanned: total,
                 });
             }
         } catch (error) {
             console.error('Error updating stats:', error);
         }
-    }, [filter, search]);
+    }, [filter, search, parcels.length]);
 
     const handleRealtimeUpdate = useCallback(() => {
         if (!isMounted.current) return;
@@ -199,36 +201,40 @@ export default function IncomingPanel() {
     }, [fetchParcelsData]);
 
     const handleScan = useCallback((scannedBarcode?: string, isOffline?: boolean) => {
-        if (scannedBarcode) {
-            const currentUserId = user.getUserId() || user.getName() || null;
-            const offlineCheck = isOffline !== undefined ? isOffline : (typeof window !== 'undefined' && !navigator.onLine);
-            const optimisticParcel: Parcel = {
-                id: -Date.now(),
-                barcode: scannedBarcode,
-                tracking_number: scannedBarcode,
-                sender_name: null,
-                customer_name: null,
-                customer_number: null,
-                destination: null,
-                region: null,
-                courier: null,
-                scanned_by: currentUserId,
-                scanned_at: new Date().toISOString(),
-                status: offlineCheck ? 'not_synced' : 'pending',
-                is_fetched: false,
-            };
-            setParcels(prev => {
-                if (prev.some(p => p.barcode.toUpperCase() === scannedBarcode.toUpperCase())) return prev;
-                return [optimisticParcel, ...prev];
-            });
-            setStats(prev => ({
-                ...prev,
-                scanned: prev.scanned + 1
-            }));
-            setTotalItems(prev => prev + 1);
-            setLastUpdate(new Date());
-        }
-    }, []);
+        if (!scannedBarcode) return;
+        const normalized = scannedBarcode.trim().toUpperCase();
+
+        const currentUserId = user.getUserId() || user.getName() || null;
+        const offlineCheck = isOffline !== undefined ? isOffline : (typeof window !== 'undefined' && !navigator.onLine);
+        const optimisticParcel: Parcel = {
+            id: -Date.now(),
+            barcode: scannedBarcode.trim(),
+            tracking_number: scannedBarcode.trim(),
+            sender_name: null,
+            customer_name: null,
+            customer_number: null,
+            destination: null,
+            region: null,
+            courier: null,
+            scanned_by: currentUserId,
+            scanned_at: new Date().toISOString(),
+            status: offlineCheck ? 'not_synced' : 'pending',
+            is_fetched: false,
+        };
+
+        setParcels(prev => {
+            if (prev.some(p => p.barcode && p.barcode.trim().toUpperCase() === normalized)) {
+                return prev;
+            }
+            return [optimisticParcel, ...prev];
+        });
+
+        setTotalItems(prev => {
+            const alreadyExists = parcels.some(p => p.barcode && p.barcode.trim().toUpperCase() === normalized);
+            return alreadyExists ? prev : prev + 1;
+        });
+        setLastUpdate(new Date());
+    }, [parcels]);
 
     // 1. Fetch data from mock_third_party_parcels
     const handleFetchMockData = useCallback(async (parcelsToFetch?: Parcel[]) => {
@@ -384,10 +390,7 @@ export default function IncomingPanel() {
     }, [parcels, fetchParcelsData]);
 
     const handleAddManual = useCallback(() => {
-        setStats(prev => ({
-            ...prev,
-            scanned: prev.scanned + 1
-        }));
+        setTotalItems(prev => prev + 1);
         handleRealtimeUpdate();
     }, [handleRealtimeUpdate]);
 
@@ -399,10 +402,6 @@ export default function IncomingPanel() {
             }
             return prev.filter(p => p.id !== parcelId);
         });
-        setStats(prev => ({
-            ...prev,
-            scanned: Math.max(0, prev.scanned - 1)
-        }));
         setTotalItems(prev => Math.max(0, prev - 1));
         setLastUpdate(new Date());
     }, []);
@@ -417,10 +416,6 @@ export default function IncomingPanel() {
             });
             return prev.filter(p => !deletedIds.includes(p.id));
         });
-        setStats(prev => ({
-            ...prev,
-            scanned: Math.max(0, prev.scanned - deletedIds.length)
-        }));
         setTotalItems(prev => Math.max(0, prev - deletedIds.length));
         setLastUpdate(new Date());
     }, []);
@@ -440,8 +435,12 @@ export default function IncomingPanel() {
                 if (payload.eventType === 'INSERT') {
                     const newRow = payload.new as Parcel;
                     if (newRow && newRow.status === 'pending') {
+                        const normalizedBarcode = (newRow.barcode || '').trim().toUpperCase();
                         setParcels(prev => {
-                            const existsIndex = prev.findIndex(p => p.barcode === newRow.barcode || p.id === newRow.id);
+                            const existsIndex = prev.findIndex(p => 
+                                (p.barcode && p.barcode.trim().toUpperCase() === normalizedBarcode) || 
+                                p.id === newRow.id
+                            );
                             if (existsIndex !== -1) {
                                 const copy = [...prev];
                                 copy[existsIndex] = newRow;
@@ -449,21 +448,11 @@ export default function IncomingPanel() {
                             }
                             return [newRow, ...prev];
                         });
-                        setStats(prev => ({
-                            ...prev,
-                            scanned: prev.scanned + 1
-                        }));
-                        setTotalItems(prev => prev + 1);
-                        setLastUpdate(new Date());
                     }
                 } else if (payload.eventType === 'DELETE') {
                     const oldRow = payload.old as { id: number };
                     if (oldRow && oldRow.id) {
                         setParcels(prev => prev.filter(p => p.id !== oldRow.id));
-                        setStats(prev => ({
-                            ...prev,
-                            scanned: Math.max(0, prev.scanned - 1)
-                        }));
                         setTotalItems(prev => Math.max(0, prev - 1));
                         setLastUpdate(new Date());
                     }
@@ -472,10 +461,6 @@ export default function IncomingPanel() {
                     if (updatedRow) {
                         if (updatedRow.status !== 'pending') {
                             setParcels(prev => prev.filter(p => p.id !== updatedRow.id));
-                            setStats(prev => ({
-                                ...prev,
-                                scanned: Math.max(0, prev.scanned - 1)
-                            }));
                             setTotalItems(prev => Math.max(0, prev - 1));
                         } else {
                             setParcels(prev => prev.map(p => (p.id === updatedRow.id || p.barcode === updatedRow.barcode) ? updatedRow : p));
@@ -489,7 +474,7 @@ export default function IncomingPanel() {
                 }
                 refreshTimeoutRef.current = setTimeout(() => {
                     updateStatsOnly();
-                }, 800);
+                }, 500);
             })
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
@@ -551,31 +536,48 @@ export default function IncomingPanel() {
     const notSyncedParcels = parcels.filter(p => p.status === 'not_synced');
     const notSyncedCount = notSyncedParcels.length;
     const hasNoData = !loading && parcels.length === 0;
+    const displayedScanned = Math.max(totalItems, parcels.length);
+
+    const currentTopCourier = stats.topCourier || (() => {
+        const courierCount: Record<string, number> = {};
+        parcels.forEach(p => {
+            if (p.courier) courierCount[p.courier] = (courierCount[p.courier] || 0) + 1;
+        });
+        let top = '';
+        let max = 0;
+        for (const [c, cnt] of Object.entries(courierCount)) {
+            if (cnt > max) {
+                max = cnt;
+                top = c;
+            }
+        }
+        return top || '—';
+    })();
 
     return (
         <div data-panel="incoming" className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 mx-auto min-h-screen bg-slate-50/50 card">
             <section className="space-y-5">
-                <IncomingHeader onReceiveAll={() => fetchParcelsData(true)}/>
-                <ScanPanel scanned={stats.scanned} topCourier={stats.topCourier} onScan={handleScan}/>
+                <IncomingHeader onReceiveAll={() => fetchParcelsData(true)} totalParcels={displayedScanned} />
+                <ScanPanel scanned={displayedScanned} topCourier={currentTopCourier} onScan={handleScan}/>
             </section>
 
             {notSyncedCount > 0 && (
-                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 gap-4 transition-colors">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#151622] border border-white/80 dark:border-white/[0.06] shadow-[4px_4px_12px_rgba(166,175,195,0.35),-4px_-4px_12px_rgba(255,255,255,0.9)] dark:shadow-[4px_4px_14px_rgba(0,0,0,0.6),-2px_-2px_8px_rgba(255,255,255,0.02)] gap-4 transition-all">
                     <div className="flex items-start sm:items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#12131d] text-slate-700 dark:text-slate-300 border border-white/90 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] flex items-center justify-center shrink-0">
                             <i className="fas fa-satellite-dish text-sm"></i>
                         </div>
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
                                     {notSyncedCount} Offline Scan{notSyncedCount > 1 ? 's' : ''} (Not Synced)
                                 </span>
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                     isOnline
                                         ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60'
                                         : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
                                 }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                                     {isOnline ? 'Online — Ready to Sync' : 'Offline — Connect to Sync'}
                                 </span>
                             </div>
@@ -587,13 +589,13 @@ export default function IncomingPanel() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-end">
                         <button
                             type="button"
                             onClick={() => handleFetchMockData(notSyncedParcels)}
                             disabled={!isOnline || isFetchingMock}
                             title={!isOnline ? "Connect to internet to fetch mock data" : "Fetch details from mock third-party parcels"}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700/80 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold bg-[#ebf0f7] dark:bg-[#181926] text-slate-700 dark:text-slate-200 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] hover:border-pink-300 dark:hover:border-pink-500/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
                         >
                             <i className={`fas ${isFetchingMock ? 'fa-spinner fa-spin' : 'fa-database'} text-xs text-slate-500 dark:text-slate-400`}></i>
                             <span>{isFetchingMock ? 'Fetching...' : '1. Fetch Data'}</span>
@@ -604,7 +606,7 @@ export default function IncomingPanel() {
                             onClick={() => handleAddInQueue(notSyncedParcels)}
                             disabled={!isOnline || isAddingToQueue}
                             title={!isOnline ? "Connect to internet to insert into receiving queue" : "Insert all not-synced parcels into receiving queue"}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-600 dark:border-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-500 shadow-[2px_2px_6px_rgba(16,185,129,0.35)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
                         >
                             <i className={`fas ${isAddingToQueue ? 'fa-spinner fa-spin' : 'fa-inbox'} text-xs`}></i>
                             <span>{isAddingToQueue ? 'Adding...' : '2. Add in Queue'}</span>
@@ -635,9 +637,9 @@ export default function IncomingPanel() {
                 {loading ? (
                     <TableSkeleton rows={8}/>
                 ) : hasNoData ? (
-                    <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 sm:p-12 text-center transition-colors">
+                    <div className="relative overflow-hidden rounded-3xl border border-white/80 dark:border-white/[0.06] bg-[#f0f3f8] dark:bg-[#151622] shadow-[4px_4px_12px_rgba(166,175,195,0.35),-4px_-4px_12px_rgba(255,255,255,0.9)] dark:shadow-[4px_4px_14px_rgba(0,0,0,0.6),-2px_-2px_8px_rgba(255,255,255,0.02)] p-8 sm:p-12 text-center transition-all">
                         <div className="relative z-10 max-w-md mx-auto space-y-4">
-                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-900/60 mx-auto">
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#ebf0f7] dark:bg-[#12131d] border border-white/90 dark:border-white/[0.06] text-pink-600 dark:text-pink-400 shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] mx-auto">
                                 <i className="fas fa-inbox text-xl"></i>
                             </div>
 
@@ -663,7 +665,7 @@ export default function IncomingPanel() {
                                             setSearch("");
                                             setPage(1);
                                         }}
-                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#ebf0f7] dark:bg-[#181926] text-slate-700 dark:text-slate-200 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-xs font-bold transition-all cursor-pointer active:scale-95"
                                     >
                                         <i className="fas fa-undo-alt text-[11px]"></i>
                                         <span>Clear Filters</span>
@@ -674,7 +676,7 @@ export default function IncomingPanel() {
                                         <button
                                             type="button"
                                             onClick={() => fetchParcelsData(true)}
-                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#ebf0f7] dark:bg-[#181926] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer active:scale-95"
                                         >
                                             <i className="fas fa-sync-alt text-[11px]"></i>
                                             <span>Refresh List</span>

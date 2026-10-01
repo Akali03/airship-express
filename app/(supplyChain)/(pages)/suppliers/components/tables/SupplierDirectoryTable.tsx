@@ -2,10 +2,11 @@
 
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Supplier } from "../../types";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { CrudActionButton } from "../../../../components/ui/CrudActionButton";
+import { SearchableDropdown, SearchableDropdownOption } from "../../../../components/ui/SearchableDropdown";
 import { Pagination } from "../../../../components/global/pagination";
 import { SupplierDirectorySkeleton } from "../../../../components/ui/SkeletonLoader";
 
@@ -62,6 +63,14 @@ export function SupplierDirectoryTable({
     onMessageSupplier,
     onManageAccount,
 }: SupplierDirectoryTableProps) {
+    const categoryOptions: SearchableDropdownOption[] = useMemo(() => {
+        return categories.map((cat) => ({
+            value: cat,
+            label: cat,
+            icon: 'fas fa-tags',
+        }));
+    }, [categories]);
+
     return (
         <div className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col">
             {/* filter bar */}
@@ -87,22 +96,17 @@ export function SupplierDirectoryTable({
                         />
                     </div>
 
-                    <div className="relative w-full sm:w-44">
-                        <select
-                            value={categoryFilter}
-                            onChange={(e) => setCategoryFilter(e.target.value)}
-                            aria-label="Filter by category"
-                            className="w-full py-2 pl-3 pr-8 bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-pink-500 transition-all cursor-pointer appearance-none"
-                        >
-                            <option value="">All categories</option>
-                            {categories.map((cat) => (
-                                <option key={cat} value={cat} className="dark:bg-slate-900 dark:text-slate-200">
-                                    {cat}
-                                </option>
-                            ))}
-                        </select>
-                        <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-[10px] pointer-events-none" />
-                    </div>
+                    <SearchableDropdown
+                        value={categoryFilter}
+                        onChange={setCategoryFilter}
+                        options={categoryOptions}
+                        placeholder="All categories"
+                        allOptionLabel="All categories"
+                        searchPlaceholder="Search category..."
+                        icon="fas fa-tags"
+                        className="w-full sm:w-44"
+                        title="Filter by category"
+                    />
 
                     {selectedSuppliers.size > 0 && (
                         <button

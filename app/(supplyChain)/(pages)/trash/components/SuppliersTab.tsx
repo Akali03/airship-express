@@ -14,6 +14,7 @@ import { CardsSkeleton, TableRowsSkeleton } from '../../../components/ui/Skeleto
 import { CrudActionButton } from '../../../components/ui/CrudActionButton';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 import { AppButton } from '../../../components/ui/AppButton';
+import { SearchableDropdown, SearchableDropdownOption } from '../../../components/ui/SearchableDropdown';
 import { trashCache } from '../utils/trashCache';
 import { TrashRetentionBadge } from './TrashRetentionBadge';
 
@@ -447,6 +448,15 @@ export function SuppliersTab() {
     }, [filteredSuppliers, supplierPage]);
 
     const supplierCategories = useMemo(() => ['all', ...Array.from(new Set(archivedSuppliers.map(s => s.category)))], [archivedSuppliers]);
+    const categoryOptions: SearchableDropdownOption[] = useMemo(() => {
+        return supplierCategories
+            .filter(cat => cat !== 'all')
+            .map(cat => ({
+                value: cat,
+                label: cat,
+                icon: 'fas fa-tags',
+            }));
+    }, [supplierCategories]);
     const isAllSuppliersSelected = filteredSuppliers.length > 0 && selectedSupplierIds.size === filteredSuppliers.length;
 
     useEffect(() => {
@@ -558,19 +568,19 @@ export function SuppliersTab() {
                             onChange={handleSearchChange}
                         />
                     </div>
-                    <div className="relative min-w-[150px]">
-                        <select
-                            className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_4px_rgba(255,255,255,0.85)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
-                            value={supplierCategoryFilter}
-                            onChange={(e) => setSupplierCategoryFilter(e.target.value)}
-                        >
-                            {supplierCategories.map(cat => (
-                                <option key={cat} value={cat} className="dark:bg-[#1c1d25]">
-                                    {cat === 'all' ? 'All Categories' : cat}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <SearchableDropdown
+                        value={supplierCategoryFilter}
+                        onChange={(val) => setSupplierCategoryFilter(val || 'all')}
+                        options={categoryOptions}
+                        placeholder="All Categories"
+                        allOptionLabel="All Categories"
+                        searchPlaceholder="Search category..."
+                        icon="fas fa-tags"
+                        className="min-w-[150px]"
+                        title="Filter by category"
+                        emptyValue="all"
+                        align="right"
+                    />
                     {(supplierSearchTerm || supplierCategoryFilter !== 'all' || selectedSupplierIds.size > 0) && (
                         <AppButton
                             type="button"

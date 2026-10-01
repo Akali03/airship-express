@@ -924,6 +924,13 @@ export default function PurchaseOrders() {
         }
     };
     const handleDeleteOrder = async (id: string) => {
+        const targetOrder = purchaseOrders.find(p => p.id === id) || allOrders.find(p => p.id === id) || (actionModalOrder?.id === id ? actionModalOrder : null);
+        const orderStatusLower = (targetOrder?.status || '').toLowerCase();
+        if (['sent', 'confirmed', 'delivered', 'completed'].includes(orderStatusLower)) {
+            toast.error(`Cannot delete PO #${targetOrder?.po_number || id} because its status is "${targetOrder?.status}". Orders in Sent, Confirmed, or Delivered status are locked and cannot be deleted.`);
+            return;
+        }
+
         const confirmed = await confirm({
             title: "Delete Purchase Order",
             message: "Are you sure you want to delete this purchase order? This action cannot be undone.",
@@ -965,26 +972,48 @@ export default function PurchaseOrders() {
             toast.warning("Please select at least one purchase order to delete");
             return;
         }
-        const confirmed = await confirm({
-            title: "Delete Selected Purchase Orders",
-            message: `Are you sure you want to delete ${selectedIds.size} selected purchase order(s)? This action cannot be undone.`,
-            confirmText: `Delete ${selectedIds.size}`,
-            cancelText: "Cancel",
-            confirmVariant: "danger",
-        });
-        if (!confirmed)
+
+        const selectedOrders = datasetOrders.filter(po => selectedIds.has(po.id));
+        const lockedOrders = selectedOrders.filter(po => ['sent', 'confirmed', 'delivered', 'completed'].includes((po.status || '').toLowerCase()));
+        const eligibleOrders = selectedOrders.filter(po => !['sent', 'confirmed', 'delivered', 'completed'].includes((po.status || '').toLowerCase()));
+
+        if (eligibleOrders.length === 0) {
+            toast.error("Cannot delete selected purchase orders: All selected orders are in Sent, Confirmed, or Delivered status and are permanently locked.");
             return;
+        }
+
+        if (lockedOrders.length > 0) {
+            const confirmedSkip = await confirm({
+                title: "Locked Orders Detected",
+                message: `${lockedOrders.length} selected purchase order(s) are in Sent, Confirmed, or Delivered status and cannot be deleted. Do you want to proceed with deleting only the ${eligibleOrders.length} Draft order(s)?`,
+                confirmText: `Delete ${eligibleOrders.length} Eligible`,
+                cancelText: "Cancel",
+                confirmVariant: "danger",
+            });
+            if (!confirmedSkip) return;
+        } else {
+            const confirmed = await confirm({
+                title: "Delete Selected Purchase Orders",
+                message: `Are you sure you want to delete ${eligibleOrders.length} selected purchase order(s)? This action cannot be undone.`,
+                confirmText: `Delete ${eligibleOrders.length}`,
+                cancelText: "Cancel",
+                confirmVariant: "danger",
+            });
+            if (!confirmed)
+                return;
+        }
+
         setPendingRowId("bulk");
         try {
-            const idsToDelete = Array.from(selectedIds);
+            const idsToDelete = eligibleOrders.map(po => po.id);
             const { error } = await supabase
                 .from('purchase_orders')
                 .delete()
                 .in('id', idsToDelete);
             if (error)
                 throw error;
-            setPurchaseOrders(prev => prev.filter(po => !selectedIds.has(po.id)));
-            setAllOrders(prev => prev.filter(po => !selectedIds.has(po.id)));
+            setPurchaseOrders(prev => prev.filter(po => !idsToDelete.includes(po.id)));
+            setAllOrders(prev => prev.filter(po => !idsToDelete.includes(po.id)));
             setTotalItems(prev => Math.max(0, prev - idsToDelete.length));
             setSelectedIds(new Set());
             setIsSelectAll(false);
@@ -2429,14 +2458,39 @@ export default function PurchaseOrders() {
                                             const isRestricted = !canUpdateStatus || requiresAdminOrExec;
                                             const isDisabled = pendingRowId === actionModalOrder.id || isCurrent || isRestricted || isPreviousStatus || isSendingActionComm;
 
-                                            const getDotColor = () => {
+                                            const getStatusIcon = () => {
                                                 switch (status) {
-                                                    case 'Draft': return 'bg-slate-400 dark:bg-slate-500';
-                                                    case 'Sent': return 'bg-indigo-500 dark:bg-indigo-400';
-                                                    case 'Confirmed': return 'bg-purple-500 dark:bg-purple-400';
-                                                    case 'Delivered': return 'bg-emerald-500 dark:text-emerald-400';
-                                                    case 'Cancelled': return 'bg-rose-500 dark:bg-rose-400';
-                                                    default: return 'bg-slate-400';
+                                                    case 'Draft': return 'fa-file-lines';
+                                                    case 'Sent': return 'fa-paper-plane';
+                                                    case 'Confirmed': return 'fa-shield-check';
+                                                    case 'Delivered': return 'fa-truck-ramp-box';
+                                                    case 'Cancelled': return 'fa-ban';
+                                                    default: return 'fa-tag';
+                                                }
+                                            };
+
+                                            const getStatusSubtitle = () => {
+                                                switch (status) {
+                                                    case 'Draft': return 'Initial unissued draft';
+                                                    case 'Sent': return 'Dispatched to vendor';
+                                                    case 'Confirmed': return 'Vendor acknowledged';
+                                                    case 'Delivered': return 'Received at facility';
+                                                    case 'Cancelled': return 'Void / Terminated';
+                                                    default: return '';
+                                                }
+                                            };
+
+                                            const getIconStyle = () => {
+                                                if (isCurrent) {
+                                                    return 'bg-pink-500/15 text-pink-600 dark:text-pink-400 border border-pink-500/30 shadow-xs';
+                                                }
+                                                switch (status) {
+                                                    case 'Draft': return 'bg-slate-200/70 dark:bg-slate-800/70 text-slate-600 dark:text-slate-400 border border-slate-300/40 dark:border-slate-700/40';
+                                                    case 'Sent': return 'bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20';
+                                                    case 'Confirmed': return 'bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20';
+                                                    case 'Delivered': return 'bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
+                                                    case 'Cancelled': return 'bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20';
+                                                    default: return 'bg-slate-200 dark:bg-slate-800 text-slate-500';
                                                 }
                                             };
 
@@ -2457,32 +2511,40 @@ export default function PurchaseOrders() {
                                                                         ? "Admin & Executive Only: Only Administrators and Executives can set Confirmed status"
                                                                         : "Only Managers, Executives, and Admins can update status"
                                                                     : `Click to change status to ${status}`}
-                                                    className={`w-full px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all flex items-center justify-between border ${isCurrent
+                                                    className={`group w-full px-3.5 py-2.5 rounded-2xl text-xs transition-all flex items-center justify-between border ${isCurrent
                                                         ? 'bg-[#e2e8f0]/80 dark:bg-[#101118] border-pink-400/60 dark:border-pink-500/50 shadow-[inset_2px_2px_4px_rgba(166,175,195,0.4)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] cursor-default'
                                                         : isPreviousStatus || isRestricted
                                                             ? 'bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 border-slate-200/40 dark:border-slate-800/40 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-50 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.15)]'
                                                             : 'bg-[#f0f3f8] dark:bg-[#1a1b26] border-white/80 dark:border-[#2a2b38] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] hover:border-pink-300 dark:hover:border-pink-500/40 hover:text-pink-600 dark:hover:text-pink-400 text-slate-700 dark:text-slate-200 active:scale-[0.98] cursor-pointer'
                                                         }`}
                                                 >
-                                                    <div className="flex items-center gap-2.5">
-                                                        <span className={`w-2.5 h-2.5 rounded-full ${getDotColor()} ${isCurrent ? 'ring-2 ring-pink-500/40 shadow-xs' : ''}`} />
-                                                        <span className="font-bold">{status}</span>
+                                                    <div className="flex items-center gap-3 text-left">
+                                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${getIconStyle()}`}>
+                                                            <i className={`fas ${getStatusIcon()} text-xs`} />
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-slate-800 dark:text-slate-100 text-xs leading-tight">{status}</span>
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal leading-tight mt-0.5">{getStatusSubtitle()}</span>
+                                                        </div>
                                                     </div>
 
                                                     {isCurrent ? (
-                                                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200/80 dark:border-pink-900/40 tracking-wider">
+                                                        <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-xl bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-300/80 dark:border-pink-900/50 tracking-wider shadow-xs">
                                                             Current ✓
                                                         </span>
                                                     ) : isPreviousStatus ? (
                                                         <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                                                            <i className="fas fa-ban text-[9px]" /> Past Stage
+                                                            <i className="fas fa-history text-[9px]" /> Past Stage
                                                         </span>
                                                     ) : isRestricted ? (
                                                         <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1">
                                                             <i className="fas fa-lock text-[9px]" /> {requiresAdminOrExec ? 'Admin/Exec' : 'Locked'}
                                                         </span>
                                                     ) : (
-                                                        <i className="fas fa-chevron-right text-[10px] opacity-40 group-hover:opacity-100 transition-opacity" />
+                                                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 group-hover:text-pink-600 dark:group-hover:text-pink-400 group-hover:translate-x-0.5 transition-all">
+                                                            <span>Apply</span>
+                                                            <i className="fas fa-chevron-right text-[9px]" />
+                                                        </div>
                                                     )}
                                                 </button>
                                             );
@@ -2491,21 +2553,33 @@ export default function PurchaseOrders() {
                                 </div>
 
                                 {/* delete purchase order button */}
-                                <div className="pt-2">
-                                    <button
-                                        type="button"
-                                        disabled={pendingRowId === actionModalOrder.id || isSendingActionComm}
-                                        onClick={() => handleDeleteOrder(actionModalOrder.id)}
-                                        className="w-full py-2.5 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 bg-[#ebf0f7] dark:bg-[#14151e] hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200/70 dark:border-rose-900/40 rounded-2xl shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-                                    >
-                                        {pendingRowId === actionModalOrder.id ? (
-                                            <i className="fas fa-spinner fa-spin text-xs" />
-                                        ) : (
-                                            <i className="fas fa-trash-alt text-xs" />
-                                        )}
-                                        <span>Delete Purchase Order</span>
-                                    </button>
-                                </div>
+                                {(() => {
+                                    const isPOLocked = ['sent', 'confirmed', 'delivered', 'completed'].includes((actionModalOrder.status || '').toLowerCase());
+                                    return (
+                                        <div className="pt-2">
+                                            <button
+                                                type="button"
+                                                disabled={pendingRowId === actionModalOrder.id || isSendingActionComm || isPOLocked}
+                                                onClick={() => handleDeleteOrder(actionModalOrder.id)}
+                                                title={isPOLocked ? `This order is in "${actionModalOrder.status}" status and is permanently locked against deletion.` : "Delete Purchase Order"}
+                                                className={`w-full py-2.5 px-4 text-xs font-bold rounded-2xl transition-all flex items-center justify-center gap-2 border ${
+                                                    isPOLocked
+                                                        ? 'bg-[#ebf0f7]/50 dark:bg-[#14151e]/50 border-slate-200/40 dark:border-slate-800/40 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-50 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.15)]'
+                                                        : 'text-rose-600 dark:text-rose-400 bg-[#ebf0f7] dark:bg-[#14151e] hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200/70 dark:border-rose-900/40 shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.03)] cursor-pointer active:scale-95'
+                                                }`}
+                                            >
+                                                {pendingRowId === actionModalOrder.id ? (
+                                                    <i className="fas fa-spinner fa-spin text-xs" />
+                                                ) : isPOLocked ? (
+                                                    <i className="fas fa-lock text-xs" />
+                                                ) : (
+                                                    <i className="fas fa-trash-alt text-xs" />
+                                                )}
+                                                <span>{isPOLocked ? `Order Locked (${actionModalOrder.status})` : 'Delete Purchase Order'}</span>
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>

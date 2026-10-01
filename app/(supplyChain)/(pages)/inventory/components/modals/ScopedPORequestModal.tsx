@@ -23,8 +23,8 @@ export function ScopedPORequestModal({
     suppliers,
     onSuccess,
 }: ScopedPORequestModalProps) {
-    const [quantity, setQuantity] = useState<number>(1);
-    const [unitPrice, setUnitPrice] = useState<number>(0);
+    const [quantity, setQuantity] = useState<number | string>(1);
+    const [unitPrice, setUnitPrice] = useState<number | string>('');
     const [supplierId, setSupplierId] = useState<string>('');
     const [department, setDepartment] = useState<string>('Warehouse');
     const [priority, setPriority] = useState<string>('Normal');
@@ -38,7 +38,7 @@ export function ScopedPORequestModal({
                 ? item.minimum_stock - item.current_stock
                 : 10;
             setQuantity(Math.max(1, suggestedQty));
-            setUnitPrice(item.purchase_price || 0);
+            setUnitPrice(item.purchase_price ? item.purchase_price : '');
             setReason(`Stock replenishment for ${item.item_name} (${item.item_code})`);
 
             // Attempt to match supplier
@@ -59,7 +59,9 @@ export function ScopedPORequestModal({
     }, [isOpen, item, suppliers]);
 
     const totalAmount = useMemo(() => {
-        return (quantity || 0) * (unitPrice || 0);
+        const numQty = typeof quantity === 'string' ? parseFloat(quantity) || 0 : quantity || 0;
+        const numPrice = typeof unitPrice === 'string' ? parseFloat(unitPrice) || 0 : unitPrice || 0;
+        return numQty * numPrice;
     }, [quantity, unitPrice]);
 
     if (!isOpen || !item) return null;
@@ -79,8 +81,16 @@ export function ScopedPORequestModal({
             return;
         }
 
-        if (quantity <= 0) {
+        const numQty = typeof quantity === 'string' ? parseFloat(quantity) || 0 : quantity || 0;
+        const numPrice = typeof unitPrice === 'string' ? parseFloat(unitPrice) || 0 : unitPrice || 0;
+
+        if (numQty <= 0) {
             toast.warning('Order quantity must be at least 1');
+            return;
+        }
+
+        if (unitPrice === '' || numPrice <= 0) {
+            toast.warning('Please enter an estimated unit price greater than ₱0');
             return;
         }
 
@@ -98,8 +108,8 @@ export function ScopedPORequestModal({
             const res = await createScopedPurchaseRequestAction({
                 inventory_item_id: item.id,
                 item_name: item.item_name,
-                quantity: quantity,
-                unit_price: unitPrice,
+                quantity: numQty,
+                unit_price: numPrice,
                 supplier_id: supplierId,
                 supplier_name: selectedSupplier?.name || 'Selected Supplier',
                 requested_by: user.getName() || 'Inventory Officer',
@@ -215,9 +225,10 @@ export function ScopedPORequestModal({
                                         type="number"
                                         min="1"
                                         required
+                                        placeholder="1"
                                         className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-4 py-2.5 text-sm font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pink-500 transition-all font-mono"
                                         value={quantity}
-                                        onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                                        onChange={(e) => setQuantity(e.target.value === '' ? '' : e.target.value)}
                                     />
                                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
                                         {item.unit}
@@ -231,12 +242,13 @@ export function ScopedPORequestModal({
                                 </label>
                                 <input
                                     type="number"
-                                    min="0"
-                                    step="1"
+                                    min="0.01"
+                                    step="any"
                                     required
+                                    placeholder="0.00"
                                     className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-4 py-2.5 text-sm font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pink-500 transition-all font-mono"
                                     value={unitPrice}
-                                    onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
+                                    onChange={(e) => setUnitPrice(e.target.value === '' ? '' : e.target.value)}
                                 />
                             </div>
                         </div>

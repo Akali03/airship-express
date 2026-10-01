@@ -691,7 +691,7 @@ export function IncomingTable({
                         page={page}
                         totalPages={totalPages}
                         totalItems={totalItems}
-                        pageSize={10}
+                        pageSize={30}
                         onPageChange={onPageChange}
                         isLoading={isLoading}
                     />

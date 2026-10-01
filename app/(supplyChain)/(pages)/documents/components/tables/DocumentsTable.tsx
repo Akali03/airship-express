@@ -11,6 +11,7 @@ import { TableContentLoader } from "../../../../components/global/Loader";
 import { TableRowsSkeleton } from "../../../../components/ui/SkeletonLoader";
 import { Pagination } from "../../../../components/global/pagination";
 import { CrudActionButton } from "../../../../components/ui/CrudActionButton";
+import { SearchableDropdown, SearchableDropdownOption } from "../../../../components/ui/SearchableDropdown";
 
 interface DocumentsTableProps {
     documents: Document[];
@@ -89,6 +90,31 @@ export function DocumentsTable({
     itemsPerPage,
     onPageChange
 }: DocumentsTableProps) {
+    const typeOptions: SearchableDropdownOption[] = React.useMemo(() => [
+        { value: 'Official Receipt', label: 'Official Receipt', icon: 'fas fa-receipt' },
+        { value: 'Invoice', label: 'Invoice', icon: 'fas fa-file-invoice-dollar' },
+        { value: 'Delivery Receipt', label: 'Delivery Receipt', icon: 'fas fa-truck-loading' },
+        { value: 'Parcel Condition', label: 'Parcel Condition', icon: 'fas fa-box-open' },
+        { value: 'Courier Handover', label: 'Courier Handover', icon: 'fas fa-handshake' },
+        { value: 'Vehicle Maintenance', label: 'Vehicle Maintenance', icon: 'fas fa-wrench' },
+    ], []);
+
+    const extensionOptions: SearchableDropdownOption[] = React.useMemo(() => [
+        { value: 'jpg', label: '.jpg / .jpeg', subLabel: 'JPEG Image', icon: 'fas fa-file-image' },
+        { value: 'png', label: '.png', subLabel: 'PNG Image', icon: 'fas fa-file-image' },
+        { value: 'pdf', label: '.pdf', subLabel: 'PDF Document', icon: 'fas fa-file-pdf' },
+        { value: 'word', label: '.doc / .docx', subLabel: 'Word Document', icon: 'fas fa-file-word' },
+        { value: 'excel', label: '.xls / .xlsx', subLabel: 'Excel Spreadsheet', icon: 'fas fa-file-excel' },
+    ], []);
+
+    const supplierOptions: SearchableDropdownOption[] = React.useMemo(() => {
+        return suppliers.map((s) => ({
+            value: s.name,
+            label: s.name,
+            icon: 'fas fa-building',
+        }));
+    }, [suppliers]);
+
     return (
         <div className="p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75),-6px_-6px_20px_rgba(255,255,255,0.03),inset_0_1px_1px_rgba(255,255,255,0.07)] flex flex-col">
             {/* filter bar */}
@@ -110,69 +136,67 @@ export function DocumentsTable({
                             />
                         </div>
 
-                        <select
+                        <SearchableDropdown
                             value={typeFilter}
-                            onChange={(e) => onTypeFilterChange(e.target.value)}
-                            aria-label="Filter by document type"
-                            className="w-full sm:w-auto bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3 py-2 text-xs text-slate-900 dark:text-white transition-all cursor-pointer focus:outline-none focus:border-pink-500"
-                        >
-                            <option value="">All Types</option>
-                            <option value="Official Receipt">Official Receipt</option>
-                            <option value="Invoice">Invoice</option>
-                            <option value="Delivery Receipt">Delivery Receipt</option>
-                            <option value="Parcel Condition">Parcel Condition</option>
-                            <option value="Courier Handover">Courier Handover</option>
-                            <option value="Vehicle Maintenance">Vehicle Maintenance</option>
-                        </select>
+                            onChange={onTypeFilterChange}
+                            options={typeOptions}
+                            placeholder="All Types"
+                            allOptionLabel="All Types"
+                            searchPlaceholder="Search document type..."
+                            icon="fas fa-file-alt"
+                            className="w-full sm:w-auto min-w-[130px]"
+                            title="Filter by document type"
+                        />
 
-                        <select
+                        <SearchableDropdown
                             value={extensionFilter}
-                            onChange={(e) => onExtensionFilterChange(e.target.value)}
-                            aria-label="Filter by file extension"
-                            className="w-full sm:w-auto bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3 py-2 text-xs text-slate-900 dark:text-white transition-all cursor-pointer focus:outline-none focus:border-pink-500"
-                        >
-                            <option value="">All Extensions</option>
-                            <option value="jpg">.jpg / .jpeg</option>
-                            <option value="png">.png</option>
-                            <option value="pdf">.pdf</option>
-                            <option value="word">.doc / .docx (Word)</option>
-                            <option value="excel">.xls / .xlsx (Excel)</option>
-                        </select>
+                            onChange={onExtensionFilterChange}
+                            options={extensionOptions}
+                            placeholder="All Extensions"
+                            allOptionLabel="All Extensions"
+                            searchPlaceholder="Search extension..."
+                            icon="fas fa-paperclip"
+                            className="w-full sm:w-auto min-w-[130px]"
+                            title="Filter by file extension"
+                        />
 
-                        <select
+                        <SearchableDropdown
                             value={supplierFilter}
-                            onChange={(e) => onSupplierFilterChange(e.target.value)}
-                            aria-label="Filter by supplier"
-                            className="w-full sm:w-auto bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] rounded-2xl px-3 py-2 text-xs text-slate-900 dark:text-white transition-all cursor-pointer focus:outline-none focus:border-pink-500"
-                        >
-                            <option value="">All Suppliers</option>
-                            {suppliers.map((s) => (
-                                <option key={s.id} value={s.name}>
-                                    {s.name}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={onSupplierFilterChange}
+                            options={supplierOptions}
+                            placeholder="All Suppliers"
+                            allOptionLabel="All Suppliers"
+                            searchPlaceholder="Search supplier..."
+                            icon="fas fa-building"
+                            className="w-full sm:w-auto min-w-[130px]"
+                            title="Filter by supplier"
+                        />
 
                         <div className="flex w-full sm:w-auto items-center justify-between gap-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] p-1">
-                            <input
-                                type="date"
-                                value={dateFrom}
-                                onChange={(e) => onDateFromChange(e.target.value)}
-                                aria-label="Date From"
-                                title="Date From"
-                                className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white cursor-pointer focus:outline-none"
-                            />
+                            <div className="flex items-center gap-1">
+                                <i className="fa-regular fa-calendar text-xs text-slate-400 dark:text-slate-400 pl-2 pointer-events-none" />
+                                <input
+                                    type="date"
+                                    value={dateFrom}
+                                    onChange={(e) => onDateFromChange(e.target.value)}
+                                    aria-label="Date From"
+                                    title="Date From"
+                                    className="w-full sm:w-auto border-0 bg-transparent px-1.5 py-1 text-xs text-slate-900 dark:text-slate-100 cursor-pointer focus:outline-none dark:[color-scheme:dark]"
+                                />
+                            </div>
                             <span aria-hidden="true" className="text-[10px] font-bold text-slate-400 uppercase select-none">
                                 to
                             </span>
-                            <input
-                                type="date"
-                                value={dateTo}
-                                onChange={(e) => onDateToChange(e.target.value)}
-                                aria-label="Date To"
-                                title="Date To"
-                                className="w-full sm:w-auto border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white cursor-pointer focus:outline-none"
-                            />
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="date"
+                                    value={dateTo}
+                                    onChange={(e) => onDateToChange(e.target.value)}
+                                    aria-label="Date To"
+                                    title="Date To"
+                                    className="w-full sm:w-auto border-0 bg-transparent px-1.5 py-1 text-xs text-slate-900 dark:text-slate-100 cursor-pointer focus:outline-none dark:[color-scheme:dark]"
+                                />
+                            </div>
                         </div>
                     </div>
 

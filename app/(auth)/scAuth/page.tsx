@@ -965,6 +965,9 @@ export default function SupplyChainLoginPage() {
                 throw new Error(data.message || 'Invalid OTP');
             }
 
+            toast.success('Security code has been used and verified successfully.');
+            setOtpSuccess('Security code verified and used successfully.');
+
             if (data.userExists) {
                 const isRemember = Boolean(data.remember_me ?? rememberMe);
                 const sessionExpiry = data.expires_at || (isRemember ? new Date(Date.now() + 15 * 24 * 3600000).toISOString() : '');

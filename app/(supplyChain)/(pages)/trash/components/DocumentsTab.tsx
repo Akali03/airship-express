@@ -15,7 +15,7 @@ import { CardsSkeleton, TableRowsSkeleton } from '../../../components/ui/Skeleto
 import { CrudActionButton } from '../../../components/ui/CrudActionButton';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 import { AppButton } from '../../../components/ui/AppButton';
-
+import { SearchableDropdown, SearchableDropdownOption } from '../../../components/ui/SearchableDropdown';
 import { trashCache } from '../utils/trashCache';
 import { TrashRetentionBadge } from './TrashRetentionBadge';
 
@@ -527,6 +527,15 @@ export function DocumentsTab() {
     }, [filteredDocuments, docPage]);
 
     const docTypes = useMemo(() => ['all', ...Array.from(new Set(archivedDocuments.map(doc => doc.document_type)))], [archivedDocuments]);
+    const typeOptions: SearchableDropdownOption[] = useMemo(() => {
+        return docTypes
+            .filter(type => type !== 'all')
+            .map(type => ({
+                value: type,
+                label: type,
+                icon: 'fas fa-file-alt',
+            }));
+    }, [docTypes]);
 
     // selection
     const isAllDocsSelected = filteredDocuments.length > 0 && selectedDocIds.size === filteredDocuments.length;
@@ -698,19 +707,19 @@ export function DocumentsTab() {
                             onChange={handleSearchChange}
                         />
                     </div>
-                    <div className="relative min-w-[150px]">
-                        <select
-                            className="w-full bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all shadow-[inset_1.5px_1.5px_4px_rgba(166,175,195,0.3),inset_-1.5px_-1.5px_4px_rgba(255,255,255,0.85)] dark:shadow-[inset_1.5px_1.5px_4px_rgba(0,0,0,0.65)]"
-                            value={docTypeFilter}
-                            onChange={(e) => setDocTypeFilter(e.target.value)}
-                        >
-                            {docTypes.map(type => (
-                                <option key={type} value={type} className="dark:bg-[#1c1d25]">
-                                    {type === 'all' ? 'All Types' : type}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <SearchableDropdown
+                        value={docTypeFilter}
+                        onChange={(val) => setDocTypeFilter(val || 'all')}
+                        options={typeOptions}
+                        placeholder="All Types"
+                        allOptionLabel="All Types"
+                        searchPlaceholder="Search document type..."
+                        icon="fas fa-file-alt"
+                        className="min-w-[150px]"
+                        title="Filter by document type"
+                        emptyValue="all"
+                        align="right"
+                    />
                     {(docSearchTerm || docTypeFilter !== 'all' || selectedDocIds.size > 0) && (
                         <AppButton
                             type="button"

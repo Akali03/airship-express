@@ -182,6 +182,7 @@ export function NotificationBell() {
     const [isEditingPR, setIsEditingPR] = useState(false);
     const [editPRData, setEditPRData] = useState<any>(null);
     const [isSavingEdits, setIsSavingEdits] = useState(false);
+    const [linkedPO, setLinkedPO] = useState<any>(null);
 
     const [userId, setUserId] = useState<string | null>(() => typeof window !== 'undefined' ? user.getUserId() : null);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -522,7 +523,7 @@ export function NotificationBell() {
                                         id: `notif_${toastKey}`,
                                         description: newNotif.message,
                                         duration: 8000,
-                                        action: {
+                                        action: { 
                                             label: 'Extend',
                                             onClick: () => {
                                                 router.push(targetLink);
@@ -873,6 +874,7 @@ export function NotificationBell() {
         setIsLoadingPR(true);
         setIsEditingPR(false);
         setEditPRData(null);
+        setLinkedPO(null);
 
         try {
             const { data, error } = await supabase
@@ -884,6 +886,15 @@ export function NotificationBell() {
             if (error) throw error;
             setPurchaseRequest(data);
             setEditPRData(data ? JSON.parse(JSON.stringify(data)) : null);
+
+            // Fetch linked purchase order status
+            const { data: po } = await supabase
+                .from('purchase_orders')
+                .select('id, po_number, status')
+                .eq('request_id', notification.po_request_id)
+                .maybeSingle();
+
+            setLinkedPO(po || null);
         } catch (error) {
             console.error('Error fetching purchase request:', error);
             toast.error('Failed to load purchase request details');
@@ -952,6 +963,15 @@ export function NotificationBell() {
 
     const handleSaveEdits = async () => {
         if (!selectedNotification?.po_request_id || !purchaseRequest || !editPRData) return;
+
+        const reqStatus = (purchaseRequest.status || '').toLowerCase();
+        const poStatus = (linkedPO?.status || '').toLowerCase();
+        const isLocked = ['sent', 'confirmed', 'delivered', 'completed'].includes(reqStatus) || ['sent', 'confirmed', 'delivered', 'completed'].includes(poStatus);
+        if (isLocked) {
+            toast.error('This purchase order/request is locked (sent, confirmed, or delivered) and cannot be updated.');
+            setIsEditingPR(false);
+            return;
+        }
 
         setIsSavingEdits(true);
         try {
@@ -1098,6 +1118,8 @@ export function NotificationBell() {
             if (error) throw error;
 
             toast.success('Purchase request rejected');
+            setIsEditingPR(false);
+            setEditPRData(null);
             setShowRejectModal(false);
             setRejectReason('');
             setShowModal(false);
@@ -1714,7 +1736,7 @@ export function NotificationBell() {
                                                         value={editPRData?.description || ''}
                                                         onChange={(e) => setEditPRData({ ...editPRData, description: e.target.value })}
                                                         rows={3}
-                                                        className="w-full text-xs text-slate-800 dark:text-slate-200 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl p-2.5 outline-none focus:border-pink-500 resize-none font-medium transition-all"
+                                                        className="w-full min-h-[75px] text-xs text-slate-800 dark:text-slate-200 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3 py-2.5 outline-none focus:border-pink-500 resize-none font-medium transition-all"
                                                         placeholder="Description of the request..."
                                                     />
                                                 ) : (
@@ -1735,7 +1757,7 @@ export function NotificationBell() {
                                                         value={editPRData?.reason || ''}
                                                         onChange={(e) => setEditPRData({ ...editPRData, reason: e.target.value })}
                                                         rows={3}
-                                                        className="w-full text-xs text-slate-800 dark:text-slate-200 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl p-2.5 outline-none focus:border-pink-500 resize-none font-medium transition-all"
+                                                        className="w-full min-h-[75px] text-xs text-slate-800 dark:text-slate-200 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3 py-2.5 outline-none focus:border-pink-500 resize-none font-medium transition-all"
                                                         placeholder="Business justification..."
                                                     />
                                                 ) : (
@@ -1788,7 +1810,7 @@ export function NotificationBell() {
                                                                                 value={item.name || item.item_name || ''}
                                                                                 onChange={(e) => handleEditItemChange(index, 'name', e.target.value)}
                                                                                 placeholder="Item name"
-                                                                                className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                                className="w-full h-11 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                             />
                                                                         </td>
                                                                         <td className="py-2 px-2 text-center">
@@ -1797,17 +1819,17 @@ export function NotificationBell() {
                                                                                 min="1"
                                                                                 value={item.quantity || 1}
                                                                                 onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
-                                                                                className="w-20 text-center bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                                className="w-20 h-11 text-center bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2.5 py-2.5 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                             />
                                                                         </td>
                                                                         <td className="py-2 px-2 text-right">
                                                                             <input
                                                                                 type="number"
                                                                                 min="0"
-                                                                                step="0.01"
+                                                                                step="1"
                                                                                 value={item.unit_price ?? item.price ?? 0}
                                                                                 onChange={(e) => handleEditItemChange(index, 'unit_price', e.target.value)}
-                                                                                className="w-32 text-right bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                                className="w-32 h-11 text-right bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                             />
                                                                         </td>
                                                                         <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">
@@ -1911,18 +1933,16 @@ export function NotificationBell() {
                                     {(() => {
                                         const normalizedRole = (userRole || '').trim().toLowerCase();
                                         const statusLower = (purchaseRequest.status || '').toLowerCase();
-                                        const isLocked = ['sent', 'confirmed', 'delivered', 'completed'].includes(statusLower);
-                                        const canApproveReject = statusLower === 'pending' && ['admin', 'executive'].includes(normalizedRole);
-                                        const canEdit = !isLocked && (
-                                            (statusLower === 'pending' && ['admin', 'executive', 'manager'].includes(normalizedRole)) ||
-                                            (statusLower === 'approved' && ['admin', 'executive'].includes(normalizedRole))
-                                        );
+                                        const poStatusLower = (linkedPO?.status || '').toLowerCase();
+                                        const isLocked = ['sent', 'confirmed', 'delivered', 'completed'].includes(statusLower) || ['sent', 'confirmed', 'delivered', 'completed'].includes(poStatusLower);
+                                        const canApproveReject = !isLocked && statusLower === 'pending' && ['admin', 'executive'].includes(normalizedRole);
+                                        const canEdit = !isLocked && statusLower === 'pending' && ['admin', 'executive', 'manager'].includes(normalizedRole);
 
                                         if (!canEdit && !canApproveReject) {
                                             return (
                                                 <div className="flex items-center justify-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 py-1 w-full">
                                                     <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                                                    <span>This request is currently {purchaseRequest.status.toLowerCase()}</span>
+                                                    <span>{isLocked ? `This order is locked (${linkedPO?.status ? `PO: ${linkedPO.status}` : purchaseRequest.status}) and cannot be modified` : `This request is currently ${purchaseRequest.status.toLowerCase()}`}</span>
                                                 </div>
                                             );
                                         }

@@ -50,6 +50,16 @@ export function PurchaseOrderModal({
         >,
     });
 
+    const calculatedTotal = useMemo(() => {
+        return formData.items.reduce((sum, item) => {
+            const qty = Number(item.quantity) || 1;
+            const price = Number(item.unit_price ?? item.price ?? 0);
+            return sum + (item.total ? Number(item.total) : qty * price);
+        }, 0);
+    }, [formData.items]);
+
+    const totalAmount = calculatedTotal > 0 ? calculatedTotal : (Number(request?.amount) || 0);
+
     useEffect(() => {
         if (request) {
             const rawItems = request.items || [];
@@ -171,12 +181,9 @@ export function PurchaseOrderModal({
         });
     };
 
-    const totalAmount = formData.items.reduce((sum, item) => sum + item.total, 0);
-
     const handleNext = () => {
-        const hasEmptyPrice = formData.items.some((item) => item.unit_price <= 0);
-        if (hasEmptyPrice) {
-            toast.warning("Please set a valid unit price for all items");
+        if (!formData.delivery_date) {
+            toast.warning("Please select an Expected Delivery Date.");
             return;
         }
         setStep(2);
@@ -265,6 +272,10 @@ export function PurchaseOrderModal({
 
     const createPurchaseOrder = async (status: 'Draft' | 'Sent' = 'Sent'): Promise<boolean> => {
         if (!request) return false;
+        if (!formData.delivery_date) {
+            toast.warning("Please select an Expected Delivery Date.");
+            return false;
+        }
         if (poCreated) return true;
 
         try {
@@ -276,7 +287,7 @@ export function PurchaseOrderModal({
                 supplier_name: request.supplier_name,
                 total_amount: totalAmount,
                 status: status,
-                delivery_date: formData.delivery_date || new Date().toISOString().split("T")[0],
+                delivery_date: formData.delivery_date,
                 notes: formData.notes,
                 items: sanitizedItems,
                 created_by: user.getName(),
@@ -494,9 +505,14 @@ export function PurchaseOrderModal({
 
                             {/* Items List */}
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                                    Items & Unit Prices
-                                </label>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        Approved Items & Pricing
+                                    </label>
+                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1">
+                                        <i className="fas fa-lock text-[9px]" /> Approved Pricing Locked
+                                    </span>
+                                </div>
                                 <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
                                     {formData.items.map((item, index) => (
                                         <div
@@ -511,21 +527,16 @@ export function PurchaseOrderModal({
                                                     Qty: <strong className="text-slate-700 dark:text-slate-300">{item.quantity}</strong>
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-xs text-slate-400">₱</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        min="0"
-                                                        placeholder="Unit price"
-                                                        className="w-24 bg-[#ebf0f7] dark:bg-[#13141d] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.6)] rounded-lg px-2.5 py-1 text-right text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pink-500"
-                                                        value={item.unit_price === 0 ? "" : item.unit_price}
-                                                        onChange={(e) => updateItem(index, e.target.value)}
-                                                    />
+                                            <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                                                <div className="text-right">
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 block">Unit Price (Approved)</span>
+                                                    <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                        ₱{Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </span>
                                                 </div>
                                                 <div className="w-24 text-right">
-                                                    <span className="text-xs font-mono font-bold text-slate-900 dark:text-slate-100">
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 block">Total</span>
+                                                    <span className="text-xs font-mono font-bold text-pink-600 dark:text-pink-400">
                                                         ₱{item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
                                                 </div>
@@ -539,10 +550,12 @@ export function PurchaseOrderModal({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                        Expected Delivery Date
+                                        Expected Delivery Date <span className="text-pink-600 dark:text-pink-400 font-bold">*</span>
                                     </label>
                                     <input
                                         type="date"
+                                        required
+                                        min={new Date().toISOString().split("T")[0]}
                                         className="w-full bg-[#ebf0f7] dark:bg-[#13141d] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.3)] dark:shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.6)] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-pink-500"
                                         value={formData.delivery_date}
                                         onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))}

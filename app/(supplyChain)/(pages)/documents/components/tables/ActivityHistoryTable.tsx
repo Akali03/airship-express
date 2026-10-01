@@ -99,21 +99,26 @@ export function ActivityHistoryTable({
                     </select>
 
                     <div className="flex items-center gap-1.5 rounded-2xl bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65)] p-1">
-                        <input
-                            type="date"
-                            value={activityDateFrom}
-                            onChange={(e) => onActivityDateFromChange(e.target.value)}
-                            className="border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none cursor-pointer"
-                            title="Activity Date From"
-                        />
+                        <div className="flex items-center gap-1">
+                            <i className="fa-regular fa-calendar text-xs text-slate-400 dark:text-slate-400 pl-2 pointer-events-none" />
+                            <input
+                                type="date"
+                                value={activityDateFrom}
+                                onChange={(e) => onActivityDateFromChange(e.target.value)}
+                                className="border-0 bg-transparent px-1.5 py-1 text-xs text-slate-900 dark:text-slate-100 focus:outline-none cursor-pointer dark:[color-scheme:dark]"
+                                title="Activity Date From"
+                            />
+                        </div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase select-none">to</span>
-                        <input
-                            type="date"
-                            value={activityDateTo}
-                            onChange={(e) => onActivityDateToChange(e.target.value)}
-                            className="border-0 bg-transparent px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none cursor-pointer"
-                            title="Activity Date To"
-                        />
+                        <div className="flex items-center gap-1">
+                            <input
+                                type="date"
+                                value={activityDateTo}
+                                onChange={(e) => onActivityDateToChange(e.target.value)}
+                                className="border-0 bg-transparent px-1.5 py-1 text-xs text-slate-900 dark:text-slate-100 focus:outline-none cursor-pointer dark:[color-scheme:dark]"
+                                title="Activity Date To"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>

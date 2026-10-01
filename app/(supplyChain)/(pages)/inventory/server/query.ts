@@ -690,18 +690,21 @@ export async function fetchScannersSummary(): Promise<{ success: boolean; data: 
 }
 
 const FALLBACK_DRIVERS = [
-    "MAGAT, ROSANT CARLO",
-    "MANAAY, ANTHONY",
-    "MELENCION, JAMES",
-    "NUEVAS, KENNETH",
+    "ROSANT CARLO MAGAT",
+    "ANTHONY MANAAY",
+    "JAMES MELENCION",
+    "KENNETH NUEVAS",
+    "BRUCE ESCO",
+    "SHERWIN PAJARILLO",
+    "ANGELO EGOS",
 ];
 
-// get drivers summary with parcel counts
+// get drivers summary with parcel counts using only the outgoing drivers list
 export async function fetchDriversSummary(): Promise<{ success: boolean; data: DriverOption[]; error?: string }> {
     try {
         const [{ data: parcelsData }, { data: empData }] = await Promise.all([
             dbClient.from('parcels').select('driver_name'),
-            dbClient.from('mock_employees').select('id, display_name, position, department, role')
+            dbClient.from('mock_employees').select('id, display_name, position')
         ]);
 
         const driverCounts: Record<string, number> = {};
@@ -714,37 +717,23 @@ export async function fetchDriversSummary(): Promise<{ success: boolean; data: D
             }
         });
 
-        const allDriverNames = new Set<string>(FALLBACK_DRIVERS);
-        (empData || []).forEach((emp: any) => {
-            const pos = (emp.position || '').toLowerCase();
-            const dept = (emp.department || '').toLowerCase();
-            const role = (emp.role || '').toLowerCase();
-            if (
-                pos.includes('rider') ||
-                pos.includes('driver') ||
-                pos.includes('drop-off') ||
-                pos.includes('pick-up') ||
-                dept.includes('rider') ||
-                dept.includes('driver') ||
-                role.includes('rider') ||
-                role.includes('driver')
-            ) {
-                const name = (emp.display_name || '').trim();
-                if (name) {
-                    allDriverNames.add(name);
-                }
-            }
-        });
+        // Use the exact same driver list as /warehousing?tab=outgoing
+        const matchedDrivers = (empData || [])
+            .filter((emp: any) => {
+                const pos = (emp.position || '').toLowerCase().trim();
+                return pos === 'drop-off pick-up rider' || pos === 'airship driver';
+            })
+            .map((emp: any) => (emp.display_name || '').trim())
+            .filter(Boolean);
 
-        // Also add any driver names present on parcels
-        Object.keys(driverCounts).forEach(name => allDriverNames.add(name));
+        const driverNames = matchedDrivers.length > 0
+            ? Array.from(new Set(matchedDrivers)).sort((a, b) => a.localeCompare(b))
+            : FALLBACK_DRIVERS;
 
-        const list: DriverOption[] = Array.from(allDriverNames)
-            .sort((a, b) => a.localeCompare(b))
-            .map(name => ({
-                name,
-                count: driverCounts[name] || 0,
-            }));
+        const list: DriverOption[] = driverNames.map(name => ({
+            name,
+            count: driverCounts[name] || 0,
+        }));
 
         return {
             success: true,

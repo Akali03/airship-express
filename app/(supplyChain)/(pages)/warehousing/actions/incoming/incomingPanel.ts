@@ -39,7 +39,7 @@ export async function fetchParcels(params: FetchParcelsParams = {}) {
                 stats: { scanned: 0, topCourier: '' },
             };
         }
-        const { filter, search, page = 1, limit = 10 } = params;
+        const { filter, search, page = 1, limit = 30 } = params;
         const offset = (page - 1) * limit;
         let query = supabase
             .from('receiving_queue')

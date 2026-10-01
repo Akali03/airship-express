@@ -64,8 +64,8 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
     const autoOpenTarget = editEmailParam || editUserParam;
     const hasAutoOpenedRef = useRef<string | null>(null);
 
-    // Local Search & Debouncing
-    const [localSearchInput, setLocalSearchInput] = useState(externalSearchTerm);
+    // Local Search & Debouncing (automatically populated with edit_email / edit_user)
+    const [localSearchInput, setLocalSearchInput] = useState(autoOpenTarget || externalSearchTerm);
     const debouncedSearch = useDebounce(localSearchInput, 300);
 
     // Filter status
@@ -88,6 +88,14 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const [bulkActionType, setBulkActionType] = useState<'allow' | 'disallow' | 'schedule' | null>(null);
 
+    // Sync autoOpenTarget into search input when navigated from notification
+    useEffect(() => {
+        if (autoOpenTarget) {
+            setLocalSearchInput(autoOpenTarget);
+            setPage(1);
+        }
+    }, [autoOpenTarget]);
+
     // Sync search change to parent if provided
     useEffect(() => {
         if (externalOnSearchTermChange) {
@@ -98,7 +106,9 @@ export const AccessControlTab: React.FC<AccessControlTabProps> = ({
 
     // Keep local input in sync if externalSearchTerm changes from outside
     useEffect(() => {
-        setLocalSearchInput(externalSearchTerm);
+        if (externalSearchTerm !== localSearchInput) {
+            setLocalSearchInput(externalSearchTerm);
+        }
     }, [externalSearchTerm]);
 
     // Reset pagination when filter changes

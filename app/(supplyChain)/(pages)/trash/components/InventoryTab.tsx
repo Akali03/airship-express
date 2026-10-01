@@ -10,6 +10,7 @@ import { Pagination } from '../../../components/global/pagination';
 import { TableContentLoader } from '../../../components/global/Loader';
 import Cards from '../../../components/global/Cards';
 import { CrudActionButton } from '../../../components/ui/CrudActionButton';
+import { SearchableDropdown, SearchableDropdownOption } from '../../../components/ui/SearchableDropdown';
 
 interface ArchivedItem {
     id: string;
@@ -240,14 +241,21 @@ export function InventoryTab() {
         });
     }, [archivedItems, debouncedSearchTerm, categoryFilter]);
 
-    const getPaginatedData = <T,>(data: T[], page: number): T[] => {
-        const startIndex = (page - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return data.slice(startIndex, endIndex);
-    };
+    const paginatedItems = useMemo(() => {
+        const startIndex = (itemPage - 1) * ITEMS_PER_PAGE;
+        return filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredItems, itemPage]);
 
-    const paginatedItems = getPaginatedData(filteredItems, itemPage);
     const itemCategories = useMemo(() => ['all', ...Array.from(new Set(archivedItems.map(item => item.category)))], [archivedItems]);
+    const categoryOptions: SearchableDropdownOption[] = useMemo(() => {
+        return itemCategories
+            .filter(cat => cat !== 'all')
+            .map(cat => ({
+                value: cat,
+                label: cat.charAt(0).toUpperCase() + cat.slice(1),
+                icon: 'fas fa-tags',
+            }));
+    }, [itemCategories]);
     const isAllItemsSelected = filteredItems.length > 0 && selectedItemIds.size === filteredItems.length;
 
     useEffect(() => {
@@ -339,19 +347,19 @@ export function InventoryTab() {
                             onChange={handleSearchChange}
                         />
                     </div>
-                    <div className="relative min-w-[150px]">
-                        <select
-                            className="w-full bg-slate-50/80 dark:bg-[#2a2a2e] border border-slate-200/90 dark:border-[#353746] rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-slate-300 capitalize cursor-pointer focus:bg-white dark:focus:bg-[#23242e] focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 dark:focus:border-pink-500 transition-all shadow-2xs"
-                            value={categoryFilter}
-                            onChange={(e) => setCategoryFilter(e.target.value)}
-                        >
-                            {itemCategories.map(cat => (
-                                <option key={cat} value={cat} className="dark:bg-[#1c1d25]">
-                                    {cat === 'all' ? 'All Categories' : cat}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <SearchableDropdown
+                        value={categoryFilter}
+                        onChange={(val) => setCategoryFilter(val || 'all')}
+                        options={categoryOptions}
+                        placeholder="All Categories"
+                        allOptionLabel="All Categories"
+                        searchPlaceholder="Search category..."
+                        icon="fas fa-tags"
+                        className="min-w-[150px]"
+                        title="Filter by category"
+                        emptyValue="all"
+                        align="right"
+                    />
                     {(searchTerm || categoryFilter !== 'all' || selectedItemIds.size > 0) && (
                         <button
                             className="px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/40 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
