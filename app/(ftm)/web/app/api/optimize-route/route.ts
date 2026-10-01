@@ -1,10 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
-import path from "path";
-import { OptimizeRequest, OptimizeResponse, LatLng, OptimizeStop, VehicleRouteResult } from "../../lib/optimize";
-import { solveHeuristic } from "../../lib/heuristicSolver";
+import { OptimizeRequest, OptimizeResponse, OptimizeStop } from "../../lib/optimize";
 
-const PYTHON_TIMEOUT_MS = 6000;
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+const DESTINATION_NAME = "__FTM_ROUTE_DESTINATION__";
+const SERVICE_TIMEOUT_MS = 55_000;
+const MILES_PER_KILOMETER = 0.621371;
+
+type ServiceOptimizeResponse = {
+  destination?: string | null;
+  order?: unknown;
+  routes?: Array<{ vehicle_id?: number; stops?: unknown; distance_km?: number }>;
+  distance_km?: number;
+  naive_distance_km?: number;
+  solver?: string;
+};
+
+function createServiceError(message: string, status: number, details?: unknown, upstreamStatus?: number) {
+  return Object.assign(new Error(message), { status, details, upstreamStatus });
+}
+
+function getOptimizerUrl(): string {
+  const configuredUrl = process.env.ORTOOLS_SERVICE_URL;
+  if (!configuredUrl) {
+    throw createServiceError("ORTOOLS_SERVICE_URL is not configured on the server.", 503);
+  }
+
+  let url: URL;
+  try {
+    url = new URL(configuredUrl);
+  } catch {
+    throw createServiceError("ORTOOLS_SERVICE_URL must be a valid absolute URL.", 500);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw createServiceError("ORTOOLS_SERVICE_URL must use HTTP or HTTPS.", 500);
+  }
+
+  const path = url.pathname.replace(/\/+$/, "");
+  if (!path.endsWith("/optimize")) url.pathname = `${path}/optimize`;
+  return url.toString();
+}
 
 function isValidLatLng(value: unknown): value is { lat: number; lng: number } {
   if (!value || typeof value !== "object") return false;
@@ -64,40 +100,6 @@ async function fetchOsrmPolyline(
   }
 }
 
-async function fetchOsrmCostMatrix(
-  origin: { lat: number; lng: number },
-  destination: { lat: number; lng: number },
-  stops: Array<{ lat: number; lng: number }>
-): Promise<{ distanceMatrix: number[][]; durationMatrix: number[][] } | null> {
-  try {
-    const coords = [origin, ...stops, destination]
-      .filter((point) => isValidLatLng(point))
-      .map((point) => `${point.lng},${point.lat}`);
-    if (coords.length < 2) return null;
-
-      const url = new URL(`https://router.project-osrm.org/table/v1/driving/${coords.join(";")}`);
-    url.searchParams.set("annotations", "distance,duration");
-    const res = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-
-    const json = await res.json();
-    const distances = json?.distances;
-    const durations = json?.durations;
-    if (!Array.isArray(distances) || !Array.isArray(durations)) return null;
-    if (distances.length !== coords.length || durations.length !== coords.length) return null;
-
-      const distanceMatrix = distances.map((row: unknown[]) => row.map((value) => value == null ? Number.NaN : Number(value) / 1609.344));
-      const durationMatrix = durations.map((row: unknown[]) => row.map((value) => value == null ? Number.NaN : Number(value) / 60));
-      const validMatrix = (matrix: number[][]) => matrix.every((row) => row.length === coords.length && row.every(Number.isFinite));
-    return validMatrix(distanceMatrix) && validMatrix(durationMatrix) ? { distanceMatrix, durationMatrix } : null;
-  } catch {
-    return null;
-  }
-}
-
 function calcDistanceMiles(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 3958.8;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -128,7 +130,7 @@ function computeFuelSavingsPct(baselineDistanceMi: number, optimizedDistanceMi: 
   return Math.max(0, Math.min(100, savingsPct));
 }
 
-function runOrTools(payload: OptimizeRequest): Promise<{
+async function runOrTools(payload: OptimizeRequest): Promise<{
   orderedStopIds: string[];
   routes?: Array<{
     vehicleId: string;
@@ -140,63 +142,122 @@ function runOrTools(payload: OptimizeRequest): Promise<{
   distanceMi: number;
   etaMinutes: number;
 }> {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.join(process.cwd(), "python", "optimize.py");
-    const pythonCommand = process.env.PYTHON_EXECUTABLE || (process.platform === "win32" ? "py" : "python3");
-    const pythonArgs =
-      process.platform === "win32" && !process.env.PYTHON_EXECUTABLE
-        ? ["-3", scriptPath]
-        : [scriptPath];
-    const proc = spawn(pythonCommand, pythonArgs);
+  const url = getOptimizerUrl();
+  if (payload.stops.some((stop) => stop.id === DESTINATION_NAME)) {
+    throw createServiceError("A route stop uses a reserved optimizer identifier.", 400);
+  }
 
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      proc.kill();
-      reject(new Error("OR-Tools process timed out"));
-    }, PYTHON_TIMEOUT_MS);
+  const servicePayload = {
+    depot: { name: ("label" in payload.origin && payload.origin.label) || "Airship Express depot", lat: payload.origin.lat, lng: payload.origin.lng },
+    destination: { name: DESTINATION_NAME, lat: payload.destination.lat, lng: payload.destination.lng },
+    stops: payload.stops.map((stop) => ({ name: stop.id, lat: stop.lat, lng: stop.lng })),
+    num_vehicles: Math.max(1, Math.min(25, Math.floor(payload.vehicleCount || 1))),
+    use_road_distance: true,
+    time_limit_secs: 5,
+  };
+  const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
+  if (process.env.OPTIMIZER_API_KEY) headers["X-API-Key"] = process.env.OPTIMIZER_API_KEY;
 
-    proc.stdout.on("data", (d) => (stdout += d.toString()));
-    proc.stderr.on("data", (d) => (stderr += d.toString()));
-
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(servicePayload),
+      cache: "no-store",
+      signal: AbortSignal.timeout(SERVICE_TIMEOUT_MS),
     });
-
-    proc.on("close", (code) => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        reject(new Error(stderr || `optimize.py exited with code ${code}`));
-        return;
-      }
-      try {
-        resolve(JSON.parse(stdout));
-      } catch (e) {
-        reject(e);
-      }
-    });
-
-    proc.stdin.write(
-      JSON.stringify({
-        origin: payload.origin,
-        destination: payload.destination,
-        stops: payload.stops,
-        availableVehicles: payload.availableVehicles,
-        vehicleCount: payload.vehicleCount,
-        cargoWeightKg: payload.cargoWeightKg,
-        prioritizeFuelEfficiency: payload.prioritizeFuelEfficiency,
-        optimizationMode: payload.optimizationMode,
-        distanceMatrix: payload.distanceMatrix,
-        durationMatrix: payload.durationMatrix,
-      })
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw createServiceError(
+      timedOut ? `OR-Tools service timed out after ${SERVICE_TIMEOUT_MS} ms.` : "Could not connect to the OR-Tools service.",
+      timedOut ? 504 : 502,
+      error instanceof Error ? error.message : String(error)
     );
-    proc.stdin.end();
+  }
+
+  const responseText = await response.text();
+  let serviceResult: ServiceOptimizeResponse;
+  try {
+    serviceResult = JSON.parse(responseText) as ServiceOptimizeResponse;
+  } catch {
+    throw createServiceError(
+      `OR-Tools service returned invalid JSON (HTTP ${response.status}).`,
+      502,
+      responseText.slice(0, 2000),
+      response.status
+    );
+  }
+  if (!response.ok) {
+    const serviceMessage = (serviceResult as any)?.detail || (serviceResult as any)?.error || response.statusText;
+    throw createServiceError(
+      `OR-Tools service returned HTTP ${response.status}: ${serviceMessage || "request failed"}`,
+      502,
+      responseText.slice(0, 2000),
+      response.status
+    );
+  }
+  if (serviceResult.destination !== DESTINATION_NAME) {
+    throw createServiceError(
+      "The deployed OR-Tools service does not support terminal destinations; deploy the updated optimizer service.",
+      502,
+      responseText.slice(0, 2000),
+      response.status
+    );
+  }
+  if (!String(serviceResult.solver || "").toLowerCase().includes("or-tools")) {
+    throw createServiceError("The optimizer service response does not confirm an OR-Tools solve.", 502, responseText.slice(0, 2000), response.status);
+  }
+
+  const stopsById = new Map(payload.stops.map((stop) => [stop.id, stop]));
+  const mapServiceStops = (names: unknown): string[] => {
+    if (!Array.isArray(names)) throw createServiceError("OR-Tools service response has no stop order.", 502, responseText.slice(0, 2000), response.status);
+    const ids = names.map((name) => String(name));
+    if (ids.some((id) => !stopsById.has(id))) {
+      throw createServiceError("OR-Tools service returned an unknown stop identifier.", 502, responseText.slice(0, 2000), response.status);
+    }
+    return ids;
+  };
+  const orderedStopIds = mapServiceStops(serviceResult.order);
+  if (orderedStopIds.length !== payload.stops.length || new Set(orderedStopIds).size !== payload.stops.length) {
+    throw createServiceError("OR-Tools service did not return every route stop exactly once.", 502, responseText.slice(0, 2000), response.status);
+  }
+
+  const rawRoutes = Array.isArray(serviceResult.routes) && serviceResult.routes.length
+    ? serviceResult.routes
+    : [{ stops: orderedStopIds, distance_km: serviceResult.distance_km }];
+  const routes = rawRoutes.map((route, index) => {
+    const routeStopIds = mapServiceStops(route.stops);
+    const routeStops = routeStopIds.map((id) => stopsById.get(id)!);
+    const distanceMi = Number(route.distance_km ?? 0) * MILES_PER_KILOMETER;
+    return {
+      vehicleId: String(route.vehicle_id ?? index + 1),
+      orderedStopIds: routeStopIds,
+      polyline: [payload.origin, ...routeStops.map(({ lat, lng }) => ({ lat, lng })), payload.destination],
+      distanceMi,
+      etaMinutes: Math.max(1, Math.round((distanceMi / 32) * 60)),
+    };
   });
+  const distanceMi = Number(serviceResult.distance_km ?? 0) * MILES_PER_KILOMETER;
+  if (!Number.isFinite(distanceMi) || distanceMi <= 0) {
+    throw createServiceError("OR-Tools service returned an invalid route distance.", 502, responseText.slice(0, 2000), response.status);
+  }
+
+  return {
+    orderedStopIds,
+    routes,
+    distanceMi,
+    etaMinutes: Math.max(1, Math.round((distanceMi / 32) * 60)),
+  };
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as OptimizeRequest;
+  let body: OptimizeRequest;
+  try {
+    body = (await req.json()) as OptimizeRequest;
+  } catch {
+    return NextResponse.json({ error: "A valid JSON request body is required." }, { status: 400 });
+  }
   const safeOrigin = isValidLatLng(body?.origin) ? body.origin : null;
   const safeDestination = isValidLatLng(body?.destination) ? body.destination : null;
   const safeStops = Array.isArray(body?.stops) ? body.stops.filter((stop: any) => isValidLatLng(stop)) : [];
@@ -218,12 +279,8 @@ export async function POST(req: NextRequest) {
   let result: OptimizeResponse;
 
   try {
-    const roadCosts = await fetchOsrmCostMatrix(normalizedBody.origin, normalizedBody.destination, normalizedBody.stops);
-    const solved = await runOrTools({
-      ...normalizedBody,
-      distanceMatrix: roadCosts?.distanceMatrix,
-      durationMatrix: roadCosts?.durationMatrix,
-    });
+    const roadCosts: { distanceMatrix: number[][]; durationMatrix: number[][] } | null = null;
+    const solved = await runOrTools(normalizedBody);
     const orderedStops = solved.orderedStopIds
       .map((id: string) => normalizedBody.stops.find((s: any) => s.id === id))
       .filter(Boolean) as OptimizeStop[];
@@ -362,103 +419,19 @@ export async function POST(req: NextRequest) {
       engine: "or-tools",
     };
   } catch (err) {
-    const fallback = solveHeuristic(normalizedBody.origin, normalizedBody.destination, normalizedBody.stops, {
-      vehicleCount: body.vehicleCount ?? Math.min(3, Math.max(1, normalizedBody.stops.length)),
-      availableVehicles: body.availableVehicles,
+    const failure = err as Error & { status?: number; details?: unknown; upstreamStatus?: number };
+    const status = failure.status || 502;
+    console.error("[optimize-route] OR-Tools service request failed", {
+      message: failure.message || String(err),
+      status,
+      upstreamStatus: failure.upstreamStatus,
+      details: failure.details,
     });
-
-    const routePaths = fallback.routes?.length
-      ? fallback.routes?.map((route: VehicleRouteResult) => ({
-          vehicleId: route.vehicleId,
-          orderedStopIds: route.orderedStopIds,
-          polyline: route.polyline,
-          distanceMi: route.distanceMi,
-          etaMinutes: route.etaMinutes,
-        }))
-      : [
-          {
-            vehicleId: "vehicle-1",
-            orderedStopIds: fallback.orderedStopIds,
-            polyline: fallback.polyline,
-            distanceMi: fallback.distanceMi,
-            etaMinutes: fallback.etaMinutes,
-          },
-        ];
-
-    const fallbackOrderedStops = (fallback.orderedStopIds || [])
-      .map((id: string) => normalizedBody.stops.find((stop: any) => stop.id === id))
-      .filter(Boolean)
-      .map((stop: any) => ({ lat: stop.lat, lng: stop.lng }));
-
-    const warehouseFallbackPolyline = normalizedBody.stops.some((stop: any) => stop.kind === "warehouse")
-      ? buildWarehouseFirstPolyline(normalizedBody.origin, normalizedBody.destination, normalizedBody.stops)
-      : [
-          normalizedBody.origin,
-          ...fallbackOrderedStops,
-          normalizedBody.destination,
-        ];
-
-    const osrmFallbackPolyline = await fetchOsrmPolyline(
-      normalizedBody.origin,
-      normalizedBody.destination,
-      fallbackOrderedStops
-    );
-    const baselineFallbackPolyline = await fetchOsrmPolyline(
-      normalizedBody.origin,
-      normalizedBody.destination,
-      normalizedBody.stops.map((stop: any) => ({ lat: stop.lat, lng: stop.lng }))
-    );
-    const generatedFallbackPolyline = osrmFallbackPolyline?.length
-      ? osrmFallbackPolyline
-      : routePaths[0]?.polyline?.length
-      ? routePaths[0].polyline
-      : fallback.polyline?.length
-      ? fallback.polyline
-      : warehouseFallbackPolyline;
-    const generatedFallbackDistanceMi = calculateRouteDistanceMi(generatedFallbackPolyline);
-    const baselineFallbackDistanceMi = baselineFallbackPolyline?.length
-      ? calculateRouteDistanceMi(baselineFallbackPolyline)
-      : calculateRouteDistanceMi([
-          normalizedBody.origin,
-          ...normalizedBody.stops.map((stop: any) => ({ lat: stop.lat, lng: stop.lng })),
-          normalizedBody.destination,
-        ]);
-    const routePolyline = generatedFallbackDistanceMi > baselineFallbackDistanceMi && baselineFallbackPolyline?.length
-      ? baselineFallbackPolyline
-      : generatedFallbackPolyline;
-    const selectedDistanceMi = roundDistanceMi(calculateRouteDistanceMi(routePolyline));
-    const selectedEtaMinutes = Math.max(1, Math.round((selectedDistanceMi / 32) * 60));
-    const roadRoutePaths = routePaths.map((route, index) => ({
-      ...route,
-      polyline: index === 0 ? routePolyline : route.polyline,
-      distanceMi: index === 0
-        ? selectedDistanceMi
-        : route.distanceMi,
-      etaMinutes: index === 0
-        ? selectedEtaMinutes
-        : route.etaMinutes,
-    }));
-    const totalDistance = selectedDistanceMi;
-    const totalEta = selectedEtaMinutes;
-
-    // Use initial metrics if provided for ETA improvement calculation
-    const fallbackBaselineDistanceMi = roundDistanceMi(body.initialDistanceMi ?? baselineFallbackDistanceMi);
-    const fallbackBaselineEtaMinutes = body.initialEtaMinutes ?? Math.round((fallbackBaselineDistanceMi / 32) * 60);
-    const fallbackEtaImprovementMin = Math.max(0, fallbackBaselineEtaMinutes - totalEta);
-    const fallbackFuelSavingsPct = computeFuelSavingsPct(fallbackBaselineDistanceMi, totalDistance || fallbackBaselineDistanceMi);
-
-    result = {
-      orderedStopIds: fallback.orderedStopIds,
-      routes: roadRoutePaths,
-      polyline: routePolyline,
-      distanceMi: totalDistance,
-      etaMinutes: totalEta,
-      fuelSavingsPct: fallbackFuelSavingsPct,
-      etaImprovementMin: fallbackEtaImprovementMin,
-      baselineDistanceMi: fallbackBaselineDistanceMi,
-      baselineEtaMinutes: fallbackBaselineEtaMinutes,
-      engine: "heuristic-fallback",
-    };
+    return NextResponse.json({
+      error: "OR-Tools optimization failed.",
+      details: failure.message || "The OR-Tools service request failed.",
+      upstreamStatus: failure.upstreamStatus,
+    }, { status });
   }
 
   return NextResponse.json(result);

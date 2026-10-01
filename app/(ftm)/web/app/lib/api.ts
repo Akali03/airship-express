@@ -1,10 +1,9 @@
 import { supabase } from "./supabaseClient";
 import { parcelSupabase } from "./parcelSupabaseClient";
-import { getFtmApiBase } from "./apiBase";
+import { getFtmApiUrl } from "./apiBase";
 
 export async function fetchJson(path: string, opts: RequestInit = {}) {
-  const base = getFtmApiBase() || "http://localhost:8001";
-  const url = path.startsWith("http") ? path : `${base}${path}`;
+  const url = path.startsWith("http") ? path : getFtmApiUrl(path);
   let slowTimer: number | undefined;
 
   const getAccessToken = async () => {
@@ -46,12 +45,11 @@ export async function fetchJson(path: string, opts: RequestInit = {}) {
 }
 
 export async function exportSystemBackup() {
-  const base = getFtmApiBase() || "http://localhost:8001";
   const current = await supabase.auth.getSession();
   const session = current.data.session || (await supabase.auth.refreshSession()).data.session;
   if (!session?.access_token) throw new Error("Your session has expired. Please sign in again.");
 
-  const response = await fetch(`${base}/api/system-backup/export`, {
+  const response = await fetch(getFtmApiUrl("/api/system-backup/export"), {
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
   if (!response.ok) {
@@ -66,14 +64,13 @@ export async function getCurrentProfile() {
 }
 
 export async function uploadProfileAvatar(content: string, onProgress?: (progress: number) => void) {
-  const base = getFtmApiBase() || "http://localhost:8001";
   const { data } = await supabase.auth.getSession();
   const accessToken = data.session?.access_token || (await supabase.auth.refreshSession()).data.session?.access_token;
   if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
 
   return new Promise<{ avatar_url: string }>((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", `${base}/api/profile/avatar`);
+    request.open("POST", getFtmApiUrl("/api/profile/avatar"));
     request.setRequestHeader("Content-Type", "application/json");
     request.setRequestHeader("Authorization", `Bearer ${accessToken}`);
     request.upload.onprogress = (event) => {
@@ -104,11 +101,10 @@ function isIgnorableBackendError(error: unknown) {
 }
 
 function reportBackendLoadFailure(resource: string, error: unknown) {
-  // The local Express API is optional while developing the UI. A connection
-  // refusal should fall back to the in-memory store without a console error.
+  // A connection failure should fall back to the local data store quietly.
   if (error instanceof TypeError && /Failed to fetch|fetch failed/i.test(error.message)) return;
   if (isIgnorableBackendError(error)) return;
-  console.error(`Failed to load ${resource} from backend proxy`, error);
+  console.error(`Failed to load ${resource} from the API route`, error);
 }
 
 async function readSupabaseTable<T = Record<string, unknown>>(table: string, select = "*") {

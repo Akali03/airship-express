@@ -2,8 +2,7 @@ import { supabase } from "./supabaseClient";
 import { parcelSupabase } from "./parcelSupabaseClient";
 
 export async function fetchJson(path: string, opts: RequestInit = {}) {
-  const base = process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
-  const url = path.startsWith("http") ? path : `${base}${path}`;
+  const url = path.startsWith("http") ? path : path.startsWith("/") ? path : `/${path}`;
   const { data: { session } } = await supabase.auth.getSession();
   const headers = new Headers(opts.headers);
   headers.set("Content-Type", "application/json");

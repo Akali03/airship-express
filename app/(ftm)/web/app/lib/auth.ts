@@ -125,10 +125,9 @@ function getSessionIssuerHost(accessToken: string) {
 }
 
 export async function signInWithPassword(email: string, password: string) {
-  const base = process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
   let response: Response;
   try {
-    response = await fetch(`${base}/api/auth/login`, {
+    response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -136,7 +135,7 @@ export async function signInWithPassword(email: string, password: string) {
   } catch {
     return {
       user: null,
-      error: new Error(`Unable to connect to the FTM backend at ${base}. Start the backend server and try again.`),
+      error: new Error("Unable to connect to FTM authentication. Please try again."),
     };
   }
   const body = await response.json().catch(() => ({}));
@@ -212,6 +211,7 @@ export async function signUpWithPassword(
 }
 
 export async function signOut() {
+  await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
   const { error } = await supabase.auth.signOut({ scope: "local" });
   persistAuthUser(null);
   clearPasskeyVerified();
@@ -229,8 +229,7 @@ export async function requestEmailMfaCode(email: string) {
   const trimmedEmail = String(email ?? "").trim();
   if (!trimmedEmail) throw new Error("Email address is required.");
 
-  const base = process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
-  const response = await fetch(`${base}/api/auth/request-otp`, {
+  const response = await fetch("/api/auth/request-otp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: trimmedEmail }),
@@ -277,8 +276,7 @@ export async function verifyEmailMfaCode(email: string, code: string) {
     throw new Error("Enter the 6-digit code from your email.");
   }
 
-  const base = process.env.NEXT_PUBLIC_FTM_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
-  const response = await fetch(`${base}/api/auth/verify-otp`, {
+  const response = await fetch("/api/auth/verify-otp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: trimmedEmail, code: normalizedCode }),

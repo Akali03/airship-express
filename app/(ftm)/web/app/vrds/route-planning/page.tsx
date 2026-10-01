@@ -9,7 +9,6 @@ import { createBulkBooking, createRoutePlan, fetchJson } from "../../lib/api";
 import { getCityCoordinate } from "../../lib/serviceAreas";
 import { getCourierWarehouseLocation, listCourierWarehouses, resolveCourierName, resolveKnownCity } from "../../lib/courierWarehouses";
 import { getParcelGroupKey } from "../../lib/parcelGrouping";
-import { solveHeuristic } from "../../lib/heuristicSolver";
 import { SkeletonMap } from "../../components/PageSkeleton";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -974,14 +973,11 @@ export default function VrdsRoutePlanningPage() {
         prioritizeFuelEfficiency: false,
       }),
     });
+    const responseBody = await res.json().catch(() => ({}));
     if (!res.ok) {
-      console.warn(`optimize-route returned ${res.status}; using local heuristic fallback.`);
-      return solveHeuristic(origin, destination, courierStops, {
-        vehicleCount: 1,
-        availableVehicles: availableVehicleOptions.slice(0, 1),
-      });
+      throw new Error(responseBody.details || responseBody.error || `OR-Tools optimization failed (HTTP ${res.status}).`);
     }
-    return res.json();
+    return responseBody as OptimizeResponse;
   }
 
   /** Optimizes each requested courier's stop list independently and merges
@@ -1005,44 +1001,19 @@ export default function VrdsRoutePlanningPage() {
 
       const settled: { courier: string; stopIds: string[]; data: OptimizeResponse }[] = [];
       for (const [courier, courierStops] of stopsByCourier.entries()) {
-        try {
-          const data = await requestOptimizedRoute(courierStops);
-          const safeOrderedIds = prioritizeWarehouseFirst(courierStops, data.orderedStopIds);
-          const normalizedData: OptimizeResponse = {
-            ...data,
-            orderedStopIds: safeOrderedIds,
-            routes: Array.isArray(data.routes)
-              ? data.routes.map((route) => ({
-                  ...route,
-                  orderedStopIds: prioritizeWarehouseFirst(courierStops, route.orderedStopIds),
-                }))
-              : data.routes,
-          };
-          settled.push({ courier, stopIds: courierStops.map((s) => s.id), data: normalizedData });
-        } catch (err) {
-          console.error(`Optimization failed for ${courier}:`, err);
-          const fallbackPolyline = buildWarehouseFirstPolyline({
-            stops: courierStops,
-            origin,
-            destination,
-            orderedIds: courierStops.map((stop) => stop.id),
-          });
-          const fallbackMetrics = calculatePolylineMetrics(fallbackPolyline);
-          const orderedIds = prioritizeWarehouseFirst(courierStops, courierStops.map((stop) => stop.id));
-          settled.push({
-            courier,
-            stopIds: courierStops.map((s) => s.id),
-            data: {
-              orderedStopIds: orderedIds,
-              polyline: fallbackPolyline,
-              distanceMi: fallbackMetrics.distanceMi,
-              etaMinutes: Math.max(1, fallbackMetrics.etaMinutes),
-              fuelSavingsPct: 0,
-              etaImprovementMin: 0,
-              engine: "heuristic-fallback",
-            },
-          });
-        }
+        const data = await requestOptimizedRoute(courierStops);
+        const safeOrderedIds = prioritizeWarehouseFirst(courierStops, data.orderedStopIds);
+        const normalizedData: OptimizeResponse = {
+          ...data,
+          orderedStopIds: safeOrderedIds,
+          routes: Array.isArray(data.routes)
+            ? data.routes.map((route) => ({
+                ...route,
+                orderedStopIds: prioritizeWarehouseFirst(courierStops, route.orderedStopIds),
+              }))
+            : data.routes,
+        };
+        settled.push({ courier, stopIds: courierStops.map((s) => s.id), data: normalizedData });
       }
 
       const normalizedSettled = settled.map((entry) => {
@@ -1104,6 +1075,10 @@ export default function VrdsRoutePlanningPage() {
       setLastGeneratedResult(generatedResult);
 
       return settled;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "OR-Tools optimization failed.";
+      console.error("Route planning optimization failed:", err);
+      setBookingMessage(message);
     } finally {
       setLoading(false);
     }

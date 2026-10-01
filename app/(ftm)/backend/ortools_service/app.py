@@ -78,6 +78,7 @@ class Location(BaseModel):
 class OptimizePayload(BaseModel):
     depot: Location
     stops: List[Location]
+    destination: Optional[Location] = None
     num_vehicles: int = Field(1, ge=1, le=25, description="Number of drivers/vehicles to split stops across. Defaults to 1 (single-driver route, matches the original behavior).")
     vehicle_capacities: Optional[List[int]] = Field(None, description="Max total demand each vehicle can carry, in the same order as vehicles. Length must equal num_vehicles. Omit to skip capacity constraints entirely.")
     use_road_distance: bool = Field(True, description="Use real road distance via OSRM. Falls back to straight-line distance automatically if OSRM is unreachable.")
@@ -92,6 +93,7 @@ class VehicleRoute(BaseModel):
 
 class OptimizeResult(BaseModel):
     depot: str
+    destination: Optional[str] = None
     order: List[str]
     routes: List[VehicleRoute]
     distance_km: float
@@ -151,8 +153,11 @@ def sequential_distance(matrix: List[List[int]]) -> int:
 
 
 def solve_vrp(distance_matrix: List[List[int]], demands: List[int], num_vehicles: int,
-              vehicle_capacities: Optional[List[int]], time_limit_secs: int):
-    manager = pywrapcp.RoutingIndexManager(len(distance_matrix), num_vehicles, 0)
+              vehicle_capacities: Optional[List[int]], time_limit_secs: int,
+              end_node: Optional[int] = None):
+    starts = [0] * num_vehicles
+    ends = [end_node if end_node is not None else 0] * num_vehicles
+    manager = pywrapcp.RoutingIndexManager(len(distance_matrix), num_vehicles, starts, ends)
     routing = pywrapcp.RoutingModel(manager)
 
     def distance_callback(from_index, to_index):
@@ -213,8 +218,8 @@ def optimize(payload: OptimizePayload):
     if payload.vehicle_capacities and len(payload.vehicle_capacities) != payload.num_vehicles:
         raise HTTPException(status_code=400, detail="vehicle_capacities length must match num_vehicles")
 
-    points = [payload.depot] + payload.stops
-    demands = [0] + [stop.demand for stop in payload.stops]
+    points = [payload.depot] + payload.stops + ([payload.destination] if payload.destination else [])
+    demands = [0] + [stop.demand for stop in payload.stops] + ([0] if payload.destination else [])
     distance_matrix, distance_source = build_distance_matrix(points, payload.use_road_distance)
 
     try:
@@ -224,6 +229,7 @@ def optimize(payload: OptimizePayload):
             payload.num_vehicles,
             payload.vehicle_capacities,
             payload.time_limit_secs,
+            len(points) - 1 if payload.destination else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -256,6 +262,7 @@ def optimize(payload: OptimizePayload):
 
     return OptimizeResult(
         depot=payload.depot.name,
+        destination=payload.destination.name if payload.destination else None,
         order=flattened_order,
         routes=routes,
         distance_km=round(total_distance / 1000, 2),

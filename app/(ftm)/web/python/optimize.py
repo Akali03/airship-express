@@ -81,7 +81,7 @@ def solve(payload):
             "routes": [],
             "distanceMi": 0,
             "etaMinutes": 0,
-            "engine": "or-tools",
+            "engine": "not-run",
         }
 
     location_count = len(stops) + 2
@@ -227,7 +227,7 @@ def solve(payload):
         "routes": routes,
         "distanceMi": round(total_distance, 1),
         "etaMinutes": total_eta,
-        "engine": "or-tools",
+        "engine": "or-tools" if has_road_matrix else "heuristic-fallback",
     }
 
 

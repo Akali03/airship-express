@@ -61,18 +61,18 @@
 // ============================================================================
 
 /**
- * STEP 3: Test Backend API
+ * STEP 3: Test the Next.js API
  * 
- * Ensure backend is running:
- * $ cd app/(ftm)/backend
- * $ npm start
+ * Ensure the FTM Next.js app is running:
+ * $ cd app/(ftm)/web
+ * $ npm run dev
  * 
- * Verify server started on port 8001:
- * GET http://localhost:8001/api/health
- * Response: { "status": "ok" }
+ * Verify the health route on port 3000:
+ * GET http://localhost:3000/api/health
+ * Response: { "ok": true, "sample": 0 }
  * 
  * Test pickup routes:
- * GET http://localhost:8001/api/pickup/parcels
+ * GET http://localhost:3000/api/pickup/parcels
  * Response: { "success": true, "data": { "parcels": [], "total": 0 } }
  */
 
@@ -168,7 +168,7 @@
  * Using Postman or curl:
  * 
  * 1. CREATE ROUTE PLAN
- *    POST http://localhost:8001/api/pickup/route-plans
+ *    POST http://localhost:3000/api/pickup/route-plans
  *    Body: {
  *      "parcelIds": ["parcel-uuid-1", "parcel-uuid-2"],
  *      "pickupDate": "2025-09-01",
@@ -177,27 +177,27 @@
  *    Response: { "success": true, "data": { "id": "route-uuid", ... } }
  * 
  * 2. ASSIGN VEHICLE
- *    POST http://localhost:8001/api/pickup/route-plans/{routeId}/assign-vehicle
+ *    POST http://localhost:3000/api/pickup/route-plans/{routeId}/assign-vehicle
  *    Body: { "vehicleId": "vehicle-uuid" }
  *    Response: { "success": true, "data": { "status": "vehicle_assigned" } }
  * 
  * 3. ASSIGN DRIVER
- *    POST http://localhost:8001/api/pickup/route-plans/{routeId}/assign-driver
+ *    POST http://localhost:3000/api/pickup/route-plans/{routeId}/assign-driver
  *    Body: { "driverId": "driver-uuid" }
  *    Response: { "success": true, "data": { "status": "driver_assigned" } }
  * 
  * 4. START PICKUP
- *    POST http://localhost:8001/api/pickup/route-plans/{routeId}/start
+ *    POST http://localhost:3000/api/pickup/route-plans/{routeId}/start
  *    Body: { "driverId": "driver-uuid" }
  *    Response: { "success": true, "data": { "status": "in_progress" } }
  * 
  * 5. RECORD PARCEL PICKUP
- *    POST http://localhost:8001/api/pickup/route-plans/{routeId}/parcel-pickup
+ *    POST http://localhost:3000/api/pickup/route-plans/{routeId}/parcel-pickup
  *    Body: { "parcelId": "parcel-uuid", "confirmedByDriverId": "driver-uuid" }
  *    Response: { "success": true, "data": { "parcel": { "status": "picked_up" } } }
  * 
  * 6. COMPLETE PICKUP
- *    POST http://localhost:8001/api/pickup/route-plans/{routeId}/complete
+ *    POST http://localhost:3000/api/pickup/route-plans/{routeId}/complete
  *    Body: { "failedParcelIds": [], "notes": "All picked up" }
  *    Response: { "success": true, "data": { "metrics": { "successRate": "100%" } } }
  */
@@ -220,8 +220,8 @@
  * 
  * Backend:
  * ☐ pickupRoutes.js file created
- * ☐ Routes registered in server.js
- * ☐ Server starts without errors
+ * ☐ Next.js App Router handlers are available
+ * ☐ Next.js starts without errors
  * ☐ GET /api/pickup/parcels returns 200
  * ☐ Test parcels exist in database
  * ☐ POST /api/pickup/route-plans accepts valid request

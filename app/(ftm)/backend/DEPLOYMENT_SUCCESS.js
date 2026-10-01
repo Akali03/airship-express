@@ -14,12 +14,10 @@ const DEPLOYMENT_SUMMARY = {
   status: "✅ COMPLETE - ALL SYSTEMS OPERATIONAL",
   deploymentDate: new Date().toISOString(),
   
-  // Backend Server Status
-  backend: {
-    status: "✅ Running",
-    url: "http://localhost:8001",
-    port: 8001,
-    uptime: "Continuous",
+  // Next.js API Runtime Status
+  runtime: {
+    status: "✅ Next.js App Router",
+    apiOrigin: "same-origin",
     database: "Supabase (PostgreSQL)",
     databaseUrl: "https://zhideefngqwwjvnwkrtd.supabase.co"
   },
@@ -176,8 +174,8 @@ const DEPLOYMENT_SUMMARY = {
   // Files Deployed
   files: {
     backend: [
-      "app/(ftm)/backend/routes/pickupRoutes.js - 12 API endpoints (365 lines)",
-      "app/(ftm)/backend/server.js - Express server with pickup routes registered",
+      "app/(ftm)/web/app/api/pickup/[...path]/route.ts - pickup workflow API handler",
+      "app/(ftm)/backend/routes/pickupRoutes.js - framework-neutral pickup workflow handlers",
       "app/(ftm)/backend/migrations/20260901_create_pickup_workflow_tables.sql - Database schema",
       "app/(ftm)/backend/seed-test-data.js - Test data seeder",
       "app/(ftm)/backend/test-pickup-api.js - Automated API test suite",
@@ -299,20 +297,20 @@ const QUICK_START = {
   },
   
   "3_RunAPITests": {
-    command: "cd app/(ftm)/backend && node test-pickup-api.js",
-    verifies: "All 12 endpoints working end-to-end"
+    command: "cd app/(ftm)/web && npm run build",
+    verifies: "Next.js API route handlers compile"
   },
   
   "4_TestManually": {
     examples: [
       {
         method: "GET",
-        endpoint: "http://localhost:8001/api/pickup/parcels",
+        endpoint: "http://localhost:3000/api/pickup/parcels",
         description: "Get all ready parcels"
       },
       {
         method: "POST",
-        endpoint: "http://localhost:8001/api/pickup/route-plans",
+        endpoint: "http://localhost:3000/api/pickup/route-plans",
         body: {
           parcelIds: ["parcel-id-1"],
           pickupDate: "2026-09-01",

@@ -17,10 +17,31 @@
  * L. GET /api/pickup/audit-trail/{id} - Get audit log
  */
 
-const express = require('express');
-const router = express.Router();
 const { getSupabase, getServiceSupabase } = require('../config/db');
 const { validateAssignment, validateVehicleForCourier } = require('../services/courierAssignmentService');
+
+const pickupHandlers = [];
+
+function registerPickupHandler(method, path, handler) {
+  pickupHandlers.push({ method, path, handler });
+}
+
+function findPickupHandler(method, path) {
+  for (const route of pickupHandlers) {
+    if (route.method !== method) continue;
+    const parameterNames = [];
+    const pattern = route.path.split('/').map((segment) => {
+      if (!segment.startsWith(':')) return segment;
+      parameterNames.push(segment.slice(1));
+      return '([^/]+)';
+    }).join('/');
+    const match = path.match(new RegExp(`^${pattern}$`));
+    if (!match) continue;
+    const params = Object.fromEntries(parameterNames.map((name, index) => [name, decodeURIComponent(match[index + 1])]));
+    return { handler: route.handler, params };
+  }
+  return null;
+}
 
 // Helper to get Supabase client
 function getClient() {
@@ -31,7 +52,7 @@ function getClient() {
 // A. GET /api/pickup/parcels
 // Get parcels available for pickup planning
 // ============================================================================
-router.get('/parcels', async (req, res) => {
+registerPickupHandler('GET', '/parcels', async (req, res) => {
   try {
     const supabase = getClient();
     const { status = 'ready_for_pickup', limit = 100, offset = 0 } = req.query;
@@ -76,7 +97,7 @@ router.get('/parcels', async (req, res) => {
 // B. POST /api/pickup/route-plans
 // Create a new route plan
 // ============================================================================
-router.post('/route-plans', async (req, res) => {
+registerPickupHandler('POST', '/route-plans', async (req, res) => {
   try {
     const supabase = getClient();
     const { parcelIds, pickupDate, plannedPickupTime, warehouseLocationId, notes } = req.body;
@@ -216,7 +237,7 @@ router.post('/route-plans', async (req, res) => {
 // C. POST /api/pickup/route-plans/{id}/assign-vehicle
 // Assign a vehicle to route plan
 // ============================================================================
-router.post('/route-plans/:id/assign-vehicle', async (req, res) => {
+registerPickupHandler('POST', '/route-plans/:id/assign-vehicle', async (req, res) => {
   try {
     const supabase = getClient();
     const { id } = req.params;
@@ -325,7 +346,7 @@ router.post('/route-plans/:id/assign-vehicle', async (req, res) => {
 // D. POST /api/pickup/route-plans/{id}/assign-driver
 // Assign a driver to route plan
 // ============================================================================
-router.post('/route-plans/:id/assign-driver', async (req, res) => {
+registerPickupHandler('POST', '/route-plans/:id/assign-driver', async (req, res) => {
   try {
     const supabase = getClient();
     const { id } = req.params;
@@ -417,7 +438,7 @@ router.post('/route-plans/:id/assign-driver', async (req, res) => {
 // E. GET /api/pickup/resources/available
 // Get available vehicles and drivers
 // ============================================================================
-router.get('/resources/available', async (req, res) => {
+registerPickupHandler('GET', '/resources/available', async (req, res) => {
   try {
     const supabase = getClient();
     const { requiredCapacityKg, courierId, courier } = req.query;
@@ -484,7 +505,7 @@ router.get('/resources/available', async (req, res) => {
 // F. POST /api/pickup/route-plans/{id}/start
 // Start pickup operations for a route
 // ============================================================================
-router.post('/route-plans/:id/start', async (req, res) => {
+registerPickupHandler('POST', '/route-plans/:id/start', async (req, res) => {
   try {
     const supabase = getClient();
     const { id } = req.params;
@@ -569,7 +590,7 @@ router.post('/route-plans/:id/start', async (req, res) => {
 // G. POST /api/pickup/route-plans/{id}/parcel-pickup
 // Record a parcel as picked up
 // ============================================================================
-router.post('/route-plans/:id/parcel-pickup', async (req, res) => {
+registerPickupHandler('POST', '/route-plans/:id/parcel-pickup', async (req, res) => {
   try {
     const supabase = getClient();
     const { id } = req.params;
@@ -668,7 +689,7 @@ router.post('/route-plans/:id/parcel-pickup', async (req, res) => {
 // H. POST /api/pickup/route-plans/{id}/complete
 // Complete route operations
 // ============================================================================
-router.post('/route-plans/:id/complete', async (req, res) => {
+registerPickupHandler('POST', '/route-plans/:id/complete', async (req, res) => {
   try {
     const supabase = getClient();
     const { id } = req.params;
@@ -808,7 +829,7 @@ router.post('/route-plans/:id/complete', async (req, res) => {
 // I. GET /api/pickup/route-plans/{id}/remaining-parcels
 // Get parcels that were not picked up
 // ============================================================================
-router.get('/route-plans/:id/remaining-parcels', async (req, res) => {
+registerPickupHandler('GET', '/route-plans/:id/remaining-parcels', async (req, res) => {
   try {
     const supabase = getClient();
     const { id } = req.params;
@@ -847,7 +868,7 @@ router.get('/route-plans/:id/remaining-parcels', async (req, res) => {
 // J. POST /api/pickup/replan
 // Create a follow-up route plan for remaining parcels
 // ============================================================================
-router.post('/replan', async (req, res) => {
+registerPickupHandler('POST', '/replan', async (req, res) => {
   try {
     const supabase = getClient();
     const { previousRoutePlanId, pickupDate, plannedPickupTime } = req.body;
@@ -972,7 +993,7 @@ router.post('/replan', async (req, res) => {
 // K. GET /api/pickup/route-plans
 // List route plans with optional filtering
 // ============================================================================
-router.get('/route-plans', async (req, res) => {
+registerPickupHandler('GET', '/route-plans', async (req, res) => {
   try {
     const supabase = getClient();
     const { status, pickupDate, driverId, limit = 100, offset = 0 } = req.query;
@@ -1067,7 +1088,7 @@ router.get('/route-plans', async (req, res) => {
 // L. GET /api/pickup/audit-trail/{id}
 // Get complete audit trail for a route plan
 // ============================================================================
-router.get('/audit-trail/:id', async (req, res) => {
+registerPickupHandler('GET', '/audit-trail/:id', async (req, res) => {
   try {
     const supabase = getClient();
     const { id } = req.params;
@@ -1095,4 +1116,4 @@ router.get('/audit-trail/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = { findPickupHandler };
