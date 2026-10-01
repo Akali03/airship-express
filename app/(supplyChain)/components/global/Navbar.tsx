@@ -424,6 +424,7 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
     const { openChat, isOpen: isAIOpen, isRobotThinking, isRobotResponding } = useAI();
     const [isOpen, setIsOpen] = useState(false);
     const [isHovering, setIsHovering] = useState(false);
+    const [isMsgHovering, setIsMsgHovering] = useState(false);
     const [isMessengerOpen, setIsMessengerOpen] = useState(false);
 
     useEffect(() => {
@@ -480,44 +481,95 @@ export function ShadUiNav({ onAIClick }: ShadUiNavProps) {
                                     bg-white dark:bg-[#1c1d25] 
                                     p-2 shadow-[0_16px_45px_rgba(0,0,0,0.14),inset_0_1px_0_#ffffff] dark:shadow-[0_20px_50px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md">
 
-                                <Link href="/warehousing" className="group relative rounded-xl 
-                                       border border-slate-200/80 dark:border-[#353746] 
-                                       bg-slate-50 dark:bg-slate-900/60 
-                                       p-2 transition-all duration-150 
-                                       hover:border-pink-300 dark:hover:border-[#67224c] 
-                                       hover:bg-[#ffe6f0] dark:hover:bg-[#341427] 
-                                       shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]
-                                       active:scale-95 cursor-pointer" title="Warehousing">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-slate-600 dark:text-slate-300 
-                                           transition-colors duration-200 
-                                           group-hover:text-pink-600 dark:group-hover:text-pink-300">
-                                        <rect x="3" y="3" width="7" height="7" rx="1"/>
-                                        <rect x="14" y="3" width="7" height="7" rx="1"/>
-                                        <rect x="3" y="14" width="7" height="7" rx="1"/>
-                                        <rect x="14" y="14" width="7" height="7" rx="1"/>
-                                    </svg>
-                                </Link>
+                                {/* Supplier Messenger Button */}
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsMessengerOpen(true);
+                                            setIsOpen(false);
+                                        }}
+                                        onMouseEnter={() => setIsMsgHovering(true)}
+                                        onMouseLeave={() => setIsMsgHovering(false)}
+                                        className="group relative rounded-xl p-1 transition-all duration-75 active:scale-95 focus-visible:outline-none cursor-pointer"
+                                        title="Supplier Messenger"
+                                    >
+                                        <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center">
+                                            <motion.div
+                                                animate={{
+                                                    y: isMsgHovering ? -15 : 0,
+                                                    scale: isMsgHovering ? 1.15 : 1,
+                                                    rotate: isMsgHovering ? [0, -5, 5, -3, 3, 0] : 0,
+                                                }}
+                                                transition={{
+                                                    y: {
+                                                        type: "spring",
+                                                        stiffness: 400,
+                                                        damping: 15,
+                                                    },
+                                                    scale: {
+                                                        duration: 0.2,
+                                                    },
+                                                    rotate: {
+                                                        duration: 0.5,
+                                                        ease: "easeInOut",
+                                                    },
+                                                }}
+                                            >
+                                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#ffe6f0] to-[#ffd1e3] dark:from-[#341427] dark:to-[#4a1c38] border border-pink-300/80 dark:border-[#67224c] shadow-[0_2px_8px_rgba(236,72,153,0.18),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-pink-600 dark:text-pink-300 drop-shadow-sm transition-colors duration-200">
+                                                        <path fillRule="evenodd" d="M4.848 2.771A49.144 49.144 0 0112 2.25c2.43 0 4.817.177 7.152.521 1.942.288 3.348 1.967 3.348 3.904v8.25c0 1.937-1.406 3.616-3.348 3.904a49.208 49.208 0 01-5.152.484v3.136a.75.75 0 01-1.22.583l-3.92-3.136c-1.3-.06-2.58-.19-3.86-.388C3.054 19.308 1.648 17.63 1.648 15.692V6.675c0-1.937 1.406-3.616 3.348-3.904zM8.25 9.75a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25zm4.875 0a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25zm4.875 0a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                            </motion.div>
 
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsMessengerOpen(true);
-                                        setIsOpen(false);
-                                    }}
-                                    className="group relative rounded-xl 
-                                           border border-slate-200/80 dark:border-[#353746] 
-                                           bg-slate-50 dark:bg-slate-900/60 
-                                           p-2 transition-all duration-150 
-                                           hover:border-pink-300 dark:hover:border-[#67224c] 
-                                           hover:bg-[#ffe6f0] dark:hover:bg-[#341427] 
-                                           shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_#ffffff] dark:shadow-[0_2px_6px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]
-                                           active:scale-95 cursor-pointer"
-                                    title="Supplier Messenger"
-                                >
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-pink-600 dark:group-hover:text-pink-300">
-                                        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-                                    </svg>
-                                </button>
+                                            <motion.div
+                                                className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-pink-400/20 blur-sm"
+                                                animate={{
+                                                    width: isMsgHovering ? 20 : 30,
+                                                    height: isMsgHovering ? 2 : 4,
+                                                    opacity: isMsgHovering ? 0.3 : 0.5,
+                                                }}
+                                                transition={{
+                                                    duration: 0.2,
+                                                }}
+                                            />
+
+                                            {isMsgHovering && (
+                                                <motion.div
+                                                    className="absolute inset-0 rounded-full border-2 border-pink-400/50 dark:border-pink-400/30"
+                                                    initial={{ scale: 0.8, opacity: 0 }}
+                                                    animate={{ scale: 1.3, opacity: 0.6 }}
+                                                    exit={{ scale: 0.8, opacity: 0 }}
+                                                    transition={{ duration: 0.3 }}
+                                                />
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {isMsgHovering && (
+                                            <motion.div
+                                                className="absolute -top-16 left-1/2 -translate-x-1/2 whitespace-nowrap z-50 pointer-events-none"
+                                                initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -10, scale: 0.8 }}
+                                                transition={{ duration: 0.1 }}
+                                            >
+                                                <motion.div
+                                                    className="bg-white dark:bg-[#1c1d25] rounded-2xl px-4 py-2 shadow-[0_8px_25px_rgba(0,0,0,0.12),inset_0_1px_0_#ffffff] dark:shadow-[0_10px_30px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] border border-pink-200 dark:border-[#67224c] text-xs sm:text-sm font-semibold text-pink-600 dark:text-pink-300"
+                                                    initial={{ scale: 0.9, opacity: 0 }}
+                                                    animate={{ scale: 1, opacity: 1 }}
+                                                    exit={{ scale: 0.9, opacity: 0 }}
+                                                    transition={{ duration: 0.1 }}
+                                                >
+                                                    Messages
+                                                </motion.div>
+                                                <div className="w-0 h-0 mx-auto border-x-8 border-x-transparent border-t-8 border-t-white dark:border-t-[#1c1d25]" />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
 
                                 <div className="h-7 w-px bg-pink-200/60 dark:bg-[#67224c]"/>
 

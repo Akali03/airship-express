@@ -1685,9 +1685,9 @@ export default function SortingPanel() {
                                         </thead>
                                         <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04]">
                                             {group.parcels.map((parcel, index) => {
-                const isSelected = selectedParcelIds.has(parcel.id);
-                const isDeletable = canDeleteParcel(parcel);
-                return (<tr key={parcel.id} className={`hover:bg-[#ebf0f7]/70 dark:hover:bg-[#14151e]/70 transition-colors duration-150 group ${isSelected ? 'bg-pink-50/50 dark:bg-pink-950/30' : ''}`}>
+                                                const isSelected = selectedParcelIds.has(parcel.id);
+                                                const isDeletable = canDeleteParcel(parcel);
+                                                return (<tr key={`${group.date}-${parcel.id}-${index}`} className={`hover:bg-[#ebf0f7]/70 dark:hover:bg-[#14151e]/70 transition-colors duration-150 group ${isSelected ? 'bg-pink-50/50 dark:bg-pink-950/30' : ''}`}>
                                                         <td data-label="Select" className="text-center py-3.5 px-4">
                                                             <input
                                                                 type="checkbox"
@@ -1962,7 +1962,7 @@ export default function SortingPanel() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04] font-medium">
-                                        {selectedParcels.map((parcel) => (<tr key={parcel.id} className="transition-colors hover:bg-[#ebf0f7]/70 dark:hover:bg-[#14151e]/70">
+                                        {selectedParcels.map((parcel, index) => (<tr key={`${parcel.id}-${index}`} className="transition-colors hover:bg-[#ebf0f7]/70 dark:hover:bg-[#14151e]/70">
                                                 <td className="py-3.5 px-4 sm:px-6 font-mono font-bold text-slate-900 dark:text-slate-100">
                                                     <span className="rounded-xl bg-[#ebf0f7] dark:bg-[#12131b] px-2.5 py-1 border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)] text-slate-800 dark:text-slate-200">
                                                         {parcel.barcode}
@@ -2066,7 +2066,7 @@ export default function SortingPanel() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-200/50 dark:divide-white/[0.04]">
-                                                {courierParcels.map((parcel) => (<tr key={parcel.id} className="transition-colors hover:bg-[#ebf0f7]/60 dark:hover:bg-[#14151e]/60">
+                                                {courierParcels.map((parcel, index) => (<tr key={`${parcel.id}-${index}`} className="transition-colors hover:bg-[#ebf0f7]/60 dark:hover:bg-[#14151e]/60">
                                                         <td className="whitespace-nowrap px-3.5 py-3 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
                                                             <span className="bg-[#ebf0f7] dark:bg-[#12131b] px-2 py-0.5 rounded-lg border border-white/80 dark:border-white/[0.05] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.25)]">
                                                                 {parcel.barcode}

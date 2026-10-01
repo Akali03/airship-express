@@ -4,6 +4,8 @@ export interface RecipientStatus {
     user_id: string;
     is_read: boolean;
     read_at?: string | null;
+    is_deleted?: boolean;
+    deleted?: boolean;
 }
 
 export type RecipientItem = string | RecipientStatus;

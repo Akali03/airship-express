@@ -83,6 +83,30 @@ const PAGE_SIZE = 3;
 const CACHE_KEY_BASE = 'notifications_cache_v4';
 const LEGACY_CACHE_KEY = 'notifications_cache';
 const CACHE_DURATION = 5 * 60 * 1000;
+const DISMISSED_KEY_BASE = 'dismissed_notifications_v2';
+
+function getDismissedSet(userIdentifier: string): Set<string> {
+    if (typeof window === 'undefined') return new Set();
+    try {
+        const key = `${DISMISSED_KEY_BASE}_${(userIdentifier || 'anonymous').toLowerCase().trim()}`;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) return new Set(arr);
+        }
+    } catch {}
+    return new Set();
+}
+
+function addDismissedKeys(userIdentifier: string, keys: string[]) {
+    if (typeof window === 'undefined') return;
+    try {
+        const set = getDismissedSet(userIdentifier);
+        keys.forEach(k => { if (k) set.add(k); });
+        const key = `${DISMISSED_KEY_BASE}_${(userIdentifier || 'anonymous').toLowerCase().trim()}`;
+        localStorage.setItem(key, JSON.stringify(Array.from(set)));
+    } catch {}
+}
 
 // Module-level cache to prevent duplicate toasts across mounted NotificationBell instances (e.g. desktop + mobile) and rapid events
 const recentToastedKeys = new Map<string, number>();
@@ -187,12 +211,14 @@ export function NotificationBell() {
     const [userId, setUserId] = useState<string | null>(() => typeof window !== 'undefined' ? user.getUserId() : null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+    const listContainerRef = useRef<HTMLDivElement>(null);
 
     const getCacheKey = useCallback(() => {
         return `${CACHE_KEY_BASE}_${(userRole || '').toLowerCase()}_${userEmail || 'anon'}`;
     }, [userRole, userEmail]);
 
-    const isNotificationForUser = useCallback((notif: Notification | { role?: string | string[]; user_id?: string | null; creator_email?: string | null; reference_type?: string | null; link?: string | null; title?: string | null; recipient_user_ids?: RecipientItem[] | any[] | null } | string) => {
+    const isNotificationForUser = useCallback((notif: Partial<Notification> | string) => {
         const normalizeRoles = (r: any): string[] => {
             if (!r) return ['all'];
             if (Array.isArray(r)) return r.map((item: any) => String(item).toLowerCase().trim());
@@ -223,6 +249,15 @@ export function NotificationBell() {
         const refType = (notif.reference_type || '').toLowerCase();
         const link = (notif.link || '').toLowerCase();
         const title = (notif.title || '').toLowerCase();
+
+        // 0. If user explicitly deleted/dismissed this notification, block immediately
+        const dismissedSet = getDismissedSet(currentUserId || currentEmail);
+        if (notif.id && dismissedSet.has(notif.id)) {
+            return false;
+        }
+        if (notif.po_request_id && dismissedSet.has(`pr_${notif.po_request_id}`)) {
+            return false;
+        }
 
         // 1. If user deleted/dismissed this notification from their recipient list, block immediately
         if (Array.isArray(notif.recipient_user_ids) && notif.recipient_user_ids.length > 0 && currentUserId) {
@@ -331,15 +366,59 @@ export function NotificationBell() {
         };
     }, []);
 
-    // lock page scroll when dropdown is open
+    // Lock page scroll on mobile overlay only (<640px)
     useEffect(() => {
-        if (isOpen) {
+        if (typeof window === 'undefined') return;
+
+        const isMobile = window.innerWidth < 640;
+        if (isOpen && isMobile) {
             document.body.style.overflow = 'hidden';
         } else {
-            document.body.style.overflow = 'unset';
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
         }
+
         return () => {
-            document.body.style.overflow = 'unset';
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        };
+    }, [isOpen]);
+
+    // Native non-passive wheel isolation to completely prevent wheel propagation to window/Lenis
+    useEffect(() => {
+        const popoverEl = popoverRef.current;
+        if (!isOpen || !popoverEl) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            // Stop wheel bubbling so parent page and Lenis never receive it
+            e.stopPropagation();
+
+            const listEl = listContainerRef.current;
+            if (!listEl) {
+                e.preventDefault();
+                return;
+            }
+
+            const { scrollTop, scrollHeight, clientHeight } = listEl;
+            const isScrollable = scrollHeight > clientHeight;
+
+            // If wheeling outside the scroll list (e.g. header/footer) or if not scrollable
+            if (!isScrollable || !listEl.contains(e.target as Node)) {
+                e.preventDefault();
+                return;
+            }
+
+            // Prevent chaining at boundaries
+            const deltaY = e.deltaY;
+            if ((deltaY < 0 && scrollTop <= 0) || (deltaY > 0 && scrollTop + clientHeight >= scrollHeight - 1)) {
+                e.preventDefault();
+            }
+        };
+
+        popoverEl.addEventListener('wheel', handleWheel, { passive: false });
+
+        return () => {
+            popoverEl.removeEventListener('wheel', handleWheel);
         };
     }, [isOpen]);
 
@@ -590,8 +669,8 @@ export function NotificationBell() {
                 }
                 // Suppress normal transient disconnects / unmount closures (1006) which Supabase handles via auto-reconnect
                 if (err && status !== 'CLOSED') {
-                    const errMsg = String(err?.message || err);
-                    if (!errMsg.includes('1006') && !errMsg.includes('closed')) {
+                    const errMsg = String(err?.message || err).toLowerCase();
+                    if (!errMsg.includes('1006') && !errMsg.includes('closed') && !errMsg.includes('transport failure') && !errMsg.includes('timeout')) {
                         console.warn('[Realtime Notifications] Subscription error:', err);
                     }
                 }
@@ -759,6 +838,14 @@ export function NotificationBell() {
                 }));
             }
 
+            // Record in persistent dismissed set so it never reappears on refresh
+            const userIdentifier = currentUserId || userEmail || (typeof window !== 'undefined' ? user.getEmail() : '');
+            const keysToDismiss = [id];
+            if (target?.po_request_id) {
+                keysToDismiss.push(`pr_${target.po_request_id}`);
+            }
+            addDismissedKeys(userIdentifier, keysToDismiss);
+
             // delete/dismiss from database
             await deleteNotificationForUser(
                 id,
@@ -805,6 +892,15 @@ export function NotificationBell() {
             }
 
             const currentNotifs = [...notifications];
+
+            // Record all currently visible notifications in persistent dismissed set
+            const userIdentifier = currentUserId || userEmail || (typeof window !== 'undefined' ? user.getEmail() : '');
+            const keysToDismiss: string[] = [];
+            currentNotifs.forEach(n => {
+                if (n.id) keysToDismiss.push(n.id);
+                if (n.po_request_id) keysToDismiss.push(`pr_${n.po_request_id}`);
+            });
+            addDismissedKeys(userIdentifier, keysToDismiss);
 
             setNotifications([]);
             setTotalCount(0);
@@ -1269,12 +1365,17 @@ export function NotificationBell() {
                         />
 
                         {/* Main Neumorphic Popover Panel */}
-                        <div className="fixed sm:absolute inset-x-0 top-0 sm:top-full sm:right-0 sm:left-auto mt-0 sm:mt-3 w-full sm:w-[410px] h-[100dvh] sm:h-auto sm:max-h-[580px] 
-                        bg-[#ebf0f7] dark:bg-[#181a24] 
-                        rounded-none sm:rounded-3xl 
-                        border-0 sm:border border-white/80 dark:border-[#27293a] 
-                        shadow-[14px_14px_32px_#c2cad6,-14px_-14px_32px_#ffffff] dark:shadow-[16px_16px_40px_#0a0b10,-8px_-8px_30px_#242636] 
-                        z-50 flex flex-col overflow-hidden animate-in slide-in-from-top-2 duration-200">
+                        <div 
+                            ref={popoverRef}
+                            data-lenis-prevent
+                            className="fixed sm:absolute inset-x-0 top-0 sm:top-full sm:right-0 sm:left-auto mt-0 sm:mt-3 w-full sm:w-[410px] h-[100dvh] sm:h-auto sm:max-h-[580px] 
+                            bg-[#ebf0f7] dark:bg-[#181a24] 
+                            rounded-none sm:rounded-3xl 
+                            border-0 sm:border border-white/80 dark:border-[#27293a] 
+                            shadow-[14px_14px_32px_#c2cad6,-14px_-14px_32px_#ffffff] dark:shadow-[16px_16px_40px_#0a0b10,-8px_-8px_30px_#242636] 
+                            z-50 flex flex-col overflow-hidden animate-in slide-in-from-top-2 duration-200 overscroll-contain"
+                            style={{ overscrollBehavior: 'contain' }}
+                        >
 
                             {/* Neumorphic Header */}
                             <div className="flex items-center justify-between px-5 py-4 
@@ -1343,8 +1444,13 @@ export function NotificationBell() {
                             </div>
 
                             {/* Neumorphic Scrollable List Container */}
-                            <div className="overflow-y-auto flex-1 p-3.5 space-y-3 
-                            scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+                            <div 
+                                ref={listContainerRef}
+                                data-lenis-prevent
+                                className="overflow-y-auto flex-1 p-3.5 space-y-3 
+                                scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain"
+                                style={{ overscrollBehavior: 'contain' }}
+                            >
                                 {isLoading ? (
                                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
                                         <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[#ebf0f7] dark:bg-[#181a24] shadow-[inset_3px_3px_6px_#cbd4e2,inset_-3px_-3px_6px_#ffffff] dark:shadow-[inset_3px_3px_6px_#0d0e14,inset_-3px_-3px_6px_#222533]">

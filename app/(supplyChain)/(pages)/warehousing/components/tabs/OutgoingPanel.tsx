@@ -1339,7 +1339,7 @@ export default function OutgoingPanel({ isVisible = true }) {
                                     const isSelected = selectedIds.has(parcel.id);
                                     return (
                                         <tr
-                                            key={parcel.id}
+                                            key={`${parcel.id}-${index}`}
                                             className={`transition-colors ${isSelected
                                                 ? 'bg-pink-50/40 dark:bg-pink-950/20 hover:bg-pink-50/70 dark:hover:bg-pink-950/35'
                                                 : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/60'
