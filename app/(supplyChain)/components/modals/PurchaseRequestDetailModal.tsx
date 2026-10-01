@@ -433,7 +433,7 @@ export function PurchaseRequestDetailModal({
                                                 <select
                                                     value={editForm?.priority || 'Normal'}
                                                     onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
-                                                    className="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-pink-300 dark:border-pink-800 text-pink-600 dark:text-pink-400 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] focus:outline-none cursor-pointer"
+                                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-pink-300 dark:border-pink-800 text-pink-600 dark:text-pink-400 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] focus:outline-none cursor-pointer"
                                                 >
                                                     <option value="Low">Low Priority</option>
                                                     <option value="Normal">Normal Priority</option>
@@ -445,7 +445,7 @@ export function PurchaseRequestDetailModal({
                                                     <select
                                                         value={editForm?.status || request.status || 'Pending'}
                                                         onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                                                        className="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-indigo-300 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] focus:outline-none cursor-pointer"
+                                                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#e4ebf5] dark:bg-[#111218] border border-indigo-300 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] focus:outline-none cursor-pointer"
                                                     >
                                                         <option value="Pending">Pending</option>
                                                         <option value="Approved">Approved</option>
@@ -528,7 +528,7 @@ export function PurchaseRequestDetailModal({
                                             value={editForm?.reason || ''}
                                             onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
                                             rows={2}
-                                            className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] resize-none"
+                                            className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)] resize-none"
                                             placeholder="Provide reason for request"
                                         />
                                     ) : (
@@ -579,7 +579,7 @@ export function PurchaseRequestDetailModal({
                                                                         value={item.name || item.item_name || ''}
                                                                         onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
                                                                         placeholder="Item name"
-                                                                        className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                        className="w-full h-9 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                     />
                                                                 </td>
                                                                 <td className="py-2 px-2 text-center">
@@ -588,17 +588,17 @@ export function PurchaseRequestDetailModal({
                                                                         min="1"
                                                                         value={item.quantity || 1}
                                                                         onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                                                                        className="w-20 text-center bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                        className="w-20 h-9 text-center bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-2 py-2 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                     />
                                                                 </td>
                                                                 <td className="py-2 px-2 text-right">
                                                                     <input
                                                                         type="number"
                                                                         min="0"
-                                                                        step="0.01"
+                                                                        step="1"
                                                                         value={item.unit_price ?? item.price ?? 0}
                                                                         onChange={(e) => handleItemChange(idx, 'unit_price', e.target.value)}
-                                                                        className="w-24 text-right bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-xl px-2 py-1 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
+                                                                        className="w-24 h-9 text-right bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] rounded-lg px-2 py-2 text-xs text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:border-pink-500 shadow-[inset_1px_1px_3px_rgba(166,175,195,0.3)]"
                                                                     />
                                                                 </td>
                                                                 <td className="py-2 px-2.5 text-right font-bold text-slate-900 dark:text-white font-mono">

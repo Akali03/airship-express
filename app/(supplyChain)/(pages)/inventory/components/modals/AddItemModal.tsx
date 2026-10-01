@@ -1,16 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { sanitizeText } from '../../../../components/global/sanitize';
 import { AppButton } from '../../../../components/ui/AppButton';
 import Portal from '../../../../components/client/Portal';
+import { supabase } from '../../../../lib/services/client/supabase';
 
 export interface AddItemModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (item: any) => Promise<void>;
-    suppliers?: Array<{ id: string; name: string }>;
+    suppliers?: Array<{ id: string | number; name: string }>;
     loading?: boolean;
 }
 
@@ -21,6 +22,9 @@ export function AddItemModal({
     suppliers = [],
     loading = false
 }: AddItemModalProps) {
+    const [localSuppliers, setLocalSuppliers] = useState<Array<{ id: string | number; name: string }>>(suppliers);
+    const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
+
     const [formData, setFormData] = useState({
         item_code: '',
         item_name: '',
@@ -30,21 +34,92 @@ export function AddItemModal({
         minimum_stock: 10,
         storage_location: '',
         supplier: '',
-        purchase_price: 0,
+        purchase_price: '' as number | string,
         description: '',
         status: 'In Stock'
     });
+
+    useEffect(() => {
+        if (suppliers && suppliers.length > 0) {
+            setLocalSuppliers(suppliers);
+        }
+    }, [suppliers]);
+
+    useEffect(() => {
+        if (isOpen && (!localSuppliers || localSuppliers.length === 0)) {
+            let isMounted = true;
+            setIsLoadingSuppliers(true);
+
+            const loadSuppliers = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('suppliers')
+                        .select('id, name')
+                        .order('name');
+
+                    if (isMounted && !error && data && data.length > 0) {
+                        setLocalSuppliers(data);
+                    }
+                } catch (err) {
+                    console.error('Error fetching suppliers:', err);
+                } finally {
+                    if (isMounted) {
+                        setIsLoadingSuppliers(false);
+                    }
+                }
+            };
+
+            loadSuppliers();
+
+            return () => {
+                isMounted = false;
+            };
+        }
+    }, [isOpen, localSuppliers]);
+
+    // Reset form when opened
+    useEffect(() => {
+        if (isOpen) {
+            setFormData({
+                item_code: '',
+                item_name: '',
+                category: 'Packaging Materials',
+                unit: 'pcs',
+                current_stock: 0,
+                minimum_stock: 10,
+                storage_location: '',
+                supplier: '',
+                purchase_price: '',
+                description: '',
+                status: 'In Stock'
+            });
+        }
+    }, [isOpen]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (loading) return;
 
-        if (!formData.item_code || !formData.item_name || !formData.category || !formData.unit) {
+        if (!formData.item_code.trim() || !formData.item_name.trim() || !formData.category || !formData.unit.trim()) {
             toast.warning('Please fill in all required fields');
             return;
         }
 
-        await onSave(formData);
+        if (!formData.supplier) {
+            toast.warning('Please select a supplier');
+            return;
+        }
+
+        const numericPrice = Number(formData.purchase_price);
+        if (formData.purchase_price === '' || isNaN(numericPrice) || numericPrice <= 0) {
+            toast.warning('Please enter a valid unit purchase price');
+            return;
+        }
+
+        await onSave({
+            ...formData,
+            purchase_price: numericPrice
+        });
         onClose();
     };
 
@@ -99,7 +174,7 @@ export function AddItemModal({
                                     Item Code <span className="text-pink-500 dark:text-pink-400">*</span>
                                 </label>
                                 <input
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
                                     placeholder="e.g., TAPE-001"
                                     value={formData.item_code}
                                     onChange={(e) => setFormData({ ...formData, item_code: e.target.value })}
@@ -113,7 +188,7 @@ export function AddItemModal({
                                     Item Name <span className="text-pink-500 dark:text-pink-400">*</span>
                                 </label>
                                 <input
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
                                     placeholder="e.g., Packing Tape"
                                     value={formData.item_name}
                                     onChange={(e) => setFormData({ ...formData, item_name: sanitizeText(e.target.value) })}
@@ -127,7 +202,7 @@ export function AddItemModal({
                                     Category <span className="text-pink-500 dark:text-pink-400">*</span>
                                 </label>
                                 <select
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer appearance-none disabled:opacity-50"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer appearance-none disabled:opacity-50"
                                     style={{
                                         backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                                         backgroundPosition: 'right 0.75rem center',
@@ -154,7 +229,7 @@ export function AddItemModal({
                                     Unit of Measure <span className="text-pink-500 dark:text-pink-400">*</span>
                                 </label>
                                 <input
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
                                     placeholder="e.g., rolls, pcs, boxes"
                                     value={formData.unit}
                                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
@@ -171,7 +246,7 @@ export function AddItemModal({
                             <span>Stock Levels</span>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-[#ebf0f7] dark:bg-[#14151e] p-3.5 rounded-2xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-[#ebf0f7] dark:bg-[#14151e] p-3.5 rounded-xl border border-white/80 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.25)]">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                     Current Stock <span className="text-pink-500 dark:text-pink-400">*</span>
@@ -179,7 +254,7 @@ export function AddItemModal({
                                 <input
                                     type="number"
                                     min="0"
-                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
+                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-lg px-3.5 py-2 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
                                     placeholder="0"
                                     value={formData.current_stock}
                                     onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
@@ -195,7 +270,7 @@ export function AddItemModal({
                                 <input
                                     type="number"
                                     min="1"
-                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
+                                    className="w-full bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-lg px-3.5 py-2 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
                                     placeholder="10"
                                     value={formData.minimum_stock}
                                     onChange={(e) => setFormData({ ...formData, minimum_stock: parseInt(e.target.value) || 0 })}
@@ -218,7 +293,7 @@ export function AddItemModal({
                                     Storage Location
                                 </label>
                                 <input
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
                                     placeholder="e.g., Aisle 3, Rack B, Shelf 2"
                                     value={formData.storage_location}
                                     onChange={(e) => setFormData({ ...formData, storage_location: e.target.value })}
@@ -228,10 +303,10 @@ export function AddItemModal({
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                    Supplier
+                                    Supplier <span className="text-pink-500 dark:text-pink-400">*</span>
                                 </label>
                                 <select
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer appearance-none disabled:opacity-50"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-pink-500 transition-all cursor-pointer appearance-none disabled:opacity-50"
                                     style={{
                                         backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                                         backgroundPosition: 'right 0.75rem center',
@@ -240,10 +315,11 @@ export function AddItemModal({
                                     }}
                                     value={formData.supplier}
                                     onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                                    disabled={loading}
+                                    required
+                                    disabled={loading || isLoadingSuppliers}
                                 >
-                                    <option value="">Select supplier</option>
-                                    {suppliers.map((s) => (
+                                    <option value="">{isLoadingSuppliers ? 'Loading suppliers...' : 'Select supplier'}</option>
+                                    {localSuppliers.map((s) => (
                                         <option key={s.id} value={s.name}>{s.name}</option>
                                     ))}
                                 </select>
@@ -251,20 +327,21 @@ export function AddItemModal({
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                    Unit Purchase Price
+                                    Unit Purchase Price <span className="text-pink-500 dark:text-pink-400">*</span>
                                 </label>
                                 <div className="relative">
-                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 font-medium text-xs sm:text-sm">
+                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 font-semibold text-xs sm:text-sm">
                                         ₱
                                     </span>
                                     <input
                                         type="number"
-                                        min="0"
-                                        step="0.01"
-                                        className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl pl-8 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
-                                        placeholder="0.00"
+                                        min="1"
+                                        step="1"
+                                        className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg pl-8 pr-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all disabled:opacity-50"
+                                        placeholder="0"
                                         value={formData.purchase_price}
-                                        onChange={(e) => setFormData({ ...formData, purchase_price: parseFloat(e.target.value) || 0 })}
+                                        onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                                        required
                                         disabled={loading}
                                     />
                                 </div>
@@ -275,7 +352,7 @@ export function AddItemModal({
                                     Description / Notes
                                 </label>
                                 <textarea
-                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none disabled:opacity-50"
+                                    className="w-full bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all resize-none disabled:opacity-50"
                                     rows={2}
                                     placeholder="Brief description or handling notes for this item..."
                                     value={formData.description}
@@ -314,4 +391,4 @@ export function AddItemModal({
     );
 }
 
-export default AddItemModal;
+export default AddItemModal;

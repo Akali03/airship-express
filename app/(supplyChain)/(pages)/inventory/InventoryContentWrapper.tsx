@@ -739,8 +739,13 @@ export default function InventoryClient() {
     }, []);
 
     const openAddItemModal = useCallback(() => {
+        if (suppliers.length === 0) {
+            fetchSuppliers().then(res => {
+                if (res.success && res.data) setSuppliers(res.data);
+            }).catch(() => {});
+        }
         setShowAddModal(true);
-    }, []);
+    }, [suppliers.length]);
 
     // Memoize parcel grouping to prevent recalculating on unrelated renders
     const filteredGroupedParcels = useMemo(() => {

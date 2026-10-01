@@ -34,6 +34,46 @@ export const DEFAULT_TIME_START = '07:00';
 export const DEFAULT_TIME_END = '17:00';
 
 const SETTINGS_ROW_ID = 'user_access_control';
+export const BUSINESS_TIMEZONE = 'Asia/Manila';
+
+/**
+ * Helper to get current day name and total minutes in Philippine Time (Asia/Manila)
+ */
+export function getBusinessTime(timeZone = BUSINESS_TIMEZONE) {
+    try {
+        const now = new Date();
+        const dayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone });
+        const currentDay = dayFormatter.format(now);
+
+        const timeFormatter = new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: false,
+            timeZone,
+        });
+        const parts = timeFormatter.formatToParts(now);
+        const hours = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+        const minutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+        const safeHours = hours === 24 ? 0 : hours;
+
+        return {
+            currentDay,
+            currentHours: safeHours,
+            currentMinutes: minutes,
+            currentTotalMinutes: safeHours * 60 + minutes,
+        };
+    } catch {
+        const now = new Date();
+        const currentHours = now.getHours();
+        const currentMinutes = now.getMinutes();
+        return {
+            currentDay: now.toLocaleDateString('en-US', { weekday: 'long' }),
+            currentHours,
+            currentMinutes,
+            currentTotalMinutes: currentHours * 60 + currentMinutes,
+        };
+    }
+}
 
 /**
  * Fetch all user access control rules from public.sessions table (with fallback to sc_system_settings)
@@ -42,7 +82,7 @@ export async function getAllUserAccessRules(): Promise<Record<string, UserAccess
     try {
         const rulesMap: Record<string, UserAccessRule> = {};
 
-        // 1. Fetch from sessions table
+        // 1. Fetch from sessions table ordered by updated_at DESC so most recent sessions take priority
         const { data: sessionsData, error: sessionErr } = await supabaseAdmin
             .from('sessions')
             .select(`
@@ -55,12 +95,14 @@ export async function getAllUserAccessRules(): Promise<Record<string, UserAccess
                 allowed_time_end,
                 auth_requested,
                 auth_requested_at,
+                updated_at,
                 users (
                     display_name,
                     role,
                     department
                 )
-            `);
+            `)
+            .order('updated_at', { ascending: false });
 
         if (!sessionErr && Array.isArray(sessionsData)) {
             sessionsData.forEach((s: any) => {
@@ -361,10 +403,8 @@ export async function validateUserLoginAuthorization(params: {
         return { allowed: true, isConfigured: true, rule };
     }
 
-    // Check allowed days
-    const now = new Date();
-    // Get current day name in user's timezone (Monday, Tuesday, etc.)
-    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+    // Check allowed days in Philippine business timezone (Asia/Manila)
+    const { currentDay, currentTotalMinutes } = getBusinessTime(BUSINESS_TIMEZONE);
     const allowedDays = rule.allowed_days && rule.allowed_days.length > 0
         ? rule.allowed_days
         : DEFAULT_ALLOWED_DAYS;
@@ -382,10 +422,6 @@ export async function validateUserLoginAuthorization(params: {
     // Check allowed time window (e.g. 07:00 to 17:00 / 7am to 5pm)
     const startTimeStr = rule.allowed_time_start || DEFAULT_TIME_START;
     const endTimeStr = rule.allowed_time_end || DEFAULT_TIME_END;
-
-    const currentHours = now.getHours();
-    const currentMinutes = now.getMinutes();
-    const currentTotalMinutes = currentHours * 60 + currentMinutes;
 
     const [startH, startM] = startTimeStr.split(':').map(Number);
     const [endH, endM] = endTimeStr.split(':').map(Number);
