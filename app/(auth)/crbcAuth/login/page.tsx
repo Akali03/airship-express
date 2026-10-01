@@ -3,6 +3,7 @@ import { customerServiceLogin as signIn } from "@/app/(crbc)/actions/auth"
 import { redirect } from "next/navigation"
 import Image from "next/image"
 import { getCurrentUser } from "@/app/(crbc)/library/auth/getCurrentUser"
+import AirshipExpressLogo from "../../../../public/images/airship.png"
 
 export default async function StaffLogin() {
     const user = await getCurrentUser();
@@ -31,7 +32,7 @@ export default async function StaffLogin() {
                 </svg>
 
                 <div className="flex items-center gap-3 relative z-10">
-                    <Image src="/images/airship.png" alt="Logo" width={100} height={100} className="h-auto" />
+                    <Image src={AirshipExpressLogo} alt="Logo" width={100} height={100} className="h-auto" />
                 </div>
 
                 <div className="relative z-10 max-w-sm mb-auto mt-auto">
@@ -46,7 +47,7 @@ export default async function StaffLogin() {
 
             <div className="flex-1 flex flex-col items-center justify-center px-4">
                 <div className="lg:hidden mb-8 flex items-center gap-3">
-                    <Image src="/images/airship.png" alt="Logo" width={100} height={100} className="h-auto" />
+                    <Image src={AirshipExpressLogo} alt="Logo" width={100} height={100} className="h-auto" />
                 </div>
 
                 <div className="w-full max-w-sm">

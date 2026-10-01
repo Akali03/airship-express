@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { getCurrentUser } from "@/app/(crbc)/library/auth/getCurrentUser"
+import AirshipExpressLogo from "../../../../public/images/airship.png"
 
 export default async function Register() {
       const user = await getCurrentUser();
@@ -32,13 +33,13 @@ export default async function Register() {
                 </svg>
 
                 <div className="flex items-center gap-3 relative z-10">
-                    <Image src="/images/airship.png" alt="Logo" width={36} height={36} className="h-auto"/>
+                    <Image src={AirshipExpressLogo} alt="Logo" width={36} height={36} className="h-auto"/>
                     <span className="text-foreground text-lg font-semibold tracking-wide">Airship</span>
                 </div>
 
               <div className="relative z-10 max-w-sm mb-auto mt-auto">
-                    <p className="text-foreground text-2xl font-semibold leading-snug">
-                        Create your account in a minute.
+                        <p className="text-foreground text-2xl font-semibold leading-snug">
+                            Create your account in a minute.
                     </p>
                     <p className="text-muted text-sm mt-3">
                         Track shipments, view past orders, and get updates as they happen.

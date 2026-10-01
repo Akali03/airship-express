@@ -9,6 +9,7 @@ import {
     Users, FileText, FolderOpen, BarChart2, LogOut,
     ChevronDown, Menu, Settings,
 } from "lucide-react"
+import AirshipExpressLogo from "../../../../public/images/airship.png"
 
 const topModules = [
     { href: "/crbc/dashboard", label: "Dashboard", icon: BarChart2 },
@@ -76,7 +77,7 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                 {/* Logo */}
                 <div className="h-14 flex bg-background items-center gap-2.5 px-4 border-b border-line shrink-0">
                     {!collapsed && (
-                        <Image src="/images/airship.png" alt="Logo" width={36} height={36} className="shrink-0 h-auto" />
+                        <Image src={AirshipExpressLogo} alt="Logo" width={36} height={36} className="shrink-0 h-auto" />
                     )}
                     {!collapsed && (
                         <div>

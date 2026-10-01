@@ -23,6 +23,7 @@ import { useTheme } from "@/app/components/ThemeProvider"
 import type { Customers as Customer } from "../../types/customer"
 import type { User as AuthUser } from "@supabase/supabase-js"
 import Image from "next/image"
+import AirshipExpressLogo from "../../../../public/images/airship.png"
 
 const nav = [
     { href: "/customer/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -56,7 +57,7 @@ export default function CustomerNavbar({ customer, user }: CustomerNavbarProps) 
         <>
             <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-background border-b border-line flex items-center px-4 gap-4">
                 {/* Brand */}
-                <Image src="/images/airship.png" alt="Logo" width={36} height={36} className="shrink-0 w-auto" />
+                <Image src={AirshipExpressLogo} alt="Logo" width={36} height={36} className="shrink-0 w-auto" />
              
 
                 {/* Nav links — desktop */}
