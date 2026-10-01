@@ -11,11 +11,15 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-2. Run the service:
+2. Run the FastAPI service that the Express backend calls. From this directory:
 
 ```bash
-python optimize_service.py
+python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-The service will listen on port 8000 by default and expose POST /optimize.
-Request payload: { depot: {lat,lng,name}, stops: [{lat,lng,name}, ...] }
+The service exposes `GET /health` and `POST /optimize`. The Express backend
+defaults to `http://localhost:8000/optimize` (`ORTOOLS_SERVICE_URL` can override
+it). This FastAPI app uses OR-Tools and requests road distances from OSRM; if
+OSRM is unavailable, it falls back to straight-line distances.
+
+`optimize_service.py` is a legacy Flask implementation and does not use OSRM.

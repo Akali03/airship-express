@@ -46,12 +46,12 @@ function generateOtpCode() {
 
 function getSmtpConfig() {
   return {
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    host: process.env.FTM_SMTP_HOST || process.env.SMTP_HOST,
+    port: Number(process.env.FTM_SMTP_PORT || process.env.SMTP_PORT || 587),
+    secure: String(process.env.FTM_SMTP_SECURE || process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+    user: process.env.FTM_SMTP_USER || process.env.SMTP_USER,
+    pass: process.env.FTM_SMTP_PASS || process.env.SMTP_PASS,
+    from: process.env.FTM_SMTP_FROM || process.env.SMTP_FROM || process.env.FTM_SMTP_USER || process.env.SMTP_USER,
   };
 }
 

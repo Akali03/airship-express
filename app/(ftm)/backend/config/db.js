@@ -43,7 +43,7 @@ const initSupabase = () => {
     console.warn('HR Supabase env vars not configured. HR bridge endpoints will return 503.');
   }
 
-  authSupabase = process.env.FTM_AUTH_PROVIDER === 'hr' ? hrSupabase : supabase;
+  authSupabase = supabase;
   console.log('Supabase URL:', supabaseUrl);
   console.log('Supabase client initialized');
   return supabase;
