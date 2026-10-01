@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -11,7 +11,6 @@ import {
   Pencil,
   Archive,
   X,
-  Plus,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -20,9 +19,15 @@ import {
   Eye,
   Check,
   Clock,
+  Inbox,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { useShell } from "../../components/ShellContext";
 import PageHeader from "../../components/PageHeader";
+import SpncAssistant from "../../components/SpncAssistant";
 
 const TYPES: { label: string; value: string }[] = [
   { label: "Carrier", value: "carrier" },
@@ -39,8 +44,29 @@ const STATUSES: { label: string; value: string }[] = [
   { label: "Inactive", value: "inactive" },
 ];
 const PAGE_SIZE = 5;
+const REQUESTS_PAGE_SIZE = 5; // requests shown per page in the Requests table
 const RECENT_SEARCHES_KEY = "service_providers_recent_searches";
 const MAX_RECENT_SEARCHES = 5;
+
+// Anomaly alert highlight: which table column shows each field, so the right cell gets the red border.
+// Fields without their own column (address, country, rating) map to the closest column.
+const FIELD_TO_COLUMN: Record<string, string> = {
+  name: "Provider",
+  contract_ref: "Provider",
+  department: "Department",
+  agency: "Agency",
+  type: "Provider Type",
+  contact_person: "Contact",
+  email: "Contact",
+  phone: "Contact",
+  address: "Contact",
+  country: "Contact",
+  service_modes: "Service Modes",
+  status: "Status",
+  rating: "Status",
+};
+const HIGHLIGHT_RED = "#E5484D";
+const HIGHLIGHT_CELL = "bg-[#E5484D]/20"; // the column with the problem: stronger red
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia",
@@ -227,13 +253,18 @@ type Provider = {
   rating: number;
   contract_ref: string | null;
   notes: string | null;
+  agency: string | null;
+  department: string | null;
   attachments?: ProviderAttachment[];
+  created_at?: string | null;
 };
 
 function createEmptyForm() {
   return {
     name: "",
     type: TYPES[0].value,
+    agency: "",
+    department: "",
     contact_person: "",
     email: "",
     phone: "",
@@ -274,7 +305,10 @@ function normalizeProvider(provider: Partial<Provider> & { id: string }): Provid
     rating: provider.rating ?? 3,
     contract_ref: provider.contract_ref ?? null,
     notes: provider.notes ?? null,
+    agency: provider.agency ?? null,
+    department: provider.department ?? null,
     attachments: provider.attachments,
+    created_at: provider.created_at ?? null,
   };
 }
 
@@ -308,6 +342,508 @@ function getStep2MissingFieldsMessage(form: ReturnType<typeof createEmptyForm>) 
   return null;
 }
 
+/* ---------- Department requests table ----------
+ * Requests live in the same Supabase table as providers (public.service_providers).
+ * Another department inserts a row with status = 'pending':
+ *   name        → Request
+ *   department  → Department
+ *   notes       → Description
+ *   created_at  → Request Sent
+ * Approve sets status = 'active' (it then shows in the providers table);
+ * Decline sets status = 'declined'.
+ */
+const REQUEST_STATUSES = ["pending", "declined"];
+const isRequest = (p: Provider) => REQUEST_STATUSES.includes(p.status);
+
+const REQUEST_STATUS_STYLE: Record<string, { label: string; dark: string; light: string }> = {
+  pending: { label: "Pending", dark: "bg-[#2E2410] text-[#F2A23B]", light: "bg-[#FDF1DE] text-[#C77E12]" },
+  approved: { label: "Approved", dark: "bg-[#0F2E22] text-[#3BD68A]", light: "bg-[#E1F7EC] text-[#1FA968]" },
+  declined: { label: "Declined", dark: "bg-[#2A1212] text-[#E2685A]", light: "bg-[#FBE4E1] text-[#D9483A]" },
+};
+
+function formatRequestDate(iso?: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+  };
+}
+
+// Result of one "Ask AI" request (from /api/request-summary), stored per request id
+type RequestAi = {
+  status: "loading" | "done" | "error";
+  summary?: string;
+  providersNeeded?: number;
+  reason?: string;
+  priority?: "urgent" | "normal" | "low";
+};
+
+const AI_PRIORITY_STYLE: Record<string, string> = {
+  urgent: "bg-[#E5484D] text-white",
+  normal: "bg-[#FDE7F1] text-[#F2419B]",
+  low: "bg-gray-100 text-gray-500",
+};
+
+/* ---------- Confirmation window (replaces the browser's confirm() popup) ---------- */
+type ConfirmKind = "approve" | "decline" | "archive";
+type ConfirmState = { kind: ConfirmKind; provider: Provider } | null;
+
+const CONFIRM_COPY: Record<ConfirmKind, { title: string; action: string; busy: string; tone: "green" | "red" }> = {
+  approve: { title: "Approve this provider request?", action: "Approve", busy: "Approving…", tone: "green" },
+  decline: { title: "Decline this provider request?", action: "Decline", busy: "Declining…", tone: "red" },
+  archive: { title: "Archive this provider?", action: "Archive", busy: "Archiving…", tone: "red" },
+};
+
+function ConfirmDialog({
+  state,
+  isDark,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  state: ConfirmState;
+  isDark: boolean;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  // Esc closes (Enter works too: the confirm button has focus)
+  useEffect(() => {
+    if (!state) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!busy && e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state, busy, onCancel]);
+
+  if (!state) return null;
+  const { kind, provider: p } = state;
+  const copy = CONFIRM_COPY[kind];
+  const green = copy.tone === "green";
+  const sent = formatRequestDate(p.created_at);
+  const muted = isDark ? "text-[#8FA0AF]" : "text-gray-500";
+  const strong = isDark ? "text-[#F2F1EC]" : "text-gray-900";
+  const Icon = kind === "approve" ? CheckCircle2 : kind === "decline" ? XCircle : AlertTriangle;
+
+  const message =
+    kind === "approve" ? (
+      <>
+        It will be added to the providers table as <span className={`font-semibold ${strong}`}>Active</span>.
+      </>
+    ) : kind === "decline" ? (
+      <>The request will be marked as <span className="font-semibold text-[#E2685A]">Declined</span> and won&apos;t be added to the providers table.</>
+    ) : (
+      <>This provider will be removed from the list. This can&apos;t be undone from this page.</>
+    );
+
+  const details: { label: string; value: string; wide?: boolean }[] = [
+    { label: "Type", value: typeLabel(p.type) || "—" },
+    kind === "archive" ? { label: "Status", value: statusLabel(p.status) || "—" } : { label: "Department", value: p.department || p.agency || "—" },
+    { label: "Contact person", value: p.contact_person || "—" },
+    { label: "Phone", value: displayPhone(p.phone) || "—" },
+    { label: "Email", value: p.email || "—", wide: true },
+    ...(kind === "archive" ? [] : [{ label: "Request sent", value: sent ? `${sent.date} · ${sent.time}` : "—", wide: true }]),
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !busy) onCancel();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="provider-confirm-title"
+    >
+      <div
+        className={`w-full max-w-md overflow-hidden rounded-2xl border shadow-2xl ${isDark ? "border-[#23303D] bg-[#121B26]" : "border-gray-200 bg-white"}`}
+        style={{ animation: "spConfirmIn 160ms ease-out" }}
+      >
+        <style>{`@keyframes spConfirmIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}`}</style>
+        <div className={`h-1.5 w-full ${green ? "bg-[#1FA968]" : "bg-[#E2685A]"}`} />
+
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                green ? (isDark ? "bg-[#0F2E22] text-[#3BD68A]" : "bg-[#E1F7EC] text-[#1FA968]") : isDark ? "bg-[#2A1212] text-[#E2685A]" : "bg-[#FBE4E1] text-[#D9483A]"
+              }`}
+            >
+              <Icon size={24} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 id="provider-confirm-title" className={`text-lg font-semibold ${strong}`} style={{ fontFamily: "var(--font-display)" }}>
+                {copy.title}
+              </h3>
+              <p className={`mt-1 text-sm leading-relaxed ${muted}`}>{message}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              aria-label="Close"
+              className={`-mr-2 -mt-2 rounded-md p-1.5 transition disabled:opacity-40 ${isDark ? "text-[#8FA0AF] hover:bg-[#1A2530]" : "text-gray-400 hover:bg-gray-100"}`}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Provider card */}
+          <div className={`mt-5 rounded-xl border p-4 ${isDark ? "border-[#23303D] bg-[#0B1220]" : "border-gray-200 bg-gray-50"}`}>
+            <div className="flex items-center gap-3">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#1A2530] text-[#F2419B]" : "bg-[#FCE7F3] text-[#F2419B]"}`}>
+                <Building2 size={16} />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-[#F2419B]" title={p.name}>
+                  {p.name || "Unnamed provider"}
+                </div>
+                <div className={`flex items-center gap-1 text-xs ${muted}`}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Star key={n} size={11} className={n <= Math.round(p.rating || 0) ? "fill-[#F2A23B] text-[#F2A23B]" : ""} />
+                  ))}
+                  <span className="ml-1">{p.country || ""}</span>
+                </div>
+              </div>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {details.map((d) => (
+                <div key={d.label} className={d.wide ? "col-span-2" : ""}>
+                  <dt className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>{d.label}</dt>
+                  <dd className={`mt-0.5 truncate text-sm ${strong}`} title={d.value}>
+                    {d.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {error && <div className="mt-4 rounded-md border border-[#E2685A]/40 bg-[#E2685A]/10 px-3 py-2 text-sm text-[#E2685A]">{error}</div>}
+
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              className={`flex-1 rounded-lg border py-2.5 text-sm font-medium transition disabled:opacity-50 ${
+                isDark ? "border-[#2C4356] text-[#C7D1DA] hover:bg-[#1A2530]" : "border-gray-300 text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={busy}
+              autoFocus
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                green ? "bg-[#1FA968] hover:bg-[#23BF76]" : "bg-[#E2685A] hover:bg-[#D9483A]"
+              }`}
+            >
+              {busy ? <Loader2 size={16} className="animate-spin" /> : kind === "approve" ? <Check size={16} /> : kind === "decline" ? <X size={16} /> : <Archive size={16} />}
+              {busy ? copy.busy : copy.action}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DepartmentRequestsTable({
+  isDark,
+  requests,
+  existingProviders,
+  busyId,
+  error,
+  highlightId,
+  onApprove,
+  onDecline,
+}: {
+  isDark: boolean;
+  requests: Provider[] | null;
+  existingProviders: Provider[];
+  busyId: string | null;
+  error: string | null;
+  highlightId?: string | null;
+  onApprove: (r: Provider) => void;
+  onDecline: (r: Provider) => void;
+}) {
+  const muted = isDark ? "text-[#8FA0AF]" : "text-gray-500";
+  const pendingCount = requests?.filter((r) => (r.status ?? "pending") === "pending").length ?? 0;
+
+  // Show 5 requests per page with Back / Next.
+  const [reqPage, setReqPage] = useState(1);
+  const [reqPageLoading, setReqPageLoading] = useState(false);
+  const total = requests?.length ?? 0;
+  const reqTotalPages = Math.max(1, Math.ceil(total / REQUESTS_PAGE_SIZE));
+  const currentPage = Math.min(reqPage, reqTotalPages);
+  const pagedRequests = requests?.slice((currentPage - 1) * REQUESTS_PAGE_SIZE, currentPage * REQUESTS_PAGE_SIZE) ?? [];
+
+  // Anomaly alert: jump to the page that contains the highlighted request once requests load.
+  useEffect(() => {
+    if (!highlightId || !requests) return;
+    const idx = requests.findIndex((r) => r.id === highlightId);
+    if (idx >= 0) setReqPage(Math.floor(idx / REQUESTS_PAGE_SIZE) + 1);
+  }, [highlightId, requests]);
+
+  // Same short loading spinner as the main table's Back / Next.
+  function goToReqPage(next: number) {
+    if (next < 1 || next > reqTotalPages || next === currentPage) return;
+    setReqPageLoading(true);
+    setTimeout(() => {
+      setReqPage(next);
+      setReqPageLoading(false);
+    }, 400);
+  }
+  const pagerBtn = `flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+    isDark ? "border-[#2C4356] text-[#C7D1DA] hover:bg-[#1A2530]" : "border-gray-300 text-gray-600 hover:bg-gray-100"
+  }`;
+
+  // ---- Ask AI (Groq): one result per request id, each request is only asked once ----
+  const [ai, setAi] = useState<Record<string, RequestAi>>({});
+
+  async function askAi(r: Provider) {
+    const state = ai[r.id]?.status;
+    if (state === "loading" || state === "done") return;
+
+    // Active providers of the same type, so the AI can factor in what you already have.
+    const sameType = existingProviders.filter((p) => p.status === "active" && p.type === r.type);
+
+    setAi((prev) => ({ ...prev, [r.id]: { status: "loading" } }));
+    try {
+      const res = await fetch("/spnc/app/api/request-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: r.name,
+          department: r.department,
+          providerType: typeLabel(r.type),
+          description: r.notes,
+          requestSent: r.created_at,
+          existingSameType: sameType.length,
+          existingNames: sameType.slice(0, 5).map((p) => p.name),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.summary) throw new Error(data.error || "No result");
+      setAi((prev) => ({ ...prev, [r.id]: { status: "done", ...data } }));
+    } catch {
+      setAi((prev) => ({ ...prev, [r.id]: { status: "error" } }));
+    }
+  }
+
+  return (
+    <section className="mb-8">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Inbox size={18} className="text-[#F2419B]" />
+        <h2
+          className={`text-base font-semibold ${isDark ? "text-[#F2F1EC]" : "text-gray-900"}`}
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          Department Requests
+        </h2>
+        {requests && (
+          <span className="rounded-full bg-[#F2419B] px-2 py-0.5 text-[11px] font-bold text-white">
+            {pendingCount} pending
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div className="mb-3 border border-[#E2685A]/40 bg-[#E2685A]/10 px-3 py-2 text-sm text-[#E2685A]">{error}</div>
+      )}
+
+      <div
+        className={`overflow-hidden rounded-lg border ${
+          isDark ? "border-[#23303D] bg-[#121B26]" : "border-gray-200 bg-white"
+        }`}
+      >
+        {requests === null ? (
+          <div className="flex items-center justify-center gap-2 py-10">
+            <Loader2 size={20} className="animate-spin text-[#F2419B]" />
+            <span className="text-sm font-semibold text-[#F2419B]">Loading requests</span>
+          </div>
+        ) : reqPageLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10">
+            <Loader2 size={20} className="animate-spin text-[#F2419B]" />
+            <span className="text-sm font-semibold text-[#F2419B]">Loading</span>
+          </div>
+        ) : requests.length === 0 ? (
+          <p className={`px-4 py-10 text-center text-sm ${muted}`}>No requests from other departments yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left">
+              <thead className={`sticky top-0 z-[1] ${isDark ? "bg-[#0B1220] text-[#8FA0AF]" : "bg-gray-50 text-gray-500"}`}>
+                <tr>
+                  {["Request", "Department", "Provider Type", "Description", "Request Sent", "Action"].map((h) => (
+                    <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className={isDark ? "divide-y divide-[#23303D] text-[#C7D1DA]" : "divide-y divide-gray-200 text-gray-700"}>
+                {pagedRequests.map((r) => {
+                  const label = typeLabel(r.type);
+                  const statusKey = r.status ?? "pending";
+                  const status = REQUEST_STATUS_STYLE[statusKey] ?? REQUEST_STATUS_STYLE.pending;
+                  const sent = formatRequestDate(r.created_at);
+                  const busy = busyId === r.id;
+                  const result = ai[r.id];
+                  const highlighted = highlightId === r.id;
+                  return (
+                    <Fragment key={r.id}>
+                      <tr
+                        id={`row-${r.id}`}
+                        className={`${isDark ? "hover:bg-[#182230]" : "hover:bg-gray-50"} ${
+                          highlighted ? "ring-2 ring-inset ring-[#E5484D] bg-[#E5484D]/10" : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex items-center gap-3">
+                            <div
+                              title={label}
+                              aria-label={label}
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                                isDark ? "bg-[#1A2530] text-[#F2419B]" : "bg-[#FCE7F3] text-[#F2419B]"
+                              }`}
+                            >
+                              <Building2 size={16} />
+                            </div>
+                            <span className="text-sm font-semibold text-[#F2419B]">{r.name}</span>
+                          </div>
+                        </td>
+                        <td className={`px-4 py-3 align-middle text-sm font-semibold ${isDark ? "text-[#F2F1EC]" : "text-gray-900"}`}>
+                          {r.department || <span className={muted}>—</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 align-middle text-sm">{label || <span className={muted}>—</span>}</td>
+                        <td className="max-w-md px-4 py-3 align-middle text-sm">
+                          {r.notes ? <span className="line-clamp-2">{r.notes}</span> : <span className={muted}>—</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 align-middle">
+                          {sent ? (
+                            <>
+                              <div className="text-sm">{sent.date}</div>
+                              <div className={`text-xs ${muted}`}>{sent.time}</div>
+                            </>
+                          ) : (
+                            <span className={muted}>—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          {statusKey === "pending" ? (
+                            busy ? (
+                              <Loader2 size={18} className="animate-spin text-[#F2419B]" />
+                            ) : (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => onApprove(r)}
+                                  disabled={busyId !== null}
+                                  className="flex items-center gap-1 rounded-md bg-[#1FA968] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#23BF76] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <Check size={14} />
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onDecline(r)}
+                                  disabled={busyId !== null}
+                                  className={`flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-semibold text-[#E2685A] transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    isDark ? "border-[#E2685A]/40 hover:bg-[#2A1212]" : "border-[#E2685A]/50 hover:bg-[#FBE4E1]"
+                                  }`}
+                                >
+                                  <X size={14} />
+                                  Decline
+                                </button>
+                                {result?.status !== "done" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => askAi(r)}
+                                    disabled={result?.status === "loading"}
+                                    className={`flex items-center gap-1 rounded-md border border-[#F2419B]/40 px-3 py-1.5 text-xs font-semibold text-[#F2419B] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                      isDark ? "hover:bg-[#26262E]" : "hover:bg-[#FDE7F1]"
+                                    }`}
+                                  >
+                                    {result?.status === "loading" ? (
+                                      <>
+                                        <Loader2 size={14} className="animate-spin" /> Thinking…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles size={14} /> {result?.status === "error" ? "Try again" : "Ask AI"}
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          ) : (
+                            <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${isDark ? status.dark : status.light}`}>
+                              {status.label}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {result?.status === "done" && (
+                        <tr>
+                          <td colSpan={6} className={`px-4 py-3 ${isDark ? "bg-[#1A2530]" : "bg-[#FDF3F8]"}`}>
+                            <p className="mb-1 flex items-center gap-1 text-[10px] font-bold tracking-wider text-[#F2419B]">
+                              <Sparkles size={12} /> AI SUMMARY
+                            </p>
+                            <p className={`text-sm ${isDark ? "text-[#F2F1EC]" : "text-gray-900"}`}>{result.summary}</p>
+                            <p className={`mt-1.5 flex flex-wrap items-center gap-2 text-xs ${muted}`}>
+                              <span className={`font-semibold ${isDark ? "text-[#F2F1EC]" : "text-gray-900"}`}>
+                                Providers needed: {result.providersNeeded}
+                              </span>
+                              <span>·</span>
+                              <span>{result.reason}</span>
+                              <span
+                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                  AI_PRIORITY_STYLE[result.priority ?? "normal"]
+                                }`}
+                              >
+                                {result.priority}
+                              </span>
+                            </p>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {total > REQUESTS_PAGE_SIZE && (
+        <div className="mt-3 flex items-center justify-center gap-4">
+          <button type="button" onClick={() => goToReqPage(currentPage - 1)} disabled={currentPage === 1 || reqPageLoading} className={pagerBtn}>
+            <ChevronLeft size={16} />
+            Back
+          </button>
+          <span className={`text-sm ${muted}`}>
+            Page {currentPage} of {reqTotalPages}
+          </span>
+          <button type="button" onClick={() => goToReqPage(currentPage + 1)} disabled={currentPage === reqTotalPages || reqPageLoading} className={pagerBtn}>
+            Next
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function ServiceProvidersPage() {
   const { theme } = useShell();
   const isDark = theme === "dark";
@@ -316,6 +852,7 @@ export default function ServiceProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showRequests, setShowRequests] = useState(false); // Requests button toggles the department requests table
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showFieldErrors, setShowFieldErrors] = useState(false);
@@ -332,6 +869,23 @@ export default function ServiceProvidersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Department requests
+  const [requests, setRequests] = useState<Provider[] | null>(null);
+  const [requestActionId, setRequestActionId] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+
+  // Styled confirmation window for Approve / Decline / Archive
+  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  // Highlight coming from an anomaly alert's "Open" link:
+  //   /spnc/app/service-providers?highlight=<provider id>&field=<field name>
+  //   (or ?highlightName=<provider name> when the alert has no id)
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [highlightColumn, setHighlightColumn] = useState<string | null>(null);
+  const pendingHighlight = useRef<{ id: string | null; name: string | null; field: string | null } | null>(null);
 
   // Multi-step form state
   const [formStep, setFormStep] = useState<1 | 2 | 3>(1);
@@ -378,12 +932,19 @@ export default function ServiceProvidersPage() {
     return d.name.toLowerCase().includes(q) || d.code.includes(q) || d.iso.toLowerCase() === q;
   });
 
-  const filteredProviders = providers.filter((provider) => {
+  // Official providers = everything that isn't a pending/declined request.
+  const officialProviders = providers.filter((p) => !isRequest(p));
+  // Number shown in the red circle on the Requests button.
+  const pendingRequestCount = providers.filter((p) => p.status === "pending").length;
+
+  const filteredProviders = officialProviders.filter((provider) => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return true;
 
     const haystack = [
       provider.name,
+      provider.agency,
+      provider.department,
       provider.contact_person,
       provider.email,
       provider.phone,
@@ -424,6 +985,182 @@ export default function ServiceProvidersPage() {
   useEffect(() => {
     loadProviders();
   }, []);
+
+  // ---- Anomaly alert highlight ----
+  // Read the target from the URL once when the page opens.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("highlight");
+    const name = params.get("highlightName");
+    if (id || name) pendingHighlight.current = { id, name, field: params.get("field") };
+  }, []);
+
+  // Once providers are loaded, find the target, go to its page and mark the cell.
+  useEffect(() => {
+    const target = pendingHighlight.current;
+    if (loading || !target) return;
+    pendingHighlight.current = null;
+
+    const wanted = target.name?.trim().toLowerCase();
+    const match = (p: Provider) =>
+      (!!target.id && p.id === target.id) || (!!wanted && p.name.trim().toLowerCase() === wanted);
+
+    const idx = officialProviders.findIndex(match);
+    if (idx >= 0) {
+      setSearchInput("");
+      setSearchTerm("");
+      setPage(Math.floor(idx / PAGE_SIZE) + 1);
+      setHighlightId(officialProviders[idx].id);
+      setHighlightColumn(FIELD_TO_COLUMN[target.field ?? ""] ?? "Provider");
+      return;
+    }
+
+    // It's a pending/declined request → open the Requests table instead.
+    const req = providers.find(match);
+    if (req) {
+      setShowRequests(true);
+      setHighlightId(req.id);
+      setHighlightColumn(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Scroll the highlighted row into view (re-runs when the requests table finishes loading).
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => {
+      document.getElementById(`row-${highlightId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [highlightId, requests]);
+
+  function cellHighlight(id: string, column: string) {
+    return highlightId === id && highlightColumn === column ? HIGHLIGHT_CELL : "";
+  }
+
+  // Red outline around the whole flagged row (drawn cell by cell, since table rows can't
+  // reliably show a border), plus a thicker red box around the column with the problem.
+  function cellStyle(id: string, column: string, pos: "first" | "middle" | "last"): CSSProperties | undefined {
+    if (highlightId !== id) return undefined;
+    const shadows = [`inset 0 2px 0 ${HIGHLIGHT_RED}`, `inset 0 -2px 0 ${HIGHLIGHT_RED}`];
+    if (pos === "first") shadows.push(`inset 2px 0 0 ${HIGHLIGHT_RED}`);
+    if (pos === "last") shadows.push(`inset -2px 0 0 ${HIGHLIGHT_RED}`);
+    if (highlightColumn === column) shadows.push(`inset 0 0 0 3px ${HIGHLIGHT_RED}`);
+    return { boxShadow: shadows.join(", ") };
+  }
+
+  // ---- Department requests: load, approve, decline ----
+  // Requests are rows in public.service_providers with status 'pending' or 'declined'.
+  // Reloaded from Supabase every time the Requests table is opened.
+  async function loadRequests() {
+    setRequestError(null);
+    try {
+      const res = await fetch("/spnc/app/api/service-providers", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || `Couldn't load requests (HTTP ${res.status}).`);
+      const all: Provider[] = Array.isArray(data.providers)
+        ? data.providers.filter((p: Partial<Provider>) => typeof p.id === "string").map(normalizeProvider)
+        : [];
+      setProviders(all);
+      setRequests(
+        all.filter(isRequest).sort((a, b) => {
+          // pending first, then newest first
+          if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+          return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+        })
+      );
+    } catch (err) {
+      console.error("Fetch requests failed:", err);
+      setRequests([]);
+      setRequestError(err instanceof Error ? err.message : "Couldn't load requests.");
+    }
+  }
+
+  useEffect(() => {
+    if (showRequests) {
+      setRequests(null);
+      loadRequests();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRequests]);
+
+  // Saves the new status on the row in Supabase through the existing update route.
+  // The full row is sent (same shape as the Edit form) with only the status changed.
+  async function setRequestStatus(r: Provider, status: "active" | "declined") {
+    const { id, created_at: _createdAt, ...fields } = r;
+    const res = await fetch(`/spnc/app/api/service-providers/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...fields,
+        contact_person: fields.contact_person ?? "",
+        email: fields.email ?? "",
+        phone: fields.phone ?? "",
+        address: fields.address ?? "",
+        country: fields.country ?? "",
+        contract_ref: fields.contract_ref ?? "",
+        notes: fields.notes ?? "",
+        agency: fields.agency ?? "",
+        department: fields.department ?? "",
+        attachments: fields.attachments ?? [],
+        status,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Couldn't update the request.");
+
+    // Approved rows become "active" and appear in the providers table right away.
+    setProviders((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+    // Keep the row in the requests list with an Approved / Declined badge until it's reopened.
+    setRequests(
+      (prev) => prev?.map((p) => (p.id === id ? { ...p, status: status === "active" ? "approved" : status } : p)) ?? prev
+    );
+  }
+
+  // Approve / Decline / Archive open the confirmation window; the action runs when it's confirmed.
+  function handleApproveRequest(r: Provider) {
+    setConfirmError(null);
+    setConfirmState({ kind: "approve", provider: r });
+  }
+  function handleDeclineRequest(r: Provider) {
+    setConfirmError(null);
+    setConfirmState({ kind: "decline", provider: r });
+  }
+  function closeConfirm() {
+    if (confirmBusy) return;
+    setConfirmState(null);
+    setConfirmError(null);
+  }
+  async function runConfirmed() {
+    if (!confirmState || confirmBusy) return;
+    const { kind, provider } = confirmState;
+    setConfirmBusy(true);
+    setConfirmError(null);
+    try {
+      if (kind === "archive") {
+        setDeletingId(provider.id);
+        setDeleteError(null);
+        const res = await fetch(`/spnc/app/api/service-providers/${provider.id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || "Failed to archive provider.");
+        }
+        loadProviders();
+      } else {
+        setRequestActionId(provider.id);
+        setRequestError(null);
+        await setRequestStatus(provider, kind === "approve" ? "active" : "declined");
+      }
+      setConfirmState(null);
+    } catch (err) {
+      console.error(`${kind} failed:`, err);
+      setConfirmError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setConfirmBusy(false);
+      setRequestActionId(null);
+      setDeletingId(null);
+    }
+  }
 
   // ---- Search: recent searches + fetch on search ----
   useEffect(() => {
@@ -523,6 +1260,8 @@ export default function ServiceProvidersPage() {
     setForm({
       name: asString(p.name),
       type: detectedType,
+      agency: asString(p.agency),
+      department: asString(p.department),
       contact_person: asString(p.contact_person),
       email: asString(p.email),
       phone: composePhone(parsedPhone.iso, parsedPhone.digits),
@@ -534,18 +1273,6 @@ export default function ServiceProvidersPage() {
       contract_ref: asString(p.contract_ref),
       notes: asString(p.notes),
     });
-    setShowForm(true);
-  }
-
-  function handleAddClick() {
-    setEditingId(null);
-    setSaveError(null);
-    setShowFieldErrors(false);
-    setFormStep(1);
-    setCustomType("");
-    setPdfFiles([]);
-    setForm(createEmptyForm());
-    resetPhone();
     setShowForm(true);
   }
 
@@ -620,6 +1347,8 @@ export default function ServiceProvidersPage() {
   }
 
   async function handleSave() {
+    if (!editingId) return; // adding new providers is no longer supported from this page
+
     const missingMessage = getStep2MissingFieldsMessage(form);
 
     if (missingMessage) {
@@ -638,19 +1367,23 @@ export default function ServiceProvidersPage() {
           return { name: file.name, dataUrl: "" };
         })
       );
-      const url = editingId ? `/spnc/app/api/service-providers/${editingId}` : "/spnc/app/api/service-providers";
-      const method = editingId ? "PUT" : "POST";
 
-      const res = await fetch(url, {
-        method,
+      const res = await fetch(`/spnc/app/api/service-providers/${editingId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, type: finalType, attachments }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setSaveError(data.message || (editingId ? "Failed to update provider." : "Failed to save provider."));
+        setSaveError(data.message || "Failed to update provider.");
         return;
+      }
+
+      // The flagged provider was just fixed, so remove its red highlight.
+      if (editingId === highlightId) {
+        setHighlightId(null);
+        setHighlightColumn(null);
       }
 
       closeForm();
@@ -663,26 +1396,12 @@ export default function ServiceProvidersPage() {
     }
   }
 
-  async function handleArchive(id: string) {
-    if (!confirm("Archive this provider?")) return;
-    setDeletingId(id);
+  function handleArchive(id: string) {
+    const provider = providers.find((p) => p.id === id);
+    if (!provider) return;
     setDeleteError(null);
-    try {
-      const res = await fetch(`/spnc/app/api/service-providers/${id}`, { method: "DELETE" });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setDeleteError(data.message || "Failed to archive provider.");
-        return;
-      }
-
-      loadProviders();
-    } catch (err) {
-      console.error("Archive failed:", err);
-      setDeleteError("Couldn't reach the server. Check your connection and try again.");
-    } finally {
-      setDeletingId(null);
-    }
+    setConfirmError(null);
+    setConfirmState({ kind: "archive", provider });
   }
 
   const phoneBorder =
@@ -701,6 +1420,43 @@ export default function ServiceProvidersPage() {
       />
 
       <div className="px-8">
+        {/* Pink Requests button: toggles the department requests table */}
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowRequests((v) => !v)}
+            aria-expanded={showRequests}
+            aria-label={`${showRequests ? "Hide requests" : "Requests"}${pendingRequestCount ? ` (${pendingRequestCount} pending)` : ""}`}
+            className="relative flex items-center gap-2 rounded-md bg-[#F2419B] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#F55CAB]"
+          >
+            <Inbox size={16} />
+            {showRequests ? "Hide Requests" : "Requests"}
+            {/* Red circle with the number of pending requests */}
+            {pendingRequestCount > 0 && (
+              <span
+                className={`absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E5484D] px-1.5 text-[11px] font-bold leading-none text-white ring-2 ${
+                  isDark ? "ring-[#0B1220]" : "ring-white"
+                }`}
+              >
+                {pendingRequestCount > 99 ? "99+" : pendingRequestCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {showRequests && (
+          <DepartmentRequestsTable
+            isDark={isDark}
+            requests={requests}
+            existingProviders={officialProviders}
+            busyId={requestActionId}
+            error={requestError}
+            highlightId={highlightId}
+            onApprove={handleApproveRequest}
+            onDecline={handleDeclineRequest}
+          />
+        )}
+
         {deleteError && (
           <div className="mb-4 border border-[#E2685A]/40 bg-[#E2685A]/10 px-3 py-2 text-sm text-[#E2685A]">
             {deleteError}
@@ -712,9 +1468,9 @@ export default function ServiceProvidersPage() {
             <Loader2 size={32} className="animate-spin text-[#F2419B]" />
             <p className="text-sm font-semibold text-[#F2419B]">Loading</p>
           </div>
-        ) : providers.length === 0 ? (
+        ) : officialProviders.length === 0 ? (
           <p className={`text-sm ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
-            No service providers yet. Add your first one.
+            No service providers yet. Approved department requests will appear here.
           </p>
         ) : pageLoading ? (
           <div className="flex flex-col items-center gap-3 py-16">
@@ -863,12 +1619,12 @@ export default function ServiceProvidersPage() {
                         <tr>
                           {[
                             "Provider",
-                            "Type",
+                            "Department",
+                            "Agency",
+                            "Provider Type",
                             "Contact",
-                            "Country",
                             "Service Modes",
                             "Status",
-                            "Rating",
                             "Actions",
                           ].map((header) => (
                             <th key={header} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">
@@ -879,8 +1635,20 @@ export default function ServiceProvidersPage() {
                       </thead>
                       <tbody className={isDark ? "divide-y divide-[#23303D] text-[#C7D1DA]" : "divide-y divide-gray-200 text-gray-700"}>
                         {pagedProviders.map((p) => (
-                          <tr key={p.id} className={isDark ? "bg-[#121B26] hover:bg-[#182230]" : "bg-white hover:bg-gray-50"}>
-                            <td className="px-4 py-4 align-top">
+                          <tr
+                            key={p.id}
+                            id={`row-${p.id}`}
+                            className={
+                              highlightId === p.id
+                                ? isDark
+                                  ? "bg-[#3A1418]"
+                                  : "bg-[#FDECEC]"
+                                : isDark
+                                ? "bg-[#121B26] hover:bg-[#182230]"
+                                : "bg-white hover:bg-gray-50"
+                            }
+                          >
+                            <td style={cellStyle(p.id, "Provider", "first")} className={`px-4 py-4 align-top ${cellHighlight(p.id, "Provider")}`}>
                               <div className="flex items-center gap-3">
                                 <div
                                   className={`flex h-9 w-9 items-center justify-center rounded-full ${
@@ -899,16 +1667,17 @@ export default function ServiceProvidersPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top">{typeLabel(p.type)}</td>
-                            <td className="px-4 py-4 align-top">
+                            <td style={cellStyle(p.id, "Department", "middle")} className={`px-4 py-4 align-top ${cellHighlight(p.id, "Department")}`}>{p.department || "—"}</td>
+                            <td style={cellStyle(p.id, "Agency", "middle")} className={`px-4 py-4 align-top ${cellHighlight(p.id, "Agency")}`}>{p.agency || "—"}</td>
+                            <td style={cellStyle(p.id, "Provider Type", "middle")} className={`px-4 py-4 align-top ${cellHighlight(p.id, "Provider Type")}`}>{typeLabel(p.type)}</td>
+                            <td style={cellStyle(p.id, "Contact", "middle")} className={`px-4 py-4 align-top ${cellHighlight(p.id, "Contact")}`}>
                               <div className="space-y-1">
                                 {p.contact_person && <div>{p.contact_person}</div>}
                                 {p.email && <div className="text-xs text-[#8FA0AF]">{p.email}</div>}
                                 {p.phone && <div className="text-xs text-[#8FA0AF]">{displayPhone(p.phone)}</div>}
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top">{p.country || "—"}</td>
-                            <td className="px-4 py-4 align-top">
+                            <td style={cellStyle(p.id, "Service Modes", "middle")} className={`px-4 py-4 align-top ${cellHighlight(p.id, "Service Modes")}`}>
                               <div className="flex flex-wrap gap-1">
                                 {p.service_modes.length > 0 ? (
                                   p.service_modes.map((mode) => (
@@ -926,7 +1695,7 @@ export default function ServiceProvidersPage() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top">
+                            <td style={cellStyle(p.id, "Status", "middle")} className={`px-4 py-4 align-top ${cellHighlight(p.id, "Status")}`}>
                               <span
                                 className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                                   p.status === "active"
@@ -941,18 +1710,7 @@ export default function ServiceProvidersPage() {
                                 {statusLabel(p.status)}
                               </span>
                             </td>
-                            <td className="px-4 py-4 align-top">
-                              <div className="flex items-center gap-0.5">
-                                {[1, 2, 3, 4, 5].map((n) => (
-                                  <Star
-                                    key={n}
-                                    size={13}
-                                    className={n <= p.rating ? "fill-[#F2A23B] text-[#F2A23B]" : "text-[#4B5A68]"}
-                                  />
-                                ))}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 align-top">
+                            <td style={cellStyle(p.id, "Actions", "last")} className="px-4 py-4 align-top">
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
@@ -1036,16 +1794,6 @@ export default function ServiceProvidersPage() {
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={handleAddClick}
-        aria-label="Add Provider"
-        className="fixed right-8 bottom-8 z-40 flex items-center gap-2 rounded-full bg-[#F2419B] px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#F2419B]/30 transition hover:bg-[#F55CAB]"
-      >
-        <Plus size={18} />
-        Add Provider
-      </button>
-
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div
@@ -1058,7 +1806,7 @@ export default function ServiceProvidersPage() {
                 className={`text-xl font-semibold ${isDark ? "text-[#F2F1EC]" : "text-gray-900"}`}
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                {editingId ? "Edit Service Provider" : "New Service Provider"}
+                Edit Service Provider
               </h2>
               <button
                 type="button"
@@ -1068,6 +1816,7 @@ export default function ServiceProvidersPage() {
                 <X size={20} />
               </button>
             </div>
+
 
             <div className="mb-5 flex items-center gap-2">
               {[1, 2, 3].map((step) => (
@@ -1111,7 +1860,7 @@ export default function ServiceProvidersPage() {
 
                 <div className="relative">
                   <label className={`mb-1 block text-xs font-medium ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
-                    Type *
+                    Provider Type *
                   </label>
                   <button
                     type="button"
@@ -1166,7 +1915,7 @@ export default function ServiceProvidersPage() {
                 {form.type === "other" && (
                   <div>
                     <label className={`mb-1 block text-xs font-medium ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
-                      Other Type *
+                      Other Provider Type *
                     </label>
                     <input
                       type="text"
@@ -1181,6 +1930,40 @@ export default function ServiceProvidersPage() {
                     />
                   </div>
                 )}
+
+                <div>
+                  <label className={`mb-1 block text-xs font-medium ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
+                    Agency
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Agency"
+                    value={asString(form.agency)}
+                    onChange={(e) => setForm({ ...form, agency: e.target.value })}
+                    className={`w-full rounded-md border px-3 py-2.5 outline-none focus:border-[#F2419B] ${
+                      isDark
+                        ? "border-[#2C4356] bg-[#0B1220] text-[#F2F1EC] placeholder:text-[#4B5A68]"
+                        : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`mb-1 block text-xs font-medium ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
+                    Department
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Department"
+                    value={asString(form.department)}
+                    onChange={(e) => setForm({ ...form, department: e.target.value })}
+                    className={`w-full rounded-md border px-3 py-2.5 outline-none focus:border-[#F2419B] ${
+                      isDark
+                        ? "border-[#2C4356] bg-[#0B1220] text-[#F2F1EC] placeholder:text-[#4B5A68]"
+                        : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                    }`}
+                  />
+                </div>
 
                 <div className="relative">
                   <label className={`mb-1 block text-xs font-medium ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
@@ -1647,7 +2430,7 @@ export default function ServiceProvidersPage() {
                     className="flex flex-1 items-center justify-center gap-2 rounded-md bg-[#F2419B] py-2.5 text-sm font-semibold text-white transition hover:bg-[#F55CAB] disabled:cursor-not-allowed disabled:bg-[#4B5A68]"
                   >
                     {saving && <Loader2 size={16} className="animate-spin" />}
-                    {saving ? (editingId ? "Updating…" : "Saving…") : editingId ? "Update" : "Save"}
+                    {saving ? "Updating…" : "Update"}
                   </button>
                 </>
               )}
@@ -1655,6 +2438,19 @@ export default function ServiceProvidersPage() {
           </div>
         </div>
       )}
+
+      {/* Approve / Decline / Archive confirmation */}
+      <ConfirmDialog
+        state={confirmState}
+        isDark={isDark}
+        busy={confirmBusy}
+        error={confirmError}
+        onCancel={closeConfirm}
+        onConfirm={() => void runConfirmed()}
+      />
+
+      {/* Airship Express AI assistant (floating robot button) */}
+      <SpncAssistant isDark={isDark} />
     </div>
   );
 }

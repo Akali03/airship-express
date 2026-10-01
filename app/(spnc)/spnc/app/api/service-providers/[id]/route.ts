@@ -13,14 +13,15 @@ export async function GET(
     .from("service_providers")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error("Fetch provider error:", error);
     return NextResponse.json({ message: "Couldn't load provider." }, { status: 500 });
   }
-
-  // Viewing is not a mutation — no audit log here.
+  if (!data) {
+    return NextResponse.json({ message: "Provider not found." }, { status: 404 });
+  }
 
   return NextResponse.json({ provider: data });
 }
@@ -32,26 +33,12 @@ export async function PUT(
   const { id } = await context.params;
   const body = await req.json();
   const {
-    name,
-    type,
-    contact_person,
-    email,
-    phone,
-    address,
-    country,
-    service_modes,
-    rating,
-    status,
-    contract_ref,
-    notes,
-    attachments,
+    name, type, agency, department, contact_person, email, phone,
+    address, country, service_modes, rating, status, contract_ref, notes, attachments,
   } = body;
 
   if (!name || !type) {
-    return NextResponse.json(
-      { message: "Company name and type are required." },
-      { status: 400 }
-    );
+    return NextResponse.json({ message: "Company name and type are required." }, { status: 400 });
   }
 
   const supabase = getSupabaseClient();
@@ -61,6 +48,8 @@ export async function PUT(
     .update({
       name,
       type,
+      agency: agency || null,
+      department: department || null,
       contact_person: contact_person || null,
       email: email || null,
       phone: phone || null,
@@ -75,11 +64,14 @@ export async function PUT(
     })
     .eq("id", id)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error("Update provider error:", error);
     return NextResponse.json({ message: "Couldn't update provider." }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ message: "Provider not found." }, { status: 404 });
   }
 
   const actor = await getAuditActor(req);
@@ -97,6 +89,8 @@ export async function PUT(
   return NextResponse.json({ provider: data });
 }
 
+// Soft-archives the provider (sets archived_at) instead of deleting the row,
+// so it can later be retrieved via api/audit-logs/[id]/restore/route.ts.
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -104,14 +98,20 @@ export async function DELETE(
   const { id } = await context.params;
   const supabase = getSupabaseClient();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("service_providers")
-    .delete()
-    .eq("id", id);
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("id, name")
+    .maybeSingle();
 
   if (error) {
-    console.error("Delete provider error:", error);
-    return NextResponse.json({ message: "Couldn't delete provider." }, { status: 500 });
+    console.error("Archive provider error:", error);
+    return NextResponse.json({ message: "Couldn't archive provider." }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ message: "Provider not found or already archived." }, { status: 404 });
   }
 
   const actor = await getAuditActor(req);
@@ -119,9 +119,9 @@ export async function DELETE(
     await logAuditEvent({
       ...actor,
       eventType: "archive",
-      action: `${actor.actorName} deleted service provider ${id}`,
+      action: `${actor.actorName} archived service provider "${data.name}"`,
       entityType: "service_provider",
-      entityId: id,
+      entityId: data.id,
       request: req,
     });
   }

@@ -1,5 +1,6 @@
 import { SESSION_COOKIE_NAME, verifySessionToken } from "./session";
 import { getSupabaseClient } from "./supabase";
+import { resolveClientIp } from "./get-client-ip";
 
 export type AuditEventType = "login" | "logout" | "session_timeout" | "user_activity" | "archive";
 
@@ -19,8 +20,9 @@ export async function getAuditActor(request: Request) {
   const token = request.headers
     .get("cookie")
     ?.split(";")
-    .map((cookie) => cookie.trim().split("="))
-    .find(([name]) => name === SESSION_COOKIE_NAME)?.[1];
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(`${SESSION_COOKIE_NAME}=`))
+    ?.slice(SESSION_COOKIE_NAME.length + 1);
   if (!token) return null;
 
   const session = await verifySessionToken(token);
@@ -33,26 +35,10 @@ export async function getAuditActor(request: Request) {
   };
 }
 
-function getClientIp(request?: Request) {
-  if (!request) return null;
-
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const rawIp =
-    request.headers.get("cf-connecting-ip")?.trim() ||
-    request.headers.get("true-client-ip")?.trim() ||
-    forwarded ||
-    request.headers.get("x-real-ip")?.trim() ||
-    request.headers.get("x-client-ip")?.trim() ||
-    null;
-
-  if (!rawIp) return null;
-  if (rawIp === "::1") return "127.0.0.1";
-  if (rawIp.startsWith("::ffff:")) return rawIp.slice(7);
-  return rawIp.replace(/^[\[]|[\]]$/g, "");
-}
-
 export async function logAuditEvent(input: LogAuditEventInput) {
   try {
+    const ipAddress = await resolveClientIp(input.request);
+
     const { error } = await getSupabaseClient().from("audit_logs").insert({
       event_type: input.eventType,
       actor_id: input.actorId ?? null,
@@ -62,7 +48,7 @@ export async function logAuditEvent(input: LogAuditEventInput) {
       entity_type: input.entityType ?? null,
       entity_id: input.entityId ?? null,
       metadata: input.metadata ?? null,
-      ip_address: getClientIp(input.request),
+      ip_address: ipAddress,
       user_agent: input.request?.headers.get("user-agent") || null,
     });
 

@@ -1,37 +1,52 @@
+// Save as: app/(spnc)/spnc/app/api/schedules/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuditActor, logAuditEvent } from "../../../../lib/audit";
 import { getSupabaseClient } from "../../../../lib/supabase";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type Row = Record<string, unknown>;
+
+/**
+ * Adds the schedule's route and service provider as `routes` and `service_providers`
+ * (the same shape the old Supabase join returned), using separate lookups.
+ * Your database no longer has a foreign key between schedules and routes, so the
+ * `routes ( … )` join in a select() fails with PGRST200.
+ */
+async function withRouteAndProvider(supabase: ReturnType<typeof getSupabaseClient>, schedule: Row) {
+  const routeId = schedule.route_id ? String(schedule.route_id) : null;
+  const providerId = schedule.service_provider_id ? String(schedule.service_provider_id) : null;
+
+  const [route, provider] = await Promise.all([
+    routeId
+      ? supabase.from("routes").select("*").eq("id", routeId).maybeSingle().then((r) => (r.error ? null : r.data))
+      : Promise.resolve(null),
+    providerId
+      ? supabase.from("service_providers").select("id, name, type, contact_person, phone, email").eq("id", providerId).maybeSingle().then((r) => (r.error ? null : r.data))
+      : Promise.resolve(null),
+  ]);
+
+  return { ...schedule, routes: route ?? null, service_providers: provider ?? null };
+}
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = getSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("schedules")
-    .select(`*, routes ( route_code, route_name, origin, destination, mode_of_transport ), service_providers ( name )`)
-    .eq("id", id)
-    .single();
+  const { data, error } = await supabase.from("schedules").select("*").eq("id", id).maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return NextResponse.json({ message: "Schedule not found." }, { status: 404 });
-    }
     console.error("Fetch schedule error:", error);
     return NextResponse.json({ message: "Could not load schedule." }, { status: 500 });
   }
+  if (!data) return NextResponse.json({ message: "Schedule not found." }, { status: 404 });
 
   // Viewing a schedule is a read, not an update — no audit log write here.
-
-  return NextResponse.json({ schedule: data });
+  return NextResponse.json({ schedule: await withRouteAndProvider(supabase, data as Row) });
 }
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json();
   const {
@@ -50,10 +65,7 @@ export async function PUT(
   } = body;
 
   if (!schedule_code || !route_id || !departure_datetime || !arrival_datetime) {
-    return NextResponse.json(
-      { message: "Schedule code, route, departure, and arrival are required." },
-      { status: 400 }
-    );
+    return NextResponse.json({ message: "Schedule code, route, departure, and arrival are required." }, { status: 400 });
   }
 
   const supabase = getSupabaseClient();
@@ -75,9 +87,7 @@ export async function PUT(
       notes: notes || null,
     })
     .eq("id", id)
-    .select(
-      `*, routes ( route_name, origin, destination, mode_of_transport ), service_providers ( name )`
-    )
+    .select("*")
     .single();
 
   if (error) {
@@ -85,7 +95,6 @@ export async function PUT(
     return NextResponse.json({ message: "Could not update schedule." }, { status: 500 });
   }
 
-  // Audit log now correctly fires only when an update actually happens.
   const actor = await getAuditActor(req);
   if (actor) {
     await logAuditEvent({
@@ -98,20 +107,14 @@ export async function PUT(
     });
   }
 
-  return NextResponse.json({ schedule: data });
+  return NextResponse.json({ schedule: await withRouteAndProvider(supabase, data as Row) });
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = getSupabaseClient();
 
-  const { error, count } = await supabase
-    .from("schedules")
-    .delete({ count: "exact" })
-    .eq("id", id);
+  const { error, count } = await supabase.from("schedules").delete({ count: "exact" }).eq("id", id);
 
   if (error) {
     console.error("Delete schedule error:", error);
@@ -120,10 +123,7 @@ export async function DELETE(
 
   if (!count) {
     console.error("Delete schedule matched 0 rows — likely blocked by RLS or wrong id:", id);
-    return NextResponse.json(
-      { message: "Schedule not found or you don't have permission to delete it." },
-      { status: 404 }
-    );
+    return NextResponse.json({ message: "Schedule not found or you don't have permission to delete it." }, { status: 404 });
   }
 
   const actor = await getAuditActor(req);

@@ -1,3 +1,4 @@
+// Save as: app/api/sops/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuditActor, logAuditEvent } from "../../../lib/audit";
 import { getSupabaseClient } from "../../../lib/supabase";
@@ -10,6 +11,7 @@ export async function GET() {
     const { data, error } = await getSupabaseClient()
       .from("sops")
       .select("*")
+      .is("archived_at", null) // archived SOPs are hidden; they come back when restored
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -28,7 +30,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { title, sop_code, category, scope, version, effective_date, review_date, content, owner, status } = body;
+    const { title, sop_code, category, scope, department, version, effective_date, review_date, content, owner, status } = body;
 
     if (!title || !sop_code) {
       return NextResponse.json({ message: "Title and SOP code are required." }, { status: 400 });
@@ -41,6 +43,7 @@ export async function POST(req: NextRequest) {
         sop_code,
         category: category || "general",
         scope: scope || null,
+        department: department || null,
         version: version || "1.0",
         effective_date: effective_date || null,
         review_date: review_date || null,

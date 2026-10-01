@@ -17,18 +17,13 @@ type Rate = {
   valid_to?: string | null;
   status: string;
   notes?: string | null;
-  routes?: {
-    route_code?: string;
-    route_name?: string;
-    origin?: string;
-    destination?: string;
-    mode_of_transport?: string;
-    transit_points?: string[];
-  } | null;
-  service_providers?: { name: string } | null;
+  department?: string | null;
 };
 
-const currencySymbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", CNY: "¥" };
+const currencySymbols: Record<string, string> = { PHP: "₱", USD: "$", EUR: "€", GBP: "£", JPY: "¥", CNY: "¥" };
+// Always 2 decimals, e.g. 2800 → "2,800.00"
+const money = (n: number | string | null | undefined) =>
+  Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function RateDetailPage() {
   const params = useParams<{ id: string }>();
@@ -63,7 +58,6 @@ export default function RateDetailPage() {
     return <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-white"><p className="text-sm text-gray-500">Rate not found.</p><button onClick={() => router.push("/spnc/app/rates")} className="text-sm text-[#F2419B] hover:underline">Back to Rates</button></div>;
   }
 
-  const route = rate.routes;
   const symbol = currencySymbols[rate.currency] || `${rate.currency} `;
 
   return (
@@ -78,17 +72,15 @@ export default function RateDetailPage() {
         <p className="mt-2 text-sm text-gray-500">Rate & Tariff · {rate.rate_code}</p>
         <div className="mt-4 h-1 w-full bg-[#F2419B]" />
         <div className="mt-8 grid grid-cols-2 gap-x-8 gap-y-6 border border-gray-200 p-6">
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Origin</p><p className="mt-1 text-sm text-gray-900">{route?.origin || "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Destination</p><p className="mt-1 text-sm text-gray-900">{route?.destination || "—"}</p></div>
+          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Department</p><p className="mt-1 text-sm text-gray-900">{rate.department || "—"}</p></div>
+          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Currency</p><p className="mt-1 text-sm text-gray-900">{rate.currency || "—"}</p></div>
           <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Charge Type</p><p className="mt-1 text-sm text-gray-900 capitalize">{rate.charge_type.replaceAll("_", " ")}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Base Rate</p><p className="mt-1 text-sm text-gray-900">{symbol}{rate.base_rate.toLocaleString()}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Minimum Charge</p><p className="mt-1 text-sm text-gray-900">{rate.min_charge == null ? "—" : `${symbol}${rate.min_charge.toLocaleString()}`}</p></div>
+          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Base Rate</p><p className="mt-1 text-sm text-gray-900">{symbol}{money(rate.base_rate)}</p></div>
+          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Minimum Charge</p><p className="mt-1 text-sm text-gray-900">{rate.min_charge == null ? "—" : `${symbol}${money(rate.min_charge)}`}</p></div>
           <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Surcharge</p><p className="mt-1 text-sm text-gray-900">{rate.surcharge_pct || 0}%</p></div>
           <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Valid From</p><p className="mt-1 text-sm text-gray-900">{rate.valid_from || "—"}</p></div>
           <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Valid To</p><p className="mt-1 text-sm text-gray-900">{rate.valid_to || "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Service Provider</p><p className="mt-1 text-sm text-gray-900">{rate.service_providers?.name || "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Status</p><p className="mt-1 text-sm text-gray-900 capitalize">{rate.status}</p></div>
-          {route?.transit_points && route.transit_points.length > 0 && <div className="col-span-2"><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Transit Points</p><p className="mt-1 text-sm text-gray-900">{route.transit_points.join(" → ")}</p></div>}
+          <div className="col-span-2"><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Status</p><p className="mt-1 text-sm text-gray-900 capitalize">{rate.status}</p></div>
         </div>
         <div className="mt-8"><p className="border-b border-gray-200 pb-2 text-sm font-bold tracking-wide text-gray-900 uppercase">Notes</p><p className="mt-4 text-sm leading-relaxed text-gray-800">{rate.notes || "No notes added."}</p></div>
         <div className="mt-16 flex items-center justify-between border-t border-gray-200 pt-3 text-xs text-gray-400"><span>{rate.rate_code}</span><span>Airship Express</span></div>

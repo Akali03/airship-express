@@ -1,3 +1,4 @@
+// Save as: app/api/sops/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuditActor, logAuditEvent } from "../../../../lib/audit";
 import { getSupabaseClient } from "../../../../lib/supabase";
@@ -24,7 +25,7 @@ export async function PUT(
 ) {
   const { id } = await params;
   const body = await req.json();
-  const { title, sop_code, category, scope, version, effective_date, review_date, content, owner, status } = body;
+  const { title, sop_code, category, scope, department, version, effective_date, review_date, content, owner, status } = body;
 
   if (!title || !sop_code) {
     return NextResponse.json({ message: "Title and SOP code are required." }, { status: 400 });
@@ -37,6 +38,7 @@ export async function PUT(
       sop_code,
       category: category || "general",
       scope: scope || null,
+      department: department || null,
       version: version || "1.0",
       effective_date: effective_date || null,
       review_date: review_date || null,
@@ -68,16 +70,27 @@ export async function PUT(
   return NextResponse.json({ sop: data });
 }
 
+// Archive (not delete): sets archived_at so the SOP disappears from the list
+// but can be retrieved later from the audit log (POST /api/audit-logs/[id]/restore).
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { error } = await getSupabaseClient().from("sops").delete().eq("id", id);
+  const { data, error } = await getSupabaseClient()
+    .from("sops")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("id, title, sop_code")
+    .maybeSingle();
 
   if (error) {
-    console.error("Delete SOP error:", error);
-    return NextResponse.json({ message: "Could not delete SOP." }, { status: 500 });
+    console.error("Archive SOP error:", error);
+    return NextResponse.json({ message: "Could not archive SOP." }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ message: "SOP not found or already archived." }, { status: 404 });
   }
 
   const actor = await getAuditActor(req);
@@ -85,9 +98,9 @@ export async function DELETE(
     await logAuditEvent({
       ...actor,
       eventType: "archive",
-      action: `${actor.actorName} deleted SOP ${id}`,
+      action: `${actor.actorName} archived SOP "${[data.sop_code, data.title].filter(Boolean).join(" · ")}"`,
       entityType: "sop",
-      entityId: id,
+      entityId: data.id,
       request: req,
     });
   }

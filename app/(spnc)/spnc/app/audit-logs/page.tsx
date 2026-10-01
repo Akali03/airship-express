@@ -15,8 +15,11 @@ import {
   Clock,
   Activity,
   Archive,
+  ArchiveRestore,
+  CheckCircle2,
   Sun,
   Moon,
+  X,
 } from "lucide-react";
 import { useShell } from "../../components/ShellContext";
 import PageHeader from "../../components/PageHeader";
@@ -95,6 +98,15 @@ function eventBadge(type: AuditLog["event_type"], isDark: boolean) {
       {type.replace("_", " ")}
     </span>
   );
+}
+
+function isRestored(log: AuditLog) {
+  return Boolean(log.metadata && (log.metadata as Record<string, unknown>).restored_at);
+}
+
+// Old entries whose provider row was hard-deleted before soft-archive existed.
+function isUnrecoverable(log: AuditLog) {
+  return Boolean(log.metadata && (log.metadata as Record<string, unknown>).unrecoverable);
 }
 
 function Sparkline({ data, gradientId, isDark }: { data: number[]; gradientId: string; isDark: boolean }) {
@@ -182,6 +194,146 @@ function EventDonut({ byEventType, isDark }: { byEventType: Record<string, numbe
   );
 }
 
+/* ---------- Retrieve confirmation window (replaces the browser's confirm() popup) ---------- */
+function recordLabel(log: AuditLog) {
+  return log.entity_type ? log.entity_type.replace(/_/g, " ") : "record";
+}
+
+function RetrieveDialog({
+  log,
+  isDark,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  log: AuditLog | null;
+  isDark: boolean;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  // Esc closes (Enter works too: the Retrieve button has focus)
+  useEffect(() => {
+    if (!log) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!busy && e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [log, busy, onCancel]);
+
+  if (!log) return null;
+  const muted = isDark ? "text-[#8FA0AF]" : "text-gray-500";
+  const strong = isDark ? "text-[#F2F1EC]" : "text-gray-900";
+  const type = recordLabel(log);
+  const when = new Date(log.created_at);
+  const details: { label: string; value: string; wide?: boolean }[] = [
+    { label: "Record type", value: type.charAt(0).toUpperCase() + type.slice(1) },
+    { label: "Archived on", value: Number.isNaN(when.getTime()) ? "—" : when.toLocaleString() },
+    { label: "Archived by", value: [log.actor_name, log.actor_role].filter(Boolean).join(" · ") || "—" },
+    { label: "IP address", value: log.ip_address || "—" },
+    { label: "Record ID", value: log.entity_id || "—", wide: true },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !busy) onCancel();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="retrieve-title"
+    >
+      <div
+        className={`w-full max-w-md overflow-hidden rounded-2xl border shadow-2xl ${isDark ? "border-[#23303D] bg-[#121B26]" : "border-gray-200 bg-white"}`}
+        style={{ animation: "retrieveIn 160ms ease-out" }}
+      >
+        <style>{`@keyframes retrieveIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}`}</style>
+        <div className="h-1.5 w-full bg-[#F2419B]" />
+
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#2A1020] text-[#F77DBB]" : "bg-[#FCE7F3] text-[#F2419B]"}`}>
+              <ArchiveRestore size={24} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 id="retrieve-title" className={`text-lg font-semibold ${strong}`} style={{ fontFamily: "var(--font-display)" }}>
+                Retrieve this {type}?
+              </h3>
+              <p className={`mt-1 text-sm leading-relaxed ${muted}`}>
+                It will be brought back from the archive and show up again on its page. This entry will be marked as{" "}
+                <span className={`font-semibold ${strong}`}>Retrieved</span>.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              aria-label="Close"
+              className={`-mr-2 -mt-2 rounded-md p-1.5 transition disabled:opacity-40 ${isDark ? "text-[#8FA0AF] hover:bg-[#1A2530]" : "text-gray-400 hover:bg-gray-100"}`}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Archived record card */}
+          <div className={`mt-5 rounded-xl border p-4 ${isDark ? "border-[#23303D] bg-[#0B1220]" : "border-gray-200 bg-gray-50"}`}>
+            <div className="flex items-center gap-3">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#1A2530] text-[#F2419B]" : "bg-[#FCE7F3] text-[#F2419B]"}`}>
+                <Archive size={16} />
+              </div>
+              <div className="min-w-0">
+                <div className="line-clamp-2 text-sm font-semibold text-[#F2419B]" title={log.action}>
+                  {log.action}
+                </div>
+                <div className={`text-xs capitalize ${muted}`}>Archived {type}</div>
+              </div>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {details.map((d) => (
+                <div key={d.label} className={d.wide ? "col-span-2" : ""}>
+                  <dt className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>{d.label}</dt>
+                  <dd className={`mt-0.5 truncate text-sm ${strong} ${d.label === "Record ID" ? "font-mono text-xs" : ""}`} title={d.value}>
+                    {d.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {error && <div className="mt-4 rounded-md border border-[#E2685A]/40 bg-[#E2685A]/10 px-3 py-2 text-sm text-[#E2685A]">{error}</div>}
+
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              className={`flex-1 rounded-lg border py-2.5 text-sm font-medium transition disabled:opacity-50 ${
+                isDark ? "border-[#2C4356] text-[#C7D1DA] hover:bg-[#1A2530]" : "border-gray-300 text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={busy}
+              autoFocus
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#F2419B] py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#F55CAB] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <ArchiveRestore size={16} />}
+              {busy ? "Retrieving…" : "Retrieve"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function exportCsv(logs: AuditLog[]) {
   const headers = ["Date", "Event", "Actor", "Role", "Action", "Entity Type", "Entity ID", "IP Address"];
   const rows = logs.map((l) => [
@@ -216,6 +368,11 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  // Styled "Retrieve" confirmation window
+  const [retrieveLog, setRetrieveLog] = useState<AuditLog | null>(null);
+  const [retrieveError, setRetrieveError] = useState<string | null>(null);
   const [eventType, setEventType] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -290,6 +447,44 @@ export default function AuditLogsPage() {
       cancelled = true;
     };
   }, [authorized, eventType, page, searchTerm, refreshTick]);
+
+  // The Retrieve button opens the confirmation window; the record is restored when it's confirmed.
+  function handleRestore(log: AuditLog) {
+    setRetrieveError(null);
+    setRetrieveLog(log);
+  }
+  function closeRetrieve() {
+    if (restoringId) return;
+    setRetrieveLog(null);
+    setRetrieveError(null);
+  }
+  async function confirmRestore() {
+    const log = retrieveLog;
+    if (!log || restoringId) return;
+    const label = log.entity_type ? `${log.entity_type.replace(/_/g, " ")} ${log.entity_id ?? ""}`.trim() : "this record";
+
+    setRestoringId(log.id);
+    setRetrieveError(null);
+    setLoadError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`/spnc/app/api/audit-logs/${log.id}/restore`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRetrieveError(data.message || "Couldn't retrieve this record.");
+        // Entry can never be restored (row is gone) — refresh so the button stops showing.
+        if (res.status === 404 || res.status === 410) setRefreshTick((t) => t + 1);
+        return;
+      }
+      setRetrieveLog(null);
+      setNotice(`Retrieved ${label}.`);
+      setRefreshTick((t) => t + 1);
+    } catch {
+      setRetrieveError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setRestoringId(null);
+    }
+  }
 
   const trendValues = useMemo(() => (stats?.dailyTrend || []).map((d) => d.count), [stats]);
 
@@ -460,6 +655,15 @@ export default function AuditLogsPage() {
         {loadError && (
           <div className="mt-4 border border-[#E2685A]/40 bg-[#E2685A]/10 px-3 py-2 text-sm text-[#E2685A]">{loadError}</div>
         )}
+        {notice && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-[#1FA968]/40 bg-[#1FA968]/10 px-3 py-2.5 text-sm text-[#1FA968]">
+            <CheckCircle2 size={16} className="shrink-0" />
+            <span className="flex-1">{notice}</span>
+            <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="rounded p-0.5 hover:bg-[#1FA968]/15">
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Log table */}
         <div className="mt-4">
@@ -478,38 +682,84 @@ export default function AuditLogsPage() {
                 <table className="min-w-full divide-y divide-[#23303D] text-left">
                   <thead className={isDark ? "bg-[#0B1220] text-[#8FA0AF]" : "bg-gray-50 text-gray-500"}>
                     <tr>
-                      {["Status", "Event", "Actor", "Action", "Time", "IP Address"].map((h) => (
-                        <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">
+                      {["Status", "Event", "Actor", "Action", "Time", "Retrieve", "IP Address"].map((h) => (
+                        <th
+                          key={h}
+                          className={`px-4 py-3 text-xs font-semibold uppercase tracking-wide ${h === "Retrieve" ? "text-center" : ""}`}
+                        >
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className={isDark ? "divide-y divide-[#23303D] text-[#C7D1DA]" : "divide-y divide-gray-200 text-gray-700"}>
-                    {logs.map((log) => (
-                      <tr key={log.id} className={isDark ? "bg-[#121B26] hover:bg-[#182230]" : "bg-white hover:bg-gray-50"}>
-                        <td className="px-4 py-3 align-top">
-                          <span className="flex items-center gap-1.5 text-xs">
-                            <span className="h-2 w-2 rounded-full bg-[#3BD68A]" />
-                            Logged
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 align-top">{eventBadge(log.event_type, isDark)}</td>
-                        <td className="px-4 py-3 align-top">
-                          <div>{log.actor_name || "—"}</div>
-                          {log.actor_role && (
-                            <div className={`text-xs ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>{log.actor_role}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 align-top">{log.action}</td>
-                        <td className="px-4 py-3 align-top text-xs whitespace-nowrap">
-                          {new Date(log.created_at).toLocaleString()}
-                        </td>
-                        <td className={`px-4 py-3 align-top text-xs ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
-                          {log.ip_address || "—"}
-                        </td>
-                      </tr>
-                    ))}
+                    {logs.map((log) => {
+                      const unrecoverable = isUnrecoverable(log);
+                      const canRestore =
+                        log.event_type === "archive" && !!log.entity_type && !!log.entity_id && !unrecoverable;
+                      const restored = isRestored(log);
+                      const busy = restoringId === log.id;
+
+                      return (
+                        <tr key={log.id} className={isDark ? "bg-[#121B26] hover:bg-[#182230]" : "bg-white hover:bg-gray-50"}>
+                          <td className="px-4 py-3 align-top">
+                            <span className="flex items-center gap-1.5 text-xs">
+                              <span className="h-2 w-2 rounded-full bg-[#3BD68A]" />
+                              Logged
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-top">{eventBadge(log.event_type, isDark)}</td>
+                          <td className="px-4 py-3 align-top">
+                            <div>{log.actor_name || "—"}</div>
+                            {log.actor_role && (
+                              <div className={`text-xs ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>{log.actor_role}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-top">{log.action}</td>
+                          <td className="px-4 py-3 align-top text-xs whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 align-top text-center">
+                            {log.event_type === "archive" && unrecoverable && !restored ? (
+                              <span
+                                title="This provider was permanently deleted before archiving was enabled"
+                                className={`text-xs ${isDark ? "text-[#4B5A68]" : "text-gray-400"}`}
+                              >
+                                Unavailable
+                              </span>
+                            ) : !canRestore ? (
+                              <span className={isDark ? "text-[#4B5A68]" : "text-gray-300"}>—</span>
+                            ) : restored ? (
+                              <span
+                                title="Already retrieved"
+                                className={`inline-flex items-center gap-1 text-xs ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}
+                              >
+                                <CheckCircle2 size={14} className="text-[#F2419B]" />
+                                Retrieved
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleRestore(log)}
+                                disabled={busy || restoringId !== null}
+                                title="Retrieve from archive"
+                                aria-label={`Retrieve ${log.entity_type} ${log.entity_id} from archive`}
+                                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  isDark
+                                    ? "border-[#2C4356] text-[#F2419B] hover:border-[#F2419B] hover:bg-[#F2419B]/10"
+                                    : "border-gray-300 text-[#F2419B] hover:border-[#F2419B] hover:bg-[#F2419B]/10"
+                                }`}
+                              >
+                                {busy ? <Loader2 size={14} className="animate-spin" /> : <ArchiveRestore size={14} />}
+                              </button>
+                            )}
+                          </td>
+                          <td className={`px-4 py-3 align-top text-xs ${isDark ? "text-[#8FA0AF]" : "text-gray-500"}`}>
+                            {log.ip_address || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -547,6 +797,15 @@ export default function AuditLogsPage() {
           )}
         </div>
       </div>
+
+      <RetrieveDialog
+        log={retrieveLog}
+        isDark={isDark}
+        busy={!!restoringId}
+        error={retrieveError}
+        onCancel={closeRetrieve}
+        onConfirm={() => void confirmRestore()}
+      />
     </div>
   );
 }

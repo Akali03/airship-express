@@ -7,7 +7,6 @@ import {
   Pencil,
   Archive,
   X,
-  Plus,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -17,9 +16,14 @@ import {
   ArrowDownLeft,
   Lock,
   Search,
+  Truck,
+  Map as MapIcon,
 } from "lucide-react";
 import { useShell } from "../../components/ShellContext";
 import PageHeader from "../../components/PageHeader";
+import TripLogTable from "../../components/Triplogtable";
+import TripTrackingModal from "../../components/TripTrackingModal";
+import SpncAssistant from "../../components/SpncAssistant";
 
 const FREQUENCY_OPTIONS = ["daily", "weekly", "bi_weekly", "monthly", "on_demand"];
 const UNIT_OPTIONS = ["kg", "container", "pallet", "teu"];
@@ -70,6 +74,34 @@ type CalendarEvent = {
   schedule: Schedule;
 };
 
+// ---- Trips (actual movements, from /api/trips) ----
+type TripCheckpoint = {
+  id: string;
+  checkpoint_no: number;
+  location: string;
+  recorded_at: string;
+  status: string;
+};
+
+type TripLite = {
+  id: string;
+  trip_code: string;
+  schedule_id: string | null;
+  vehicle_plate_no: string;
+  driver_name?: string;
+  checkpoints: TripCheckpoint[];
+};
+
+// A trip shows up on the calendar twice at most: when it departed (first checkpoint)
+// and when it was delivered (last checkpoint, only if its status is "delivered").
+type TripEvent = {
+  key: string;
+  kind: "departure" | "arrival";
+  at: Date;
+  trip: TripLite;
+  checkpoint: TripCheckpoint;
+};
+
 const emptyForm = {
   schedule_code: "",
   route_id: null as string | null,
@@ -109,6 +141,11 @@ function isSameDay(a: Date, b: Date) {
 
 function monthLabel(d: Date, withYear = true) {
   return d.toLocaleDateString(undefined, withYear ? { month: "long", year: "numeric" } : { month: "long" });
+}
+
+// "bi_weekly, on_demand" -> "bi weekly, on demand"
+function formatFrequency(value: string) {
+  return (value || "").replace(/_/g, " ");
 }
 
 // Weeks of the month, Monday first. Days outside the month are null (blank cells).
@@ -161,7 +198,7 @@ function parseList(value: string): string[] {
     .filter(Boolean);
 }
 
-// Shared multi-select dropdown used for Frequency, Day of Week, Unit Type and Status.
+// Shared multi-select dropdown used for Frequency, Day of Week and Unit Type.
 function MultiSelectDropdown({
   label,
   options,
@@ -387,7 +424,21 @@ export default function SchedulesPage() {
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [routes, setRoutes] = useState<RouteItem[]>([]);
+  const [trips, setTrips] = useState<TripLite[]>([]);
+  const [trackingTripId, setTrackingTripId] = useState<string | null>(null);
+  const [tripLogKey, setTripLogKey] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [tripsLoaded, setTripsLoaded] = useState(false);
+
+  // ---- Anomaly alert highlight ----
+  // Alerts open /spnc/app/schedules?highlight=<trip or schedule id>&highlightName=<"TRP-0102 · NBC 1234">&field=…
+  // The calendar jumps to that day and outlines the trip (and its schedule) in red; the trip log below does the same.
+  const [hlTripId, setHlTripId] = useState<string | null>(null);
+  const [hlScheduleId, setHlScheduleId] = useState<string | null>(null);
+  const [hlLabel, setHlLabel] = useState<string | null>(null);
+  const [hlMissing, setHlMissing] = useState<string | null>(null);
+  const handledSearch = useRef<string | null>(null);
+  const [urlTick, setUrlTick] = useState(0);
 
   // Calendar state
   const today = new Date();
@@ -504,6 +555,11 @@ export default function SchedulesPage() {
       : "bg-[#E0F2FE] text-[#0369A1] border-l-[#0EA5E9]";
   }
 
+  // Actual trip movements are green, so they read differently from the planned schedule events.
+  const tripEventColor = isDark
+    ? "bg-[#10B981]/15 text-[#6EE7B7] border-l-[#10B981]"
+    : "bg-[#D1FAE5] text-[#047857] border-l-[#10B981]";
+
   async function fetchSchedules() {
     setLoading(true);
     try {
@@ -527,15 +583,105 @@ export default function SchedulesPage() {
     }
   }
 
+  async function fetchTrips() {
+    try {
+      const res = await fetch("/spnc/app/api/trips", { cache: "no-store" });
+      const data = await res.json();
+      setTrips(data.trips || []);
+    } catch {
+      // non-fatal: the calendar just won't show trip events
+    } finally {
+      setTripsLoaded(true);
+    }
+  }
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      void Promise.all([fetchSchedules(), fetchRoutes()]);
+      void Promise.all([fetchSchedules(), fetchRoutes(), fetchTrips()]);
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
   }, []);
 
+  // The trip log manages its own data, so re-read trips when the tab regains focus
+  // to keep the calendar in step with checkpoints logged elsewhere.
+  useEffect(() => {
+    function handleFocus() {
+      void fetchTrips();
+    }
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
   const filteredSchedules = schedules;
+
+  // ---- Anomaly alert highlight: find the trip / schedule, jump the calendar to its day ----
+  useEffect(() => {
+    if (loading || !tripsLoaded) return;
+    const search = window.location.search;
+    if (!search || handledSearch.current === search) return;
+    const params = new URLSearchParams(search);
+    const id = params.get("highlight");
+    const name = params.get("highlightName");
+    if (!id && !name) return;
+    handledSearch.current = search;
+
+    const norm = (v?: string | null) => (v ?? "").trim().toLowerCase();
+    const parts = norm(name).split(/\s*[·|]\s*/).filter(Boolean); // "TRP-0102 · NBC 1234" → trip code, plate
+    const trip =
+      trips.find((t) => !!id && t.id === id) ??
+      trips.find((t) => parts.includes(norm(t.trip_code))) ??
+      trips.find((t) => parts.length > 1 && parts.includes(norm(t.vehicle_plate_no)));
+    const schedule =
+      schedules.find((s) => !!id && s.id === id) ??
+      (trip?.schedule_id ? schedules.find((s) => s.id === trip.schedule_id) : undefined) ??
+      schedules.find((s) => parts.includes(norm(s.schedule_code)));
+
+    if (!trip && !schedule) {
+      console.warn("[Schedules] Anomaly alert: trip/schedule not found", { id, name });
+      setHlMissing(name || id || "the trip");
+      return;
+    }
+    setHlMissing(null);
+    setHlTripId(trip?.id ?? null);
+    setHlScheduleId(schedule?.id ?? null);
+    setHlLabel(trip ? `${trip.trip_code}${trip.vehicle_plate_no ? ` · ${trip.vehicle_plate_no}` : ""}` : schedule?.schedule_code ?? null);
+
+    // Which day to show: the trip's latest checkpoint, else the schedule's arrival (when it was due), else departure
+    const cps = [...(trip?.checkpoints || [])].sort((a, b) => a.checkpoint_no - b.checkpoint_no);
+    const candidates = [cps[cps.length - 1]?.recorded_at, schedule?.arrival_datetime, schedule?.departure_datetime];
+    const when = candidates.map((v) => (v ? new Date(v) : null)).find((d) => d && !Number.isNaN(d.getTime()));
+    if (when) {
+      setViewMonth(new Date(when.getFullYear(), when.getMonth(), 1));
+      setSelectedDay(new Date(when.getFullYear(), when.getMonth(), when.getDate()));
+    }
+    window.setTimeout(() => dayPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, tripsLoaded, trips, schedules, urlTick]);
+
+  // Also react when the address changes while you're already on this page
+  useEffect(() => {
+    const onNav = () => {
+      if (window.location.search && handledSearch.current !== window.location.search) setUrlTick((n) => n + 1);
+    };
+    window.addEventListener("popstate", onNav);
+    const timer = window.setInterval(onNav, 800);
+    return () => {
+      window.removeEventListener("popstate", onNav);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  function clearScheduleHighlight() {
+    setHlTripId(null);
+    setHlScheduleId(null);
+    setHlLabel(null);
+    setHlMissing(null);
+  }
+
+  // Red outline for highlighted calendar items (inline so it always shows)
+  const hlItemStyle = { outline: "2px solid #E5484D", outlineOffset: 1, background: "rgba(229, 72, 77, 0.15)" } as const;
+  const hlRowStyle = { outline: "2px solid #E5484D", outlineOffset: -2, background: "rgba(229, 72, 77, 0.08)" } as const;
 
   // Every schedule becomes two calendar events: one on its departure day, one on its arrival day.
   const eventsByDay = useMemo(() => {
@@ -557,6 +703,36 @@ export default function SchedulesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedules]);
 
+  // Trips become events from their own checkpoints, so they show up whether or not
+  // they are linked to a schedule: first checkpoint = departed, delivered checkpoint = arrived.
+  const tripEventsByDay = useMemo(() => {
+    const map = new Map<string, TripEvent[]>();
+    const add = (ev: TripEvent) => {
+      const k = dayKey(ev.at);
+      const list = map.get(k);
+      if (list) list.push(ev);
+      else map.set(k, [ev]);
+    };
+    for (const t of trips) {
+      const cps = [...(t.checkpoints || [])].sort((a, b) => a.checkpoint_no - b.checkpoint_no);
+      if (cps.length === 0) continue;
+
+      const first = cps[0];
+      const dep = new Date(first.recorded_at);
+      if (!Number.isNaN(dep.getTime())) {
+        add({ key: `${t.id}-dep`, kind: "departure", at: dep, trip: t, checkpoint: first });
+      }
+
+      const last = cps[cps.length - 1];
+      const arr = new Date(last.recorded_at);
+      if (last.status === "delivered" && !Number.isNaN(arr.getTime())) {
+        add({ key: `${t.id}-arr`, kind: "arrival", at: arr, trip: t, checkpoint: last });
+      }
+    }
+    for (const list of map.values()) list.sort((a, b) => a.at.getTime() - b.at.getTime());
+    return map;
+  }, [trips]);
+
   const weeks = useMemo(() => buildMonthGrid(viewMonth), [viewMonth]);
   const prevMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1);
   const nextMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1);
@@ -564,24 +740,41 @@ export default function SchedulesPage() {
   const monthCounts = useMemo(() => {
     let departures = 0;
     let arrivals = 0;
+    const prefix = `${viewMonth.getFullYear()}-${pad(viewMonth.getMonth() + 1)}-`;
     for (const [k, list] of eventsByDay) {
-      if (!k.startsWith(`${viewMonth.getFullYear()}-${pad(viewMonth.getMonth() + 1)}-`)) continue;
+      if (!k.startsWith(prefix)) continue;
+      for (const ev of list) {
+        if (ev.kind === "departure") departures++;
+        else arrivals++;
+      }
+    }
+    for (const [k, list] of tripEventsByDay) {
+      if (!k.startsWith(prefix)) continue;
       for (const ev of list) {
         if (ev.kind === "departure") departures++;
         else arrivals++;
       }
     }
     return { departures, arrivals };
-  }, [eventsByDay, viewMonth]);
+  }, [eventsByDay, tripEventsByDay, viewMonth]);
 
   const selectedEvents = eventsByDay.get(dayKey(selectedDay)) || [];
+  const selectedTripEvents = tripEventsByDay.get(dayKey(selectedDay)) || [];
+  const selectedTotal = selectedEvents.length + selectedTripEvents.length;
+  const selectedDepartures =
+    selectedEvents.filter((e) => e.kind === "departure").length +
+    selectedTripEvents.filter((e) => e.kind === "departure").length;
+  const selectedArrivals =
+    selectedEvents.filter((e) => e.kind === "arrival").length +
+    selectedTripEvents.filter((e) => e.kind === "arrival").length;
 
   // "YYYY-MM" keys of months that have at least one departure or arrival.
   const monthsWithEvents = useMemo(() => {
     const set = new Set<string>();
     for (const k of eventsByDay.keys()) set.add(k.slice(0, 7));
+    for (const k of tripEventsByDay.keys()) set.add(k.slice(0, 7));
     return set;
-  }, [eventsByDay]);
+  }, [eventsByDay, tripEventsByDay]);
 
   function openPicker() {
     setPickerYear(viewMonth.getFullYear());
@@ -621,16 +814,6 @@ export default function SchedulesPage() {
     setShowFieldErrors(false);
     setRouteSearch("");
     setRouteMenuOpen(false);
-  }
-
-  // Optionally pre-fill the departure date with the day the user picked on the calendar.
-  function openAddModal(forDay?: Date) {
-    resetForm();
-    if (forDay) {
-      const date = `${forDay.getFullYear()}-${pad(forDay.getMonth() + 1)}-${pad(forDay.getDate())}`;
-      setForm({ ...emptyForm, departure_datetime: `${date}T08:00` });
-    }
-    setModalOpen(true);
   }
 
   function openEditModal(s: Schedule) {
@@ -748,6 +931,7 @@ export default function SchedulesPage() {
 
       closeModal();
       fetchSchedules();
+      fetchTrips();
     } catch (err) {
       console.error("Save schedule failed:", err);
       setSaveError("Couldn't reach the server. Check your connection and try again.");
@@ -945,6 +1129,9 @@ export default function SchedulesPage() {
                   <span className="h-2 w-2 rounded-sm bg-[#0EA5E9]" /> Arrival
                 </span>
                 <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-sm bg-[#10B981]" /> Trip
+                </span>
+                <span className="flex items-center gap-1">
                   <span className="line-through">SCH</span> Cancelled
                 </span>
               </div>
@@ -983,8 +1170,12 @@ export default function SchedulesPage() {
                       }
 
                       const events = eventsByDay.get(dayKey(day)) || [];
+                      const tripEvents = tripEventsByDay.get(dayKey(day)) || [];
                       const visible = events.slice(0, MAX_EVENTS_PER_CELL);
-                      const hidden = events.length - visible.length;
+                      // Trips fill whatever room the schedule events leave in the cell.
+                      const tripVisible = tripEvents.slice(0, Math.max(0, MAX_EVENTS_PER_CELL - visible.length));
+                      const hidden = events.length + tripEvents.length - visible.length - tripVisible.length;
+                      const hasAny = events.length + tripEvents.length > 0;
                       const isToday = isSameDay(day, today);
                       const isSelected = isSameDay(day, selectedDay);
 
@@ -992,8 +1183,7 @@ export default function SchedulesPage() {
                         <div
                           key={di}
                           onClick={() => selectDay(day)}
-                          onDoubleClick={() => openAddModal(day)}
-                          title="Click to see the day, double-click to add a schedule"
+                          title="Click to see the day"
                           className={`min-h-[88px] cursor-pointer p-1.5 transition ${cellBorder} ${
                             isSelected
                               ? isDark
@@ -1009,7 +1199,7 @@ export default function SchedulesPage() {
                               className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
                                 isToday
                                   ? "bg-[#F2419B] font-semibold text-white"
-                                  : events.length > 0
+                                  : hasAny
                                   ? "font-semibold text-[#F2419B]"
                                   : isDark
                                   ? "text-[#C7D1DA]"
@@ -1034,6 +1224,7 @@ export default function SchedulesPage() {
                                 } · ${scheduleRouteLabel(ev.schedule.routes, ev.schedule.route_id)}${
                                   routeAddressLine(ev.schedule.routes) ? ` (${routeAddressLine(ev.schedule.routes)})` : ""
                                 } · ${ev.schedule.status}`}
+                                style={hlScheduleId === ev.schedule.id ? hlItemStyle : undefined}
                                 className={`flex w-full items-center gap-1 truncate rounded border-l-2 px-1 py-0.5 text-[11px] transition hover:opacity-80 ${eventColor(
                                   ev.kind
                                 )} ${ev.schedule.status === "cancelled" ? "line-through opacity-60" : ""}`}
@@ -1046,6 +1237,25 @@ export default function SchedulesPage() {
                                 <span className="shrink-0 font-medium">{formatTime(ev.at)}</span>
                                 <span className="truncate">{ev.schedule.schedule_code}</span>
                               </button>
+                            ))}
+
+                            {tripVisible.map((ev) => (
+                              <div
+                                key={ev.key}
+                                title={`Trip ${ev.trip.trip_code} · ${ev.kind === "departure" ? "departed" : "delivered"} ${formatTime(
+                                  ev.at
+                                )} · ${ev.checkpoint.location} · ${ev.trip.vehicle_plate_no}`}
+                                style={hlTripId === ev.trip.id ? hlItemStyle : undefined}
+                                className={`flex w-full items-center gap-1 truncate rounded border-l-2 px-1 py-0.5 text-[11px] ${tripEventColor}`}
+                              >
+                                {ev.kind === "departure" ? (
+                                  <ArrowUpRight size={10} className="shrink-0" />
+                                ) : (
+                                  <ArrowDownLeft size={10} className="shrink-0" />
+                                )}
+                                <span className="shrink-0 font-medium">{formatTime(ev.at)}</span>
+                                <span className="truncate">{ev.trip.trip_code}</span>
+                              </div>
                             ))}
 
                             {hidden > 0 && (
@@ -1070,6 +1280,36 @@ export default function SchedulesPage() {
             </div>
 
             {/* Selected-day agenda */}
+            {hlMissing && !hlLabel && (
+              <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-[#F2A23B]/50 bg-[#F2A23B]/10 px-3 py-2 text-xs text-[#C9791A]">
+                <span className="font-semibold">Anomaly alert:</span>
+                <span>Couldn&apos;t find &quot;{hlMissing}&quot;. It may have been archived.</span>
+                <button type="button" onClick={() => setHlMissing(null)} className="ml-auto rounded px-2 py-0.5 font-semibold hover:bg-[#F2A23B]/15">
+                  Dismiss
+                </button>
+              </div>
+            )}
+            {hlLabel && (
+              <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-[#E5484D]/40 bg-[#E5484D]/10 px-3 py-2 text-xs text-[#E5484D]">
+                <span className="font-semibold">Anomaly alert:</span>
+                <span>
+                  {hlLabel} is outlined in red on the calendar{hlTripId ? " and in the trip log below" : ""}.
+                </span>
+                {hlTripId && (
+                  <button
+                    type="button"
+                    onClick={() => setTrackingTripId(hlTripId)}
+                    className="flex items-center gap-1 rounded-md bg-[#E5484D] px-2 py-0.5 font-semibold text-white hover:bg-[#d63c41]"
+                  >
+                    <MapIcon size={12} /> Track
+                  </button>
+                )}
+                <button type="button" onClick={clearScheduleHighlight} className="ml-auto rounded px-2 py-0.5 font-semibold hover:bg-[#E5484D]/15">
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             <div ref={dayPanelRef} className={`mt-4 scroll-mt-4 rounded-lg border ${gridBorder} ${isDark ? "bg-[#121B26]" : "bg-white"}`}>
               <div className={`flex items-center justify-between border-b px-3 py-2.5 ${gridBorder}`}>
                 <div>
@@ -1077,26 +1317,16 @@ export default function SchedulesPage() {
                     {selectedDay.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                   </h3>
                   <p className={`text-[11px] ${mutedText}`}>
-                    {selectedEvents.length === 0
+                    {selectedTotal === 0
                       ? "Nothing departing or arriving"
-                      : `${selectedEvents.filter((e) => e.kind === "departure").length} departing · ${
-                          selectedEvents.filter((e) => e.kind === "arrival").length
-                        } arriving`}
+                      : `${selectedDepartures} departing · ${selectedArrivals} arriving`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openAddModal(selectedDay)}
-                  className="flex items-center gap-1 rounded-md border border-[#F2419B]/50 px-2.5 py-1 text-[11px] font-medium text-[#F2419B] transition hover:bg-[#F2419B]/10"
-                >
-                  <Plus size={12} />
-                  Add on this day
-                </button>
               </div>
 
-              {selectedEvents.length === 0 ? (
+              {selectedTotal === 0 ? (
                 <p className={`px-3 py-6 text-center text-xs ${mutedText}`}>
-                  {schedules.length === 0 ? "No schedules yet." : "No matching schedules on this day."}
+                  {schedules.length === 0 && trips.length === 0 ? "No schedules or trips yet." : "No matching schedules or trips on this day."}
                 </p>
               ) : (
                 <ul className={`divide-y ${isDark ? "divide-[#23303D]" : "divide-gray-200"}`}>
@@ -1104,7 +1334,7 @@ export default function SchedulesPage() {
                     const s = ev.schedule;
                     const sc = statusColor(s.status);
                     return (
-                      <li key={ev.key} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                      <li key={ev.key} className="flex flex-wrap items-center gap-3 px-3 py-2.5" style={hlScheduleId === s.id ? hlRowStyle : undefined}>
                         <div className={`flex w-24 shrink-0 items-center gap-1 rounded border-l-2 px-1.5 py-1 text-[11px] font-medium ${eventColor(ev.kind)}`}>
                           {ev.kind === "departure" ? <ArrowUpRight size={12} /> : <ArrowDownLeft size={12} />}
                           {ev.kind === "departure" ? "Departs" : "Arrives"} {formatTime(ev.at)}
@@ -1120,7 +1350,7 @@ export default function SchedulesPage() {
                             {routeAddressLine(s.routes) && <span className={`ml-1.5 text-[11px] ${mutedText}`}>{routeAddressLine(s.routes)}</span>}
                           </div>
                           <div className={`text-[11px] ${mutedText}`}>
-                            {s.service_providers?.name || "No provider"} · {s.frequency.replace("_", " ")}
+                            {s.service_providers?.name || "No provider"} · {formatFrequency(s.frequency)}
                           </div>
                         </div>
 
@@ -1153,22 +1383,92 @@ export default function SchedulesPage() {
                       </li>
                     );
                   })}
+
+                  {selectedTripEvents.map((ev) => {
+                    const t = ev.trip;
+                    const sc = statusColor(ev.checkpoint.status === "delivered" ? "completed" : ev.checkpoint.status);
+                    return (
+                      <li key={ev.key} className="flex flex-wrap items-center gap-3 px-3 py-2.5" style={hlTripId === t.id ? hlRowStyle : undefined}>
+                        <div className={`flex w-24 shrink-0 items-center gap-1 rounded border-l-2 px-1.5 py-1 text-[11px] font-medium ${tripEventColor}`}>
+                          {ev.kind === "departure" ? <ArrowUpRight size={12} /> : <ArrowDownLeft size={12} />}
+                          {ev.kind === "departure" ? "Departed" : "Delivered"} {formatTime(ev.at)}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <Truck size={13} className="shrink-0 text-[#10B981]" />
+                            <span className="text-sm font-semibold text-[#F2419B]">{t.trip_code}</span>
+                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${sc.bg} ${sc.text}`}>
+                              {ev.checkpoint.status.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <div className={`truncate text-xs ${isDark ? "text-[#C7D1DA]" : "text-gray-700"}`}>{ev.checkpoint.location}</div>
+                          <div className={`text-[11px] ${mutedText}`}>
+                            {t.vehicle_plate_no}
+                            {t.driver_name ? ` · ${t.driver_name}` : ""}
+                            {t.schedule_id ? "" : " · No schedule linked"}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setTrackingTripId(t.id)}
+                            aria-label={`Track ${t.trip_code} on map`}
+                            title="Track on map"
+                            className={iconBtn}
+                          >
+                            <MapIcon size={13} />
+                          </button>
+                          {/* View: the schedule page if the trip is linked to one, otherwise the trip's own details page */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              router.push(t.schedule_id ? `/spnc/app/schedules/${t.schedule_id}` : `/spnc/app/trips/${t.id}`)
+                            }
+                            aria-label={`View ${t.trip_code}`}
+                            title={t.schedule_id ? "View trip and its schedule" : "View trip details"}
+                            className={iconBtn}
+                          >
+                            <Eye size={13} />
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
+
+            {/* Vehicle & cargo trip log */}
+            <TripLogTable
+              isDark={isDark}
+              mutedText={mutedText}
+              gridBorder={gridBorder}
+              schedules={schedules}
+              selectedDay={selectedDay}
+              onViewSchedule={(id) => router.push(`/spnc/app/schedules/${id}`)}
+              onTrackTrip={(id) => setTrackingTripId(id)}
+              refreshKey={tripLogKey}
+            />
           </>
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => openAddModal()}
-        aria-label="Add Schedule"
-        className="fixed right-6 bottom-6 z-40 flex items-center gap-1.5 rounded-full bg-[#F2419B] px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-[#F2419B]/30 transition hover:bg-[#F55CAB]"
-      >
-        <Plus size={16} />
-        Add Schedule
-      </button>
+      {/* SPNC AI assistant (floating robot button, bottom-right) */}
+      <SpncAssistant isDark={isDark} />
+
+      {trackingTripId && (
+        <TripTrackingModal
+          tripId={trackingTripId}
+          isDark={isDark}
+          onClose={() => setTrackingTripId(null)}
+          onChanged={() => {
+            void fetchTrips(); // calendar events
+            setTripLogKey((k) => k + 1); // trip log table
+          }}
+        />
+      )}
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -1385,7 +1685,7 @@ export default function SchedulesPage() {
                 options={FREQUENCY_OPTIONS}
                 selected={form.frequency}
                 onChange={(next) => setForm({ ...form, frequency: next })}
-                formatOption={(f) => f.replace("_", " ")}
+                formatOption={formatFrequency}
                 isDark={isDark}
                 mutedText={mutedText}
                 error={showFieldErrors && form.frequency.length === 0}

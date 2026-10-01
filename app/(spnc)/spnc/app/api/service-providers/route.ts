@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuditActor, logAuditEvent } from "../../../lib/audit";
 import { getSupabaseClient } from "../../../lib/supabase";
 
+// Lists only providers that are not archived.
 export async function GET(req: NextRequest) {
   const supabase = getSupabaseClient();
 
   const { data, error } = await supabase
     .from("service_providers")
     .select("*")
+    .is("archived_at", null)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -21,26 +23,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
-    name,
-    type,
-    contact_person,
-    email,
-    phone,
-    address,
-    country,
-    service_modes,
-    rating,
-    status,
-    contract_ref,
-    notes,
-    attachments,
+    name, type, agency, department, contact_person, email, phone,
+    address, country, service_modes, rating, status, contract_ref, notes, attachments,
   } = body;
 
   if (!name || !type) {
-    return NextResponse.json(
-      { message: "Company name and type are required." },
-      { status: 400 }
-    );
+    return NextResponse.json({ message: "Company name and type are required." }, { status: 400 });
   }
 
   const supabase = getSupabaseClient();
@@ -50,6 +38,8 @@ export async function POST(req: NextRequest) {
     .insert({
       name,
       type,
+      agency: agency || null,
+      department: department || null,
       contact_person: contact_person || null,
       email: email || null,
       phone: phone || null,

@@ -4,65 +4,65 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Printer } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import DocumentLogo from "../../../components/DocumentLogo";
+import TripDetailCard, { type Trip } from "../../../components/TripDetailCard";
+import TripTrackingModal from "../../../components/TripTrackingModal";
 
 type Schedule = {
   id: string;
   schedule_code: string;
   departure_datetime: string;
   arrival_datetime: string;
-  frequency: string;
+  frequency?: string | null;
   day_of_week?: string | null;
   capacity?: number | null;
-  unit_type: string;
-  cutoff_hours: number;
-  status: string;
+  unit_type?: string | null;
+  cutoff_hours?: number | null;
+  status?: string | null;
   notes?: string | null;
   routes?: {
-    route_code?: string;
-    route_name: string;
-    origin?: string;
-    destination?: string;
-    mode_of_transport?: string;
+    route_code?: string | null;
+    route_name?: string | null;
+    origin?: string | null;
+    destination?: string | null;
+    mode_of_transport?: string | null;
+    transit_points?: string[] | null;
   } | null;
-  service_providers?: { name: string } | null;
+  service_providers?: { name?: string | null; type?: string | null; contact_person?: string | null; phone?: string | null; email?: string | null } | null;
 };
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "No date" : date.toLocaleString(undefined, {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default function ScheduleDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trackingId, setTrackingId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchSchedule() {
+    async function load() {
       try {
-        const response = await fetch(`/spnc/app/api/schedules/${params.id}`);
-        const contentType = response.headers.get("content-type") || "";
-        if (!response.ok || !contentType.includes("application/json")) {
-          throw new Error(`Schedule request failed (${response.status})`);
+        const [sRes, tRes] = await Promise.all([
+          fetch(`/spnc/app/api/schedules/${params.id}`, { cache: "no-store" }),
+          fetch(`/spnc/app/api/trips`, { cache: "no-store" }).catch(() => null),
+        ]);
+        const contentType = sRes.headers.get("content-type") || "";
+        if (!sRes.ok || !contentType.includes("application/json")) throw new Error(`Schedule request failed (${sRes.status})`);
+        const data = await sRes.json();
+        setSchedule(data.schedule || null);
+
+        // Trips that run on this schedule (optional: the page still works without them)
+        if (tRes && tRes.ok) {
+          const t = await tRes.json().catch(() => ({}));
+          const list: Trip[] = Array.isArray(t.trips) ? t.trips : [];
+          setTrips(list.filter((x) => String(x.schedule_id ?? "") === String(params.id)));
         }
-        const data = await response.json();
-        setSchedule(response.ok ? data.schedule || null : null);
       } catch (error) {
         console.error("Fetch schedule failed:", error);
       } finally {
         setLoading(false);
       }
     }
-
-    if (params.id) fetchSchedule();
+    if (params.id) load();
   }, [params.id]);
 
   if (loading) {
@@ -86,7 +86,14 @@ export default function ScheduleDetailPage() {
   }
 
   const route = schedule.routes;
-  const routeLabel = route?.route_code || route?.route_name || "Unassigned route";
+  // Page title: the route name; with no route linked, use where the trip started → where it's going
+  const firstTripStart = [...(trips[0]?.checkpoints || [])].sort((a, b) => a.checkpoint_no - b.checkpoint_no)[0]?.location;
+  const routeLabel =
+    route?.route_name ||
+    route?.route_code ||
+    (route?.origin && route?.destination ? `${route.origin} → ${route.destination}` : null) ||
+    (firstTripStart ? `${firstTripStart}${route?.destination ? ` → ${route.destination}` : ""}` : null) ||
+    schedule.schedule_code;
 
   return (
     <div className="min-h-screen bg-white px-8 py-10">
@@ -104,20 +111,34 @@ export default function ScheduleDetailPage() {
       <div className="mx-auto max-w-3xl">
         <DocumentLogo />
         <h1 className="mt-2 text-3xl font-bold text-gray-900">{routeLabel}</h1>
-        <p className="mt-2 text-sm text-gray-500">Schedule · {schedule.schedule_code}</p>
+        <p className="mt-2 text-sm text-gray-500">
+          Schedule · {schedule.schedule_code}
+          {route?.route_code && route?.route_name ? ` · ${route.route_code}` : ""}
+        </p>
         <div className="mt-4 h-1 w-full bg-[#F2419B]" />
 
-        <div className="mt-8 grid grid-cols-2 gap-x-8 gap-y-6 border border-gray-200 p-6">
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Origin</p><p className="mt-1 text-sm text-gray-900">{route?.origin || "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Destination</p><p className="mt-1 text-sm text-gray-900">{route?.destination || "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Mode</p><p className="mt-1 text-sm text-gray-900">{route?.mode_of_transport || "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Departure</p><p className="mt-1 text-sm text-gray-900">{formatDateTime(schedule.departure_datetime)}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Arrival</p><p className="mt-1 text-sm text-gray-900">{formatDateTime(schedule.arrival_datetime)}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Service Provider</p><p className="mt-1 text-sm text-gray-900">{schedule.service_providers?.name || "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Status</p><p className="mt-1 text-sm text-gray-900 capitalize">{schedule.status}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Frequency</p><p className="mt-1 text-sm text-gray-900 capitalize">{schedule.frequency.replace("_", " ")}{schedule.day_of_week ? ` · ${schedule.day_of_week}` : ""}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Capacity</p><p className="mt-1 text-sm text-gray-900">{schedule.capacity ? `${schedule.capacity} ${schedule.unit_type}` : "—"}</p></div>
-          <div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">Booking Cutoff</p><p className="mt-1 text-sm text-gray-900">{schedule.cutoff_hours} hours before departure</p></div>
+        {/* Trips on this schedule */}
+        <div className="mt-8">
+          <p className="border-b border-gray-200 pb-2 text-sm font-bold tracking-wide text-gray-900 uppercase">
+            Trips {trips.length > 0 && <span className="font-normal text-gray-400">({trips.length})</span>}
+          </p>
+
+          {trips.length === 0 ? (
+            <p className="mt-4 text-sm text-gray-500">No trips linked to this schedule yet.</p>
+          ) : (
+            <div className="mt-4 space-y-5">
+              {trips.map((t) => (
+                <TripDetailCard
+                  key={t.id}
+                  trip={t}
+                  plannedDeparture={schedule.departure_datetime}
+                  plannedArrival={schedule.arrival_datetime}
+                  destination={route?.destination}
+                  onTrack={setTrackingId}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-8">
@@ -130,6 +151,8 @@ export default function ScheduleDetailPage() {
           <span>Airship Express</span>
         </div>
       </div>
+
+      {trackingId && <TripTrackingModal tripId={trackingId} isDark={false} onClose={() => setTrackingId(null)} />}
     </div>
   );
-} 
+}
