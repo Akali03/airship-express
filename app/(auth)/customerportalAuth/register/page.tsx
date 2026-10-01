@@ -33,7 +33,7 @@ export default async function Register() {
                 </svg>
 
                 <div className="flex items-center gap-3 relative z-10">
-                    <Image src={AirshipExpressLogo} alt="Logo" width={36} height={36} className="h-auto"/>
+                    <Image src={AirshipExpressLogo} alt="Logo" width={100} height={100} className="h-auto"/>
                     <span className="text-foreground text-lg font-semibold tracking-wide">Airship</span>
                 </div>
 
@@ -51,8 +51,7 @@ export default async function Register() {
             {/* right: form */}
             <div className="flex-1 flex flex-col items-center justify-center px-4">
                 <div className="lg:hidden mb-8 flex items-center gap-3">
-                    <Image src="/images/airship.png" alt="Logo" width={36} height={36} className="h-auto"/>
-                    <span className="text-foreground text-lg font-semibold tracking-wide">Airship</span>
+                    <Image src={AirshipExpressLogo} alt="Logo" width={100} height={100} className="h-auto"/>
                 </div>
 
                 <div className="w-full max-w-sm">
