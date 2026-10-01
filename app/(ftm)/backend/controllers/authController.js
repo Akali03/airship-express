@@ -46,19 +46,19 @@ function generateOtpCode() {
 
 function getSmtpConfig() {
   return {
-    host: process.env.FTM_SMTP_HOST || process.env.SMTP_HOST,
-    port: Number(process.env.FTM_SMTP_PORT || process.env.SMTP_PORT || 587),
-    secure: String(process.env.FTM_SMTP_SECURE || process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
-    user: process.env.FTM_SMTP_USER || process.env.SMTP_USER,
-    pass: process.env.FTM_SMTP_PASS || process.env.SMTP_PASS,
-    from: process.env.FTM_SMTP_FROM || process.env.SMTP_FROM || process.env.FTM_SMTP_USER || process.env.SMTP_USER,
+    host: process.env.FTM_SMTP_HOST,
+    port: Number(process.env.FTM_SMTP_PORT || 587),
+    secure: String(process.env.FTM_SMTP_SECURE || 'false').toLowerCase() === 'true',
+    user: process.env.FTM_SMTP_USER,
+    pass: process.env.FTM_SMTP_PASS,
+    from: process.env.FTM_SMTP_FROM || process.env.FTM_SMTP_USER,
   };
 }
 
 async function sendOtpEmail(email, code, lifetimeSeconds) {
   const config = getSmtpConfig();
   if (!config.host || !config.user || !config.pass) {
-    throw new Error('SMTP email is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and optionally SMTP_FROM.');
+    throw new Error('SMTP email is not configured. Set FTM_SMTP_HOST, FTM_SMTP_PORT, FTM_SMTP_USER, FTM_SMTP_PASS, and optionally FTM_SMTP_FROM on the FTM backend service.');
   }
 
   const transporter = nodemailer.createTransport({
