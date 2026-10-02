@@ -696,17 +696,25 @@ export default function AiChartGeneratorTab({ data: executiveData }: AiChartGene
                         rows={3}
                         className="w-full p-4 text-xs sm:text-sm bg-[#ebf0f7]/95 dark:bg-[#14151c]/95 border border-slate-200/50 dark:border-slate-800/60 rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500/30 focus:border-pink-500 transition-all resize-none shadow-[inset_2px_2px_5px_rgba(166,175,195,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)]"
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                                handleGenerate();
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (!isLoading && prompt.trim()) {
+                                    handleGenerate(undefined, undefined, undefined, activeResult ? true : false);
+                                }
                             }
                         }}
                     />
                 </div>
 
                 {/* Database Scope Hint */}
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 px-1">
-                    <i className="fas fa-shield-halved text-pink-500 text-[10px]" />
-                    <span>Database Scope: Inventory SKUs, Logistics Parcels, Courier Partners, Suppliers, User Activity Logs, Compliance Documents.</span>
+                <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 dark:text-slate-400 px-1">
+                    <div className="flex items-center gap-1.5">
+                        <i className="fas fa-shield-halved text-pink-500 text-[10px]" />
+                        <span>Database Scope: Inventory SKUs, Logistics Parcels, Courier Partners, Suppliers, User Activity Logs, Compliance Documents.</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                        Press <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[9px] shadow-sm">Enter</kbd> to analyze, <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[9px] shadow-sm">Shift+Enter</kbd> for new line
+                    </div>
                 </div>
 
                 {/* Starter Query Templates */}

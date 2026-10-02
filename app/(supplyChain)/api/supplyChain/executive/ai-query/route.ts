@@ -688,6 +688,31 @@ function isOutOfScopeQuery(prompt: string, db: any): { isOutOfScope: boolean; re
 
     const AVAILABLE_TABLES_MSG = "Available schema tables (tables.sql): activity_history, couriers, documents, inventory_items, notifications, parcels, purchase_orders, purchase_requests, receiving_queue, suppliers, user_activity, and trash.";
 
+    // 2.5 Early pass: Check if this is an explicit cross-table, schema, or database-wide inquiry
+    const isDbOverviewQuery =
+        q.includes('all table') ||
+        q.includes('all the table') ||
+        q.includes('all tables') ||
+        q.includes('all the tables') ||
+        q.includes('database table') ||
+        q.includes('database tables') ||
+        q.includes('databse table') ||
+        q.includes('databse tables') ||
+        q.includes('tables in') ||
+        q.includes('cross examination') ||
+        q.includes('cross-examination') ||
+        q.includes('schema') ||
+        q.includes('all data') ||
+        q.includes('entire database') ||
+        q.includes('whole database') ||
+        q.includes('every table') ||
+        q.includes('list tables') ||
+        q.includes('show tables');
+
+    if (isDbOverviewQuery) {
+        return { isOutOfScope: false, reason: "" };
+    }
+
     // 3. Known external / unknown database tables & entities
     const UNKNOWN_OR_UNMODELED_TABLES = [
         'employee', 'employees', 'staff', 'hr', 'salaries', 'salary', 'payroll', 'compensation', 'benefits',
@@ -721,11 +746,14 @@ function isOutOfScopeQuery(prompt: string, db: any): { isOutOfScope: boolean; re
 
     // 4. Regex detection for any table references (e.g. "table <name>", "<name> table", "from <name>")
     const stopWords = new Set([
-        'the', 'this', 'our', 'a', 'an', 'each', 'all', 'any', 'my', 'every', 'data', 'database', 'system',
+        'the', 'this', 'our', 'a', 'an', 'each', 'all', 'any', 'my', 'every', 'data', 'database', 'databse', 'system',
         'active', 'recent', 'current', 'populated', 'existing', 'main', 'summary', 'breakdown', 'pivot',
         'airship', 'express', 'supply', 'chain', 'module', 'modules', 'view', 'chart', 'report',
         'tables', 'table', 'different', 'multiple', 'various', 'several', 'across', 'between', 'both',
-        'combine', 'combined', 'comparison', 'compare', 'cross', 'versus', 'vs', 'one', '1', 'and', 'or', 'with'
+        'combine', 'combined', 'comparison', 'compare', 'cross', 'versus', 'vs', 'one', '1', 'and', 'or', 'with',
+        'in', 'on', 'at', 'to', 'for', 'of', 'from', 'about', 'into', 'by', 'as', 'than',
+        'can', 'you', 'give', 'me', 'show', 'list', 'tell', 'what', 'are', 'is', 'get', 'please',
+        'examination', 'cross-examination', 'overview', 'details', 'information', 'info'
     ]);
 
     // 4a. Check "table <name>" or "table: <name>" or "from table <name>"
@@ -779,7 +807,7 @@ function isOutOfScopeQuery(prompt: string, db: any): { isOutOfScope: boolean; re
         'user', 'activity', 'log', 'audit', 'event', 'security', 'login', 'action', 'session', 'role',
         'document', 'compliance', 'contract', 'agreement', 'file', 'certification', 'license', 'legal', 'sop',
         'trash', 'archive', 'deleted', 'restore', 'purge',
-        'different table', 'different tables', 'multiple table', 'multiple tables', 'all table', 'all tables', 'across table', 'across tables', 'cross table', 'cross-table', 'compare table', 'compare tables', 'table comparison', 'tables comparison', 'schema',
+        'different table', 'different tables', 'multiple table', 'multiple tables', 'all table', 'all tables', 'all the table', 'all the tables', 'across table', 'across tables', 'cross table', 'cross-table', 'compare table', 'compare tables', 'table comparison', 'tables comparison', 'schema', 'databse', 'database', 'tables in', 'cross examination', 'cross-examination', 'list tables', 'show tables',
         'kpi', 'rate', 'performance', 'sla', 'overview', 'metric', 'summary', 'executive', 'trend', 'analytics'
     ];
 
@@ -867,6 +895,15 @@ function generateHeuristicAnalysis(prompt: string, displayMode: 'chart' | 'text'
         q.includes('cross-table') ||
         q.includes('all table') ||
         q.includes('all tables') ||
+        q.includes('all the table') ||
+        q.includes('all the tables') ||
+        q.includes('database table') ||
+        q.includes('database tables') ||
+        q.includes('databse table') ||
+        q.includes('databse tables') ||
+        q.includes('tables in') ||
+        q.includes('cross examination') ||
+        q.includes('cross-examination') ||
         q.includes('compare table') ||
         q.includes('compare tables') ||
         q.includes('table comparison') ||
@@ -876,6 +913,11 @@ function generateHeuristicAnalysis(prompt: string, displayMode: 'chart' | 'text'
         q.includes('in 1 chart') ||
         q.includes('in 1 charts') ||
         q.includes('in one chart') ||
+        q.includes('schema') ||
+        q.includes('all data') ||
+        q.includes('entire database') ||
+        q.includes('whole database') ||
+        q.includes('every table') ||
         (q.includes('compare') && (q.includes('inventory') || q.includes('parcels') || q.includes('documents')) && (q.includes('suppliers') || q.includes('couriers')));
 
     if (isMultiTableQuery) {
