@@ -77,6 +77,7 @@ export const SUBDOMAIN_PORTALS: SubdomainPortal[] = [
       "/bookings",
       "/cost",
       "/driver",
+      "/events",
       "/fuel",
       "/fvm",
       "/history",
