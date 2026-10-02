@@ -43,7 +43,8 @@ interface UpdateRequestData {
 }
 
 interface PatchRequestData {
-    id: string;
+    id?: string;
+    ids?: string[];
     action: 'approve' | 'reject';
     role?: string;
 }

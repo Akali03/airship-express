@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
         return new Response('Missing PO number', { status: 400 });
     }
 
-    const targetStatus = isReject ? 'Cancelled' : 'Confirmed';
+    const targetStatus = isReject ? 'Rejected' : 'Confirmed';
 
     // 1. Update PO in database
     const { data: updatedPo, error } = await supabase
@@ -43,11 +43,11 @@ export async function GET(request: NextRequest) {
     // 3. Notify Manager, Admin & Executive
     try {
         const title = isReject
-            ? `Purchase Order Declined by Supplier: #${po}`
+            ? `Purchase Order Rejected by Supplier: #${po}`
             : `Purchase Order Accepted by Supplier: #${po}`;
 
         const message = isReject
-            ? `Supplier "${supplierName}" has declined Purchase Order #${po}${amountStr}. Action required: Review and re-procure items.`
+            ? `Supplier "${supplierName}" has rejected Purchase Order #${po}${amountStr}. Action required: Review and re-procure items.`
             : `Supplier "${supplierName}" has accepted & confirmed Purchase Order #${po}${amountStr}. Expected delivery schedule acknowledged.`;
 
         await supabase
@@ -69,11 +69,11 @@ export async function GET(request: NextRequest) {
         console.error('Error inserting supplier email action notification:', notifErr);
     }
 
-    const statusTitle = isReject ? 'Purchase Order Declined' : 'Purchase Order Confirmed';
+    const statusTitle = isReject ? 'Purchase Order Rejected' : 'Purchase Order Confirmed';
     const statusSubtitle = isReject 
-        ? 'Your response has been recorded. The procurement team and managers have been notified that this order was declined.'
+        ? 'Your response has been recorded. The procurement team and managers have been notified that this order was rejected.'
         : 'Your confirmation has been recorded and updated across all procurement systems. The management team has been notified.';
-    const badgeText = isReject ? 'Declined / Cancelled' : 'Confirmed';
+    const badgeText = isReject ? 'Rejected' : 'Confirmed';
 
     return new Response(`
         <!DOCTYPE html>

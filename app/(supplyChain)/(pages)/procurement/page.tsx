@@ -1,6 +1,6 @@
 // app/(supplyChain)/procurement/page.tsx
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Chart from "chart.js/auto";
 import { toast } from "sonner";
 import { useDebounce } from "../../hooks/useDebounce";
@@ -576,6 +576,107 @@ export default function Procurement() {
             return;
         await performBulkDelete(Array.from(selectedIds));
     };
+
+    const handleBulkApprove = async () => {
+        if (selectedIds.size === 0) {
+            toast.warning("Please select at least one request to approve");
+            return;
+        }
+
+        const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+        const pendingRequests = selectedRequests.filter(r => r.status === "Pending");
+
+        if (pendingRequests.length === 0) {
+            toast.warning("None of the selected requests are in 'Pending' status to approve");
+            return;
+        }
+
+        const nonPendingCount = selectedRequests.length - pendingRequests.length;
+        const confirmMessage = nonPendingCount > 0
+            ? `${pendingRequests.length} of ${selectedRequests.length} selected request(s) are pending. Are you sure you want to approve these ${pendingRequests.length} pending request(s)?`
+            : `Are you sure you want to approve all ${pendingRequests.length} selected pending request(s)? This will mark them ready for purchase order generation.`;
+
+        const confirmed = await confirm({
+            title: "Approve Selected Requests",
+            message: confirmMessage,
+            confirmText: `Approve (${pendingRequests.length})`,
+            cancelText: "Cancel",
+            confirmVariant: "pink",
+        });
+
+        if (!confirmed) return;
+
+        setPendingRowId("bulk");
+        try {
+            const idsToApprove = pendingRequests.map(r => r.id);
+            await patchPurchaseRequest({ ids: idsToApprove, action: 'approve' });
+            setRequests(prev => prev.map(r => idsToApprove.includes(r.id) ? { ...r, status: "Approved" } : r));
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                idsToApprove.forEach(id => next.delete(id));
+                return next;
+            });
+            setIsSelectAll(false);
+            toast.success(`Successfully approved ${idsToApprove.length} request(s)`);
+            await updateCounts();
+        } catch (error) {
+            console.error('Error approving requests in bulk:', error);
+            toast.error('Failed to approve selected requests');
+        } finally {
+            setPendingRowId(null);
+        }
+    };
+
+    const handleBulkReject = async () => {
+        if (selectedIds.size === 0) {
+            toast.warning("Please select at least one request to reject");
+            return;
+        }
+
+        const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+        const pendingRequests = selectedRequests.filter(r => r.status === "Pending");
+
+        if (pendingRequests.length === 0) {
+            toast.warning("None of the selected requests are in 'Pending' status to reject");
+            return;
+        }
+
+        const nonPendingCount = selectedRequests.length - pendingRequests.length;
+        const confirmMessage = nonPendingCount > 0
+            ? `${pendingRequests.length} of ${selectedRequests.length} selected request(s) are pending. Are you sure you want to reject these ${pendingRequests.length} pending request(s)?`
+            : `Are you sure you want to reject all ${pendingRequests.length} selected pending request(s)?`;
+
+        const confirmed = await confirm({
+            title: "Reject Selected Requests",
+            message: confirmMessage,
+            confirmText: `Reject (${pendingRequests.length})`,
+            cancelText: "Cancel",
+            confirmVariant: "danger",
+        });
+
+        if (!confirmed) return;
+
+        setPendingRowId("bulk");
+        try {
+            const idsToReject = pendingRequests.map(r => r.id);
+            await patchPurchaseRequest({ ids: idsToReject, action: 'reject' });
+            setRequests(prev => prev.map(r => idsToReject.includes(r.id) ? { ...r, status: "Rejected" } : r));
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                idsToReject.forEach(id => next.delete(id));
+                return next;
+            });
+            setIsSelectAll(false);
+            toast.info(`Successfully rejected ${idsToReject.length} request(s)`);
+            await updateCounts();
+        } catch (error) {
+            console.error('Error rejecting requests in bulk:', error);
+            toast.error('Failed to reject selected requests');
+        } finally {
+            setPendingRowId(null);
+        }
+    };
+
     const handleSelectAll = () => {
         if (isSelectAll) {
             setSelectedIds(new Set());
@@ -871,6 +972,9 @@ export default function Procurement() {
             setTimeout(scrollToTable, 100);
         }
     };
+    const selectedPendingCount = useMemo(() => {
+        return requests.filter(r => selectedIds.has(r.id) && r.status === "Pending").length;
+    }, [requests, selectedIds]);
     const totalSpend = purchaseOrders
         .filter((o) => o.status !== 'Draft' && o.paid === true)
         .reduce((sum, o) => sum + (o.total_amount || 0), 0);
@@ -1093,18 +1197,44 @@ export default function Procurement() {
                                 })}
                             </div>
 
-                            {/* po action & bulk delete */}
+                            {/* po action & bulk delete / approve / reject */}
                             <div className="flex items-center gap-2 flex-wrap">
                                 {selectedIds.size > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={handleBulkDelete}
-                                        disabled={pendingRowId === "bulk"}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200/70 dark:border-rose-800/50 rounded-2xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95 disabled:opacity-50 shrink-0"
-                                    >
-                                        {pendingRowId === "bulk" ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-trash-alt text-[10px]" />}
-                                        <span>Delete Selected ({selectedIds.size})</span>
-                                    </button>
+                                    <>
+                                        {canApproveReject && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleBulkApprove}
+                                                    disabled={pendingRowId === "bulk" || selectedPendingCount === 0}
+                                                    title={selectedPendingCount === 0 ? "No pending requests selected" : `Approve ${selectedPendingCount} pending request(s)`}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 border border-emerald-200/70 dark:border-emerald-800/50 rounded-2xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                                                >
+                                                    {pendingRowId === "bulk" ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-check text-[10px]" />}
+                                                    <span>Approve ({selectedPendingCount})</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleBulkReject}
+                                                    disabled={pendingRowId === "bulk" || selectedPendingCount === 0}
+                                                    title={selectedPendingCount === 0 ? "No pending requests selected" : `Reject ${selectedPendingCount} pending request(s)`}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 border border-amber-200/70 dark:border-amber-800/50 rounded-2xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                                                >
+                                                    {pendingRowId === "bulk" ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-times text-[10px]" />}
+                                                    <span>Reject ({selectedPendingCount})</span>
+                                                </button>
+                                            </>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleBulkDelete}
+                                            disabled={pendingRowId === "bulk"}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200/70 dark:border-rose-800/50 rounded-2xl shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all cursor-pointer active:scale-95 disabled:opacity-50 shrink-0"
+                                        >
+                                            {pendingRowId === "bulk" ? <i className="fas fa-spinner fa-spin text-xs" /> : <i className="fas fa-trash-alt text-[10px]" />}
+                                            <span>Delete Selected ({selectedIds.size})</span>
+                                        </button>
+                                    </>
                                 )}
                                 <Link href="/purchase-orders">
                                     <AppButton type="button" variant="primary" size="sm" aria-label="Go to Purchase Orders" className="shrink-0">
@@ -1279,10 +1409,33 @@ export default function Procurement() {
                             </span> of{' '}
                             <span className="font-semibold text-slate-800 dark:text-white">{totalItems}</span> requests
                         </span>
-                        {selectedIds.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200/60 dark:border-slate-800 animate-in fade-in duration-150">
+                        {selectedIds.size > 0 && (<div className="flex items-center gap-2 pl-3 border-l border-slate-200/60 dark:border-slate-800 animate-in fade-in duration-150 flex-wrap">
                             <span className="px-2.5 py-1 rounded-xl bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-bold border border-pink-200/80 dark:border-pink-900/40 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
                                 {selectedIds.size} selected
                             </span>
+
+                            {canApproveReject && (
+                                <>
+                                    <button 
+                                        onClick={handleBulkApprove} 
+                                        disabled={pendingRowId === "bulk" || selectedPendingCount === 0} 
+                                        title={selectedPendingCount === 0 ? "No pending requests selected" : `Approve ${selectedPendingCount} pending request(s)`}
+                                        className="px-3 py-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-200/70 dark:border-emerald-800/50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                                    >
+                                        {pendingRowId === "bulk" ? (<i className="fas fa-spinner fa-spin text-xs" />) : (<i className="fas fa-check text-xs" />)}
+                                        <span>Approve ({selectedPendingCount})</span>
+                                    </button>
+                                    <button 
+                                        onClick={handleBulkReject} 
+                                        disabled={pendingRowId === "bulk" || selectedPendingCount === 0} 
+                                        title={selectedPendingCount === 0 ? "No pending requests selected" : `Reject ${selectedPendingCount} pending request(s)`}
+                                        className="px-3 py-1.5 text-xs font-bold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-200/70 dark:border-amber-800/50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                                    >
+                                        {pendingRowId === "bulk" ? (<i className="fas fa-spinner fa-spin text-xs" />) : (<i className="fas fa-times text-xs" />)}
+                                        <span>Reject ({selectedPendingCount})</span>
+                                    </button>
+                                </>
+                            )}
 
                             <button onClick={handleBulkDelete} disabled={pendingRowId === "bulk"} className="px-3 py-1.5 text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-2xl border border-rose-200/70 dark:border-rose-800/50 shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95">
                                 {pendingRowId === "bulk" ? (<i className="fas fa-spinner fa-spin text-xs" />) : (<i className="fas fa-trash-alt text-xs" />)}

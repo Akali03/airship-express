@@ -16,6 +16,7 @@ import {
     RefreshCw, 
     X, 
     XCircle,
+    RotateCcw,
     Building2, 
     Check, 
     MessageSquare, 
@@ -32,6 +33,7 @@ import { supabase } from "../../../lib/services/client/supabase";
 import { useDebounce } from "../../../hooks/useDebounce";
 import { Pagination } from "../../../components/global/pagination";
 import { StatusBadge, getPOStatusTone } from "../../../components/ui/StatusBadge";
+import { AppButton } from "../../../components/ui/AppButton";
 import { CardsSkeleton, TableSkeleton } from "../../../components/ui/SkeletonLoader";
 import Cards from "../../../components/global/Cards";
 import { toast } from "sonner";
@@ -100,7 +102,7 @@ function EmptyState({
 interface StatusConfirmState {
     poId: string;
     poNumber: string;
-    actionType: "accept" | "reject" | "cancel" | "delivered";
+    actionType: "accept" | "reject" | "revert" | "cancel" | "delivered";
     targetStatus: string;
     title: string;
     description: string;
@@ -236,9 +238,19 @@ export default function SupplierPurchaseOrdersPage() {
         return s === "DELIVERED" || s === "COMPLETED";
     };
 
-    const isCancelledOrRejected = (status?: string) => {
+    const isRejectedStatus = (status?: string) => {
         const s = (status || "").toUpperCase();
-        return s.includes("CANCEL") || s.includes("REJECT");
+        return s === "REJECTED" || s.includes("REJECT");
+    };
+
+    const isCancelledStatus = (status?: string) => {
+        const s = (status || "").toUpperCase();
+        return s === "CANCELLED" || s === "CANCELED";
+    };
+
+    const isPendingOrSentStatus = (status?: string) => {
+        const s = (status || "").toUpperCase();
+        return s === "SENT" || s === "DRAFT" || (!isConfirmedStatus(status) && !isDeliveredStatus(status) && !isRejectedStatus(status) && !isCancelledStatus(status));
     };
 
     // Filter and Search Logic
@@ -255,10 +267,12 @@ export default function SupplierPurchaseOrdersPage() {
                 matchesStatus = isConfirmedStatus(po.status);
             } else if (selectedStatus === "DELIVERED") {
                 matchesStatus = isDeliveredStatus(po.status);
+            } else if (selectedStatus === "REJECTED") {
+                matchesStatus = isRejectedStatus(po.status);
             } else if (selectedStatus === "CANCELLED") {
-                matchesStatus = isCancelledOrRejected(po.status);
+                matchesStatus = isCancelledStatus(po.status);
             } else if (selectedStatus === "PENDING") {
-                matchesStatus = !isConfirmedStatus(po.status) && !isDeliveredStatus(po.status) && !isCancelledOrRejected(po.status);
+                matchesStatus = isPendingOrSentStatus(po.status);
             }
 
             return matchesSearch && matchesStatus;
@@ -374,7 +388,7 @@ export default function SupplierPurchaseOrdersPage() {
     };
 
     // Request status change with confirmation modal
-    const requestStatusChange = (po: PurchaseOrder, action: "accept" | "reject" | "cancel" | "delivered") => {
+    const requestStatusChange = (po: PurchaseOrder, action: "accept" | "reject" | "revert" | "cancel" | "delivered") => {
         switch (action) {
             case "accept":
                 setConfirmModal({
@@ -393,22 +407,26 @@ export default function SupplierPurchaseOrdersPage() {
                     poId: po.id,
                     poNumber: po.po_number,
                     actionType: "reject",
-                    targetStatus: "Cancelled",
+                    targetStatus: "Rejected",
                     title: "Reject Purchase Order?",
-                    description: `Are you sure you want to reject PO #${po.po_number}? This purchase order will be marked as cancelled.`,
+                    description: `Are you sure you want to reject PO #${po.po_number}? This purchase order will be marked as Rejected.`,
                     confirmButtonText: "Yes, Reject Order",
                     confirmButtonColor: "rose",
                 });
                 break;
+            case "revert":
             case "cancel":
+                const wasRejected = isRejectedStatus(po.status);
                 setConfirmModal({
                     poId: po.id,
                     poNumber: po.po_number,
-                    actionType: "cancel",
-                    targetStatus: "Cancelled",
-                    title: "Cancel Confirmed Order?",
-                    description: `Are you sure you want to cancel PO #${po.po_number}? You will still be able to accept or reject it again if needed.`,
-                    confirmButtonText: "Yes, Cancel Order",
+                    actionType: "revert",
+                    targetStatus: "Sent",
+                    title: wasRejected ? "Revert Order Rejection?" : "Revert Order Confirmation?",
+                    description: wasRejected
+                        ? `Are you sure you want to revert the rejection for PO #${po.po_number}? The order will revert back to "Sent" status so it can be reviewed and accepted.`
+                        : `Are you sure you want to revert PO #${po.po_number}? The order will revert back to "Sent" status so it can be reviewed and accepted or rejected again.`,
+                    confirmButtonText: "Yes, Revert to Sent",
                     confirmButtonColor: "rose",
                 });
                 break;
@@ -462,9 +480,15 @@ export default function SupplierPurchaseOrdersPage() {
             if (normStatus.includes('confirm') || normStatus.includes('accept') || normStatus.includes('approved')) {
                 notifTitle = `Purchase Order Accepted: #${poNumber}`;
                 notifMessage = `Supplier "${supplierName}" has accepted & confirmed Purchase Order #${poNumber}${amountStr}. Delivery schedule acknowledged.`;
-            } else if (normStatus.includes('cancel') || normStatus.includes('reject')) {
-                notifTitle = `Purchase Order Declined: #${poNumber}`;
-                notifMessage = `Supplier "${supplierName}" has declined / cancelled Purchase Order #${poNumber}${amountStr}. Action required: Review and re-procure items.`;
+            } else if (normStatus === 'rejected' || normStatus.includes('reject')) {
+                notifTitle = `Purchase Order Rejected: #${poNumber}`;
+                notifMessage = `Supplier "${supplierName}" has rejected Purchase Order #${poNumber}${amountStr}. Action required: Review and re-procure items.`;
+            } else if (normStatus === 'sent') {
+                notifTitle = `Purchase Order Confirmation Cancelled: #${poNumber}`;
+                notifMessage = `Supplier "${supplierName}" cancelled confirmation for Purchase Order #${poNumber}${amountStr}. Status reverted to Sent.`;
+            } else if (normStatus.includes('cancel')) {
+                notifTitle = `Purchase Order Cancelled: #${poNumber}`;
+                notifMessage = `Supplier "${supplierName}" has cancelled Purchase Order #${poNumber}${amountStr}. Action required: Review and re-procure items.`;
             } else if (normStatus.includes('deliver') || normStatus.includes('complete')) {
                 notifTitle = `Purchase Order Delivered: #${poNumber}`;
                 notifMessage = `Supplier "${supplierName}" marked Purchase Order #${poNumber}${amountStr} as Delivered. Ready for receiving verification.`;
@@ -524,7 +548,7 @@ export default function SupplierPurchaseOrdersPage() {
         purchaseOrders.forEach((po) => {
             totalValue += Number(po.total_amount) || 0;
             if (isDeliveredStatus(po.status)) deliveredCount++;
-            else if (!isConfirmedStatus(po.status) && !isCancelledOrRejected(po.status)) pendingCount++;
+            else if (isPendingOrSentStatus(po.status)) pendingCount++;
         });
 
         return {
@@ -541,12 +565,14 @@ export default function SupplierPurchaseOrdersPage() {
             PENDING: 0,
             CONFIRMED: 0,
             DELIVERED: 0,
+            REJECTED: 0,
             CANCELLED: 0,
         };
         purchaseOrders.forEach((po) => {
             if (isDeliveredStatus(po.status)) counts.DELIVERED++;
             else if (isConfirmedStatus(po.status)) counts.CONFIRMED++;
-            else if (isCancelledOrRejected(po.status)) counts.CANCELLED++;
+            else if (isRejectedStatus(po.status)) counts.REJECTED++;
+            else if (isCancelledStatus(po.status)) counts.CANCELLED++;
             else counts.PENDING++;
         });
         return counts;
@@ -571,14 +597,16 @@ export default function SupplierPurchaseOrdersPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                    <button
+                    <AppButton
+                        variant="neutral"
+                        size="sm"
+                        icon={RefreshCw}
+                        iconClassName={isLoading ? "animate-spin text-pink-500" : "text-pink-500"}
                         onClick={fetchOrders}
                         disabled={isLoading}
-                        className="px-3.5 py-2 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#1a1b26] border border-white/80 dark:border-white/[0.08] shadow-[3px_3px_7px_rgba(166,175,195,0.35),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.6)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.3)] active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
                     >
-                        <RefreshCw className={`w-3.5 h-3.5 text-pink-500 ${isLoading ? "animate-spin" : ""}`} />
-                        <span>Refresh</span>
-                    </button>
+                        Refresh
+                    </AppButton>
                 </div>
             </div>
 
@@ -637,6 +665,7 @@ export default function SupplierPurchaseOrdersPage() {
                     { id: "PENDING", label: "Pending", count: statusCounts.PENDING },
                     { id: "CONFIRMED", label: "Confirmed", count: statusCounts.CONFIRMED },
                     { id: "DELIVERED", label: "Delivered", count: statusCounts.DELIVERED },
+                    { id: "REJECTED", label: "Rejected", count: statusCounts.REJECTED },
                     { id: "CANCELLED", label: "Cancelled", count: statusCounts.CANCELLED },
                 ].map((tab) => {
                     const active = selectedStatus === tab.id;
@@ -699,15 +728,17 @@ export default function SupplierPurchaseOrdersPage() {
                                     Clear search
                                 </button>
                             )}
-                            <button
+                            <AppButton
+                                variant="neutral"
+                                size="sm"
+                                icon={Download}
+                                iconClassName="text-pink-500"
                                 onClick={handleExportCSV}
                                 disabled={filteredOrders.length === 0}
-                                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#181924] border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.25)] hover:bg-white dark:hover:bg-[#1e1f2b] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                                 title="Export current list"
                             >
-                                <Download className="w-3.5 h-3.5 text-pink-500" />
-                                <span>Export</span>
-                            </button>
+                                Export
+                            </AppButton>
                         </div>
                     </div>
 
@@ -775,24 +806,39 @@ export default function SupplierPurchaseOrdersPage() {
                                             <div className="flex items-center gap-1.5">
                                                 {isConfirmedStatus(po.status) ? (
                                                     <>
-                                                        <button
+                                                        <AppButton
+                                                            variant="success"
+                                                            size="xs"
+                                                            icon={CheckCircle2}
                                                             onClick={() => requestStatusChange(po, "delivered")}
                                                             disabled={isUpdatingStatus}
-                                                            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                                             title="Confirm Order Delivery"
                                                         >
-                                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                                            <span>Delivered</span>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => requestStatusChange(po, "cancel")}
+                                                            Delivered
+                                                        </AppButton>
+                                                        <AppButton
+                                                            variant="danger"
+                                                            size="xs"
+                                                            icon={RotateCcw}
+                                                            onClick={() => requestStatusChange(po, "revert")}
                                                             disabled={isUpdatingStatus}
-                                                            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                                                            title="Cancel Confirmed Order"
+                                                            title="Revert Confirmed Order"
                                                         >
-                                                            <XCircle className="w-3.5 h-3.5" />
-                                                            <span>Cancel</span>
-                                                        </button>
+                                                            Revert
+                                                        </AppButton>
+                                                    </>
+                                                ) : isRejectedStatus(po.status) ? (
+                                                    <>
+                                                        <AppButton
+                                                            variant="danger"
+                                                            size="xs"
+                                                            icon={RotateCcw}
+                                                            onClick={() => requestStatusChange(po, "revert")}
+                                                            disabled={isUpdatingStatus}
+                                                            title="Revert Rejected Order"
+                                                        >
+                                                            Revert
+                                                        </AppButton>
                                                     </>
                                                 ) : isDeliveredStatus(po.status) ? (
                                                     <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 rounded-xl">
@@ -800,24 +846,26 @@ export default function SupplierPurchaseOrdersPage() {
                                                     </span>
                                                 ) : (
                                                     <>
-                                                        <button
+                                                        <AppButton
+                                                            variant="pink"
+                                                            size="xs"
+                                                            icon={Check}
                                                             onClick={() => requestStatusChange(po, "accept")}
                                                             disabled={isUpdatingStatus}
-                                                            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                                             title="Accept Purchase Order"
                                                         >
-                                                            <Check className="w-3.5 h-3.5" />
-                                                            <span>Accept</span>
-                                                        </button>
-                                                        <button
+                                                            Accept
+                                                        </AppButton>
+                                                        <AppButton
+                                                            variant="danger"
+                                                            size="xs"
+                                                            icon={X}
                                                             onClick={() => requestStatusChange(po, "reject")}
                                                             disabled={isUpdatingStatus}
-                                                            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 bg-[#ebf0f7] dark:bg-[#181924] border border-white/80 dark:border-white/[0.08] active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                                             title="Reject Purchase Order"
                                                         >
-                                                            <X className="w-3.5 h-3.5" />
-                                                            <span>Reject</span>
-                                                        </button>
+                                                            Reject
+                                                        </AppButton>
                                                     </>
                                                 )}
                                             </div>
@@ -830,13 +878,15 @@ export default function SupplierPurchaseOrdersPage() {
                                                 >
                                                     <MessageSquare className="w-3.5 h-3.5" />
                                                 </Link>
-                                                <button
+                                                <AppButton
+                                                    variant="neutral"
+                                                    size="xs"
+                                                    icon={Eye}
+                                                    iconClassName="text-pink-500"
                                                     onClick={() => setSelectedPo(po)}
-                                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#f0f3f8] dark:bg-[#181924] border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_6px_rgba(0,0,0,0.5)] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                                                 >
-                                                    <Eye className="w-3.5 h-3.5 text-pink-500" />
-                                                    <span>Details</span>
-                                                </button>
+                                                    Details
+                                                </AppButton>
                                             </div>
                                         </div>
                                     </div>
@@ -918,24 +968,39 @@ export default function SupplierPurchaseOrdersPage() {
                                                     <div className="flex items-center justify-end gap-1.5 flex-wrap">
                                                         {isConfirmedStatus(po.status) ? (
                                                             <>
-                                                                <button
+                                                                <AppButton
+                                                                    variant="success"
+                                                                    size="xs"
+                                                                    icon={CheckCircle2}
                                                                     onClick={() => requestStatusChange(po, "delivered")}
                                                                     disabled={isUpdatingStatus}
-                                                                    className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
                                                                     title="Confirm Delivery"
                                                                 >
-                                                                    <CheckCircle2 className="w-3 h-3" />
-                                                                    <span>Delivered</span>
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => requestStatusChange(po, "cancel")}
+                                                                    Delivered
+                                                                </AppButton>
+                                                                <AppButton
+                                                                    variant="danger"
+                                                                    size="xs"
+                                                                    icon={RotateCcw}
+                                                                    onClick={() => requestStatusChange(po, "revert")}
                                                                     disabled={isUpdatingStatus}
-                                                                    className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                                                                    title="Cancel Confirmed Order"
+                                                                    title="Revert Confirmed Order"
                                                                 >
-                                                                    <XCircle className="w-3 h-3" />
-                                                                    <span>Cancel</span>
-                                                                </button>
+                                                                    Revert
+                                                                </AppButton>
+                                                            </>
+                                                        ) : isRejectedStatus(po.status) ? (
+                                                            <>
+                                                                <AppButton
+                                                                    variant="danger"
+                                                                    size="xs"
+                                                                    icon={RotateCcw}
+                                                                    onClick={() => requestStatusChange(po, "revert")}
+                                                                    disabled={isUpdatingStatus}
+                                                                    title="Revert Rejected Order"
+                                                                >
+                                                                    Revert
+                                                                </AppButton>
                                                             </>
                                                         ) : isDeliveredStatus(po.status) ? (
                                                             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 rounded-xl">
@@ -943,34 +1008,38 @@ export default function SupplierPurchaseOrdersPage() {
                                                             </span>
                                                         ) : (
                                                             <>
-                                                                <button
+                                                                <AppButton
+                                                                    variant="pink"
+                                                                    size="xs"
+                                                                    icon={Check}
                                                                     onClick={() => requestStatusChange(po, "accept")}
                                                                     disabled={isUpdatingStatus}
-                                                                    className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-white bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 active:scale-95 transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
                                                                     title="Accept Order"
                                                                 >
-                                                                    <Check className="w-3 h-3" />
-                                                                    <span>Accept</span>
-                                                                </button>
-                                                                <button
+                                                                    Accept
+                                                                </AppButton>
+                                                                <AppButton
+                                                                    variant="danger"
+                                                                    size="xs"
+                                                                    icon={X}
                                                                     onClick={() => requestStatusChange(po, "reject")}
                                                                     disabled={isUpdatingStatus}
-                                                                    className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 bg-[#ebf0f7] dark:bg-[#181924] border border-white/80 dark:border-white/[0.08] active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                                                     title="Reject Order"
                                                                 >
-                                                                    <X className="w-3 h-3" />
-                                                                    <span>Reject</span>
-                                                                </button>
+                                                                    Reject
+                                                                </AppButton>
                                                             </>
                                                         )}
-                                                        <button
+                                                        <AppButton
+                                                            variant="neutral"
+                                                            size="xs"
+                                                            icon={Eye}
+                                                            iconClassName="text-pink-500"
                                                             onClick={() => setSelectedPo(po)}
-                                                            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#ebf0f7] dark:bg-[#181924] border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_6px_rgba(0,0,0,0.5)] hover:shadow-[1px_1px_3px_rgba(166,175,195,0.3)] active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
                                                             title="View PO Details"
                                                         >
-                                                            <Eye className="w-3.5 h-3.5 text-pink-500" />
-                                                            <span className="hidden sm:inline">Details</span>
-                                                        </button>
+                                                            Details
+                                                        </AppButton>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1144,55 +1213,72 @@ export default function SupplierPurchaseOrdersPage() {
                                 <div className="flex items-center gap-2">
                                     {isConfirmedStatus(selectedPo.status) ? (
                                         <>
-                                            <button
+                                            <AppButton
+                                                variant="success"
+                                                size="sm"
+                                                icon={CheckCircle2}
                                                 onClick={() => requestStatusChange(selectedPo, "delivered")}
                                                 disabled={isUpdatingStatus}
-                                                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                             >
-                                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                                <span>Mark as Delivered</span>
-                                            </button>
-                                            <button
-                                                onClick={() => requestStatusChange(selectedPo, "cancel")}
+                                                Mark as Delivered
+                                            </AppButton>
+                                            <AppButton
+                                                variant="danger"
+                                                size="sm"
+                                                icon={RotateCcw}
+                                                onClick={() => requestStatusChange(selectedPo, "revert")}
                                                 disabled={isUpdatingStatus}
-                                                className="px-4 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                             >
-                                                <XCircle className="w-3.5 h-3.5" />
-                                                <span>Cancel Order</span>
-                                            </button>
+                                                Revert Order
+                                            </AppButton>
+                                        </>
+                                    ) : isRejectedStatus(selectedPo.status) ? (
+                                        <>
+                                            <AppButton
+                                                variant="danger"
+                                                size="sm"
+                                                icon={RotateCcw}
+                                                onClick={() => requestStatusChange(selectedPo, "revert")}
+                                                disabled={isUpdatingStatus}
+                                            >
+                                                Revert Order
+                                            </AppButton>
                                         </>
                                     ) : isDeliveredStatus(selectedPo.status) ? (
-                                        <div className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 flex items-center gap-1.5 border border-emerald-500/20">
+                                        <div className="px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 flex items-center gap-1.5 border border-emerald-500/20">
                                             <CheckCircle2 className="w-3.5 h-3.5" />
                                             <span>Delivered & Completed</span>
                                         </div>
                                     ) : (
                                         <>
-                                            <button
+                                            <AppButton
+                                                variant="pink"
+                                                size="sm"
+                                                icon={Check}
                                                 onClick={() => requestStatusChange(selectedPo, "accept")}
                                                 disabled={isUpdatingStatus}
-                                                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                             >
-                                                <Check className="w-3.5 h-3.5" />
-                                                <span>Accept Order</span>
-                                            </button>
-                                            <button
+                                                Accept Order
+                                            </AppButton>
+                                            <AppButton
+                                                variant="danger"
+                                                size="sm"
+                                                icon={X}
                                                 onClick={() => requestStatusChange(selectedPo, "reject")}
                                                 disabled={isUpdatingStatus}
-                                                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 bg-[#ebf0f7] dark:bg-[#181924] border border-white/80 dark:border-white/[0.08] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                             >
-                                                <X className="w-3.5 h-3.5" />
-                                                <span>Reject Order</span>
-                                            </button>
+                                                Reject Order
+                                            </AppButton>
                                         </>
                                     )}
 
-                                    <button
+                                    <AppButton
+                                        variant="neutral"
+                                        size="sm"
                                         onClick={() => setSelectedPo(null)}
-                                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800/60 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all cursor-pointer active:scale-95"
                                     >
                                         Close
-                                    </button>
+                                    </AppButton>
                                 </div>
                             </div>
                         </div>
@@ -1216,7 +1302,7 @@ export default function SupplierPurchaseOrdersPage() {
                                     {confirmModal.actionType === "accept" && <Check className="w-5 h-5" />}
                                     {confirmModal.actionType === "delivered" && <CheckCircle2 className="w-5 h-5" />}
                                     {confirmModal.actionType === "reject" && <X className="w-5 h-5" />}
-                                    {confirmModal.actionType === "cancel" && <XCircle className="w-5 h-5" />}
+                                    {(confirmModal.actionType === "revert" || confirmModal.actionType === "cancel") && <RotateCcw className="w-5 h-5" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between">
@@ -1243,27 +1329,28 @@ export default function SupplierPurchaseOrdersPage() {
                             </div>
 
                             <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-800">
-                                <button
+                                <AppButton
+                                    variant="neutral"
+                                    size="sm"
                                     onClick={() => setConfirmModal(null)}
                                     disabled={isUpdatingStatus}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800/60 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                                 >
                                     Cancel
-                                </button>
-                                <button
-                                    onClick={handleExecuteConfirmStatus}
-                                    disabled={isUpdatingStatus}
-                                    className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95 ${
+                                </AppButton>
+                                <AppButton
+                                    variant={
                                         confirmModal.confirmButtonColor === "pink"
-                                            ? "bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 shadow-md"
+                                            ? "pink"
                                             : confirmModal.confirmButtonColor === "emerald"
-                                            ? "bg-emerald-600 hover:bg-emerald-500 shadow-md"
-                                            : "bg-rose-600 hover:bg-rose-500 shadow-md"
-                                    }`}
+                                            ? "success"
+                                            : "danger"
+                                    }
+                                    size="sm"
+                                    loading={isUpdatingStatus}
+                                    onClick={handleExecuteConfirmStatus}
                                 >
-                                    {isUpdatingStatus && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                                    <span>{confirmModal.confirmButtonText}</span>
-                                </button>
+                                    {confirmModal.confirmButtonText}
+                                </AppButton>
                             </div>
                         </div>
                     </div>

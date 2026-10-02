@@ -88,11 +88,11 @@ export function PurchaseRequestModal({
         }
 
         const hasEmptyItem = formData.items.some(
-            (item) => !sanitizeText(item.name) || sanitizeNumber(item.quantity) <= 0
+            (item) => !sanitizeText(item.name) || sanitizeNumber(item.quantity) <= 0 || (Number(item.unit_price) || 0) <= 0
         );
 
         if (hasEmptyItem) {
-            toast.warning("Please fill in all item names and valid quantities");
+            toast.warning("Please fill in all item names, valid quantities, and unit prices (> 0)");
             return;
         }
 
@@ -353,17 +353,20 @@ export function PurchaseRequestModal({
                                             </div>
 
                                             <div className="flex items-center gap-1.5 flex-1">
-                                                <span className="text-slate-400 dark:text-slate-500 font-medium">Unit Price:</span>
+                                                <span className="text-slate-400 dark:text-slate-500 font-medium">
+                                                    Unit Price: <span className="text-pink-500 dark:text-pink-400">*</span>
+                                                </span>
                                                 <div className="relative flex-1">
                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">₱</span>
                                                     <input
                                                         type="number"
                                                         step="1"
-                                                        min="0"
+                                                        min="1"
                                                         className="w-full h-11 bg-[#e4ebf5] dark:bg-[#111218] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl pl-7 pr-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-pink-500 text-right disabled:opacity-85 disabled:cursor-not-allowed"
                                                         placeholder="0"
                                                         value={item.unit_price || ""}
                                                         onChange={(e) => updateItem(index, "unit_price", e.target.value)}
+                                                        required
                                                         disabled={readOnly || submitting}
                                                     />
                                                 </div>

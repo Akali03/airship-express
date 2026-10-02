@@ -15,13 +15,14 @@ interface PurchaseRequestModalProps {
 interface PurchaseRequestItem {
     name: string;
     quantity: number;
+    unit_price?: number;
 }
 
 export function PurchaseRequestModal({ isOpen, onClose, suppliers }: PurchaseRequestModalProps) {
     const [formData, setFormData] = useState({
         requested_by: '',
         supplier: suppliers.length > 0 ? suppliers[0].name : '',
-        items: [{ name: '', quantity: 0 }] as PurchaseRequestItem[],
+        items: [{ name: '', quantity: 1, unit_price: 0 }] as PurchaseRequestItem[],
         reason: ''
     });
 
@@ -34,9 +35,9 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers }: PurchaseReq
             return;
         }
 
-        const hasEmptyItem = formData.items.some(item => !item.name || item.quantity <= 0);
+        const hasEmptyItem = formData.items.some(item => !item.name || item.quantity <= 0 || !item.unit_price || item.unit_price <= 0);
         if (hasEmptyItem) {
-            toast.warning('Please fill in all item names and quantities');
+            toast.warning('Please fill in all item names, quantities, and unit prices (> 0)');
             return;
         }
 
@@ -48,7 +49,7 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers }: PurchaseReq
     const addItem = () => {
         setFormData({
             ...formData,
-            items: [...formData.items, { name: '', quantity: 0 }]
+            items: [...formData.items, { name: '', quantity: 1, unit_price: 0 }]
         });
     };
 
@@ -155,10 +156,20 @@ export function PurchaseRequestModal({ isOpen, onClose, suppliers }: PurchaseReq
                                     <input
                                         type="number"
                                         min="1"
-                                        className="w-24 h-11 bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all text-center"
+                                        className="w-20 h-11 bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-2 py-2.5 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all text-center"
                                         placeholder="Qty"
                                         value={item.quantity || ''}
                                         onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                                        required
+                                    />
+                                    <input
+                                        type="number"
+                                        step="1"
+                                        min="1"
+                                        className="w-28 h-11 bg-[#ebf0f7] dark:bg-[#14151e] border border-slate-200/60 dark:border-white/[0.08] shadow-[inset_2px_2px_4px_rgba(166,175,195,0.35),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] rounded-xl px-2.5 py-2.5 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-pink-500 transition-all text-right"
+                                        placeholder="Price (₱)"
+                                        value={item.unit_price || ''}
+                                        onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
                                         required
                                     />
                                     <AppButton

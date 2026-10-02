@@ -9,6 +9,9 @@ import { headers } from 'next/headers';
 interface PurchaseRequestItem {
     name: string;
     quantity: number;
+    unit_price?: number;
+    price?: number;
+    total?: number;
 }
 
 interface PurchaseRequest {
@@ -276,12 +279,12 @@ export async function POST(request: NextRequest) {
         }
 
         const hasInvalidItem = items.some(
-            (item: PurchaseRequestItem) => !item.name?.trim() || !item.quantity || item.quantity <= 0
+            (item: PurchaseRequestItem) => !item.name?.trim() || !item.quantity || item.quantity <= 0 || (Number(item.unit_price ?? item.price ?? 0) <= 0)
         );
 
         if (hasInvalidItem) {
             return NextResponse.json(
-                { success: false, error: 'Invalid item data - each item must have a name and valid quantity' },
+                { success: false, error: 'Invalid item data - each item must have a name, valid quantity, and unit price (> 0)' },
                 { status: 400 }
             );
         }
@@ -737,14 +740,12 @@ export async function PATCH(request: NextRequest) {
         const headersList = await headers();
         const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 
-
-
         const body = await request.json();
-        const { id, action } = body;
+        const { id, ids, action } = body;
 
-        if (!id) {
+        if (!id && (!ids || (Array.isArray(ids) && ids.length === 0))) {
             return NextResponse.json(
-                { success: false, error: 'Request ID is required' },
+                { success: false, error: 'Request ID or IDs array is required' },
                 { status: 400 }
             );
         }
@@ -766,7 +767,58 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
-        // verify request
+        const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
+
+        // Bulk patch
+        if (ids && Array.isArray(ids) && ids.length > 0) {
+            const { data: existingList, error: checkError } = await supabase
+                .from('purchase_requests')
+                .select('id, status')
+                .in('id', ids);
+
+            if (checkError) {
+                console.error('Error fetching purchase requests for bulk update:', checkError);
+                return NextResponse.json(
+                    { success: false, error: 'Failed to verify purchase requests' },
+                    { status: 500 }
+                );
+            }
+
+            const eligibleRequests = (existingList || []).filter(r => r.status === 'Pending');
+            const eligibleIds = eligibleRequests.map(r => r.id);
+
+            if (eligibleIds.length === 0) {
+                return NextResponse.json(
+                    { success: false, error: 'No pending requests found to update' },
+                    { status: 400 }
+                );
+            }
+
+            const { data, error } = await supabase
+                .from('purchase_requests')
+                .update({
+                    status: newStatus,
+                    updated_at: new Date().toISOString(),
+                })
+                .in('id', eligibleIds)
+                .select();
+
+            if (error) {
+                console.error(`Error bulk ${action}ing purchase requests:`, error);
+                return NextResponse.json(
+                    { success: false, error: `Failed to ${action} purchase requests` },
+                    { status: 500 }
+                );
+            }
+
+            return NextResponse.json({
+                success: true,
+                data: data,
+                message: `Successfully ${action}d ${eligibleIds.length} request(s)`
+            });
+        }
+
+        // Single patch
         const { data: existing, error: checkError } = await supabase
             .from('purchase_requests')
             .select('id, status')
@@ -786,8 +838,6 @@ export async function PATCH(request: NextRequest) {
                 { status: 400 }
             );
         }
-
-        const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
 
         const { data, error } = await supabase
             .from('purchase_requests')

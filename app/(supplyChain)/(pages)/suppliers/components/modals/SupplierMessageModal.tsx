@@ -384,22 +384,22 @@ export function SupplierMessageModal({
             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
                 {/* Backdrop */}
                 <div 
-                    className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md transition-opacity"
+                    className="fixed inset-0 bg-slate-950/60 dark:bg-black/80 backdrop-blur-md transition-opacity"
                     onClick={onClose}
                 />
 
                 {/* Main Modal Shell */}
-                <div className="relative bg-[#f0f3f8] dark:bg-[#161722] rounded-[28px] max-w-4xl w-full h-[700px] max-h-[94vh] flex flex-col border border-white/80 dark:border-white/[0.08] shadow-[14px_14px_40px_rgba(166,175,195,0.4),-14px_-14px_40px_rgba(255,255,255,0.95)] dark:shadow-[14px_14px_40px_rgba(0,0,0,0.85)] z-10 overflow-hidden">
+                <div className="relative bg-[#f0f3f8] dark:bg-[#1e2130] rounded-[28px] max-w-4xl w-full h-[700px] max-h-[94vh] flex flex-col border border-white/80 dark:border-white/[0.12] shadow-[14px_14px_40px_rgba(166,175,195,0.4),-14px_-14px_40px_rgba(255,255,255,0.95)] dark:shadow-[16px_16px_40px_#0a0c13,-8px_-8px_30px_#2d3249] z-10 overflow-hidden">
                     
                     {/* Header */}
-                    <div className="p-4 sm:px-6 bg-[#ebf0f7]/95 dark:bg-[#14151f]/95 border-b border-white/80 dark:border-white/[0.06] flex items-center justify-between gap-3 shadow-xs">
+                    <div className="p-4 sm:px-6 bg-[#ebf0f7]/95 dark:bg-[#1e2130]/95 border-b border-slate-200/60 dark:border-white/[0.08] flex items-center justify-between gap-3 shadow-xs">
                         <div className="flex items-center gap-3.5 min-w-0">
                             <div className="relative">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500/20 to-pink-500/5 text-pink-600 dark:text-pink-400 border border-pink-500/30 flex items-center justify-center shrink-0 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_2px_rgba(255,255,255,0.06)]">
+                                <div className="w-12 h-12 rounded-2xl bg-[#ebf0f7] dark:bg-[#25283b] text-pink-600 dark:text-pink-400 border border-pink-500/30 flex items-center justify-center shrink-0 shadow-[4px_4px_10px_#c2cad6,-4px_-4px_10px_#ffffff] dark:shadow-[4px_4px_10px_#11131c,-3px_-3px_8px_#31354e]">
                                     <Building2 className="w-6 h-6" />
                                 </div>
                                 <span 
-                                    className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#ebf0f7] dark:border-[#14151f] ${
+                                    className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#ebf0f7] dark:border-[#1e2130] ${
                                         supplier.is_active ? "bg-emerald-500" : "bg-slate-400"
                                     }`} 
                                     title={supplier.is_active ? "Active Supplier" : "Inactive Supplier"}
@@ -411,7 +411,7 @@ export function SupplierMessageModal({
                                     <h3 className="font-black text-slate-900 dark:text-white text-base sm:text-lg truncate tracking-tight">
                                         {supplier.name}
                                     </h3>
-                                    <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/90 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700">
+                                    <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/90 dark:bg-[#25283b] text-slate-600 dark:text-slate-200 border border-slate-300/60 dark:border-white/[0.08]">
                                         SUP-{String(supplier.id).padStart(3, "0")}
                                     </span>
                                     {supplier.category && (
@@ -451,7 +451,7 @@ export function SupplierMessageModal({
                                 className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${
                                     showSupplierDetails
                                         ? "bg-pink-500 text-white border-pink-600 shadow-[0_2px_8px_rgba(236,72,153,0.35)]"
-                                        : "bg-[#f0f3f8] dark:bg-[#181924] text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)]"
+                                        : "bg-[#f0f3f8] dark:bg-[#25283b] text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_7px_#11131c,-2px_-2px_6px_#31354e]"
                                 }`}
                             >
                                 <Info className="w-4 h-4" />
@@ -462,7 +462,7 @@ export function SupplierMessageModal({
                                 type="button"
                                 onClick={() => fetchChatData(false)}
                                 title="Refresh conversation"
-                                className="w-9 h-9 rounded-xl bg-[#f0f3f8] dark:bg-[#181924] text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 flex items-center justify-center border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] active:scale-95 transition-all cursor-pointer"
+                                className="w-9 h-9 rounded-xl bg-[#f0f3f8] dark:bg-[#25283b] text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 flex items-center justify-center border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_7px_#11131c,-2px_-2px_6px_#31354e] active:scale-95 transition-all cursor-pointer"
                             >
                                 <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-pink-500" : ""}`} />
                             </button>
@@ -472,7 +472,7 @@ export function SupplierMessageModal({
                                 type="button"
                                 onClick={onClose}
                                 title="Close modal"
-                                className="w-9 h-9 rounded-xl bg-[#f0f3f8] dark:bg-[#181924] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] active:scale-95 transition-all cursor-pointer"
+                                className="w-9 h-9 rounded-xl bg-[#f0f3f8] dark:bg-[#25283b] text-slate-400 hover:text-slate-700 dark:hover:text-white flex items-center justify-center border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_7px_#11131c,-2px_-2px_6px_#31354e] active:scale-95 transition-all cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -481,7 +481,7 @@ export function SupplierMessageModal({
 
                     {/* Expandable Supplier Quick Info Drawer */}
                     {showSupplierDetails && (
-                        <div className="p-3.5 sm:px-6 bg-[#ebf0f7]/90 dark:bg-[#12131b]/90 border-b border-white/60 dark:border-white/[0.04] grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs animate-in slide-in-from-top-2 duration-150">
+                        <div className="p-3.5 sm:px-6 bg-[#ebf0f7]/90 dark:bg-[#151722]/95 border-b border-slate-200/60 dark:border-white/[0.06] grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs animate-in slide-in-from-top-2 duration-150">
                             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                                 <MapPin className="w-4 h-4 text-pink-500 shrink-0" />
                                 <span className="truncate">{supplier.location || "Location not set"}</span>
@@ -499,7 +499,7 @@ export function SupplierMessageModal({
 
                     {/* PO Selector Subheader */}
                     {purchaseOrders.length > 0 && (
-                        <div className="px-4 sm:px-6 py-2 bg-[#ebf0f7]/70 dark:bg-[#12131b]/70 border-b border-white/60 dark:border-white/[0.04] flex items-center gap-2 text-xs">
+                        <div className="px-4 sm:px-6 py-2 bg-[#ebf0f7]/70 dark:bg-[#151722]/80 border-b border-slate-200/60 dark:border-white/[0.06] flex items-center gap-2 text-xs">
                             <Tag className="w-3.5 h-3.5 text-pink-500 shrink-0" />
                             <span className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider shrink-0">
                                 Reference PO:
@@ -508,11 +508,11 @@ export function SupplierMessageModal({
                                 <select
                                     value={selectedPo}
                                     onChange={(e) => setSelectedPo(e.target.value)}
-                                    className="w-full py-1.5 pl-2.5 pr-7 bg-[#f0f3f8] dark:bg-[#181924] border border-white/80 dark:border-white/[0.06] rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)] focus:outline-hidden appearance-none cursor-pointer"
+                                    className="w-full py-1.5 pl-2.5 pr-7 bg-[#f0f3f8] dark:bg-[#1e2130] border border-white/80 dark:border-white/[0.08] rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)] dark:shadow-[inset_2px_2px_5px_#0b0d13,inset_-2px_-2px_5px_#25293d] focus:outline-hidden appearance-none cursor-pointer"
                                 >
-                                    <option value="">No PO reference (General discussion)</option>
+                                    <option value="" className="dark:bg-[#1e2130] dark:text-slate-300">No PO reference (General discussion)</option>
                                     {purchaseOrders.map((po) => (
-                                        <option key={po.id} value={po.po_number}>
+                                        <option key={po.id} value={po.po_number} className="dark:bg-[#1e2130] dark:text-slate-200">
                                             PO-{po.po_number} • {po.status} • ${(po.total_amount || 0).toLocaleString()}
                                         </option>
                                     ))}
@@ -535,7 +535,7 @@ export function SupplierMessageModal({
                     <div 
                         ref={scrollContainerRef}
                         onScroll={handleScroll}
-                        className="relative flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 bg-[#f0f3f8]/50 dark:bg-[#161722]/50"
+                        className="relative flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 bg-[#f0f3f8]/50 dark:bg-[#161824]"
                     >
                         {isLoading ? (
                             <div className="h-full flex flex-col items-center justify-center gap-2">
@@ -544,21 +544,21 @@ export function SupplierMessageModal({
                             </div>
                         ) : messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
-                                <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#181924] text-pink-500 flex items-center justify-center shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)]">
+                                <div className="w-16 h-16 rounded-3xl bg-[#ebf0f7] dark:bg-[#1e2130] text-pink-500 flex items-center justify-center shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_#0b0d13,inset_-2px_-2px_5px_#25293d]">
                                     <MessageSquare className="w-8 h-8" />
                                 </div>
                                 <div className="max-w-md">
                                     <h4 className="font-black text-slate-800 dark:text-slate-100 text-base mb-1">
                                         No messages with {supplier.name} yet
                                     </h4>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
                                         Send a direct message regarding purchase orders, deliveries, specifications, or contracts.
                                     </p>
                                 </div>
 
                                 {/* Suggested Quick Prompts */}
                                 <div className="w-full max-w-lg pt-2">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                                    <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5">
                                         Suggested Inquiries:
                                     </p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
@@ -570,7 +570,7 @@ export function SupplierMessageModal({
                                                     setInputText(prompt);
                                                     textareaRef.current?.focus();
                                                 }}
-                                                className="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[#ebf0f7] dark:bg-[#181924] hover:bg-white dark:hover:bg-[#1e1f2b] text-slate-700 dark:text-slate-300 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.2),-2px_-2px_5px_rgba(255,255,255,0.8)] transition-all flex items-center gap-2 cursor-pointer text-left group"
+                                                className="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-[#ebf0f7] dark:bg-[#25283b] hover:bg-white dark:hover:bg-[#2d3148] text-slate-700 dark:text-slate-200 border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.2),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_7px_#11131c,-2px_-2px_6px_#31354e] transition-all flex items-center gap-2 cursor-pointer text-left group"
                                             >
                                                 <Sparkles className="w-3.5 h-3.5 text-pink-500 shrink-0 group-hover:scale-110 transition-transform" />
                                                 <span className="truncate">{prompt}</span>
@@ -586,7 +586,7 @@ export function SupplierMessageModal({
                                         <button
                                             type="button"
                                             onClick={() => setVisibleMessageLimit((prev) => prev + 25)}
-                                            className="px-4 py-1.5 rounded-full text-xs font-bold text-pink-600 dark:text-pink-400 bg-[#ebf0f7]/90 dark:bg-[#181924]/90 backdrop-blur-sm border border-pink-500/25 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] hover:bg-white dark:hover:bg-[#1e1f2b] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                                            className="px-4 py-1.5 rounded-full text-xs font-bold text-pink-600 dark:text-pink-400 bg-[#ebf0f7]/90 dark:bg-[#25283b]/90 backdrop-blur-sm border border-pink-500/25 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_7px_#11131c,-2px_-2px_6px_#31354e] hover:bg-white dark:hover:bg-[#2d3148] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                                         >
                                             <History className="w-3.5 h-3.5 text-pink-500" />
                                             <span>Load earlier messages ({hiddenCount} remaining)</span>
@@ -608,7 +608,7 @@ export function SupplierMessageModal({
                                         <div key={msg.id || index} className="space-y-1.5 group/msg">
                                             {showDate && (
                                                 <div className="flex items-center justify-center my-3">
-                                                    <span className="px-3.5 py-1 rounded-full text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-[#ebf0f7] dark:bg-[#13141c] border border-white/80 dark:border-white/[0.04] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)]">
+                                                    <span className="px-3.5 py-1 rounded-full text-[10px] font-bold text-slate-500 dark:text-slate-300 bg-[#ebf0f7] dark:bg-[#151722] border border-white/80 dark:border-white/[0.06] shadow-[inset_1px_1px_2px_rgba(166,175,195,0.2)] dark:shadow-[inset_2px_2px_4px_#0b0d13]">
                                                         {formatDate(msg.created_at)}
                                                     </span>
                                                 </div>
@@ -620,7 +620,7 @@ export function SupplierMessageModal({
                                                     className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-[10px] font-black shadow-xs ${
                                                         isInternal 
                                                             ? "bg-pink-500 text-white shadow-[0_2px_6px_rgba(236,72,153,0.3)]" 
-                                                            : "bg-[#ebf0f7] dark:bg-[#1e1f2b] text-slate-700 dark:text-slate-300 border border-white/80 dark:border-white/[0.08]"
+                                                            : "bg-[#ebf0f7] dark:bg-[#25283b] text-slate-700 dark:text-slate-200 border border-white/80 dark:border-white/[0.08]"
                                                     }`}
                                                 >
                                                     {senderInitials}
@@ -645,7 +645,7 @@ export function SupplierMessageModal({
                                                             className={`rounded-2xl p-3.5 text-xs font-medium space-y-1.5 transition-all ${
                                                                 isInternal
                                                                     ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-[0_3px_12px_rgba(236,72,153,0.3)] rounded-tr-xs"
-                                                                    : "bg-[#f0f3f8] dark:bg-[#181924] text-slate-800 dark:text-slate-200 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[inset_1px_1px_2px_rgba(255,255,255,0.04)] rounded-tl-xs"
+                                                                    : "bg-[#f0f3f8] dark:bg-[#25283b] text-slate-800 dark:text-slate-100 border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_#11131c,-2px_-2px_6px_#31354e] rounded-tl-xs"
                                                             }`}
                                                         >
                                                             {msg.purchase_order_id && (
@@ -675,7 +675,7 @@ export function SupplierMessageModal({
                                                                 type="button"
                                                                 onClick={() => handleDeleteMessage(msg.id)}
                                                                 disabled={deletingId === msg.id}
-                                                                className="opacity-0 group-hover/bubble:opacity-100 transition-opacity p-1.5 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 bg-[#f0f3f8] dark:bg-[#181924] border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] cursor-pointer shrink-0 active:scale-90"
+                                                                className="opacity-0 group-hover/bubble:opacity-100 transition-opacity p-1.5 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 bg-[#f0f3f8] dark:bg-[#25283b] border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[2px_2px_5px_#11131c] cursor-pointer shrink-0 active:scale-90"
                                                                 title="Delete message"
                                                             >
                                                                 {deletingId === msg.id ? (
@@ -709,7 +709,7 @@ export function SupplierMessageModal({
                     </div>
 
                     {/* Input Footer */}
-                    <div className="p-3.5 sm:p-4 bg-[#ebf0f7] dark:bg-[#14151f] border-t border-white/80 dark:border-white/[0.06] shadow-sm">
+                    <div className="p-3.5 sm:p-4 bg-[#ebf0f7] dark:bg-[#1e2130] border-t border-slate-200/60 dark:border-white/[0.08] shadow-sm">
                         <form 
                             onSubmit={handleSendMessage} 
                             className="flex items-end gap-2.5"
@@ -723,7 +723,7 @@ export function SupplierMessageModal({
                                     disabled={isSending}
                                     rows={1}
                                     placeholder={`Message ${supplier.name}... (Enter to send, Shift+Enter for newline)`}
-                                    className="w-full py-2.5 pl-4 pr-10 bg-[#f0f3f8] dark:bg-[#181924] border border-white/80 dark:border-white/[0.06] rounded-2xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-pink-500/40 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.6)] disabled:opacity-60 resize-none max-h-24 min-h-[42px]"
+                                    className="w-full py-2.5 pl-4 pr-10 bg-[#f0f3f8] dark:bg-[#151722] border border-white/80 dark:border-white/[0.08] rounded-2xl text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-pink-500/40 shadow-[inset_2px_2px_5px_rgba(166,175,195,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_#0b0d13,inset_-2px_-2px_6px_#25293d] disabled:opacity-60 resize-none max-h-24 min-h-[42px]"
                                 />
                                 <div className="absolute right-3 bottom-2.5 text-slate-400 pointer-events-none">
                                     <CornerDownLeft className="w-3.5 h-3.5 opacity-50" />

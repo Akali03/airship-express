@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { SessionGuard } from "../../components/server/SessionGuard";
 import { useConfirm } from "../../components/ui/ConfirmModal";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { SessionLogoutTimer } from "../../components/global/SessionLogoutTimer";
 import { ChangePasswordModal } from "../../components/modals/ChangePasswordModal";
 import { cn } from "../../lib/utils";
 
@@ -275,6 +276,7 @@ export default function SupplierPortalLayout({
 
                             {/* Right Controls: User, Theme Toggle & Sign Out */}
                             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                                <SessionLogoutTimer />
                                 <ThemeToggle />
                                 
                                 <button

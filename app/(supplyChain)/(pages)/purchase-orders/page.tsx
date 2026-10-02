@@ -1337,18 +1337,31 @@ export default function PurchaseOrders() {
             return;
 
         let timerId: NodeJS.Timeout;
+        let retryCount = 0;
 
         const createChart = () => {
             const canvas = poChartRef.current;
-            if (!canvas)
+            if (!canvas) {
+                if (retryCount < 5) {
+                    retryCount++;
+                    timerId = setTimeout(createChart, 80);
+                }
                 return;
-            const ctx = canvas.getContext('2d');
-            if (!ctx)
-                return;
+            }
+
+            // Ensure any existing chart instance on this canvas is cleanly destroyed
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
             if (poChartInstance.current) {
                 poChartInstance.current.destroy();
                 poChartInstance.current = null;
             }
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx)
+                return;
             if (!Chart || datasetOrders.length === 0)
                 return;
 
@@ -1360,6 +1373,7 @@ export default function PurchaseOrders() {
                 if (s === 'confirmed') return 'Confirmed';
                 if (s === 'delivered') return 'Delivered';
                 if (s === 'cancelled' || s === 'canceled') return 'Cancelled';
+                if (s === 'rejected') return 'Rejected';
                 if (s === 'pending') return 'Sent';
                 if (s === 'approved') return 'Confirmed';
                 return rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
@@ -1370,14 +1384,16 @@ export default function PurchaseOrders() {
                 'Sent': 0,
                 'Confirmed': 0,
                 'Delivered': 0,
-                'Cancelled': 0
+                'Cancelled': 0,
+                'Rejected': 0,
             };
             const statusOrders: Record<string, PurchaseOrder[]> = {
                 'Draft': [],
                 'Sent': [],
                 'Confirmed': [],
                 'Delivered': [],
-                'Cancelled': []
+                'Cancelled': [],
+                'Rejected': [],
             };
 
             datasetOrders.forEach(order => {
@@ -1389,7 +1405,7 @@ export default function PurchaseOrders() {
                 statusOrders[normalized].push(order);
             });
 
-            const standardStatuses = ['Draft', 'Sent', 'Confirmed', 'Delivered', 'Cancelled'];
+            const standardStatuses = ['Draft', 'Sent', 'Confirmed', 'Delivered', 'Cancelled', 'Rejected'];
             const allKeys = Array.from(new Set([...standardStatuses, ...Object.keys(statusData)]));
             const hasAnyData = Object.values(statusData).some(count => count > 0);
             const sortedLabels = hasAnyData
@@ -1405,83 +1421,92 @@ export default function PurchaseOrders() {
                 'Confirmed': '#8B5CF6',  // Violet / Purple
                 'Delivered': '#EC4899',  // Vibrant Pink
                 'Cancelled': '#F43F5E',  // Rose
+                'Rejected': '#E11D48',   // Deep Rose / Red
                 'Pending': '#F59E0B',    // Amber
                 'Approved': '#10B981'    // Emerald
             };
             const backgroundColor = sortedLabels.map((label: string) => colorMap[label] || '#94A3B8');
 
-            poChartInstance.current = new Chart(ctx, {
-                type: "doughnut",
-                data: {
-                    labels: sortedLabels,
-                    datasets: [{
-                        data: sortedData,
-                        backgroundColor: backgroundColor,
-                        borderWidth: 2,
-                        borderColor: "#ffffff",
-                        hoverOffset: 8,
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: "65%",
-                    plugins: {
-                        legend: {
-                            position: "right",
-                            labels: {
-                                boxWidth: 10,
-                                boxHeight: 10,
-                                usePointStyle: true,
-                                font: { size: 10, weight: 500 },
-                                padding: 10,
-                                color: "#64748b",
+            try {
+                poChartInstance.current = new Chart(ctx, {
+                    type: "doughnut",
+                    data: {
+                        labels: sortedLabels,
+                        datasets: [{
+                            data: sortedData,
+                            backgroundColor: backgroundColor,
+                            borderWidth: 2,
+                            borderColor: "#ffffff",
+                            hoverOffset: 8,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: "65%",
+                        plugins: {
+                            legend: {
+                                position: "right",
+                                labels: {
+                                    boxWidth: 10,
+                                    boxHeight: 10,
+                                    usePointStyle: true,
+                                    font: { size: 10, weight: 500 },
+                                    padding: 10,
+                                    color: "#64748b",
+                                },
                             },
-                        },
-                        tooltip: {
-                            backgroundColor: "#1e293b",
-                            titleColor: "#f1f5f9",
-                            bodyColor: "#cbd5e1",
-                            borderColor: "#334155",
-                            borderWidth: 1,
-                            padding: 12,
-                            cornerRadius: 8,
-                            callbacks: {
-                                label: function (context: any) {
-                                    const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                                    const count = context.parsed;
-                                    const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
-                                    return ` ${context.label}: ${count} (${percentage}%)`;
+                            tooltip: {
+                                backgroundColor: "#1e293b",
+                                titleColor: "#f1f5f9",
+                                bodyColor: "#cbd5e1",
+                                borderColor: "#334155",
+                                borderWidth: 1,
+                                padding: 12,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function (context: any) {
+                                        const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                                        const count = context.parsed;
+                                        const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
+                                        return ` ${context.label}: ${count} (${percentage}%)`;
+                                    }
                                 }
                             }
-                        }
-                    },
-                    onClick: (event: any, elements: any) => {
-                        if (elements.length > 0) {
-                            const element = elements[0];
-                            const statusIndex = element.index;
-                            const statusLabel = sortedLabels[statusIndex];
-                            const orders = statusOrders[statusLabel] || [];
-                            const totalAmount = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-                            if (orders.length > 0) {
-                                setChartDetailModal({
-                                    isOpen: true,
-                                    month: `${statusLabel} Status`,
-                                    monthIndex: statusIndex,
-                                    orders: orders,
-                                    totalAmount: totalAmount,
-                                });
+                        },
+                        onClick: (event: any, elements: any) => {
+                            if (elements.length > 0) {
+                                const element = elements[0];
+                                const statusIndex = element.index;
+                                const statusLabel = sortedLabels[statusIndex];
+                                const orders = statusOrders[statusLabel] || [];
+                                const totalAmount = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                                if (orders.length > 0) {
+                                    setChartDetailModal({
+                                        isOpen: true,
+                                        month: `${statusLabel} Status`,
+                                        monthIndex: statusIndex,
+                                        orders: orders,
+                                        totalAmount: totalAmount,
+                                    });
+                                }
                             }
-                        }
+                        },
                     },
-                },
-            });
+                });
+            } catch (chartErr) {
+                console.error("Error creating PO status doughnut chart:", chartErr);
+            }
         };
 
-        timerId = setTimeout(createChart, 50);
+        timerId = setTimeout(createChart, 60);
 
         return () => {
             clearTimeout(timerId);
+            if (poChartRef.current) {
+                const existing = Chart.getChart(poChartRef.current);
+                if (existing) existing.destroy();
+            }
             if (poChartInstance.current) {
                 poChartInstance.current.destroy();
                 poChartInstance.current = null;

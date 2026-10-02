@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Clock, AlertCircle, ShieldCheck, X, Shield } from 'lucide-react';
+import { Clock, AlertCircle, ShieldCheck, X, Shield, Building2 } from 'lucide-react';
 import { settingsService } from '../../lib/services/settingsService';
 import { user } from '../../lib/services/Class/user';
 
@@ -61,10 +61,15 @@ export const SessionLogoutTimer: React.FC<SessionLogoutTimerProps> = ({ compact 
         };
     }, [isOpen]);
 
+    const isExempt = (roleName: string) => {
+        const r = (roleName || '').toLowerCase().trim();
+        return ['admin', 'executive'].includes(r);
+    };
+
     useEffect(() => {
         const currentRole = user.getRole();
         setUserRole(currentRole || 'User');
-        const endTime = user.getAllowedTimeEnd() || (currentRole === 'Admin' || currentRole === 'Executive' ? null : '17:00');
+        const endTime = user.getAllowedTimeEnd() || (isExempt(currentRole) ? null : '17:00');
         setAllowedTimeEnd(endTime);
 
         // Initial setup from storage
@@ -99,7 +104,7 @@ export const SessionLogoutTimer: React.FC<SessionLogoutTimerProps> = ({ compact 
             if (e.key === 'user_allowed_time_end' || e.key === 'user_role') {
                 const updatedRole = user.getRole();
                 setUserRole(updatedRole || 'User');
-                setAllowedTimeEnd(user.getAllowedTimeEnd() || (updatedRole === 'Admin' || updatedRole === 'Executive' ? null : '17:00'));
+                setAllowedTimeEnd(user.getAllowedTimeEnd() || (isExempt(updatedRole) ? null : '17:00'));
             }
         };
         window.addEventListener('storage', handleStorage);
@@ -120,7 +125,7 @@ export const SessionLogoutTimer: React.FC<SessionLogoutTimerProps> = ({ compact 
 
             const role = user.getRole();
             setUserRole(role || 'User');
-            const endT = user.getAllowedTimeEnd() || (role === 'Admin' || role === 'Executive' ? null : '17:00');
+            const endT = user.getAllowedTimeEnd() || (isExempt(role) ? null : '17:00');
             setAllowedTimeEnd(endT);
 
             const shiftSec = calculateShiftSeconds(endT);
@@ -175,8 +180,9 @@ export const SessionLogoutTimer: React.FC<SessionLogoutTimerProps> = ({ compact 
         return `${h12}:${m} ${ampm}`;
     };
 
-    const isAdmin = userRole === 'Admin';
-    const isExecutive = userRole === 'Executive';
+    const roleLower = (userRole || '').toLowerCase().trim();
+    const isAdmin = roleLower === 'admin';
+    const isExecutive = roleLower === 'executive';
     const isExemptRole = isAdmin || isExecutive;
     const isShiftEnded = shiftRemainingSeconds !== null && shiftRemainingSeconds <= 0 && !isExemptRole;
     const isShiftLow = shiftRemainingSeconds !== null && shiftRemainingSeconds > 0 && shiftRemainingSeconds <= 300 && !isExemptRole;
