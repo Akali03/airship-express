@@ -465,10 +465,12 @@ export function SupplierMessengerDrawer({
                                     ) : (
                                         messages.map((msg, index) => {
                                             const isInternal = msg.sender_type === "internal";
-                                            const isMyMessage = isInternal && (
-                                                (currentUserId && msg.sender_id === currentUserId) ||
-                                                (currentUserEmail && msg.sender_email?.toLowerCase() === currentUserEmail.toLowerCase()) ||
-                                                (!msg.sender_id && !msg.sender_email)
+                                            const isMyMessage = Boolean(
+                                                isInternal && (
+                                                    (currentUserId && msg.sender_id === currentUserId) ||
+                                                    (currentUserEmail && msg.sender_email?.toLowerCase() === currentUserEmail.toLowerCase()) ||
+                                                    (currentUserName && msg.sender_name?.toLowerCase() === currentUserName.toLowerCase())
+                                                )
                                             );
 
                                             return (
@@ -479,7 +481,7 @@ export function SupplierMessengerDrawer({
                                                     <div className="flex items-center gap-1.5 mb-1 px-1.5 text-[10px] text-slate-400">
                                                         <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                                                             {isMyMessage ? (
-                                                                `You (${msg.sender_role || currentUserRole || "Staff"})`
+                                                                `You (${currentUserRole || msg.sender_role || "Staff"})`
                                                             ) : isInternal ? (
                                                                 <>
                                                                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500" />

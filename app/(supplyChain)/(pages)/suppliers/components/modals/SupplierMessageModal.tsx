@@ -337,7 +337,7 @@ export function SupplierMessageModal({
         const r = (role || "").toUpperCase();
         if (isMe) {
             return {
-                label: "You (" + (currentUserRole || "Staff") + ")",
+                label: "You (" + (currentUserRole || role || "Staff") + ")",
                 className: "bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/25",
                 avatarBg: "bg-pink-500 text-white"
             };
@@ -359,12 +359,19 @@ export function SupplierMessageModal({
         if (r.includes("MANAGER")) {
             return {
                 label: "Manager",
+                className: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/25",
+                avatarBg: "bg-purple-500 text-white"
+            };
+        }
+        if (r.includes("SUPPLIER")) {
+            return {
+                label: "Supplier",
                 className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25",
-                avatarBg: "bg-emerald-500 text-white"
+                avatarBg: "bg-emerald-600 text-white"
             };
         }
         return {
-            label: "Supplier",
+            label: role || "Staff",
             className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25",
             avatarBg: "bg-blue-500 text-white"
         };
@@ -595,14 +602,23 @@ export function SupplierMessageModal({
                                 )}
 
                                 {displayedMessages.map((msg, index) => {
-                                    const isInternal = msg.sender_type === "internal" || msg.sender_email === currentUserEmail;
+                                    const isInternal = msg.sender_type === "internal";
+                                    const isMyMessage = Boolean(
+                                        (currentUserId && msg.sender_id === currentUserId) ||
+                                        (currentUserEmail && msg.sender_email?.toLowerCase() === currentUserEmail.toLowerCase()) ||
+                                        (currentUserName && msg.sender_name?.toLowerCase() === currentUserName.toLowerCase() && isInternal)
+                                    );
+
                                     const showDate =
                                         index === 0 ||
                                         formatDate(msg.created_at) !== formatDate(displayedMessages[index - 1].created_at);
                                     
-                                    const displayRole = msg.sender_role || msg.role || (isInternal ? (currentUserRole || "Staff") : "Supplier");
-                                    const roleBadge = getRoleBadge(displayRole, isInternal);
-                                    const senderInitials = getInitials(msg.sender_name || (isInternal ? currentUserName : supplier.name));
+                                    const displayRole = msg.sender_role || msg.role || (isInternal ? "Staff" : "Supplier");
+                                    const roleBadge = getRoleBadge(displayRole, isMyMessage);
+                                    const senderDisplayName = isMyMessage 
+                                        ? `You (${msg.sender_name || currentUserName})` 
+                                        : msg.sender_name || (isInternal ? "Staff" : supplier.name);
+                                    const senderInitials = getInitials(msg.sender_name || (isMyMessage ? currentUserName : supplier.name));
 
                                     return (
                                         <div key={msg.id || index} className="space-y-1.5 group/msg">
@@ -614,23 +630,25 @@ export function SupplierMessageModal({
                                                 </div>
                                             )}
 
-                                            <div className={`flex items-start gap-2.5 ${isInternal ? "flex-row-reverse" : "flex-row"}`}>
+                                            <div className={`flex items-start gap-2.5 ${isMyMessage ? "flex-row-reverse" : "flex-row"}`}>
                                                 {/* Sender Avatar */}
                                                 <div 
                                                     className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-[10px] font-black shadow-xs ${
-                                                        isInternal 
+                                                        isMyMessage 
                                                             ? "bg-pink-500 text-white shadow-[0_2px_6px_rgba(236,72,153,0.3)]" 
-                                                            : "bg-[#ebf0f7] dark:bg-[#25283b] text-slate-700 dark:text-slate-200 border border-white/80 dark:border-white/[0.08]"
+                                                            : isInternal
+                                                                ? `${roleBadge.avatarBg} shadow-xs`
+                                                                : "bg-emerald-600 text-white shadow-xs"
                                                     }`}
                                                 >
                                                     {senderInitials}
                                                 </div>
 
-                                                <div className={`flex flex-col max-w-[85%] sm:max-w-lg ${isInternal ? "items-end" : "items-start"}`}>
+                                                <div className={`flex flex-col max-w-[85%] sm:max-w-lg ${isMyMessage ? "items-end" : "items-start"}`}>
                                                     {/* Meta Info */}
                                                     <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] font-medium text-slate-400 flex-wrap">
                                                         <span className="font-bold text-slate-700 dark:text-slate-300">
-                                                            {isInternal ? `You (${msg.sender_name || currentUserName})` : msg.sender_name || supplier.name}
+                                                            {senderDisplayName}
                                                         </span>
                                                         <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-bold ${roleBadge.className}`}>
                                                             {roleBadge.label}
@@ -640,19 +658,23 @@ export function SupplierMessageModal({
                                                     </div>
 
                                                     {/* Message Bubble + Action Button */}
-                                                    <div className={`relative flex items-center gap-2 group/bubble max-w-full ${isInternal ? "flex-row-reverse" : "flex-row"}`}>
+                                                    <div className={`relative flex items-center gap-2 group/bubble max-w-full ${isMyMessage ? "flex-row-reverse" : "flex-row"}`}>
                                                         <div
                                                             className={`rounded-2xl p-3.5 text-xs font-medium space-y-1.5 transition-all ${
-                                                                isInternal
+                                                                isMyMessage
                                                                     ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-[0_3px_12px_rgba(236,72,153,0.3)] rounded-tr-xs"
-                                                                    : "bg-[#f0f3f8] dark:bg-[#25283b] text-slate-800 dark:text-slate-100 border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_#11131c,-2px_-2px_6px_#31354e] rounded-tl-xs"
+                                                                    : isInternal
+                                                                        ? "bg-[#edf2fb] dark:bg-[#1e2235] text-slate-800 dark:text-slate-100 border border-indigo-200/80 dark:border-indigo-900/60 shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_#11131c] rounded-tl-xs"
+                                                                        : "bg-[#f0f3f8] dark:bg-[#25283b] text-slate-800 dark:text-slate-100 border border-white/80 dark:border-white/[0.08] shadow-[2px_2px_5px_rgba(166,175,195,0.25),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[3px_3px_8px_#11131c,-2px_-2px_6px_#31354e] rounded-tl-xs"
                                                             }`}
                                                         >
                                                             {msg.purchase_order_id && (
                                                                 <div className={`mb-1 px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 ${
-                                                                    isInternal 
+                                                                    isMyMessage 
                                                                         ? "bg-white/20 text-white" 
-                                                                        : "bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20"
+                                                                        : isInternal
+                                                                            ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                                                                            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                                                                 }`}>
                                                                     <FileText className="w-3 h-3" />
                                                                     <span>Ref: PO-{msg.purchase_order_id}</span>
@@ -661,7 +683,7 @@ export function SupplierMessageModal({
                                                             <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.message}</p>
                                                             
                                                             {/* Delivery receipt indicator */}
-                                                            {isInternal && (
+                                                            {isMyMessage && (
                                                                 <div className="flex items-center justify-end gap-1 pt-0.5 text-[9px] text-white/80">
                                                                     <CheckCheck className="w-3 h-3" />
                                                                     <span>Sent</span>
@@ -670,7 +692,7 @@ export function SupplierMessageModal({
                                                         </div>
 
                                                         {/* Delete own message button on hover */}
-                                                        {isInternal && (
+                                                        {isMyMessage && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleDeleteMessage(msg.id)}
