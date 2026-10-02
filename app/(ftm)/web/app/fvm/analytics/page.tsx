@@ -80,27 +80,13 @@ function normalizeVehicleStatus(value: unknown, hasActiveTrip = false): VehicleS
   return "idle";
 }
 
-function estimatedRouteDistanceKm(plan: any) {
-  const optimizedDistance = Number(plan?.distanceKm ?? plan?.distance_km ?? plan?.routeGeojson?.routes?.[0]?.distance_km ?? plan?.route_geojson?.routes?.[0]?.distance_km ?? 0);
-  if (optimizedDistance > 0) return optimizedDistance;
-
-  const start = { lat: Number(plan?.pickupLatitude ?? plan?.pickup_latitude), lng: Number(plan?.pickupLongitude ?? plan?.pickup_longitude) };
-  const stops = Array.isArray(plan?.deliveryDestinations) ? plan.deliveryDestinations : Array.isArray(plan?.delivery_destinations) ? plan.delivery_destinations : [];
-  if (!Number.isFinite(start.lat) || !Number.isFinite(start.lng) || stops.length === 0) return 0;
-
-  const toRadians = (value: number) => (value * Math.PI) / 180;
-  let distanceKm = 0;
-  let current = start;
-  for (const stop of stops) {
-    const next = { lat: Number(stop.lat ?? stop.latitude), lng: Number(stop.lng ?? stop.longitude) };
-    if (!Number.isFinite(next.lat) || !Number.isFinite(next.lng)) continue;
-    const dLat = toRadians(next.lat - current.lat);
-    const dLng = toRadians(next.lng - current.lng);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(current.lat)) * Math.cos(toRadians(next.lat)) * Math.sin(dLng / 2) ** 2;
-    distanceKm += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    current = next;
-  }
-  return distanceKm;
+function persistedRouteDistanceKm(plan: any) {
+  return firstNumber(
+    plan?.optimizedDistanceKm,
+    plan?.optimized_distance_km,
+    plan?.distanceKm,
+    plan?.distance_km,
+  ) ?? 0;
 }
 
 function UtilizationBar({ value }: { value: number }) {
@@ -199,7 +185,7 @@ export default function FvmAnalyticsPage() {
         }));
         const routeDistanceByPlanId = new Map(routePlans.filter(Boolean).map((plan: any) => [
           String(plan.id),
-          estimatedRouteDistanceKm(plan),
+          persistedRouteDistanceKm(plan),
         ]));
         const plannedDistanceByVehicle = new Map<string, number>();
         const completedByVehicle = new Map<string, number>();

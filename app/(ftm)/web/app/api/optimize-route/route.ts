@@ -106,15 +106,10 @@ async function fetchOsrmCostMatrix(
   }
 }
 
-function roundDistanceMi(value: number): number {
-  return Math.round(value * 10) / 10;
-}
-
 function computeFuelSavingsPct(baselineDistanceMi: number, optimizedDistanceMi: number): number {
   if (!Number.isFinite(baselineDistanceMi) || baselineDistanceMi <= 0) return 0;
   const savingsPct = ((baselineDistanceMi - optimizedDistanceMi) / baselineDistanceMi) * 100;
-  if (!Number.isFinite(savingsPct)) return 0;
-  return Math.max(0, Math.min(100, savingsPct));
+  return Number.isFinite(savingsPct) ? savingsPct : 0;
 }
 
 async function runOrTools(payload: OptimizeRequest): Promise<OptimizeResponse> {
@@ -231,20 +226,77 @@ export async function POST(req: NextRequest) {
     const displayedRoadDistanceMi = matrixRouteTotal(roadCosts.distanceMatrix);
     const baselineRoadDurationMin = matrixRouteCost(normalizedBody.stops.map((stop: any) => stop.id), roadCosts.durationMatrix);
     const displayedRoadDurationMin = Math.max(...solved.routes.map((route) => matrixRouteCost(route.orderedStopIds || [], roadCosts.durationMatrix)));
-    const baselineDistanceMi = roundDistanceMi(body.initialDistanceMi ?? baselineRoadDistanceMi);
-    const baselineEtaMinutes = Math.round(body.initialEtaMinutes ?? baselineRoadDurationMin);
-    const selectedRoadDistanceMi = roundDistanceMi(displayedRoadDistanceMi);
+    const baselineDistanceMi = baselineRoadDistanceMi;
+    const selectedRoadDistanceMi = displayedRoadDistanceMi;
+    const distanceSavedMi = baselineDistanceMi - selectedRoadDistanceMi;
+    const requestedEfficiency = Number(body.fuelEfficiencyKmPerL);
+    const vehicleId = typeof body.availableVehicles?.[0]?.id === "string"
+      ? body.availableVehicles[0].id
+      : null;
+    const fuelEfficiencyKmPerL = Number.isFinite(requestedEfficiency) && requestedEfficiency > 0
+      ? requestedEfficiency
+      : null;
+    const baselineFuelLiters = fuelEfficiencyKmPerL === null
+      ? null
+      : baselineDistanceMi * 1.609344 / fuelEfficiencyKmPerL;
+    const optimizedFuelLiters = fuelEfficiencyKmPerL === null
+      ? null
+      : selectedRoadDistanceMi * 1.609344 / fuelEfficiencyKmPerL;
+    const fuelSavedLiters = baselineFuelLiters === null || optimizedFuelLiters === null
+      ? null
+      : baselineFuelLiters - optimizedFuelLiters;
+    const baselineEtaMinutes = baselineRoadDurationMin;
     const selectedRoadEtaMinutes = Math.round(displayedRoadDurationMin);
+    const fuelSavingsPct = computeFuelSavingsPct(baselineDistanceMi, selectedRoadDistanceMi);
+    const baselineRoute = {
+      orderedStopIds: selectedStopIds,
+      stops: normalizedBody.stops.map((stop: any) => ({ id: stop.id, name: stop.name || stop.label || stop.id, lat: stop.lat, lng: stop.lng })),
+      distanceMi: baselineDistanceMi,
+      durationMinutes: baselineRoadDurationMin,
+    };
+    const optimizedRoute = {
+      orderedStopIds: solved.orderedStopIds,
+      stops: solved.orderedStopIds.map((id: string) => {
+        const stop = normalizedBody.stops.find((item) => item.id === id) as (typeof normalizedBody.stops[number] & { name?: string; label?: string }) | undefined;
+        return { id, name: stop?.name || stop?.label || id, lat: stop?.lat, lng: stop?.lng };
+      }),
+      distanceMi: selectedRoadDistanceMi,
+      durationMinutes: displayedRoadDurationMin,
+      polyline,
+    };
+
+    console.info("[optimize-route] OSRM route comparison", {
+      vehicleId,
+      stopCount: selectedStopIds.length,
+      optimizedOrderChanged: solved.orderedStopIds.some((id, index) => id !== selectedStopIds[index]),
+      baselineDistanceMi,
+      optimizedDistanceMi: selectedRoadDistanceMi,
+      baselineDurationMinutes: baselineRoadDurationMin,
+      optimizedDurationMinutes: displayedRoadDurationMin,
+      distanceSavedMi,
+      fuelEfficiencyKmPerL,
+      baselineFuelLiters,
+      optimizedFuelLiters,
+      fuelSavedLiters,
+    });
+
     result = {
       orderedStopIds: solved.orderedStopIds,
       routes: routeResults,
+      vehicleId,
       polyline,
       distanceMi: selectedRoadDistanceMi,
-      etaMinutes: selectedRoadEtaMinutes,
-      fuelSavingsPct: computeFuelSavingsPct(
-        baselineDistanceMi,
-        selectedRoadDistanceMi
-      ),
+      etaMinutes: displayedRoadDurationMin,
+      baselineRoute,
+      optimizedRoute,
+      depot: normalizedBody.origin,
+      destination: normalizedBody.destination,
+      fuelSavingsPct,
+      distanceSavedMi,
+      fuelEfficiencyKmPerL,
+      baselineFuelLiters,
+      optimizedFuelLiters,
+      fuelSavedLiters,
       etaImprovementMin: Math.max(0, baselineEtaMinutes - selectedRoadEtaMinutes),
       baselineDistanceMi,
       baselineEtaMinutes,

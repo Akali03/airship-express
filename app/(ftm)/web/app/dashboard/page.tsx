@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import GlobalNavbar from "../components/GlobalNavbar";
 import GlobalFooter from "../components/GlobalFooter";
-import { getTrips, getVehicles, getBookings, getDrivers, getFuelLogs, getCostEntries, getParcelHistory, getRoutePlan } from "../lib/api";
+import { getTrips, getVehicles, getBookings, getDrivers, getFuelLogs, getCostEntries, getParcelHistory, getRoutePlan, getRoutePlans } from "../lib/api";
 import { useParcelStore } from "../lib/parcelStore";
 import SpecializedLogistics from "./components/SpecializedLogistics";
 import PerformanceMetrics from "./components/PerformanceMetrics";
@@ -105,6 +105,7 @@ export type DashboardSnapshot = {
   vehicles: DashboardVehicle[];
   trips: DashboardTrip[];
   bookings: DashboardBooking[];
+  routePlans?: Array<Record<string, any>>;
   drivers: Array<{
     id?: string;
     full_name?: string | null;
@@ -419,6 +420,7 @@ export default function Home() {
     vehicles: [],
     trips: [],
     bookings: [],
+    routePlans: [],
     drivers: [],
   });
   const [fuelLogs, setFuelLogs] = useState<any[]>(initialCache?.fuelLogs ?? []);
@@ -432,11 +434,16 @@ export default function Home() {
     let active = true;
     const cached = readDashboardCache();
     if (cached) {
-      setSnapshot(cached.snapshot);
+      setSnapshot({ ...cached.snapshot, routePlans: [] });
       setFuelLogs(cached.fuelLogs);
       setCostEntries(cached.costEntries);
       setParcels(cached.parcels);
       setIsLoading(false);
+      void getRoutePlans()
+        .then((routePlans) => {
+          if (active) setSnapshot((current) => ({ ...current, routePlans: Array.isArray(routePlans) ? routePlans : [] }));
+        })
+        .catch((error) => console.warn("Dashboard route plans are unavailable:", error));
       return () => { active = false; };
     }
 
@@ -448,6 +455,10 @@ export default function Home() {
           getTrips({ light: true }),
           getVehicles(),
           getBookings(),
+          getRoutePlans().catch((routePlanError) => {
+            console.warn("Dashboard route plans are unavailable:", routePlanError);
+            return [];
+          }),
       ]);
       const analyticsRequest = Promise.all([
         getDrivers(),
@@ -458,7 +469,7 @@ export default function Home() {
       ]);
 
       try {
-        const [trips, vehicles, bookings] = await coreRequest;
+        const [trips, vehicles, bookings, routePlans] = await coreRequest;
         if (!active) return;
 
         const mergedBookings = Array.isArray(bookings) ? bookings : [...storeBookings];
@@ -466,6 +477,7 @@ export default function Home() {
           vehicles: Array.isArray(vehicles) ? vehicles : [],
           trips: Array.isArray(trips) ? trips : [],
           bookings: mergedBookings,
+          routePlans: Array.isArray(routePlans) ? routePlans : [],
           drivers: [...storeDrivers],
         });
         writeDashboardCache({
@@ -473,6 +485,7 @@ export default function Home() {
             vehicles: Array.isArray(vehicles) ? vehicles : [],
             trips: Array.isArray(trips) ? trips : [],
             bookings: mergedBookings,
+            routePlans: Array.isArray(routePlans) ? routePlans : [],
             drivers: [...storeDrivers],
           },
           fuelLogs: [],
@@ -926,6 +939,53 @@ export default function Home() {
           </div>
 
         </div>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Persisted Route Plans</h2>
+              <p className="text-xs text-slate-500">Saved route calculations from Supabase</p>
+            </div>
+            <span className="text-xs font-semibold text-slate-500">{snapshot.routePlans?.length ?? 0} plans</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] border-collapse text-left text-xs">
+              <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-2 font-semibold">Route / IDs</th>
+                  <th className="px-3 py-2 font-semibold">Baseline</th>
+                  <th className="px-3 py-2 font-semibold">Optimized</th>
+                  <th className="px-3 py-2 font-semibold">Saved</th>
+                  <th className="px-3 py-2 font-semibold">Fuel</th>
+                  <th className="px-3 py-2 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(snapshot.routePlans || []).slice(0, 8).map((plan) => {
+                  const formatKm = (value: unknown) => Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} km` : "—";
+                  const formatMinutes = (value: unknown) => Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)} min` : "—";
+                  const distanceSaved = plan.distanceSavedKm ?? plan.distance_saved_km;
+                  return (
+                    <tr key={String(plan.id)} className="text-slate-700">
+                      <td className="px-4 py-2.5">
+                        <div className="font-semibold text-slate-900">{plan.courier || plan.id || "Route plan"}</div>
+                        <div className="mt-0.5 text-[10px] text-slate-500">{plan.id || "No route ID"} · {plan.vehicleId || plan.vehicle_id || "No vehicle"} · {plan.driverId || plan.driver_id || "No driver"}</div>
+                      </td>
+                      <td className="px-3 py-2.5">{formatKm(plan.baselineDistanceKm ?? plan.baseline_distance_km)}<div className="text-[10px] text-slate-500">{formatMinutes(plan.baselineDurationMinutes ?? plan.baseline_duration_min)}</div></td>
+                      <td className="px-3 py-2.5">{formatKm(plan.optimizedDistanceKm ?? plan.optimized_distance_km ?? plan.distanceKm ?? plan.distance_km)}<div className="text-[10px] text-slate-500">{formatMinutes(plan.optimizedDurationMinutes ?? plan.optimized_duration_min ?? plan.durationMinutes ?? plan.estimated_duration_min)}</div></td>
+                      <td className="px-3 py-2.5">{formatKm(distanceSaved)}</td>
+                      <td className="px-3 py-2.5">{Number.isFinite(Number(plan.fuelSavedLiters ?? plan.fuel_saved_liters)) ? `${Number(plan.fuelSavedLiters ?? plan.fuel_saved_liters).toFixed(2)} L` : "—"}</td>
+                      <td className="px-3 py-2.5">{plan.status || "—"}</td>
+                    </tr>
+                  );
+                })}
+                {(!snapshot.routePlans || snapshot.routePlans.length === 0) && (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">No persisted route plans found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         {/* 12-Column Full-Width Responsive Dashboard Grid - Map Centered with Charts on Sides */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch w-full">

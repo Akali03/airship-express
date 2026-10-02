@@ -10,6 +10,7 @@ export function normalizeBooking(record: RecordValue = {}) {
     dropoffLocation: record.dropoff_location,
     bookingDate: record.booking_date || record.bookingDate,
     routePlanId: record.route_plan_id ?? record.routePlanId ?? null,
+    routePlan: record.routePlan ?? record.route_plan ?? null,
     courierId: record.courier_id ?? record.courierId ?? null,
     courier: record.courier || null,
     driverId: record.driver_id ?? record.driverId ?? null,

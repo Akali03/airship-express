@@ -13,7 +13,7 @@ import {
   confirmDispatch,
 } from "../lib/parcelStore";
 import { Booking, BOOKING_STATUS_LABEL } from "../lib/parcelTypes";
-import { assignBookingResources, createTrip, getCouriers, getRoutePlans, getRoutePlan } from "../lib/api";
+import { assignBookingResources, createTrip, getCouriers, getRoutePlans, getRoutePlan, getTrips } from "../lib/api";
 
 const STATUS_OPTIONS = ["All", "PENDING", "DRIVER_VEHICLE_ASSIGNED"] as const;
 type BookingStatusFilter = (typeof STATUS_OPTIONS)[number];
@@ -117,58 +117,82 @@ export default function VrdsBookingsPage() {
     return Boolean(vehicleCourier) && normalizeCourier(vehicleCourier) === requested;
   };
 
-  const handleGenerateAssignment = (booking: Booking) => {
+  const handleGenerateAssignment = async (booking: Booking) => {
     if (generatingAssignmentFor) return;
 
+    const tripRows = await getTrips({ light: true }).catch(() => [] as any[]);
+    const activeDriverIds = new Set(
+      (Array.isArray(tripRows) ? tripRows : [])
+        .filter((trip: any) => /assigned|in[_ -]?transit|dispatch|moving|active|scheduled|delayed|late|en route/i.test(String(trip.status ?? "")))
+        .map((trip: any) => String(trip.driverId ?? trip.driver_id ?? ""))
+        .filter(Boolean)
+    );
+    const activeVehicleIds = new Set(
+      (Array.isArray(tripRows) ? tripRows : [])
+        .filter((trip: any) => /assigned|in[_ -]?transit|dispatch|moving|active|scheduled|delayed|late|en route/i.test(String(trip.status ?? "")))
+        .map((trip: any) => String(trip.vehicleId ?? trip.vehicle_id ?? ""))
+        .filter(Boolean)
+    );
+
+    const liveAvailableDrivers = drivers.filter((driver) => driver.status === "Available" && !activeDriverIds.has(String(driver.id)));
+    const liveAvailableVehicles = vehicles.filter((vehicle) => vehicle.status === "Available" && !activeVehicleIds.has(String(vehicle.id)));
+
     const bookingCourier = getBookingCourier(booking);
-    const compatibleVehicles = availableVehicles
+    const compatibleVehicles = liveAvailableVehicles
       .filter((item) => item.capacityKg >= booking.totalWeightKg)
       .filter((item) => isVehicleForCourier(item, bookingCourier));
     const existingVehicle = booking.vehicleId ? vehicles.find((item) => item.id === booking.vehicleId) : undefined;
-    const vehicle = existingVehicle || compatibleVehicles
-      .filter((item) => availableDrivers.some((driver) => driver.vehicleId === item.id))
-      .sort((first, second) => first.capacityKg - second.capacityKg)[0];
+    const vehicle = existingVehicle && !activeVehicleIds.has(String(existingVehicle.id)) && existingVehicle.status === "Available"
+      ? existingVehicle
+      : compatibleVehicles
+        .filter((item) => liveAvailableDrivers.some((driver) => driver.id === booking.driverId || driver.vehicleId === item.id))
+        .sort((first, second) => first.capacityKg - second.capacityKg)[0]
+        ?? compatibleVehicles[0]
+        ?? null;
     const driver = booking.driverId
-      ? drivers.find((item) => item.id === booking.driverId)
-      : availableDrivers.find((item) => item.vehicleId === vehicle?.id);
+      ? liveAvailableDrivers.find((item) => item.id === booking.driverId)
+      : liveAvailableDrivers.find((item) => item.vehicleId === vehicle?.id) ?? liveAvailableDrivers[0] ?? null;
 
-    const driverUnavailable = !driver || (driver.status !== "Available" && driver.id !== booking.driverId);
-    const vehicleUnavailable = !vehicle || (driver?.vehicleId && driver.vehicleId !== vehicle.id);
-    const vehicleOverCapacity = vehicle && vehicle.capacityKg < booking.totalWeightKg;
+    const driverUnavailable = !driver || (driver.status !== "Available") || activeDriverIds.has(String(driver.id));
+    const vehicleUnavailable = !vehicle || vehicle.status !== "Available" || activeVehicleIds.has(String(vehicle.id));
+    const vehicleOverCapacity = Boolean(vehicle && vehicle.capacityKg < booking.totalWeightKg);
     const vehicleCourierMismatch = Boolean(vehicle && !isVehicleForCourier(vehicle, bookingCourier));
-    if (driverUnavailable || vehicleUnavailable || vehicleOverCapacity || vehicleCourierMismatch) {
-      const unavailableResources: string[] = [];
-      if (driverUnavailable) unavailableResources.push("driver");
-      if (vehicleUnavailable || vehicleOverCapacity) unavailableResources.push("vehicle");
-      setErrorFor({
-        id: booking.id,
-        message: vehicleOverCapacity
-          ? `No available vehicle can carry ${booking.totalWeightKg} kg.`
-          : vehicleCourierMismatch
-            ? `The selected driver and vehicle do not match courier ${bookingCourier}.`
+    const pairMismatch = !!vehicle && !!driver && (!isVehicleForCourier(vehicle, bookingCourier) || String(driver.vehicleId || "") !== String(vehicle.id));
+
+    if (driverUnavailable || vehicleUnavailable || vehicleOverCapacity || vehicleCourierMismatch || pairMismatch) {
+      const reason = vehicleOverCapacity
+        ? `No available vehicle can carry ${booking.totalWeightKg} kg.`
+        : vehicleCourierMismatch
+          ? `No compatible ${bookingCourier || "courier"} driver and vehicle are available for this booking.`
+          : pairMismatch
+            ? "The selected driver and vehicle do not belong to the same valid assignment pair."
             : bookingCourier
-              ? `No available vehicle matched courier ${bookingCourier} for this assignment.`
-              : `No available ${unavailableResources.join(" or ")} for this assignment.`,
-      });
+              ? `No compatible driver and vehicle pair is available for ${bookingCourier}.`
+              : "No compatible driver and vehicle pair is available right now.";
+      setErrorFor({ id: booking.id, message: reason });
       return;
     }
 
     setGeneratingAssignmentFor(booking.id);
     setErrorFor(null);
-    window.setTimeout(() => {
-      assignDriverAndVehicle(booking.id, driver.id, vehicle.id);
-      void assignBookingResources(booking.id, {
+
+    try {
+      await assignBookingResources(booking.id, {
         driver_id: driver.id,
         driver_name: driver.name,
         vehicle_id: vehicle.id,
-        vehicle_plate: vehicle.plate,
-      }).catch((error) => {
-        console.warn("Generated assignment was saved locally but not persisted to the backend:", error);
+        vehicle_plate: vehicle.plateNumber ?? vehicle.plate,
       });
-      setGeneratingAssignmentFor(null);
+      assignDriverAndVehicle(booking.id, driver.id, vehicle.id);
       const vehicleLabel = vehicle.plateNumber ?? vehicle.plate ?? "selected vehicle";
-      showToast(`Suggested ${driver.name} with ${vehicleLabel}. Review before dispatch.`);
-    }, 1200);
+      showToast(`Assigned ${driver.name} with ${vehicleLabel}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to persist the assignment.";
+      setErrorFor({ id: booking.id, message });
+      showToast(message);
+    } finally {
+      setGeneratingAssignmentFor(null);
+    }
   };
 
   const handleConfirm = async (booking: Booking) => {
@@ -579,6 +603,31 @@ export default function VrdsBookingsPage() {
                   <div className="bg-pink-50/40 border border-pink-100/80 rounded-xl p-3.5 space-y-2">
                     <p className="text-xs text-slate-500 font-medium">Route Target</p>
                     <p className="text-sm font-bold text-slate-900">{selectedBooking ? getBookingRouteLabel(selectedBooking, parcels) : "No selection"}</p>
+                    {selectedBooking.routePlan && (
+                      <div className="grid grid-cols-2 gap-2 border-t border-rose-100 pt-2 text-xs">
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase text-rose-400">Baseline distance</span>
+                          <span className="font-semibold text-slate-800">{selectedBooking.routePlan.baselineDistanceKm?.toFixed?.(2) ?? "—"} km</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase text-rose-400">Optimized distance</span>
+                          <span className="font-semibold text-slate-800">{selectedBooking.routePlan.optimizedDistanceKm?.toFixed?.(2) ?? "—"} km</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase text-rose-400">Distance saved</span>
+                          <span className="font-semibold text-slate-800">{selectedBooking.routePlan.distanceSavedKm?.toFixed?.(2) ?? "—"} km</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase text-rose-400">Fuel saved</span>
+                          <span className="font-semibold text-slate-800">{selectedBooking.routePlan.fuelSavedLiters?.toFixed?.(2) ?? "—"} L</span>
+                        </div>
+                        <div className="col-span-2 text-[10px] text-slate-500">
+                          Route plan {selectedBooking.routePlan.id || selectedBooking.routePlanId || "—"}
+                          {selectedBooking.routePlan.vehicleId ? ` · Vehicle ${selectedBooking.routePlan.vehicleId}` : ""}
+                          {selectedBooking.routePlan.driverId ? ` · Driver ${selectedBooking.routePlan.driverId}` : ""}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Vehicle Weight Capacity Progress Bar */}
                     {selectedBooking.vehicleId && (

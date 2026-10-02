@@ -460,6 +460,10 @@ export default function DriverOverviewPage() {
                 const vehicle = assignment.vehicle || {};
                 const routePlan = assignment.route_plan || {};
                 const destinations = routePlan.delivery_destinations || routePlan.deliveryDestinations || booking.delivery_destinations || [];
+                const baselineDistanceKm = routePlan.baseline_distance_km ?? routePlan.baselineDistanceKm;
+                const optimizedDistanceKm = routePlan.optimized_distance_km ?? routePlan.optimizedDistanceKm ?? routePlan.distance_km;
+                const distanceSavedKm = routePlan.distance_saved_km ?? routePlan.distanceSavedKm;
+                const fuelSavedLiters = routePlan.fuel_saved_liters ?? routePlan.fuelSavedLiters;
                 const parcels = Array.isArray(assignment.parcels) ? assignment.parcels : [];
                 return (
                   <article key={assignment.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
@@ -476,6 +480,14 @@ export default function DriverOverviewPage() {
                       <div><dt className="font-semibold text-slate-400">Parcels</dt><dd className="mt-0.5 font-bold text-slate-700">{parcels.length}</dd></div>
                       <div><dt className="font-semibold text-slate-400">Assigned</dt><dd className="mt-0.5 font-bold text-slate-700">{assignment.assigned_at ? new Date(assignment.assigned_at).toLocaleString() : "Not available"}</dd></div>
                     </dl>
+                    {routePlan.id && (
+                      <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-200 pt-3 text-xs">
+                        <div><dt className="font-semibold text-slate-400">Baseline distance</dt><dd className="mt-0.5 font-bold text-slate-700">{Number.isFinite(Number(baselineDistanceKm)) ? `${Number(baselineDistanceKm).toFixed(2)} km` : "—"}</dd></div>
+                        <div><dt className="font-semibold text-slate-400">Optimized distance</dt><dd className="mt-0.5 font-bold text-slate-700">{Number.isFinite(Number(optimizedDistanceKm)) ? `${Number(optimizedDistanceKm).toFixed(2)} km` : "—"}</dd></div>
+                        <div><dt className="font-semibold text-slate-400">Distance saved</dt><dd className="mt-0.5 font-bold text-slate-700">{Number.isFinite(Number(distanceSavedKm)) ? `${Number(distanceSavedKm).toFixed(2)} km` : "—"}</dd></div>
+                        <div><dt className="font-semibold text-slate-400">Fuel saved</dt><dd className="mt-0.5 font-bold text-slate-700">{Number.isFinite(Number(fuelSavedLiters)) ? `${Number(fuelSavedLiters).toFixed(2)} L` : "—"}</dd></div>
+                      </dl>
+                    )}
                     {destinations.length > 0 && <p className="mt-3 text-xs text-slate-600"><span className="font-bold text-slate-700">Stops:</span> {destinations.map((stop: any) => stop.name || stop.label || stop.address).filter(Boolean).join(" • ")}</p>}
                     {parcels.length > 0 && <p className="mt-2 text-xs text-slate-600"><span className="font-bold text-slate-700">Parcel details:</span> {parcels.map((parcel: any) => parcel.tracking_number || parcel.trackingNumber || parcel.id).filter(Boolean).join(", ")}</p>}
                   </article>

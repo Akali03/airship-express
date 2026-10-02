@@ -23,6 +23,7 @@ export type OptimizeRequest = {
   cargoWeightKg?: number;
   initialDistanceMi?: number;
   initialEtaMinutes?: number;
+  fuelEfficiencyKmPerL?: number;
   distanceMatrix?: number[][];
   durationMatrix?: number[][];
 };
@@ -35,13 +36,31 @@ export type VehicleRouteResult = {
   etaMinutes: number;
 };
 
+export type RouteCalculationSnapshot = {
+  orderedStopIds: string[];
+  stops: Array<{ id: string; name: string; lat: number; lng: number }>;
+  distanceMi: number;
+  durationMinutes: number;
+  polyline?: LatLng[];
+};
+
 export type OptimizeResponse = {
   orderedStopIds: string[];
   polyline: LatLng[];
   routes?: VehicleRouteResult[];
+  baselineRoute?: RouteCalculationSnapshot;
+  optimizedRoute?: RouteCalculationSnapshot;
+  depot?: LatLng;
+  destination?: LatLng;
+  vehicleId?: string | null;
   distanceMi: number;
   etaMinutes: number;
   fuelSavingsPct: number;
+  distanceSavedMi?: number;
+  fuelEfficiencyKmPerL?: number | null;
+  baselineFuelLiters?: number | null;
+  optimizedFuelLiters?: number | null;
+  fuelSavedLiters?: number | null;
   etaImprovementMin: number;
   engine: "or-tools" | "heuristic-fallback";
   baselineDistanceMi?: number;

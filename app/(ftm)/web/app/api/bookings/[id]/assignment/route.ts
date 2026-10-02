@@ -33,7 +33,7 @@ async function updateResourceStatus(
 }
 
 async function syncAssignedTrip(supabase: SupabaseClient, booking: Record<string, any>, assignment: Record<string, any>) {
-  if (!booking?.id || !assignment.driverId || !assignment.vehicleId) return;
+  if (!booking?.id || !assignment.driverId || !assignment.vehicleId) return null;
   const trip = {
     id: `TRIP-${booking.id}`,
     booking_id: booking.id,
@@ -58,11 +58,11 @@ async function syncAssignedTrip(supabase: SupabaseClient, booking: Record<string
   const { data: existing, error: lookupError } = await supabase.from("trips").select("id").eq("booking_id", booking.id).maybeSingle();
   if (lookupError) {
     console.warn("Unable to look up assigned trip for booking:", lookupError.message);
-    return;
+    return null;
   }
   const persist = async (payload: Record<string, unknown>) => existing
-    ? supabase.from("trips").update(payload).eq("id", existing.id)
-    : supabase.from("trips").insert(payload);
+    ? supabase.from("trips").update(payload).eq("id", existing.id).select("id").single()
+    : supabase.from("trips").insert(payload).select("id").single();
   let result = await persist(trip);
   if (result.error && /column .* does not exist|schema cache|from_latitude|to_latitude/i.test(result.error.message)) {
     const legacy = { ...trip } as Record<string, unknown>;
@@ -72,7 +72,11 @@ async function syncAssignedTrip(supabase: SupabaseClient, booking: Record<string
     delete legacy.to_longitude;
     result = await persist(legacy);
   }
-  if (result.error) console.warn("Unable to synchronize assigned trip for driver app:", result.error.message);
+  if (result.error) {
+    console.warn("Unable to synchronize assigned trip for driver app:", result.error.message);
+    return null;
+  }
+  return result.data?.id || existing?.id || trip.id;
 }
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -135,11 +139,104 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (error) return NextResponse.json({ error: `Unable to assign booking resources: ${error.message}` }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
+  if (data.route_plan_id) {
+    const [{ data: routePlan, error: routePlanLookupError }, { data: assignedVehicle, error: vehicleLookupError }] = await Promise.all([
+      supabase.from("route_plans").select("vehicle_info,driver_info,optimization_result,baseline_distance_km,optimized_distance_km,fuel_savings_pct").eq("id", data.route_plan_id).maybeSingle(),
+      supabase.from("vehicles").select("id,plate_number,vehicle_type,capacity_kg,fuel_efficiency,courier_id").eq("id", vehicle_id).maybeSingle(),
+    ]);
+    const syncLookupError = routePlanLookupError || vehicleLookupError;
+    if (syncLookupError || !routePlan || !assignedVehicle) {
+      return NextResponse.json({
+        error: "Booking was assigned, but its route-plan vehicle/driver snapshot could not be loaded.",
+        details: syncLookupError?.message || "Linked route plan or vehicle was not found.",
+        booking_id: data.id,
+        route_plan_id: data.route_plan_id,
+      }, { status: 500 });
+    }
+    const fuelEfficiencyKmPerL = Number(assignedVehicle.fuel_efficiency);
+    const validFuelEfficiency = Number.isFinite(fuelEfficiencyKmPerL) && fuelEfficiencyKmPerL > 0
+      ? fuelEfficiencyKmPerL
+      : null;
+    const baselineDistanceKm = routePlan.baseline_distance_km == null ? NaN : Number(routePlan.baseline_distance_km);
+    const optimizedDistanceKm = routePlan.optimized_distance_km == null ? NaN : Number(routePlan.optimized_distance_km);
+    const baselineFuelLiters = validFuelEfficiency !== null && Number.isFinite(baselineDistanceKm)
+      ? baselineDistanceKm / validFuelEfficiency
+      : null;
+    const optimizedFuelLiters = validFuelEfficiency !== null && Number.isFinite(optimizedDistanceKm)
+      ? optimizedDistanceKm / validFuelEfficiency
+      : null;
+    const fuelSavedLiters = baselineFuelLiters !== null && optimizedFuelLiters !== null
+      ? baselineFuelLiters - optimizedFuelLiters
+      : null;
+    const { error: routePlanUpdateError } = await supabase.from("route_plans").update({
+      vehicle_id,
+      driver_id,
+      fuel_efficiency_km_per_l: validFuelEfficiency,
+      baseline_fuel_liters: baselineFuelLiters,
+      optimized_fuel_liters: optimizedFuelLiters,
+      fuel_saved_liters: fuelSavedLiters,
+      vehicle_info: {
+        ...(routePlan.vehicle_info || {}),
+        id: assignedVehicle.id,
+        plate: assignedVehicle.plate_number || assignedVehicle.id,
+        vehicleType: assignedVehicle.vehicle_type || null,
+        capacityKg: assignedVehicle.capacity_kg ?? null,
+        fuelEfficiencyKmPerL: validFuelEfficiency,
+        courierId: assignedVehicle.courier_id || null,
+      },
+      driver_info: {
+        ...(routePlan.driver_info || {}),
+        id: validation.driver.id,
+        name: driver_name || validation.driver.full_name || null,
+        courierId: validation.driver.courier_id || null,
+      },
+      optimization_result: {
+        ...(routePlan.optimization_result || {}),
+        vehicleId: assignedVehicle.id,
+        driverId: validation.driver.id,
+        fuelEfficiencyKmPerL: validFuelEfficiency,
+        baselineFuelLiters,
+        optimizedFuelLiters,
+        fuelSavedLiters,
+      },
+      updated_at: assignedAt,
+    }).eq("id", data.route_plan_id);
+    if (routePlanUpdateError) {
+      return NextResponse.json({
+        error: "Booking was assigned, but the linked route plan could not be synchronized.",
+        details: routePlanUpdateError.message,
+        booking_id: data.id,
+        route_plan_id: data.route_plan_id,
+      }, { status: 500 });
+    }
+  }
+
   if (previous && (previous.driver_id !== driver_id || previous.vehicle_id !== vehicle_id)) {
     await updateResourceStatus(supabase, { driverId: previous.driver_id, vehicleId: previous.vehicle_id }, "Available");
   }
   await updateResourceStatus(supabase, { driverId: driver_id, vehicleId: vehicle_id }, "Assigned");
-  await syncAssignedTrip(supabase, data, { driverId: driver_id, driverName: driver_name, vehicleId: vehicle_id, vehiclePlate: assignedVehiclePlate });
+  const syncedTripId = await syncAssignedTrip(supabase, data, { driverId: driver_id, driverName: driver_name, vehicleId: vehicle_id, vehiclePlate: assignedVehiclePlate });
+  if (data.route_plan_id && syncedTripId) {
+    const { error: tripLinkError } = await context.serviceClient
+      .from("route_plans")
+      .update({ trip_id: syncedTripId })
+      .eq("id", data.route_plan_id);
+    if (tripLinkError) {
+      return NextResponse.json({
+        error: "Booking assignment and trip were saved, but the route-plan trip link failed.",
+        details: tripLinkError.message,
+        booking_id: data.id,
+        trip_id: syncedTripId,
+        route_plan_id: data.route_plan_id,
+      }, { status: 500 });
+    }
+  } else if (data.route_plan_id) {
+    return NextResponse.json({
+      error: "Booking assignment was saved, but its trip could not be synchronized to the route plan.",
+      booking_id: data.id,
+      route_plan_id: data.route_plan_id,
+    }, { status: 500 });
+  }
   const { error: notificationError } = await supabase.from("notifications").insert({
     user_id: driver_id,
     title: "New booking assignment",

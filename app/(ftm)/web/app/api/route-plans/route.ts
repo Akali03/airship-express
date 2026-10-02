@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasPermission } from "../../lib/permissions";
 import { authenticateFtmRequest } from "../../lib/server/ftmRequestAuth";
-import { insertRoutePlanWithFallback, isOpenRoutePlan, isRoutePlanSchemaUnavailable, normalizeRoutePlan, prepareRoutePlanPayload } from "../../lib/server/ftmRoutePlans";
+import { createRoutePlanIdempotencyKey, isOpenRoutePlan, isRoutePlanSchemaUnavailable, normalizeRoutePlan, prepareRoutePlanPayload, upsertRoutePlan } from "../../lib/server/ftmRoutePlans";
 
 export const dynamic = "force-dynamic";
 
@@ -50,34 +50,66 @@ export async function POST(request: Request) {
     const longitude = Number(stop.lng ?? stop.longitude);
     return Number.isFinite(latitude) && Number.isFinite(longitude);
   });
-  if (!finalStops.length) return NextResponse.json({ error: "delivery_destinations must include valid lat/lng for each stop" }, { status: 400 });
+  if (!finalStops.length || finalStops.length !== body.delivery_destinations.length) {
+    return NextResponse.json({ error: "Every delivery destination must have valid coordinates." }, { status: 400 });
+  }
 
   const routeGeojson = body.route_geojson || body.routeGeojson || {};
   const featureProperties = routeGeojson.features?.[0]?.properties || {};
-  const distanceKm = Number(body.distance_km ?? body.distanceKm ?? Number(featureProperties.distanceMi) * 1.609344);
-  const durationMin = Number(body.estimated_duration_min ?? body.durationMinutes ?? featureProperties.etaMinutes);
-  if (!Number.isFinite(distanceKm) || !Number.isFinite(durationMin)) {
-    return NextResponse.json({ error: "Generate a valid route before saving the booking." }, { status: 400 });
+  const optimizationResult = body.optimization_result || body.optimizationResult || {};
+  const distanceKm = Number(body.optimized_distance_km ?? body.optimizedDistanceKm ?? body.distance_km ?? body.distanceKm ?? featureProperties.optimizedDistanceKm ?? Number(featureProperties.distanceMi) * 1.609344);
+  const durationMin = Number(body.optimized_duration_min ?? body.optimizedDurationMinutes ?? body.estimated_duration_min ?? body.durationMinutes ?? featureProperties.etaMinutes);
+  const baselineDistanceKm = Number(body.baseline_distance_km ?? body.baselineDistanceKm ?? featureProperties.baselineDistanceKm);
+  const baselineDurationMin = Number(body.baseline_duration_min ?? body.baselineDurationMinutes ?? featureProperties.baselineDurationMinutes);
+  if (![distanceKm, durationMin, baselineDistanceKm, baselineDurationMin].every(Number.isFinite)) {
+    return NextResponse.json({ error: "Complete baseline and optimized route metrics are required before saving." }, { status: 400 });
   }
 
+  const idempotencyKey = String(body.idempotency_key || body.idempotencyKey || createRoutePlanIdempotencyKey(body.courier, finalStops, body.parcel_ids || body.parcelIds || []));
+  const stopSequence = body.stop_sequence || body.stopSequence || {
+    baseline: body.baseline_route?.stops || body.baselineRoute?.stops || body.delivery_destinations,
+    optimized: body.optimized_route?.stops || body.optimizedRoute?.stops || body.delivery_destinations,
+    optimizedStopIds: body.optimized_stop_ids || body.optimizedStopIds || optimizationResult.orderedStopIds || [],
+  };
   const optimized = {
-    order: finalStops.map((stop: Record<string, any>) => stop.name || stop.address || stop.delivery_address),
-    routes: Array.isArray(routeGeojson.routes) ? routeGeojson.routes : null,
+    idempotency_key: idempotencyKey,
+    order: optimizationResult.orderedStopIds || body.optimized_stop_ids || body.optimizedStopIds || finalStops.map((stop: Record<string, any>) => stop.id || stop.name || stop.address || stop.delivery_address),
+    stop_sequence: stopSequence,
+    routes: Array.isArray(body.routes) ? body.routes : Array.isArray(routeGeojson.routes) ? routeGeojson.routes : null,
     route_geometry: routeGeojson.route_geometry || routeGeojson.features?.[0]?.geometry || null,
     distance_km: distanceKm,
     duration_min: durationMin,
+    optimized_distance_km: distanceKm,
+    optimized_duration_min: durationMin,
+    baseline_distance_km: baselineDistanceKm,
+    baseline_duration_min: baselineDurationMin,
+    distance_saved_km: Number(body.distance_saved_km ?? body.distanceSavedKm ?? baselineDistanceKm - distanceKm),
+    baseline_route: body.baseline_route || body.baselineRoute || featureProperties.baselineRoute || null,
+    optimized_route: body.optimized_route || body.optimizedRoute || featureProperties.optimizedRoute || null,
+    depot: body.depot || { name: body.pickup_location, lat: depot.lat, lng: depot.lng },
+    vehicle_id: body.vehicle_id || body.vehicleId || null,
+    driver_id: body.driver_id || body.driverId || null,
+    vehicle_info: body.vehicle_info || body.vehicleInfo || null,
+    driver_info: body.driver_info || body.driverInfo || null,
+    fuel_efficiency_km_per_l: body.fuel_efficiency_km_per_l ?? body.fuelEfficiencyKmPerL ?? null,
+    baseline_fuel_liters: body.baseline_fuel_liters ?? body.baselineFuelLiters ?? null,
+    optimized_fuel_liters: body.optimized_fuel_liters ?? body.optimizedFuelLiters ?? null,
+    fuel_saved_liters: body.fuel_saved_liters ?? body.fuelSavedLiters ?? null,
+    fuel_savings_pct: body.fuel_savings_pct ?? body.fuelSavingsPct ?? featureProperties.fuelSavingsPct ?? null,
+    eta_impact_min: body.eta_impact_min ?? body.etaImpactMinutes ?? baselineDurationMin - durationMin,
+    optimization_result: optimizationResult,
     solver: body.generated_by || "or-tools",
   };
-  const payload = prepareRoutePlanPayload(body, optimized, finalStops);
-  const { data, error } = await insertRoutePlanWithFallback(context.serviceClient, payload);
+  const payload = prepareRoutePlanPayload({ ...body, created_by: body.created_by || context.user.id }, optimized, finalStops);
+  const { data, error } = await upsertRoutePlan(context.serviceClient, payload);
   if (error) {
     if (/permission denied|not authorized|rls|jwt/i.test(error.message)) {
       return NextResponse.json({ error: "Unable to save route plan: permission denied for table route_plans", details: "Supabase RLS policies are not configured for service-role access." }, { status: 403 });
     }
     if (isRoutePlanSchemaUnavailable(error) || /column .* of 'route_plans'/i.test(error.message)) {
-      return NextResponse.json({ error: "route_plans table is not migrated to the workflow schema.", details: error.message, migration: "20260814_route_plans_workflow_migration.sql" }, { status: 500 });
+      return NextResponse.json({ error: "route_plans calculation columns are not migrated.", details: error.message, migration: "20261005_route_plan_calculation_persistence.sql" }, { status: 500 });
     }
     return NextResponse.json({ error: `Unable to save route plan: ${error.message}` }, { status: 500 });
   }
-  return NextResponse.json(normalizeRoutePlan(data), { status: 201 });
+  return NextResponse.json(normalizeRoutePlan(data), { status: 200 });
 }

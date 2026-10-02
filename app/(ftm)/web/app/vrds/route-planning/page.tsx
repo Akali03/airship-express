@@ -32,6 +32,15 @@ type RouteStop = {
   parcelId?: string | null;
 };
 type LatLng = { lat: number; lng: number };
+type RouteVehicleOption = {
+  id: string;
+  capacityKg: number;
+  plate?: string;
+  name?: string;
+  courier?: string;
+  status?: "Available" | "Assigned";
+  fuelEfficiencyKmPerL?: number | null;
+};
 
 type VehicleRouteResult = {
   vehicleId: string;
@@ -45,9 +54,19 @@ type OptimizeResponse = {
   orderedStopIds: string[];
   polyline: LatLng[];
   routes?: VehicleRouteResult[];
+  baselineRoute?: { orderedStopIds: string[]; stops: Array<{ id: string; name: string; lat: number; lng: number }>; distanceMi: number; durationMinutes: number };
+  optimizedRoute?: { orderedStopIds: string[]; stops: Array<{ id: string; name: string; lat: number; lng: number }>; distanceMi: number; durationMinutes: number; polyline?: LatLng[] };
+  depot?: LatLng;
+  destination?: LatLng;
+  vehicleId?: string | null;
   distanceMi: number;
   etaMinutes: number;
   fuelSavingsPct: number;
+  distanceSavedMi?: number;
+  fuelEfficiencyKmPerL?: number | null;
+  baselineFuelLiters?: number | null;
+  optimizedFuelLiters?: number | null;
+  fuelSavedLiters?: number | null;
   etaImprovementMin: number;
   engine: "or-tools" | "heuristic-fallback";
   baselineDistanceMi?: number;
@@ -145,6 +164,11 @@ function getParcelAddress(parcel: any) {
   );
 }
 
+function isGeocodableAddress(value: string) {
+  const address = value.trim();
+  return Boolean(address) && !/^(?:unknown(?:\s+(?:destination|address|location))?|n\/?a|none|null|undefined|-)$/.test(address.toLowerCase());
+}
+
 // Some data sources accidentally store lng/lat swapped. Detect and fix,
 // or drop the point entirely rather than render a wildly wrong location.
 function normalizePosition(pos: { lat: number; lng: number } | null | undefined): LatLng | null {
@@ -193,7 +217,7 @@ function formatFiveDigitValue(value: number) {
 
 function calculateFuelSavingsPct(baselineDistanceMi: number | null, routeDistanceMi: number | null) {
   if (baselineDistanceMi === null || routeDistanceMi === null || !Number.isFinite(baselineDistanceMi) || !Number.isFinite(routeDistanceMi) || baselineDistanceMi <= 0) return 0;
-  return Math.max(0, Math.min(100, ((baselineDistanceMi - routeDistanceMi) / baselineDistanceMi) * 100));
+  return ((baselineDistanceMi - routeDistanceMi) / baselineDistanceMi) * 100;
 }
 
 function calculateEtaMinutes(distanceMi: number | null) {
@@ -385,6 +409,7 @@ export default function VrdsRoutePlanningPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const modalRef = useRef<HTMLDivElement>(null);
+  const attemptedGeocodeQueries = useRef(new Set<string>());
 
   const origin = useMemo(() => DEPOT_ORIGIN, []);
 
@@ -567,23 +592,30 @@ export default function VrdsRoutePlanningPage() {
   );
 
   useEffect(() => {
-    if (parcelsMissingCoords.length === 0) {
+    const parcelsToGeocode = parcelsMissingCoords.filter((parcel) =>
+      isGeocodableAddress(String(getParcelAddress(parcel) || ""))
+    );
+    if (parcelsToGeocode.length === 0) {
       setGeocodeMessage(null);
+      setGeocoding(false);
       return;
     }
 
     let active = true;
     setGeocoding(true);
     setGeocodeMessage(
-      `Geocoding ${parcelsMissingCoords.length} booked parcel${parcelsMissingCoords.length === 1 ? "" : "s"}...`
+      `Geocoding ${parcelsToGeocode.length} booked parcel${parcelsToGeocode.length === 1 ? "" : "s"}...`
     );
 
     (async () => {
       const next = new Map(resolvedPositions);
-      for (const parcel of parcelsMissingCoords) {
+      let positionsChanged = false;
+      for (const parcel of parcelsToGeocode) {
         if (!active) return;
-        const address = getParcelAddress(parcel).trim();
-        if (!address || next.has(parcel.id)) continue;
+        const address = String(getParcelAddress(parcel) || "").trim();
+        const queryKey = `${parcel.id}:${address.toLowerCase()}`;
+        if (next.has(parcel.id) || attemptedGeocodeQueries.current.has(queryKey)) continue;
+        attemptedGeocodeQueries.current.add(queryKey);
         try {
           const results = await fetchJson(`/api/geocode/search?q=${encodeURIComponent(address)}`);
           const match = Array.isArray(results)
@@ -591,13 +623,14 @@ export default function VrdsRoutePlanningPage() {
             : null;
           if (match) {
             next.set(parcel.id, { lat: Number(match.lat), lng: Number(match.lon) });
+            positionsChanged = true;
           }
         } catch (error) {
           console.warn("Geocode failed for parcel", parcel.id, error);
         }
       }
       if (!active) return;
-      setResolvedPositions(next);
+      if (positionsChanged) setResolvedPositions(next);
       setGeocodeMessage(null);
     })().finally(() => {
       if (active) setGeocoding(false);
@@ -814,10 +847,18 @@ export default function VrdsRoutePlanningPage() {
     return colors;
   }, [availableCouriers]);
 
-  const availableVehicleOptions = useMemo(() => {
-    const inventory = (vehicles || []).filter((v) => v.status === "Available");
+  const availableVehicleOptions = useMemo<RouteVehicleOption[]>(() => {
+    const inventory = vehicles || [];
     return inventory.length
-      ? inventory.map((v) => ({ id: v.id, capacityKg: Number(v.capacityKg ?? 500), plate: v.plate, name: v.plate }))
+      ? inventory.map((v) => ({
+          id: v.id,
+          capacityKg: Number(v.capacityKg ?? 500),
+          plate: v.plate,
+          name: v.plate,
+          courier: v.courier,
+          status: v.status,
+          fuelEfficiencyKmPerL: v.fuelEfficiencyKmPerL,
+        }))
       : [
           { id: "vehicle-1", capacityKg: 500 },
           { id: "vehicle-2", capacityKg: 800 },
@@ -942,7 +983,12 @@ export default function VrdsRoutePlanningPage() {
 
   /* ---------------- Optimization (shared by "optimize all" and "recalculate one") ---------------- */
 
-  async function requestOptimizedRoute(courierStops: RouteStop[]): Promise<OptimizeResponse> {
+  async function requestOptimizedRoute(courier: string, courierStops: RouteStop[]): Promise<OptimizeResponse> {
+    const courierVehicle = availableVehicleOptions.find((option) => option.courier === courier);
+    const vehicle = courierVehicle
+      ?? availableVehicleOptions.find((option) => option.status === "Available")
+      ?? availableVehicleOptions[0];
+    const fuelEfficiencyKmPerL = Number(courierVehicle?.fuelEfficiencyKmPerL);
     const res = await fetch("/api/optimize-route", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -951,9 +997,10 @@ export default function VrdsRoutePlanningPage() {
         destination,
         stops: courierStops,
         vehicleCount: 1,
-        availableVehicles: availableVehicleOptions.slice(0, 1),
-        initialDistanceMi: initialMetrics?.distanceMi ?? undefined,
-        initialEtaMinutes: initialMetrics?.etaMinutes ?? undefined,
+        availableVehicles: vehicle ? [{ id: vehicle.id, capacityKg: vehicle.capacityKg }] : [],
+        fuelEfficiencyKmPerL: Number.isFinite(fuelEfficiencyKmPerL) && fuelEfficiencyKmPerL > 0
+          ? fuelEfficiencyKmPerL
+          : undefined,
         optimizationMode: "balanced",
         prioritizeFuelEfficiency: false,
       }),
@@ -986,7 +1033,7 @@ export default function VrdsRoutePlanningPage() {
 
       const settled: { courier: string; stopIds: string[]; data: OptimizeResponse }[] = [];
       for (const [courier, courierStops] of stopsByCourier.entries()) {
-        const data = await requestOptimizedRoute(courierStops);
+        const data = await requestOptimizedRoute(courier, courierStops);
         settled.push({ courier, stopIds: courierStops.map((s) => s.id), data });
       }
 
@@ -1006,16 +1053,34 @@ export default function VrdsRoutePlanningPage() {
       const generatedResult = normalizedSettled.length === 1
         ? normalizedSettled[0].data
         : {
+            ...(() => {
+              const baselineDistanceMi = normalizedSettled.reduce((total, entry) => total + (entry.data.baselineDistanceMi ?? 0), 0);
+              const distanceSavedMi = normalizedSettled.reduce((total, entry) => total + (entry.data.distanceSavedMi ?? 0), 0);
+              const hasFuelMetrics = normalizedSettled.every((entry) => entry.data.fuelSavedLiters != null);
+              const baselineFuelLiters = hasFuelMetrics
+                ? normalizedSettled.reduce((total, entry) => total + (entry.data.baselineFuelLiters ?? 0), 0)
+                : null;
+              const optimizedFuelLiters = hasFuelMetrics
+                ? normalizedSettled.reduce((total, entry) => total + (entry.data.optimizedFuelLiters ?? 0), 0)
+                : null;
+              return {
+                baselineDistanceMi,
+                distanceSavedMi,
+                baselineFuelLiters,
+                optimizedFuelLiters,
+                fuelSavedLiters: hasFuelMetrics
+                  ? normalizedSettled.reduce((total, entry) => total + (entry.data.fuelSavedLiters ?? 0), 0)
+                  : null,
+                fuelEfficiencyKmPerL: null,
+                fuelSavingsPct: baselineDistanceMi > 0 ? (distanceSavedMi / baselineDistanceMi) * 100 : 0,
+              };
+            })(),
             orderedStopIds: normalizedSettled.flatMap((entry) => entry.data.orderedStopIds || []),
             polyline: normalizedSettled.flatMap((entry) => entry.data.polyline || []),
             routes: normalizedSettled.flatMap((entry) => entry.data.routes || []),
             distanceMi: normalizedSettled.reduce((total, entry) => total + (entry.data.distanceMi || 0), 0),
             etaMinutes: Math.max(...normalizedSettled.map((entry) => entry.data.etaMinutes || 0)),
-            fuelSavingsPct: normalizedSettled.length
-              ? normalizedSettled.reduce((total, entry) => total + (entry.data.fuelSavingsPct || 0), 0) / normalizedSettled.length
-              : 0,
             etaImprovementMin: normalizedSettled.reduce((total, entry) => total + (entry.data.etaImprovementMin || 0), 0),
-            baselineDistanceMi: normalizedSettled[0]?.data.baselineDistanceMi,
             baselineEtaMinutes: normalizedSettled[0]?.data.baselineEtaMinutes,
             engine: normalizedSettled.some((entry) => entry.data.engine === "or-tools") ? "or-tools" : "heuristic-fallback",
           } satisfies OptimizeResponse;
@@ -1087,15 +1152,25 @@ export default function VrdsRoutePlanningPage() {
     }
     if (!selectedCourier && courierRoutes.size > 0) {
       const results = Array.from(courierRoutes.values());
+      const baselineDistanceMi = results.reduce((total, result) => total + (result.baselineDistanceMi ?? 0), 0);
+      const distanceSavedMi = results.reduce((total, result) => total + (result.distanceSavedMi ?? 0), 0);
+      const hasFuelMetrics = results.every((result) => result.fuelSavedLiters != null);
       const polyline = results.flatMap((result) => result.polyline || []);
       return {
         orderedStopIds: results.flatMap((result) => result.orderedStopIds || []),
         polyline,
         routes: results.flatMap((result) => result.routes || []),
         distanceMi: results.reduce((total, result) => total + (result.distanceMi || 0), 0),
+        baselineDistanceMi,
+        distanceSavedMi,
+        baselineFuelLiters: hasFuelMetrics ? results.reduce((total, result) => total + (result.baselineFuelLiters ?? 0), 0) : null,
+        optimizedFuelLiters: hasFuelMetrics ? results.reduce((total, result) => total + (result.optimizedFuelLiters ?? 0), 0) : null,
+        fuelSavedLiters: hasFuelMetrics ? results.reduce((total, result) => total + (result.fuelSavedLiters ?? 0), 0) : null,
+        fuelEfficiencyKmPerL: null,
         etaMinutes: Math.max(...results.map((result) => result.etaMinutes || 0)),
-        fuelSavingsPct: results.length ? Math.round((results.reduce((total, result) => total + (result.fuelSavingsPct || 0), 0) / results.length) * 10) / 10 : 0,
+        fuelSavingsPct: baselineDistanceMi > 0 ? (distanceSavedMi / baselineDistanceMi) * 100 : 0,
         etaImprovementMin: results.reduce((total, result) => total + (result.etaImprovementMin || 0), 0),
+        baselineEtaMinutes: Math.max(...results.map((result) => result.baselineEtaMinutes || 0)),
         engine: "or-tools" as const,
       } satisfies OptimizeResponse;
     }
@@ -1121,11 +1196,12 @@ export default function VrdsRoutePlanningPage() {
   const currentEtaMinutes = currentResult?.etaMinutes && currentResult.etaMinutes > 0
     ? currentResult.etaMinutes
     : calculateEtaMinutes(currentDistanceMi);
-  const displayedFuelSavingsPct = currentResult
-    ? currentResult.fuelSavingsPct > 0
-      ? currentResult.fuelSavingsPct
-      : calculateFuelSavingsPct(baselineDistanceMi, currentDistanceMi)
-    : 0;
+  const displayedFuelSavingsPct = currentResult && Number.isFinite(currentResult.fuelSavingsPct)
+    ? currentResult.fuelSavingsPct
+    : calculateFuelSavingsPct(baselineDistanceMi, currentDistanceMi);
+  const distanceSavedMi = currentResult?.distanceSavedMi
+    ?? (baselineDistanceMi !== null && currentDistanceMi !== null ? baselineDistanceMi - currentDistanceMi : null);
+  const fuelSavedLiters = currentResult?.fuelSavedLiters ?? null;
   const displayedEtaImprovementMin = currentEtaMinutes !== null && baselineEtaMinutes !== null
     ? Math.max(0, baselineEtaMinutes - currentEtaMinutes)
     : 0;
@@ -1450,6 +1526,9 @@ export default function VrdsRoutePlanningPage() {
           .filter((destination): destination is NonNullable<typeof destination> => destination !== null);
 
         if (parcelIds.length === 0 || destinations.length === 0) continue;
+        if (![optimizedResult.baselineDistanceMi, optimizedResult.distanceMi, optimizedResult.baselineEtaMinutes, optimizedResult.etaMinutes].every(Number.isFinite)) {
+          throw new Error(`${courier}: route calculation metrics are incomplete; refusing to save an estimated route.`);
+        }
 
         const fallbackPolyline = buildWarehouseFirstPolyline({
           stops: courierStopsForPlan,
@@ -1458,15 +1537,52 @@ export default function VrdsRoutePlanningPage() {
           orderedIds: orderedStopIds,
         });
         const routePolyline = optimizedResult.polyline?.length ? optimizedResult.polyline : fallbackPolyline;
-        const fallbackMetrics = calculatePolylineMetrics(fallbackPolyline);
-        const routePlanKey = `${courier}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+        const routePlanKey = `${courier}-${parcelIds.map(String).sort().join("-")}`;
+        const plannedVehicle = availableVehicleOptions.find((vehicle) => vehicle.id === optimizedResult.vehicleId) || null;
         const routePlan = await createRoutePlan({
           courier: courierParcels[0]?.courier || courier,
+          parcel_ids: parcelIds.map(String),
           bulk_qr_code: routePlanKey,
+          idempotency_key: routePlanKey,
+          vehicle_id: plannedVehicle?.id ?? optimizedResult.vehicleId ?? null,
           pickup_location: origin.label,
           pickup_latitude: origin.lat,
           pickup_longitude: origin.lng,
+          depot: optimizedResult.depot || { name: origin.label, lat: origin.lat, lng: origin.lng },
+          destination: optimizedResult.destination || destination,
           delivery_destinations: destinations,
+          stop_sequence: {
+            baseline_stop_ids: optimizedResult.baselineRoute?.orderedStopIds || courierStopsForPlan.map((stop) => stop.id),
+            optimized_stop_ids: optimizedResult.optimizedRoute?.orderedStopIds || optimizedResult.orderedStopIds,
+            baseline_stops: optimizedResult.baselineRoute?.stops || courierStopsForPlan.map(({ id, label, lat, lng }) => ({ id, name: label, lat, lng })),
+            optimized_stops: optimizedResult.optimizedRoute?.stops || orderedStopIds.map((id) => {
+              const stop = stopById.get(id);
+              return stop ? { id: stop.id, name: stop.label, lat: stop.lat, lng: stop.lng } : null;
+            }).filter(Boolean),
+          },
+          baseline_route: optimizedResult.baselineRoute,
+          optimized_route: optimizedResult.optimizedRoute,
+          baseline_distance_km: optimizedResult.baselineDistanceMi == null ? null : optimizedResult.baselineDistanceMi * 1.609344,
+          baseline_duration_min: optimizedResult.baselineEtaMinutes ?? null,
+          optimized_distance_km: optimizedResult.distanceMi * 1.609344,
+          optimized_duration_min: optimizedResult.etaMinutes,
+          distance_saved_km: optimizedResult.distanceSavedMi == null ? null : optimizedResult.distanceSavedMi * 1.609344,
+          fuel_efficiency_km_per_l: optimizedResult.fuelEfficiencyKmPerL ?? null,
+          baseline_fuel_liters: optimizedResult.baselineFuelLiters ?? null,
+          optimized_fuel_liters: optimizedResult.optimizedFuelLiters ?? null,
+          fuel_saved_liters: optimizedResult.fuelSavedLiters ?? null,
+          fuel_savings_pct: optimizedResult.fuelSavingsPct,
+          eta_impact_min: optimizedResult.etaImprovementMin,
+          vehicle_info: plannedVehicle ? {
+            id: plannedVehicle.id,
+            plate: plannedVehicle.plate || null,
+            courier: plannedVehicle.courier || courier,
+            capacityKg: plannedVehicle.capacityKg,
+            fuelEfficiencyKmPerL: plannedVehicle.fuelEfficiencyKmPerL ?? null,
+          } : null,
+          driver_id: null,
+          driver_info: null,
+          optimization_result: optimizedResult,
           route_geojson: {
             type: "FeatureCollection",
             features: [{
@@ -1474,14 +1590,21 @@ export default function VrdsRoutePlanningPage() {
               geometry: { type: "LineString", coordinates: routePolyline.map((point) => [point.lng, point.lat]) },
               properties: {
                 orderedStopIds,
-                distanceMi: optimizedResult.distanceMi || fallbackMetrics.distanceMi,
-                etaMinutes: optimizedResult.etaMinutes || fallbackMetrics.etaMinutes,
+                vehicleId: optimizedResult.vehicleId,
+                distanceMi: optimizedResult.distanceMi,
+                baselineDistanceMi: optimizedResult.baselineDistanceMi,
+                distanceSavedMi: optimizedResult.distanceSavedMi,
+                etaMinutes: optimizedResult.etaMinutes,
                 fuelSavingsPct: optimizedResult.fuelSavingsPct,
+                fuelEfficiencyKmPerL: optimizedResult.fuelEfficiencyKmPerL,
+                baselineFuelLiters: optimizedResult.baselineFuelLiters,
+                optimizedFuelLiters: optimizedResult.optimizedFuelLiters,
+                fuelSavedLiters: optimizedResult.fuelSavedLiters,
               },
             }],
           },
-          distance_km: Number(((optimizedResult.distanceMi || fallbackMetrics.distanceMi) * 1.609344).toFixed(2)),
-          estimated_duration_min: Math.max(1, Math.round(optimizedResult.etaMinutes || fallbackMetrics.etaMinutes)),
+          distance_km: optimizedResult.distanceMi * 1.609344,
+          estimated_duration_min: optimizedResult.etaMinutes,
           generated_by: optimizedResult.engine || "OR-Tools",
           status: "assigned",
         });
@@ -1687,15 +1810,17 @@ export default function VrdsRoutePlanningPage() {
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KpiCard
-                label="Fuel Savings"
+                label="Fuel Saved"
                 icon="local_gas_station"
                 iconColor="text-emerald-600"
-                value={currentResult ? `${formatFiveDigitValue(displayedFuelSavingsPct)}%` : "0%"}
-                caption={currentResult && baselineDistanceMi !== null && currentDistanceMi !== null
-                  ? currentDistanceMi > baselineDistanceMi
-                    ? `Generated route is ${(currentDistanceMi - baselineDistanceMi).toFixed(1)} mi longer`
-                    : `Baseline ${baselineDistanceMi} mi → generated ${currentDistanceMi} mi`
-                  : "Calculated after generation"}
+                value={fuelSavedLiters !== null
+                  ? `${fuelSavedLiters >= 0 ? "+" : ""}${fuelSavedLiters.toFixed(2)} L`
+                  : currentResult ? "—" : "0.00 L"}
+                caption={currentResult?.baselineFuelLiters != null && currentResult.optimizedFuelLiters != null
+                  ? `${currentResult.baselineFuelLiters.toFixed(2)} L baseline → ${currentResult.optimizedFuelLiters.toFixed(2)} L optimized (${displayedFuelSavingsPct.toFixed(1)}%)`
+                  : currentResult
+                    ? "Vehicle fuel efficiency is not configured"
+                    : "Calculated after generation"}
               />
               <KpiCard
                 label="ETA Impact"
@@ -1711,17 +1836,13 @@ export default function VrdsRoutePlanningPage() {
                   : "Calculated after generation"}
               />
               <KpiCard
-                label="Distance"
+                label="Optimized Distance"
                 icon="distance"
                 iconColor="text-amber-600"
-                value={currentDistanceMi !== null ? `${currentDistanceMi} mi` : "—"}
-                caption={
-                  currentDistanceMi !== null && baselineDistanceMi !== null
-                    ? `${baselineDistanceMi} mi → ${currentDistanceMi} mi`
-                    : currentDistanceMi !== null
-                    ? "total polyline"
-                    : "total polyline"
-                }
+                value={currentDistanceMi !== null ? `${currentDistanceMi.toFixed(2)} mi` : "—"}
+                caption={baselineDistanceMi !== null && distanceSavedMi !== null
+                  ? `${baselineDistanceMi.toFixed(2)} mi baseline · ${distanceSavedMi >= 0 ? "+" : ""}${distanceSavedMi.toFixed(2)} mi saved`
+                  : "Total OSRM matrix distance"}
               />
               <KpiCard
                 label="Est. Duration"
@@ -1930,11 +2051,7 @@ export default function VrdsRoutePlanningPage() {
                     const cardResult = isAllCouriersCard ? currentResult : courierRoutes.get(courier);
                     const cardDistance = cardResult?.distanceMi && cardResult.distanceMi > 0 ? cardResult.distanceMi : null;
                     const cardEta = cardResult?.etaMinutes && cardResult.etaMinutes > 0 ? cardResult.etaMinutes : calculateEtaMinutes(cardDistance);
-                    const cardFuel = cardResult
-                      ? cardResult.fuelSavingsPct > 0
-                        ? cardResult.fuelSavingsPct
-                        : calculateFuelSavingsPct(baselineDistanceMi, cardDistance)
-                      : null;
+                    const cardFuel = cardResult?.fuelSavedLiters ?? null;
                     const courierLogo = isAllCouriersCard ? null : COURIER_LOGOS[courier] ?? null;
                     const courierShortLabel = isAllCouriersCard
                       ? "ALL"
@@ -1982,9 +2099,9 @@ export default function VrdsRoutePlanningPage() {
                             </span>
                             {cardResult && (
                               <div className="mt-2 grid grid-cols-3 gap-1 text-left text-[10px] font-semibold text-white">
-                                <span className="rounded-md bg-black/35 px-1.5 py-1">{cardDistance !== null ? `${cardDistance} mi` : "Distance —"}</span>
+                                <span className="rounded-md bg-black/35 px-1.5 py-1">{cardDistance !== null ? `${cardDistance.toFixed(2)} mi` : "Distance —"}</span>
                                 <span className="rounded-md bg-black/35 px-1.5 py-1">{cardEta !== null ? formatDuration(cardEta) : "ETA —"}</span>
-                                <span className="rounded-md bg-black/35 px-1.5 py-1">{cardFuel !== null ? `${formatFiveDigitValue(cardFuel)}%` : "Fuel —"}</span>
+                                <span className="rounded-md bg-black/35 px-1.5 py-1">{cardFuel !== null ? `${cardFuel >= 0 ? "+" : ""}${cardFuel.toFixed(2)} L` : "Fuel —"}</span>
                               </div>
                             )}
                           </div>

@@ -65,6 +65,31 @@ export type Parcel = {
 
 export type BookingStatus = "PENDING" | "DRIVER_VEHICLE_ASSIGNED" | "DISPATCHED" | "CANCELLED";
 
+export type PersistedRoutePlan = {
+  id?: string;
+  tripId?: string | null;
+  bookingId?: string | null;
+  vehicleId?: string | null;
+  driverId?: string | null;
+  vehicleInfo?: Record<string, any> | null;
+  driverInfo?: Record<string, any> | null;
+  depot?: Record<string, any> | null;
+  baselineRoute?: Record<string, any> | null;
+  optimizedRoute?: Record<string, any> | null;
+  stopSequence?: any;
+  baselineDistanceKm?: number | null;
+  baselineDurationMinutes?: number | null;
+  optimizedDistanceKm?: number | null;
+  optimizedDurationMinutes?: number | null;
+  distanceSavedKm?: number | null;
+  fuelEfficiencyKmPerL?: number | null;
+  baselineFuelLiters?: number | null;
+  optimizedFuelLiters?: number | null;
+  fuelSavedLiters?: number | null;
+  optimizationResult?: Record<string, any> | null;
+  status?: string | null;
+};
+
 export type DispatchState = {
   status: "PICKUP_ASSIGNED" | "READY" | "DELIVERING" | "COMPLETED";
   progress: number;
@@ -79,6 +104,7 @@ export type Booking = {
   dropoffLatitude?: any;
   deliveryDestinations?: Array<{ name?: string; label?: string; lat?: number; lng?: number; latitude?: number; longitude?: number; status?: string }>;
   routePlanId?: string;
+  routePlan?: PersistedRoutePlan | null;
   id: string;
   parcelIds: string[];
   parcelCount?: number;
@@ -115,6 +141,7 @@ export type Vehicle = {
   type?: string;
   model?: string;
   capacityKg: number;
+  fuelEfficiencyKmPerL?: number | null;
   status: "Available" | "Assigned";
 };
 

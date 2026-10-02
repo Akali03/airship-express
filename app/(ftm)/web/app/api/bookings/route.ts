@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasPermission } from "../../lib/permissions";
 import { authenticateFtmRequest } from "../../lib/server/ftmRequestAuth";
 import { buildBookingPayload, normalizeBooking } from "../../lib/server/ftmBookings";
+import { isRoutePlanSchemaUnavailable, normalizeRoutePlan } from "../../lib/server/ftmRoutePlans";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,19 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ error: `Unable to load bookings: ${error.message}` }, { status: 500 });
   }
-  return NextResponse.json((data || []).map(normalizeBooking));
+  const bookings = data || [];
+  const routePlanIds = [...new Set(bookings.map((booking) => booking.route_plan_id).filter(Boolean).map(String))];
+  const routePlansResult = routePlanIds.length
+    ? await context.serviceClient.from("route_plans").select("*").in("id", routePlanIds)
+    : { data: [], error: null };
+  if (routePlansResult.error && !isRoutePlanSchemaUnavailable(routePlansResult.error)) {
+    return NextResponse.json({ error: `Unable to load booking route plans: ${routePlansResult.error.message}` }, { status: 500 });
+  }
+  const routePlansById = new Map((routePlansResult.data || []).map((routePlan) => [String(routePlan.id), normalizeRoutePlan(routePlan)]));
+  return NextResponse.json(bookings.map((booking) => normalizeBooking({
+    ...booking,
+    routePlan: booking.route_plan_id ? routePlansById.get(String(booking.route_plan_id)) || null : null,
+  })));
 }
 
 export async function POST(request: Request) {

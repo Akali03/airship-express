@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasPermission } from "../../lib/permissions";
 import { authenticateFtmRequest } from "../../lib/server/ftmRequestAuth";
 import { buildTripPayload, isInTransitStatus, normalizeTrip, normalizeTripStop, notifyDriverTripAssigned, persistTripStops, updateRemoteParcelStatus, updateTripResources, validateTripAssignment } from "../../lib/server/ftmTrips";
+import { isRoutePlanSchemaUnavailable, normalizeRoutePlan } from "../../lib/server/ftmRoutePlans";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,11 @@ export async function GET(request: Request) {
   const [bookingsResult, stopsResult, routePlansResult] = await Promise.all([
     bookingIds.length ? context.serviceClient.from("bookings").select("id,pickup_location,pickup_latitude,pickup_longitude,dropoff_location,dropoff_latitude,dropoff_longitude,cargo_weight").in("id", bookingIds) : Promise.resolve({ data: [], error: null }),
     !light && tripRows.length ? context.serviceClient.from("trip_stops").select("trip_id,sequence,name,latitude,longitude,status").in("trip_id", tripRows.map((trip) => trip.id)) : Promise.resolve({ data: [], error: null }),
-    !light && routePlanIds.length ? context.serviceClient.from("route_plans").select("id,delivery_destinations,deliveryDestinations,route_geojson,routeGeojson").in("id", routePlanIds) : Promise.resolve({ data: [], error: null }),
+    routePlanIds.length ? context.serviceClient.from("route_plans").select("*").in("id", routePlanIds) : Promise.resolve({ data: [], error: null }),
   ]);
+  if (routePlansResult.error && !isRoutePlanSchemaUnavailable(routePlansResult.error)) {
+    return NextResponse.json({ error: `Unable to load trip route plans: ${routePlansResult.error.message}` }, { status: 500 });
+  }
   const bookings = new Map((bookingsResult.data || []).map((booking) => [String(booking.id), booking]));
   const stops = new Map<string, any[]>();
   (stopsResult.data || []).forEach((stop) => {
@@ -41,19 +45,22 @@ export async function GET(request: Request) {
     list.push(stop);
     stops.set(String(stop.trip_id), list);
   });
-  const routePlans = new Map((routePlansResult.data || []).map((routePlan) => [String(routePlan.id), routePlan]));
+  const routePlans = new Map((routePlansResult.data || []).map((routePlan) => [String(routePlan.id), normalizeRoutePlan(routePlan)]));
   return NextResponse.json(tripRows.map((trip) => {
     const booking = bookings.get(String(trip.booking_id));
     const routePlan = routePlans.get(String(trip.route_plan_id));
     const tripStops = (stops.get(String(trip.id)) || []).sort((left, right) => left.sequence - right.sequence);
-    const routeStops = routePlan?.delivery_destinations || routePlan?.deliveryDestinations || [];
+    const routeStops = routePlan?.deliveryDestinations || [];
     const resolvedStops = (tripStops.length ? tripStops : routeStops).map(normalizeTripStop).filter(Boolean);
     return normalizeTrip({
       ...trip,
-      from_location: trip.from_location || routePlan?.pickup_location || booking?.pickup_location,
+      routePlan: routePlan || null,
+      distance_km: routePlan?.optimizedDistanceKm ?? trip.distance_km,
+      duration_minutes: routePlan?.optimizedDurationMinutes ?? trip.duration_minutes,
+      from_location: trip.from_location || routePlan?.pickupLocation || booking?.pickup_location,
       to_location: trip.to_location || booking?.dropoff_location,
-      from_latitude: trip.from_latitude ?? routePlan?.pickup_latitude ?? booking?.pickup_latitude,
-      from_longitude: trip.from_longitude ?? routePlan?.pickup_longitude ?? booking?.pickup_longitude,
+      from_latitude: trip.from_latitude ?? routePlan?.pickupLatitude ?? booking?.pickup_latitude,
+      from_longitude: trip.from_longitude ?? routePlan?.pickupLongitude ?? booking?.pickup_longitude,
       to_latitude: trip.to_latitude ?? booking?.dropoff_latitude,
       to_longitude: trip.to_longitude ?? booking?.dropoff_longitude,
       load_kg: trip.load_kg ?? booking?.cargo_weight,

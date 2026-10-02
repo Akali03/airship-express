@@ -372,6 +372,7 @@ export function useParcelStore(options: { status?: string; history?: boolean } =
                 courier: booking.courier || undefined,
                 courierId: booking.courier_id || booking.courierId || undefined,
                 routePlanId: booking.route_plan_id ?? booking.routePlanId ?? undefined,
+                routePlan: booking.routePlan ?? booking.route_plan ?? null,
                 routeLabel: booking.route_label || booking.routeLabel || [booking.pickup_location, booking.dropoff_location].filter(Boolean).join(" → ") || `Booking ${booking.id}`,
                 totalWeightKg: Number(booking.total_weight_kg ?? booking.totalWeightKg ?? booking.load_kg ?? booking.cargo_weight ?? 0),
                 parcelCount,
@@ -433,6 +434,7 @@ export function useParcelStore(options: { status?: string; history?: boolean } =
                 plate: vehicle.plate_number || vehicle.plate || vehicle.plateNumber || `VEH-${vehicle.id}`,
                 type: vehicle.vehicle_type || vehicle.type || vehicle.vehicleType || 'Unknown',
                 capacityKg: Number(vehicle.capacity_kg ?? vehicle.capacity ?? vehicle.capacityKg ?? 0),
+                fuelEfficiencyKmPerL: Number(vehicle.fuel_efficiency ?? vehicle.fuelEfficiency) || null,
                 status: assignedVehicleIds.has(id)
                   ? 'Assigned'
                   : normalizeStatusToAvailability(vehicle.status || vehicle.vehicle_status || vehicle.state || 'Available'),
@@ -595,6 +597,7 @@ export async function refreshStoreFromBackend(options: { status?: string; histor
             parcelIds: finalParcelIds,
                 courier: booking.courier || undefined,
             routePlanId: booking.route_plan_id ?? booking.routePlanId ?? undefined,
+            routePlan: booking.routePlan ?? booking.route_plan ?? null,
             routeLabel: booking.route_label || booking.routeLabel || [booking.pickup_location, booking.dropoff_location].filter(Boolean).join(" → ") || `Booking ${booking.id}`,
             totalWeightKg: Number(booking.total_weight_kg ?? booking.totalWeightKg ?? booking.load_kg ?? booking.cargo_weight ?? 0),
             parcelCount,

@@ -417,7 +417,7 @@ export default function AuthPage() {
                   href="mailto:ftm.airshipexpress@gmail.com"
                   className="font-bold text-accent dark:text-pink-400 hover:text-accent-dark dark:hover:text-pink-300 transition-colors underline decoration-pink-500/30 underline-offset-2"
                 >
-                  ops@airshipexpress.com
+                  ftm.airshipexpress@gmail.com
                 </a>
               </p>
             </div>

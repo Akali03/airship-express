@@ -4,6 +4,7 @@ import { authenticateFtmRequest } from "../../lib/server/ftmRequestAuth";
 import { createFtmParcelClient } from "../../lib/server/ftmSupabase";
 import { normalizeTrip } from "../../lib/server/ftmTrips";
 import { normalizeVehicle } from "../../lib/server/ftmVehicles";
+import { normalizeRoutePlan } from "../../lib/server/ftmRoutePlans";
 
 export const dynamic = "force-dynamic";
 
@@ -83,10 +84,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to fetch dashboard snapshot data" }, { status: 500 });
     }
 
-    const bookings = bookingsResult.data || [];
-    const bookingById = new Map(bookings.map((booking) => [String(booking.id), booking]));
-    const routePlans = routePlansResult.data || [];
+    const routePlans = (routePlansResult.data || []).map(normalizeRoutePlan);
     const routePlanById = new Map(routePlans.map((routePlan) => [String(routePlan.id), routePlan]));
+    const bookings = (bookingsResult.data || []).map((booking) => ({
+      ...booking,
+      routePlan: booking.route_plan_id ? routePlanById.get(String(booking.route_plan_id)) || null : null,
+    }));
+    const bookingById = new Map(bookings.map((booking) => [String(booking.id), booking]));
     const driverRows = driversResult.data || [];
     const driverIds = driverRows.map((driver) => driver.id);
     const vehicleRows = vehiclesResult.data || [];
@@ -147,9 +151,13 @@ export async function GET(request: Request) {
     const trips = (tripsResult.data || []).map((trip) => {
       const booking = trip.booking_id ? bookingById.get(String(trip.booking_id)) : null;
       const driver = trip.driver_id ? driverById.get(String(trip.driver_id)) : null;
+      const routePlan = trip.route_plan_id ? routePlanById.get(String(trip.route_plan_id)) : null;
       return normalizeTrip({
         ...trip,
         bookings: booking || null,
+        routePlan: routePlan || null,
+        distance_km: routePlan?.optimizedDistanceKm ?? trip.distance_km,
+        duration_minutes: routePlan?.optimizedDurationMinutes ?? trip.duration_minutes,
         from_location: trip.from_location || booking?.pickup_location || null,
         to_location: trip.to_location || booking?.dropoff_location || null,
         from_latitude: driver?.last_location_lat ?? trip.from_latitude ?? booking?.pickup_latitude ?? null,
