@@ -267,7 +267,8 @@ export default function IncomingPanel() {
 
             const mockResults = result.data as OfflineParcelItem[];
             const alreadyInDb = mockResults.filter(m => m.alreadyInQueue || m.alreadyInParcels);
-            const validItems = mockResults.filter(m => !m.alreadyInQueue && !m.alreadyInParcels);
+            const invalidItems = mockResults.filter(m => !m.alreadyInQueue && !m.alreadyInParcels && !m.foundMock);
+            const validItems = mockResults.filter(m => !m.alreadyInQueue && !m.alreadyInParcels && m.foundMock);
 
             // Handle items that already exist in database or queue
             if (alreadyInDb.length > 0) {
@@ -277,6 +278,18 @@ export default function IncomingPanel() {
                 setTotalItems(prev => Math.max(0, prev - alreadyInDb.length));
 
                 toast.info(`${alreadyInDb.length} parcel(s) already exist in database or were previously received and were removed from offline scans.`, {
+                    duration: 5000,
+                });
+            }
+
+            // Handle items missing required parcel information (courier, sender, customer, destination, region)
+            if (invalidItems.length > 0) {
+                invalidItems.forEach(d => removeOfflineScan(d.barcode));
+                const invalidBarcodes = new Set(invalidItems.map(d => d.barcode.toUpperCase()));
+                setParcels(prev => prev.filter(p => !invalidBarcodes.has(p.barcode.toUpperCase())));
+                setTotalItems(prev => Math.max(0, prev - invalidItems.length));
+
+                toast.error(`${invalidItems.length} scan(s) rejected: Missing required details (courier, sender, customer, destination, region) in database.`, {
                     duration: 5000,
                 });
             }
@@ -333,7 +346,7 @@ export default function IncomingPanel() {
                     description: 'Parcel details populated. Click "Add in Queue" to insert into database.',
                     duration: 4000,
                 });
-            } else if (alreadyInDb.length > 0) {
+            } else if (alreadyInDb.length > 0 || invalidItems.length > 0) {
                 toast.dismiss(toastId);
             }
         } catch (error) {

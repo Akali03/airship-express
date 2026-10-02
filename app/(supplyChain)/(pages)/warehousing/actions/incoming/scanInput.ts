@@ -108,6 +108,31 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
             };
         }
 
+        if (!mockParcel) {
+            return {
+                success: false,
+                error: `Barcode rejected: No registered parcel record found in the database.`,
+                status: 404,
+                data: { existsIn: 'none', reason: 'not_found' }
+            };
+        }
+
+        const missingFields: string[] = [];
+        if (!mockParcel.courier && !mockParcel.courier_id) missingFields.push('courier');
+        if (!mockParcel.sender_name?.trim()) missingFields.push('sender');
+        if (!mockParcel.customer_name?.trim()) missingFields.push('customer');
+        if (!mockParcel.destination?.trim()) missingFields.push('destination');
+        if (!mockParcel.region?.trim()) missingFields.push('region');
+
+        if (missingFields.length > 0) {
+            return {
+                success: false,
+                error: `Barcode rejected: Incomplete parcel details (missing ${missingFields.join(', ')}).`,
+                status: 422,
+                data: { existsIn: 'none', reason: 'incomplete_information', missingFields }
+            };
+        }
+
         const trackingNumber = generateTrackingNumber();
 
         const insertData: any = {
@@ -116,18 +141,15 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
             status: 'pending',
             scanned_by: finalScannedBy || null,
             scanned_at: new Date().toISOString(),
+            sender_name: mockParcel.sender_name.trim(),
+            customer_name: mockParcel.customer_name.trim(),
+            customer_number: mockParcel.customer_number?.trim() || null,
+            destination: mockParcel.destination.trim(),
+            courier: mockParcel.courier?.trim() || null,
+            courier_id: mockParcel.courier_id || null,
+            region: mockParcel.region.trim(),
+            city: mockParcel.city?.trim() || null,
         };
-
-        if (mockParcel) {
-            if (mockParcel.sender_name) insertData.sender_name = mockParcel.sender_name;
-            if (mockParcel.customer_name) insertData.customer_name = mockParcel.customer_name;
-            if (mockParcel.customer_number) insertData.customer_number = mockParcel.customer_number;
-            if (mockParcel.destination) insertData.destination = mockParcel.destination;
-            if (mockParcel.courier) insertData.courier = mockParcel.courier;
-            if (mockParcel.courier_id) insertData.courier_id = mockParcel.courier_id;
-            if (mockParcel.region) insertData.region = mockParcel.region;
-            if (mockParcel.city) insertData.city = mockParcel.city;
-        }
 
         const { data: insertResult, error: insertError } = await supabase
             .from('receiving_queue')

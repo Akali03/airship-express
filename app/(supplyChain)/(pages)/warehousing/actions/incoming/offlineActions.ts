@@ -85,18 +85,31 @@ export async function fetchBatchMockParcels(barcodes: string[]) {
             const inQueue = queueMap.has(barcode);
             const inParcels = parcelsMap.has(barcode);
 
+            const missingFields: string[] = [];
+            if (!mock) {
+                missingFields.push('courier', 'sender', 'customer', 'destination', 'region');
+            } else {
+                if (!mock.courier && !mock.courier_id) missingFields.push('courier');
+                if (!mock.sender_name?.trim()) missingFields.push('sender');
+                if (!mock.customer_name?.trim()) missingFields.push('customer');
+                if (!mock.destination?.trim()) missingFields.push('destination');
+                if (!mock.region?.trim()) missingFields.push('region');
+            }
+
+            const isValid = !!mock && missingFields.length === 0;
+
             return {
                 barcode,
                 tracking_number: mock?.tracking_number || generateTrackingNumber(),
-                sender_name: mock?.sender_name || null,
-                customer_name: mock?.customer_name || null,
-                customer_number: mock?.customer_number || null,
-                destination: mock?.destination || null,
-                courier: mock?.courier || null,
+                sender_name: mock?.sender_name?.trim() || null,
+                customer_name: mock?.customer_name?.trim() || null,
+                customer_number: mock?.customer_number?.trim() || null,
+                destination: mock?.destination?.trim() || null,
+                courier: mock?.courier?.trim() || null,
                 courier_id: mock?.courier_id || null,
-                region: mock?.region || null,
-                city: mock?.city || null,
-                foundMock: !!mock,
+                region: mock?.region?.trim() || null,
+                city: mock?.city?.trim() || null,
+                foundMock: isValid,
                 alreadyInQueue: inQueue,
                 alreadyInParcels: inParcels,
             };
@@ -151,12 +164,20 @@ export async function batchInsertOfflineParcels(items: OfflineParcelItem[], scan
             }
         }
 
-        const validItems = items.filter(item => !item.alreadyInQueue && !item.alreadyInParcels);
+        const validItems = items.filter(item => 
+            !item.alreadyInQueue && 
+            !item.alreadyInParcels &&
+            (item.courier || item.courier_id) &&
+            item.sender_name?.trim() &&
+            item.customer_name?.trim() &&
+            item.destination?.trim() &&
+            item.region?.trim()
+        );
 
         if (validItems.length === 0) {
             return {
                 success: false,
-                error: 'All selected parcels already exist in queue or inventory.',
+                error: 'All selected parcels either already exist or are missing required details (courier, sender, customer, destination, region).',
                 insertedCount: 0,
             };
         }
@@ -164,14 +185,14 @@ export async function batchInsertOfflineParcels(items: OfflineParcelItem[], scan
         const rowsToInsert = validItems.map(item => ({
             barcode: sanitizeBarcode(item.barcode),
             tracking_number: item.tracking_number || generateTrackingNumber(),
-            sender_name: item.sender_name || null,
-            customer_name: item.customer_name || null,
-            customer_number: item.customer_number || null,
-            destination: item.destination || null,
-            courier: item.courier || null,
+            sender_name: item.sender_name!.trim(),
+            customer_name: item.customer_name!.trim(),
+            customer_number: item.customer_number?.trim() || null,
+            destination: item.destination!.trim(),
+            courier: item.courier?.trim() || null,
             courier_id: item.courier_id || null,
-            region: item.region || null,
-            city: item.city || null,
+            region: item.region!.trim(),
+            city: item.city?.trim() || null,
             status: 'pending',
             scanned_by: finalScannedBy || null,
             scanned_at: item.scanned_at || new Date().toISOString(),
