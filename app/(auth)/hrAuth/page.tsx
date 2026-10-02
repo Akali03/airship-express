@@ -107,7 +107,7 @@ function HRLoginContent() {
                     super_admin: "/payroll-benefits-dashboard",
                     hr_payroll_admin: "/payroll-benefits-dashboard",
                     hr_performance_admin: "/performance-development-dashboard",
-                    hr_recruitment_admin: "/recruitment-dashboard",
+                    hr_recruitment_admin: "/recruitment-core-hub-dashboard/dashboard",
                     hr_workforce_admin: "/workforce-management-dashboard",
                 };
                 const dashboard = dashboardMap[userRole.role];
