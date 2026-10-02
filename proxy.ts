@@ -45,7 +45,7 @@ export const SUBDOMAIN_PORTALS: SubdomainPortal[] = [
     routes: [
       "/hr-dashboard",
       "/payroll-benefits-dashboard",
-      "recruitment-core-hub-dashboard",
+      "/recruitment-core-hub-dashboard", // fixed: was missing leading slash
       "/performance-development-dashboard",
       "/workforce-management-hr",
     ],
@@ -462,11 +462,16 @@ export function proxy(request: NextRequest) {
 
       if (normalizedPath === "/api" || normalizedPath.startsWith("/api/")) {
         if (currentPortal.primarySubdomain === "ftm") {
-          const rewriteUrl = new URL(`/web/app${normalizedPath}${search}`, request.url);
+          const rewriteUrl = new URL(
+            `/web/app${normalizedPath}${search}`,
+            request.url
+          );
           const requestHeaders = new Headers(request.headers);
           requestHeaders.set("x-airship-ftm-embedded", "1");
           return applySecurityHeaders(
-            NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+            NextResponse.rewrite(rewriteUrl, {
+              request: { headers: requestHeaders },
+            }),
             protocol
           );
         }
@@ -478,27 +483,39 @@ export function proxy(request: NextRequest) {
         currentPortal.primarySubdomain === "ftm" &&
         (normalizedPath === "/" || normalizedPath === currentPortal.loginPath)
       ) {
-        const rewriteUrl = new URL(`${currentPortal.loginPath}${search}`, request.url);
+        const rewriteUrl = new URL(
+          `${currentPortal.loginPath}${search}`,
+          request.url
+        );
         const requestHeaders = new Headers(request.headers);
         requestHeaders.set("x-airship-ftm-embedded", "1");
         return applySecurityHeaders(
-          NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+          NextResponse.rewrite(rewriteUrl, {
+            request: { headers: requestHeaders },
+          }),
           protocol
         );
       }
 
       if (
         currentPortal.primarySubdomain === "ftm" &&
-        /\.(?:svg|png|jpe?g|gif|webp|ico|css|js|woff2?|ttf|eot|mp4|webm|ogg|mp3|wav|glb|gltf)$/i.test(normalizedPath)
+        /\.(?:svg|png|jpe?g|gif|webp|ico|css|js|woff2?|ttf|eot|mp4|webm|ogg|mp3|wav|glb|gltf)$/i.test(
+          normalizedPath
+        )
       ) {
         const assetPath = normalizedPath.startsWith("/ftm-media/")
           ? normalizedPath.slice("/ftm-media".length)
           : normalizedPath;
-        const rewriteUrl = new URL(`/web/app/ftm-media${assetPath}`, request.url);
+        const rewriteUrl = new URL(
+          `/web/app/ftm-media${assetPath}`,
+          request.url
+        );
         const requestHeaders = new Headers(request.headers);
         requestHeaders.set("x-airship-ftm-embedded", "1");
         return applySecurityHeaders(
-          NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+          NextResponse.rewrite(rewriteUrl, {
+            request: { headers: requestHeaders },
+          }),
           protocol
         );
       }
@@ -539,7 +556,9 @@ export function proxy(request: NextRequest) {
         const requestHeaders = new Headers(request.headers);
         requestHeaders.set("x-airship-ftm-embedded", "1");
         return applySecurityHeaders(
-          NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+          NextResponse.rewrite(rewriteUrl, {
+            request: { headers: requestHeaders },
+          }),
           protocol
         );
       }
