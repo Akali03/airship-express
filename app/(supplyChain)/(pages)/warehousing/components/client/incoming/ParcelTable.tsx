@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useConfirm } from "../../../../../components/ui/ConfirmModal";
 import { TablePagination } from "./TablePagination";
@@ -42,6 +42,7 @@ interface IncomingTableProps {
     totalItems?: number;
     onPageChange?: (page: number) => void;
     isLoading?: boolean;
+    onDeletingChange?: (isDeleting: boolean) => void;
 }
 
 export function IncomingTable({
@@ -58,6 +59,7 @@ export function IncomingTable({
     totalItems = 0,
     onPageChange,
     isLoading = false,
+    onDeletingChange,
 }: IncomingTableProps) {
     const { role: userRole, userId: currentUserId, userName, userEmail, isPrivileged } = useUserRole();
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -69,6 +71,21 @@ export function IncomingTable({
     const [fetchingId, setFetchingId] = useState<number | null>(null);
     const [addingInQueueId, setAddingInQueueId] = useState<number | null>(null);
     const { confirm } = useConfirm();
+
+    const isBusy = Boolean(
+        deletingId !== null ||
+        isDeletingBatch ||
+        isReceivingBatch ||
+        isFetchingBatch ||
+        isAddingInQueueBatch ||
+        fetchingId !== null ||
+        addingInQueueId !== null ||
+        isLoading
+    );
+
+    useEffect(() => {
+        onDeletingChange?.(Boolean(deletingId !== null || isDeletingBatch));
+    }, [deletingId, isDeletingBatch, onDeletingChange]);
 
     // check if current user can delete a parcel (Admin/Manager/Executive can delete any; Operator can delete their own scanned parcels or unassigned queue items, or offline not_synced parcels)
     const canDeleteParcel = useCallback((parcel: Parcel) => {
@@ -128,8 +145,10 @@ export function IncomingTable({
     };
 
     const handleBatchDelete = async () => {
-        if (selectedIds.size === 0) {
-            toast.warning('Please select at least one parcel to delete');
+        if (isBusy || selectedIds.size === 0) {
+            if (selectedIds.size === 0) {
+                toast.warning('Please select at least one parcel to delete');
+            }
             return;
         }
 
@@ -270,7 +289,7 @@ export function IncomingTable({
     };
 
     const handleDeleteParcel = async (id: number) => {
-        if (deletingId || isDeletingBatch) return;
+        if (isBusy) return;
 
         const targetParcel = initialParcels.find(p => p.id === id);
         const isOfflineScan = targetParcel?.status === 'not_synced' || id < 0;
@@ -339,7 +358,7 @@ export function IncomingTable({
     };
 
     const handleFetchMockSingle = async (parcel: Parcel) => {
-        if (fetchingId || isFetchingBatch || !isOnline) return;
+        if (isBusy || !isOnline) return;
         setFetchingId(parcel.id);
         try {
             await onFetchMockData?.([parcel]);
@@ -349,7 +368,7 @@ export function IncomingTable({
     };
 
     const handleAddInQueueSingle = async (parcel: Parcel) => {
-        if (addingInQueueId || isAddingInQueueBatch || !isOnline) return;
+        if (isBusy || !isOnline) return;
         setAddingInQueueId(parcel.id);
         try {
             await onAddInQueue?.([parcel]);
@@ -362,6 +381,8 @@ export function IncomingTable({
 
     const selectedParcels = initialParcels.filter(p => selectedIds.has(p.id));
     const notSyncedSelected = selectedParcels.filter(p => p.status === 'not_synced');
+    const notSyncedUnfetched = notSyncedSelected.filter(p => !p.is_fetched);
+    const notSyncedFetched = notSyncedSelected.filter(p => p.is_fetched);
     const pendingSelectedCount = selectedParcels.filter(p => p.status === 'pending').length;
     const canReceive = pendingSelectedCount > 0;
 
@@ -405,9 +426,15 @@ export function IncomingTable({
                 floating={false}
                 additionalInfo={
                     notSyncedSelected.length > 0 ? (
-                        <span className="text-amber-300 text-xs font-medium ml-1">
-                            ({notSyncedSelected.length} not synced)
-                        </span>
+                        notSyncedUnfetched.length > 0 ? (
+                            <span className="text-pink-300 text-xs font-medium ml-1">
+                                ({notSyncedUnfetched.length} unfetched — fetch required before queueing)
+                            </span>
+                        ) : (
+                            <span className="text-emerald-300 text-xs font-medium ml-1">
+                                ({notSyncedFetched.length} fetched — ready to add in queue)
+                            </span>
+                        )
                     ) : (
                         pendingSelectedCount > 0 && pendingSelectedCount < selectedIds.size && (
                             <span className="text-pink-200 dark:text-pink-300 text-xs font-normal ml-1">
@@ -418,31 +445,31 @@ export function IncomingTable({
                 }
                 actions={[
                     {
-                        label: `Fetch Data (${notSyncedSelected.length})`,
+                        label: `Fetch Data (${notSyncedUnfetched.length})`,
                         icon: 'fa-database',
                         onClick: async () => {
-                            if (notSyncedSelected.length === 0 || !isOnline) return;
+                            if (notSyncedUnfetched.length === 0 || !isOnline || isBusy) return;
                             setIsFetchingBatch(true);
                             try {
-                                await onFetchMockData?.(notSyncedSelected);
+                                await onFetchMockData?.(notSyncedUnfetched);
                             } finally {
                                 setIsFetchingBatch(false);
                             }
                         },
                         variant: 'warning',
                         isLoading: isFetchingBatch,
-                        disabled: !isOnline || isDeletingBatch || isReceivingBatch || isAddingInQueueBatch,
-                        show: notSyncedSelected.length > 0,
+                        disabled: !isOnline || isBusy,
+                        show: notSyncedUnfetched.length > 0,
                         mobileLabel: 'Fetch Data',
                     },
                     {
-                        label: `Add in Queue (${notSyncedSelected.length})`,
+                        label: `Add in Queue (${notSyncedFetched.length})`,
                         icon: 'fa-inbox',
                         onClick: async () => {
-                            if (notSyncedSelected.length === 0 || !isOnline) return;
+                            if (notSyncedFetched.length === 0 || !isOnline || isBusy) return;
                             setIsAddingInQueueBatch(true);
                             try {
-                                await onAddInQueue?.(notSyncedSelected);
+                                await onAddInQueue?.(notSyncedFetched);
                                 setSelectedIds(new Set());
                             } finally {
                                 setIsAddingInQueueBatch(false);
@@ -450,8 +477,8 @@ export function IncomingTable({
                         },
                         variant: 'success',
                         isLoading: isAddingInQueueBatch,
-                        disabled: !isOnline || isDeletingBatch || isReceivingBatch || isFetchingBatch,
-                        show: notSyncedSelected.length > 0,
+                        disabled: !isOnline || isBusy,
+                        show: notSyncedSelected.length > 0 && notSyncedUnfetched.length === 0,
                         mobileLabel: 'Add in Queue',
                     },
                     {
@@ -460,7 +487,7 @@ export function IncomingTable({
                         onClick: handleBatchReceive,
                         variant: 'success',
                         isLoading: isReceivingBatch,
-                        disabled: isDeletingBatch || !canReceive,
+                        disabled: isBusy || !canReceive,
                         show: canReceive && notSyncedSelected.length === 0,
                         mobileLabel: 'Receive',
                     },
@@ -470,7 +497,7 @@ export function IncomingTable({
                         onClick: handleBatchDelete,
                         variant: 'danger',
                         isLoading: isDeletingBatch,
-                        disabled: isReceivingBatch || isFetchingBatch || isAddingInQueueBatch,
+                        disabled: isBusy,
                         mobileLabel: 'Delete',
                     },
                 ]}
@@ -480,14 +507,14 @@ export function IncomingTable({
             <div className="overflow-x-auto max-h-none sm:max-h-[600px] overflow-y-visible sm:overflow-y-auto bg-white dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800">
                 {/* select all mobile */}
                 <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200/60 dark:border-slate-800">
-                    <label className={`flex items-center gap-2.5 select-none ${selectableParcels.length === 0 ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}>
+                    <label className={`flex items-center gap-2.5 select-none ${selectableParcels.length === 0 || isBusy ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}>
                         <input
                             type="checkbox"
                             checked={allSelected}
-                            disabled={selectableParcels.length === 0}
+                            disabled={selectableParcels.length === 0 || isBusy}
                             onChange={handleSelectAll}
                             className={`w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-pink-500 focus:ring-pink-500/20 accent-pink-500 ${
-                                selectableParcels.length === 0 ? 'cursor-not-allowed' : 'cursor-pointer'
+                                selectableParcels.length === 0 || isBusy ? 'cursor-not-allowed' : 'cursor-pointer'
                             }`}
                         />
                         <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -511,14 +538,14 @@ export function IncomingTable({
                                 <input
                                     type="checkbox"
                                     checked={allSelected}
-                                    disabled={selectableParcels.length === 0}
+                                    disabled={selectableParcels.length === 0 || isBusy}
                                     ref={(input) => {
                                         if (input) {
                                             input.indeterminate = someSelected;
                                         }
                                     }}
                                     onChange={handleSelectAll}
-                                    title={selectableParcels.length === 0 ? "No deletable parcels scanned by you" : "Select all deletable parcels"}
+                                    title={selectableParcels.length === 0 ? "No deletable parcels scanned by you" : isBusy ? "Action in progress" : "Select all deletable parcels"}
                                     className={`w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-pink-500 focus:ring-pink-500 focus:ring-2 accent-pink-500 ${
                                         selectableParcels.length === 0 ? 'cursor-not-allowed opacity-35' : 'cursor-pointer'
                                     }`}
@@ -572,11 +599,11 @@ export function IncomingTable({
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
-                                                disabled={!isDeletable}
-                                                onChange={() => isDeletable && handleSelect(parcel)}
-                                                title={isDeletable ? `Select parcel ${parcel.barcode}` : "You can only select and delete parcels scanned by you"}
+                                                disabled={!isDeletable || isBusy}
+                                                onChange={() => isDeletable && !isBusy && handleSelect(parcel)}
+                                                title={!isDeletable ? "You can only select and delete parcels scanned by you" : isBusy ? "Action in progress" : `Select parcel ${parcel.barcode}`}
                                                 className={`w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-pink-500 focus:ring-pink-500/20 accent-pink-500 ${
-                                                    isDeletable ? 'cursor-pointer' : 'cursor-not-allowed opacity-35'
+                                                    isDeletable && !isBusy ? 'cursor-pointer' : 'cursor-not-allowed opacity-35'
                                                 }`}
                                             />
                                         </td>
@@ -644,36 +671,39 @@ export function IncomingTable({
                                             <div className="flex items-center justify-end gap-1.5">
                                                 {isNotSynced ? (
                                                     <>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleFetchMockSingle(parcel)}
-                                                            disabled={fetchingId === parcel.id || isFetchingBatch || !isOnline}
-                                                            title={!isOnline ? "Connect to internet to fetch mock data" : "Fetch details from mock third-party parcels"}
-                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        >
-                                                            <i className={`fas ${fetchingId === parcel.id ? 'fa-spinner fa-spin' : 'fa-database'} text-[10px]`}></i>
-                                                            <span>Fetch</span>
-                                                        </button>
-
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleAddInQueueSingle(parcel)}
-                                                            disabled={addingInQueueId === parcel.id || isAddingInQueueBatch || !isOnline}
-                                                            title={!isOnline ? "Connect to internet to insert into receiving queue" : "Add this parcel into receiving_queue database table"}
-                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-600 dark:border-emerald-500 transition-colors cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        >
-                                                            <i className={`fas ${addingInQueueId === parcel.id ? 'fa-spinner fa-spin' : 'fa-inbox'} text-[10px]`}></i>
-                                                            <span>Queue</span>
-                                                        </button>
+                                                        {!parcel.is_fetched ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleFetchMockSingle(parcel)}
+                                                                disabled={fetchingId === parcel.id || isBusy || !isOnline}
+                                                                title={!isOnline ? "Connect to internet to fetch parcel data" : isBusy ? "Action in progress..." : "Fetch details for this parcel from database"}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#ebf0f7] dark:bg-[#181926] text-pink-600 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] hover:shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] transition-all cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                                                            >
+                                                                <i className={`fas ${fetchingId === parcel.id ? 'fa-spinner fa-spin' : 'fa-database'} text-[10px] text-pink-500`}></i>
+                                                                <span>Fetch</span>
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleAddInQueueSingle(parcel)}
+                                                                disabled={addingInQueueId === parcel.id || isBusy || !isOnline}
+                                                                title={!isOnline ? "Connect to internet to insert into receiving queue" : isBusy ? "Action in progress..." : "Add this fetched parcel into receiving_queue database table"}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#ebf0f7] dark:bg-[#181926] text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 dark:border-emerald-500/30 shadow-[2px_2px_5px_rgba(16,185,129,0.25),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] hover:shadow-[inset_1.5px_1.5px_3px_rgba(16,185,129,0.25),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] transition-all cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                                                            >
+                                                                <i className={`fas ${addingInQueueId === parcel.id ? 'fa-spinner fa-spin' : 'fa-inbox'} text-[10px] text-emerald-500`}></i>
+                                                                <span>Queue</span>
+                                                            </button>
+                                                        )}
                                                     </>
                                                 ) : null}
 
                                                 <CrudActionButton
                                                     action="delete"
                                                     ariaLabel={isNotSynced ? "Discard offline scan" : "Delete parcel"}
-                                                    title={isNotSynced ? "Discard offline scan" : (isDeletable ? "Delete" : "You can only delete parcels scanned by you")}
-                                                    disabled={(!isDeletable && !isNotSynced) || deletingId === parcel.id || isDeletingBatch}
-                                                    onClick={() => (isDeletable || isNotSynced) && handleDeleteParcel(parcel.id)}
+                                                    title={isBusy ? "Action in progress..." : isNotSynced ? "Discard offline scan" : (isDeletable ? "Delete" : "You can only delete parcels scanned by you")}
+                                                    disabled={(!isDeletable && !isNotSynced) || isBusy}
+                                                    loading={deletingId === parcel.id}
+                                                    onClick={() => !isBusy && (isDeletable || isNotSynced) && handleDeleteParcel(parcel.id)}
                                                 />
                                             </div>
                                         </td>

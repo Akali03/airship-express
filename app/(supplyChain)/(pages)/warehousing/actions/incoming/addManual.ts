@@ -190,6 +190,25 @@ export async function addManualParcel(data: {
             };
         }
 
+        const { data: existingInParcels, error: checkParcelsError } = await supabase
+            .from('parcels')
+            .select('barcode, created_at')
+            .eq('barcode', trimmedBarcode)
+            .maybeSingle();
+
+        if (checkParcelsError) {
+            console.error('Error checking parcels table:', checkParcelsError);
+        }
+
+        if (existingInParcels) {
+            const receivedDate = new Date(existingInParcels.created_at).toLocaleDateString();
+            return {
+                success: false,
+                error: `Duplicate barcode detected - already received on ${receivedDate}`,
+                status: 409,
+            };
+        }
+
         let courierName = null;
         if (data.courier_id) {
             const { data: courier, error: courierError } = await ftmSupabase
@@ -241,7 +260,7 @@ export async function addManualParcel(data: {
 
         let retries = 3;
         let inserted = false;
-        let lastError = null;
+        let lastError: unknown = null;
 
         while (retries > 0 && !inserted) {
             try {

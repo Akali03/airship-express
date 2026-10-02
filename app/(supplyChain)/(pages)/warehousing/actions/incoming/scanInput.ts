@@ -1,10 +1,8 @@
 "use server";
 
 import { supabase } from "../../../../lib/services/client/supabase";
-import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { sanitizeBarcode } from "../../../../components/global/sanitize";
-import { toast } from "sonner";
 import { isRateLimited } from "../../../../components/global/rateLimit";
 
 const generateTrackingNumber = () => {
@@ -64,14 +62,28 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
             }
         }
 
-        const { data: existingInQueue, error: queueError } = await supabase
-            .from('receiving_queue')
-            .select('barcode, status')
-            .eq('barcode', sanitized)
-            .maybeSingle();
-
-        if (queueError) {
-        }
+        // Parallelize all checks concurrently to eliminate network waterfall latency
+        const [
+            { data: existingInQueue },
+            { data: existingInParcels },
+            { data: mockParcel }
+        ] = await Promise.all([
+            supabase
+                .from('receiving_queue')
+                .select('barcode, status')
+                .eq('barcode', sanitized)
+                .maybeSingle(),
+            supabase
+                .from('parcels')
+                .select('barcode, status, created_at')
+                .eq('barcode', sanitized)
+                .maybeSingle(),
+            supabase
+                .from('mock_third_party_parcels')
+                .select('*')
+                .eq('barcode', sanitized)
+                .maybeSingle(),
+        ]);
 
         if (existingInQueue) {
             return {
@@ -80,15 +92,6 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
                 status: 409,
                 data: { existsIn: 'queue', status: existingInQueue.status }
             };
-        }
-
-        const { data: existingInParcels, error: parcelsError } = await supabase
-            .from('parcels')
-            .select('barcode, status, created_at')
-            .eq('barcode', sanitized)
-            .maybeSingle();
-
-        if (parcelsError) {
         }
 
         if (existingInParcels) {
@@ -105,17 +108,6 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
             };
         }
 
-        const { data: mockParcel, error: mockError } = await supabase
-            .from('mock_third_party_parcels')
-            .select('*')
-            .eq('barcode', sanitized)
-            .maybeSingle();
-
-        if (mockError) {
-            toast.error(`ScanInputMockError: ${mockError}`);
-        }
-
-
         const trackingNumber = generateTrackingNumber();
 
         const insertData: any = {
@@ -127,7 +119,6 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
         };
 
         if (mockParcel) {
-
             if (mockParcel.sender_name) insertData.sender_name = mockParcel.sender_name;
             if (mockParcel.customer_name) insertData.customer_name = mockParcel.customer_name;
             if (mockParcel.customer_number) insertData.customer_number = mockParcel.customer_number;
@@ -136,9 +127,7 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
             if (mockParcel.courier_id) insertData.courier_id = mockParcel.courier_id;
             if (mockParcel.region) insertData.region = mockParcel.region;
             if (mockParcel.city) insertData.city = mockParcel.city;
-
         }
-
 
         const { data: insertResult, error: insertError } = await supabase
             .from('receiving_queue')
@@ -146,7 +135,6 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
             .select();
 
         if (insertError) {
-
             if (insertError.code === '23505') {
                 const newTrackingNumber = generateTrackingNumber();
                 const newInsertData = { ...insertData, tracking_number: newTrackingNumber };
@@ -164,7 +152,6 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
                     };
                 }
 
-                revalidatePath('/warehousing');
                 return {
                     success: true,
                     data: {
@@ -182,7 +169,6 @@ export async function scanBarcode(barcodeValue: string, scannedBy?: string) {
             };
         }
 
-        revalidatePath('/warehousing');
         return {
             success: true,
             data: {

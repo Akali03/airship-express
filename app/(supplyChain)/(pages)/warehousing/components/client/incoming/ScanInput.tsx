@@ -50,8 +50,8 @@ export default function ScanInput({
 
         if (isCurrentlyOffline) {
             const { added } = addOfflineScan(sanitized);
-            onScan?.(sanitized, true);
             if (added) {
+                onScan?.(sanitized, true);
                 toast.info(`Scanned offline: ${sanitized}`, {
                     description: 'Added to table as "Not Synced". When online, click "Fetch Data" then "Add in Queue".',
                     duration: 3000,
@@ -63,8 +63,6 @@ export default function ScanInput({
             return;
         }
 
-        // Online scan: trigger optimistic row in UI
-        onScan?.(sanitized, false);
         setIsScanning(true);
 
         try {
@@ -90,6 +88,9 @@ export default function ScanInput({
                 return;
             }
 
+            // Only add to table view when scan successfully passed validation and was added to receiving queue
+            onScan?.(sanitized, false);
+
             toast.success(`Scanned: ${sanitized}`, {
                 description: `Tracking: ${result.data?.trackingNumber}`,
                 duration: 2000,
@@ -98,8 +99,8 @@ export default function ScanInput({
             console.error('Error scanning barcode, saving to offline queue:', error);
             // Auto fallback to offline queue on network failure
             const { added } = addOfflineScan(sanitized);
-            onScan?.(sanitized, true);
             if (added) {
+                onScan?.(sanitized, true);
                 toast.info(`Saved offline: ${sanitized}`, {
                     description: 'Network drop detected. Added to table as "Not Synced".',
                     duration: 3500,

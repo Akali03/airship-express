@@ -41,6 +41,7 @@ export default function IncomingPanel() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isFetchingMock, setIsFetchingMock] = useState(false);
     const [isAddingToQueue, setIsAddingToQueue] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [mounted, setMounted] = useState(false);
@@ -236,9 +237,9 @@ export default function IncomingPanel() {
         setLastUpdate(new Date());
     }, [parcels]);
 
-    // 1. Fetch data from mock_third_party_parcels
+    // 1. Fetch data from mock_third_party_parcels (also checks receiving_queue and parcels in database)
     const handleFetchMockData = useCallback(async (parcelsToFetch?: Parcel[]) => {
-        const notSynced = parcelsToFetch || parcels.filter(p => p.status === 'not_synced');
+        const notSynced = parcelsToFetch || parcels.filter(p => p.status === 'not_synced' && !p.is_fetched);
         if (!notSynced || notSynced.length === 0) return;
 
         if (typeof window !== 'undefined' && !navigator.onLine) {
@@ -250,7 +251,7 @@ export default function IncomingPanel() {
         }
 
         setIsFetchingMock(true);
-        const toastId = toast.loading(`Querying mock_third_party_parcels for ${notSynced.length} parcel(s)...`);
+        const toastId = toast.loading(`Checking database & querying parcel details for ${notSynced.length} scan(s)...`);
 
         try {
             const barcodes = notSynced.map(p => p.barcode);
@@ -264,57 +265,77 @@ export default function IncomingPanel() {
                 return;
             }
 
-            const resultMap = new Map<string, OfflineParcelItem>();
-            (result.data as OfflineParcelItem[]).forEach((m) => {
-                resultMap.set(m.barcode.toUpperCase(), m);
-            });
+            const mockResults = result.data as OfflineParcelItem[];
+            const alreadyInDb = mockResults.filter(m => m.alreadyInQueue || m.alreadyInParcels);
+            const validItems = mockResults.filter(m => !m.alreadyInQueue && !m.alreadyInParcels);
 
-            // Update offlineStorage
-            const updatedOffline = notSynced.map(p => {
-                const mock = resultMap.get(p.barcode.toUpperCase());
-                return {
-                    barcode: p.barcode,
-                    scanned_at: p.scanned_at,
-                    tracking_number: mock?.tracking_number || p.tracking_number,
-                    sender_name: mock?.sender_name || null,
-                    customer_name: mock?.customer_name || null,
-                    customer_number: mock?.customer_number || null,
-                    destination: mock?.destination || null,
-                    courier: mock?.courier || null,
-                    courier_id: mock?.courier_id || null,
-                    region: mock?.region || null,
-                    city: mock?.city || null,
-                    is_fetched: true,
-                };
-            });
-            updateMultipleOfflineScans(updatedOffline);
+            // Handle items that already exist in database or queue
+            if (alreadyInDb.length > 0) {
+                alreadyInDb.forEach(d => removeOfflineScan(d.barcode));
+                const duplicateBarcodes = new Set(alreadyInDb.map(d => d.barcode.toUpperCase()));
+                setParcels(prev => prev.filter(p => !duplicateBarcodes.has(p.barcode.toUpperCase())));
+                setTotalItems(prev => Math.max(0, prev - alreadyInDb.length));
 
-            // Update state
-            setParcels(prev => prev.map(p => {
-                if (p.status === 'not_synced') {
-                    const mock = resultMap.get(p.barcode.toUpperCase());
-                    if (mock) {
-                        return {
-                            ...p,
-                            tracking_number: mock.tracking_number || p.tracking_number,
-                            sender_name: mock.sender_name || null,
-                            customer_name: mock.customer_name || null,
-                            customer_number: mock.customer_number || null,
-                            destination: mock.destination || null,
-                            courier: mock.courier || null,
-                            region: mock.region || null,
-                            is_fetched: true,
-                        };
+                toast.info(`${alreadyInDb.length} parcel(s) already exist in database or were previously received and were removed from offline scans.`, {
+                    duration: 5000,
+                });
+            }
+
+            if (validItems.length > 0) {
+                const resultMap = new Map<string, OfflineParcelItem>();
+                validItems.forEach((m) => {
+                    resultMap.set(m.barcode.toUpperCase(), m);
+                });
+
+                // Update offlineStorage
+                const updatedOffline = validItems.map(m => {
+                    const existing = notSynced.find(p => p.barcode.toUpperCase() === m.barcode.toUpperCase());
+                    return {
+                        barcode: m.barcode,
+                        scanned_at: existing?.scanned_at || new Date().toISOString(),
+                        tracking_number: m.tracking_number,
+                        sender_name: m.sender_name || null,
+                        customer_name: m.customer_name || null,
+                        customer_number: m.customer_number || null,
+                        destination: m.destination || null,
+                        courier: m.courier || null,
+                        courier_id: m.courier_id || null,
+                        region: m.region || null,
+                        city: m.city || null,
+                        is_fetched: true,
+                    };
+                });
+                updateMultipleOfflineScans(updatedOffline);
+
+                // Update state
+                setParcels(prev => prev.map(p => {
+                    if (p.status === 'not_synced') {
+                        const mock = resultMap.get(p.barcode.toUpperCase());
+                        if (mock) {
+                            return {
+                                ...p,
+                                tracking_number: mock.tracking_number || p.tracking_number,
+                                sender_name: mock.sender_name || null,
+                                customer_name: mock.customer_name || null,
+                                customer_number: mock.customer_number || null,
+                                destination: mock.destination || null,
+                                courier: mock.courier || null,
+                                region: mock.region || null,
+                                is_fetched: true,
+                            };
+                        }
                     }
-                }
-                return p;
-            }));
+                    return p;
+                }));
 
-            toast.success(`Fetched data for ${notSynced.length} parcel(s) from mock database`, {
-                id: toastId,
-                description: 'Parcel details updated in table. Click "Add in Queue" to insert into database.',
-                duration: 4000,
-            });
+                toast.success(`Fetched data for ${validItems.length} parcel(s)`, {
+                    id: toastId,
+                    description: 'Parcel details populated. Click "Add in Queue" to insert into database.',
+                    duration: 4000,
+                });
+            } else if (alreadyInDb.length > 0) {
+                toast.dismiss(toastId);
+            }
         } catch (error) {
             console.error('Error fetching mock data:', error);
             toast.error('Failed to fetch mock parcel details', {
@@ -329,8 +350,11 @@ export default function IncomingPanel() {
 
     // 2. Add into receiving queue table
     const handleAddInQueue = useCallback(async (parcelsToInsert?: Parcel[]) => {
-        const notSynced = parcelsToInsert || parcels.filter(p => p.status === 'not_synced');
-        if (!notSynced || notSynced.length === 0) return;
+        const notSynced = (parcelsToInsert || parcels.filter(p => p.status === 'not_synced')).filter(p => p.is_fetched);
+        if (!notSynced || notSynced.length === 0) {
+            toast.warning('Please fetch parcel details first before adding to queue.');
+            return;
+        }
 
         if (typeof window !== 'undefined' && !navigator.onLine) {
             toast.error('Offline', {
@@ -345,7 +369,6 @@ export default function IncomingPanel() {
 
         try {
             const barcodes = notSynced.map(p => p.barcode);
-            // Fetch any missing mock data first if needed
             const mockResult = await fetchBatchMockParcels(barcodes);
 
             if (!mockResult.success || !mockResult.data) {
@@ -535,6 +558,11 @@ export default function IncomingPanel() {
 
     const notSyncedParcels = parcels.filter(p => p.status === 'not_synced');
     const notSyncedCount = notSyncedParcels.length;
+    const unfetchedParcels = notSyncedParcels.filter(p => !p.is_fetched);
+    const unfetchedCount = unfetchedParcels.length;
+    const fetchedParcels = notSyncedParcels.filter(p => p.is_fetched);
+    const fetchedCount = fetchedParcels.length;
+
     const hasNoData = !loading && parcels.length === 0;
     const displayedScanned = Math.max(totalItems, parcels.length);
 
@@ -557,7 +585,7 @@ export default function IncomingPanel() {
     return (
         <div data-panel="incoming" className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 mx-auto min-h-screen bg-slate-50/50 card">
             <section className="space-y-5">
-                <IncomingHeader onReceiveAll={() => fetchParcelsData(true)} totalParcels={displayedScanned} />
+                <IncomingHeader onReceiveAll={() => fetchParcelsData(true)} totalParcels={displayedScanned} isDeleting={isDeleting || isFetchingMock || isAddingToQueue || isRefreshing} />
                 <ScanPanel scanned={displayedScanned} topCourier={currentTopCourier} onScan={handleScan}/>
             </section>
 
@@ -565,7 +593,7 @@ export default function IncomingPanel() {
                 <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-4 sm:p-5 rounded-3xl bg-[#f0f3f8] dark:bg-[#151622] border border-white/80 dark:border-white/[0.06] shadow-[4px_4px_12px_rgba(166,175,195,0.35),-4px_-4px_12px_rgba(255,255,255,0.9)] dark:shadow-[4px_4px_14px_rgba(0,0,0,0.6),-2px_-2px_8px_rgba(255,255,255,0.02)] gap-4 transition-all">
                     <div className="flex items-start sm:items-center gap-3.5">
                         <div className="w-10 h-10 rounded-2xl bg-[#ebf0f7] dark:bg-[#12131d] text-slate-700 dark:text-slate-300 border border-white/90 dark:border-white/[0.06] shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] flex items-center justify-center shrink-0">
-                            <i className="fas fa-satellite-dish text-sm"></i>
+                            <i className="fas fa-satellite-dish text-sm text-pink-600 dark:text-pink-400"></i>
                         </div>
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
@@ -580,37 +608,47 @@ export default function IncomingPanel() {
                                     <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                                     {isOnline ? 'Online — Ready to Sync' : 'Offline — Connect to Sync'}
                                 </span>
+                                {fetchedCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800/60">
+                                        <i className="fas fa-check-circle text-[10px]"></i>
+                                        {fetchedCount} / {notSyncedCount} Fetched
+                                    </span>
+                                )}
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-normal mt-0.5">
                                 {isOnline
-                                    ? 'Fetch third-party parcel details or add all offline scans directly to the receiving queue.'
+                                    ? unfetchedCount > 0
+                                        ? `Step 1: Fetch details for ${unfetchedCount} offline scan(s) from database before adding to receiving queue.`
+                                        : `Step 2: All ${fetchedCount} scan(s) fetched. Click "Add in Queue" to insert into database receiving queue.`
                                     : 'Scans are saved locally. Connect to the internet to fetch data and insert into the database.'}
                             </p>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-end">
-                        <button
-                            type="button"
-                            onClick={() => handleFetchMockData(notSyncedParcels)}
-                            disabled={!isOnline || isFetchingMock}
-                            title={!isOnline ? "Connect to internet to fetch mock data" : "Fetch details from mock third-party parcels"}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold bg-[#ebf0f7] dark:bg-[#181926] text-slate-700 dark:text-slate-200 border border-white/80 dark:border-white/[0.06] shadow-[2px_2px_5px_rgba(166,175,195,0.35),-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] hover:border-pink-300 dark:hover:border-pink-500/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
-                        >
-                            <i className={`fas ${isFetchingMock ? 'fa-spinner fa-spin' : 'fa-database'} text-xs text-slate-500 dark:text-slate-400`}></i>
-                            <span>{isFetchingMock ? 'Fetching...' : '1. Fetch Data'}</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => handleAddInQueue(notSyncedParcels)}
-                            disabled={!isOnline || isAddingToQueue}
-                            title={!isOnline ? "Connect to internet to insert into receiving queue" : "Insert all not-synced parcels into receiving queue"}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-500 shadow-[2px_2px_6px_rgba(16,185,129,0.35)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
-                        >
-                            <i className={`fas ${isAddingToQueue ? 'fa-spinner fa-spin' : 'fa-inbox'} text-xs`}></i>
-                            <span>{isAddingToQueue ? 'Adding...' : '2. Add in Queue'}</span>
-                        </button>
+                        {unfetchedCount > 0 ? (
+                            <button
+                                type="button"
+                                onClick={() => handleFetchMockData(unfetchedParcels)}
+                                disabled={!isOnline || isFetchingMock}
+                                title={!isOnline ? "Connect to internet to fetch parcel data" : "Fetch details for offline scanned parcels from database"}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold bg-[#ebf0f7] dark:bg-[#181926] text-pink-600 dark:text-pink-400 border border-white/80 dark:border-white/[0.06] shadow-[3px_3px_7px_rgba(166,175,195,0.4),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.6),-2px_-2px_5px_rgba(255,255,255,0.03)] hover:shadow-[inset_1.5px_1.5px_3px_rgba(166,175,195,0.35),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
+                            >
+                                <i className={`fas ${isFetchingMock ? 'fa-spinner fa-spin' : 'fa-database'} text-xs text-pink-500`}></i>
+                                <span>{isFetchingMock ? 'Fetching...' : `1. Fetch Data (${unfetchedCount})`}</span>
+                            </button>
+                        ) : fetchedCount > 0 ? (
+                            <button
+                                type="button"
+                                onClick={() => handleAddInQueue(fetchedParcels)}
+                                disabled={!isOnline || isAddingToQueue}
+                                title={!isOnline ? "Connect to internet to insert into receiving queue" : "Insert all fetched offline scans into receiving queue"}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold bg-[#ebf0f7] dark:bg-[#181926] text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 dark:border-emerald-500/30 shadow-[3px_3px_7px_rgba(16,185,129,0.25),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.6),-2px_-2px_5px_rgba(255,255,255,0.03)] hover:shadow-[inset_1.5px_1.5px_3px_rgba(16,185,129,0.25),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.9)] dark:hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
+                            >
+                                <i className={`fas ${isAddingToQueue ? 'fa-spinner fa-spin' : 'fa-inbox'} text-xs text-emerald-500`}></i>
+                                <span>{isAddingToQueue ? 'Adding...' : `2. Add in Queue (${fetchedCount})`}</span>
+                            </button>
+                        ) : null}
                     </div>
                 </div>
             )}
@@ -699,7 +737,8 @@ export default function IncomingPanel() {
                         totalItems={totalItems}
                         onPageChange={handlePageChange}
                         onRefresh={() => fetchParcelsData(true)}
-                        isLoading={isRefreshing}
+                        isLoading={isRefreshing || isFetchingMock || isAddingToQueue}
+                        onDeletingChange={setIsDeleting}
                     />
                 )}
             </section>

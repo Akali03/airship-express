@@ -11,16 +11,17 @@ import { useConfirm } from "../../../../../components/ui/ConfirmModal";
 interface IncomingHeaderProps {
     onReceiveAll?: () => void;
     totalParcels?: number;
+    isDeleting?: boolean;
 }
 
-export default function IncomingHeader({ onReceiveAll, totalParcels = 0 }: IncomingHeaderProps) {
+export default function IncomingHeader({ onReceiveAll, totalParcels = 0, isDeleting = false }: IncomingHeaderProps) {
     const [isReceivingAll, setIsReceivingAll] = useState(false);
     const { confirm } = useConfirm();
 
-    const isButtonDisabled = isReceivingAll || totalParcels <= 0;
+    const isButtonDisabled = isReceivingAll || totalParcels <= 0 || isDeleting;
 
     const handleReceiveAll = async () => {
-        if (isReceivingAll || totalParcels <= 0) return;
+        if (isReceivingAll || totalParcels <= 0 || isDeleting) return;
 
         const shouldProceed = await confirm({
             title: "Receive All Incoming Parcels?",
@@ -105,7 +106,7 @@ export default function IncomingHeader({ onReceiveAll, totalParcels = 0 }: Incom
                     onClick={handleReceiveAll}
                     disabled={isButtonDisabled}
                     loading={isReceivingAll}
-                    title={totalParcels <= 0 ? "No pending parcels to receive" : "Receive all pending parcels into inventory"}
+                    title={isDeleting ? "Cannot receive parcels while deletion is in progress" : totalParcels <= 0 ? "No pending parcels to receive" : "Receive all pending parcels into inventory"}
                     className="w-full sm:w-auto min-w-[140px] shadow-[2px_2px_6px_rgba(236,72,153,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                 >
                     <i className="fas fa-check-circle text-xs" />
