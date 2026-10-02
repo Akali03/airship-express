@@ -51,6 +51,7 @@ type VehicleRouteResult = {
 };
 
 type OptimizeResponse = {
+  costSource?: "osrm" | "estimated";
   orderedStopIds: string[];
   polyline: LatLng[];
   routes?: VehicleRouteResult[];
@@ -205,9 +206,11 @@ function hasDbCoords(parcel: any) {
 }
 
 function formatDuration(mins: number) {
-  const hours = Math.floor(mins / 60);
-  const remaining = mins % 60;
-  return hours > 0 ? `${hours}h ${remaining}m` : `${mins}m`;
+  const totalMinutes = Math.max(0, Math.round(mins));
+  const hours = Math.floor(totalMinutes / 60);
+  const remaining = totalMinutes % 60;
+  if (hours === 0) return `${totalMinutes}m`;
+  return remaining === 0 ? `${hours}h` : `${hours}h ${remaining}m`;
 }
 
 function formatFiveDigitValue(value: number) {
@@ -1083,6 +1086,7 @@ export default function VrdsRoutePlanningPage() {
             etaImprovementMin: normalizedSettled.reduce((total, entry) => total + (entry.data.etaImprovementMin || 0), 0),
             baselineEtaMinutes: normalizedSettled[0]?.data.baselineEtaMinutes,
             engine: normalizedSettled.some((entry) => entry.data.engine === "or-tools") ? "or-tools" : "heuristic-fallback",
+            costSource: normalizedSettled.some((entry) => entry.data.costSource === "estimated") ? "estimated" : "osrm",
           } satisfies OptimizeResponse;
       setLastGeneratedResult(generatedResult);
 
@@ -1189,7 +1193,9 @@ export default function VrdsRoutePlanningPage() {
   const baselineDistanceMi = currentResult?.baselineDistanceMi
     ?? initialMetrics?.distanceMi
     ?? (baselineFallbackMetrics.distanceMi > 0 ? baselineFallbackMetrics.distanceMi : null);
-  const baselineEtaMinutes = calculateEtaMinutes(baselineDistanceMi);
+  const baselineEtaMinutes = currentResult?.baselineEtaMinutes && currentResult.baselineEtaMinutes > 0
+    ? currentResult.baselineEtaMinutes
+    : calculateEtaMinutes(baselineDistanceMi);
   const currentDistanceMi = currentResult?.distanceMi && currentResult.distanceMi > 0
     ? currentResult.distanceMi
     : initialMetrics?.distanceMi ?? null;
@@ -1804,9 +1810,13 @@ export default function VrdsRoutePlanningPage() {
 
             {/* KPI Grid */}
             <div className="rounded-2xl border border-pink-200 bg-white p-3 shadow-sm">
-              <div className="mb-3 flex items-center justify-between px-1">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
                 <h3 className="text-sm font-bold text-slate-900">Generated route calculations</h3>
-                <span className="text-xs font-semibold text-emerald-600">{currentResult ? "Calculated" : "Generate a route plan"}</span>
+                <span className={`text-xs font-semibold ${currentResult?.costSource === "estimated" ? "text-amber-600" : "text-emerald-600"}`}>
+                  {currentResult?.costSource === "estimated"
+                    ? "Estimated: OSRM unavailable"
+                    : currentResult ? "Calculated" : "Generate a route plan"}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KpiCard
@@ -2038,7 +2048,9 @@ export default function VrdsRoutePlanningPage() {
                   Optimized Waypoint Sequence
                 </h3>
                 <div className="flex items-center gap-3">
-                  <span className="hidden text-xs text-slate-400 sm:inline">Click to preview; use Generate route plan to calculate</span>
+                  <span className="hidden text-xs text-slate-400 sm:inline">
+                    {currentResult ? "Click a courier card to view its route" : "Generate route plan to calculate"}
+                  </span>
                   <span className="text-xs text-slate-400">{selectedRouteTotalStops} total stop{selectedRouteTotalStops === 1 ? "" : "s"}</span>
                 </div>
               </div>

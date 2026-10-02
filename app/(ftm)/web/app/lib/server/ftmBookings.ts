@@ -49,7 +49,7 @@ export function buildBookingPayload(record: RecordValue = {}) {
 }
 
 const ACTIVE_TRIP_STATUSES = new Set([
-  "assigned", "driver assigned", "vehicle assigned", "scheduled", "dispatching", "dispatched",
+  "assigned", "accepted", "pickup assigned", "pickup confirmed", "driver assigned", "vehicle assigned", "scheduled", "dispatching", "dispatched",
   "in transit", "in_transit", "delivering", "en route", "active", "moving",
 ]);
 

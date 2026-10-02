@@ -9,7 +9,7 @@ export function normalizeTrip(record: TripRecord = {}): TripRecord {
   const rawStatus = String(record.status || "").trim().toLowerCase();
   const arrival = record.estimated_arrival || record.estimatedArrival;
   const arrivalTime = arrival ? new Date(arrival).getTime() : NaN;
-  const active = /in transit|in_transit|transit|assigned|scheduled|dispatch|moving|en route|active/.test(rawStatus);
+  const active = /in transit|in_transit|transit|assigned|accepted|pickup confirmed|pickup assigned|scheduled|dispatch|moving|en route|active/.test(rawStatus);
   const activity = record.updated_at || record.updatedAt || record.created_at || record.createdAt;
   const activityTime = activity ? new Date(activity).getTime() : NaN;
   const overdue = active && ((Number.isFinite(arrivalTime) && arrivalTime < Date.now()) || (!Number.isFinite(arrivalTime) && Number.isFinite(activityTime) && activityTime < Date.now() - 24 * 60 * 60 * 1000));
@@ -118,9 +118,11 @@ export async function updateTripResources(supabase: SupabaseClient, resources: {
   const updates = [];
   if (resources.vehicleId) {
     updates.push((async () => {
-      const primary = await supabase.from("vehicles").update({ status, availability: status, assignment_status: status.toLowerCase() }).eq("id", resources.vehicleId);
+      const availability = status.toLowerCase() === "available" ? "available" : status.toLowerCase();
+      const assignmentStatus = status.toLowerCase().replace(/\s+/g, "_");
+      const primary = await supabase.from("vehicles").update({ status, availability, assignment_status: assignmentStatus }).eq("id", resources.vehicleId);
       if (primary.error && /assignment_status|column .* does not exist|schema cache/i.test(primary.error.message)) {
-        return supabase.from("vehicles").update({ status, availability: status }).eq("id", resources.vehicleId);
+        return supabase.from("vehicles").update({ status, availability }).eq("id", resources.vehicleId);
       }
       return primary;
     })());
@@ -136,17 +138,10 @@ export async function updateRemoteParcelStatus(supabase: SupabaseClient, booking
   if (!parcels) return;
   const { data: booking, error: bookingError } = await supabase.from("bookings").select("cargo_description").eq("id", bookingId).maybeSingle();
   const parcelIds = !bookingError ? String(booking?.cargo_description || "").match(/parcel_ids=([^;\s]+)/i)?.[1]?.split(",").map((id) => id.trim()).filter(Boolean) || [] : [];
-  if (parcelIds.length) {
-    const { error } = await parcels.from("parcels").update({ status }).in("id", parcelIds);
-    if (!error) return;
-    if (!/Could not find the table|public\.parcels|column .* does not exist/i.test(error.message)) {
-      console.error("Failed to update remote parcels by id:", error.message);
-      return;
-    }
-  }
-  const { error } = await parcels.from("parcels").update({ status }).eq("booking_id", bookingId);
+  if (!parcelIds.length) return;
+  const { error } = await parcels.from("parcels").update({ status }).in("id", parcelIds);
   if (error && !/Could not find the table|public\.parcels|column .* does not exist/i.test(error.message)) {
-    console.error("Failed to update remote parcels by booking:", error.message);
+    console.error("Failed to update remote parcels by manifest IDs:", error.message);
   }
 }
 
@@ -204,6 +199,28 @@ export async function updateTripStatus(
   const bookingId = options.bookingId || data.booking_id;
   if (bookingId) {
     const normalizedStatus = status.trim().toLowerCase();
+    const assignmentStatus = isInTransitStatus(status)
+      ? "in_progress"
+      : normalizedStatus === "completed" || normalizedStatus === "delivered"
+        ? "completed"
+        : null;
+    const bookingStatus = isInTransitStatus(status)
+      ? "In Transit"
+      : normalizedStatus === "completed" || normalizedStatus === "delivered"
+        ? "Completed"
+        : null;
+    if (assignmentStatus) {
+      const { error: assignmentError } = await supabase.from("booking_assignments")
+        .update({ status: assignmentStatus, updated_at: new Date().toISOString() })
+        .eq("booking_id", bookingId);
+      if (assignmentError) return { data, error: assignmentError };
+    }
+    if (bookingStatus) {
+      const { error: bookingError } = await supabase.from("bookings")
+        .update({ status: bookingStatus, updated_at: new Date().toISOString() })
+        .eq("id", bookingId);
+      if (bookingError) return { data, error: bookingError };
+    }
     const parcelStatus = /delayed|late|exception/.test(normalizedStatus)
       ? "delayed"
       : isInTransitStatus(status)
@@ -215,13 +232,17 @@ export async function updateTripStatus(
   }
 
   if (data.route_plan_id) {
-    const routePlanStatus = isInTransitStatus(status) ? "in_progress" : status === "Completed" ? "completed" : null;
+    const normalizedStatus = status.trim().toLowerCase();
+    const routePlanStatus = isInTransitStatus(status) ? "in_progress" : ["completed", "delivered"].includes(normalizedStatus) ? "completed" : null;
     if (routePlanStatus) {
       const { error: routePlanError } = await supabase.from("route_plans").update({ status: routePlanStatus }).eq("id", data.route_plan_id);
       if (routePlanError) console.warn("Failed to update route plan status:", routePlanError.message);
     }
   }
-  if (status.toLowerCase() === "completed") {
+  if (isInTransitStatus(status)) {
+    await updateTripResources(supabase, { driverId: data.driver_id, vehicleId: data.vehicle_id }, "In Transit");
+  }
+  if (["completed", "delivered"].includes(status.trim().toLowerCase())) {
     await updateTripResources(supabase, { driverId: data.driver_id, vehicleId: data.vehicle_id }, "Available");
   }
   return { data, error: null };

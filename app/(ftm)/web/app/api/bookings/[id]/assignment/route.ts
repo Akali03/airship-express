@@ -15,11 +15,13 @@ async function updateResourceStatus(
   const updates = [];
   if (resource.vehicleId) {
     updates.push((async () => {
+      const availability = status.toLowerCase() === "available" ? "available" : status.toLowerCase();
+      const assignmentStatus = status.toLowerCase().replace(/\s+/g, "_");
       const primary = await supabase.from("vehicles")
-        .update({ status, availability: status, assignment_status: status.toLowerCase() })
+        .update({ status, availability, assignment_status: assignmentStatus })
         .eq("id", resource.vehicleId);
       if (primary.error && /assignment_status|column .* does not exist|schema cache/i.test(primary.error.message)) {
-        return supabase.from("vehicles").update({ status, availability: status }).eq("id", resource.vehicleId);
+        return supabase.from("vehicles").update({ status, availability }).eq("id", resource.vehicleId);
       }
       return primary;
     })());
@@ -125,7 +127,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     status: "assigned",
     updated_at: assignedAt,
   }, { onConflict: "booking_id" }).select("*").single();
-  if (assignmentError) console.error("Unable to save auxiliary booking assignment row:", assignmentError.message);
+  if (assignmentError) {
+    return NextResponse.json({ error: `Unable to save shared booking assignment: ${assignmentError.message}` }, { status: 500 });
+  }
 
   const { data: previous } = await supabase.from("bookings").select("driver_id, vehicle_id").eq("id", bookingId).maybeSingle();
   const assignedVehiclePlate = validation.vehicle.plate_number || vehicle_plate || null;
@@ -171,6 +175,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const { error: routePlanUpdateError } = await supabase.from("route_plans").update({
       vehicle_id,
       driver_id,
+      status: "assigned",
       fuel_efficiency_km_per_l: validFuelEfficiency,
       baseline_fuel_liters: baselineFuelLiters,
       optimized_fuel_liters: optimizedFuelLiters,
@@ -216,6 +221,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
   await updateResourceStatus(supabase, { driverId: driver_id, vehicleId: vehicle_id }, "Assigned");
   const syncedTripId = await syncAssignedTrip(supabase, data, { driverId: driver_id, driverName: driver_name, vehicleId: vehicle_id, vehiclePlate: assignedVehiclePlate });
+  if (!syncedTripId) {
+    return NextResponse.json({
+      error: "Booking resources were assigned, but the shared trip record could not be created or updated.",
+      booking_id: data.id,
+    }, { status: 500 });
+  }
   if (data.route_plan_id && syncedTripId) {
     const { error: tripLinkError } = await context.serviceClient
       .from("route_plans")
@@ -263,7 +274,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   return NextResponse.json({
     ...normalizeBooking(data),
-    assignment: assignment || null,
-    ...(assignmentError ? { assignment_warning: `Booking was assigned, but its auxiliary assignment record could not be saved: ${assignmentError.message}` } : {}),
+    assignment,
   });
 }

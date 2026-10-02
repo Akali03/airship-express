@@ -11,14 +11,15 @@ const BACKUP_TABLES = [
   "_migrations", "alerts", "alert_history", "ai_conversations", "ai_messages", "bookings", "cost_entries", "couriers",
   "dispatches", "driver_assignments", "driver_performance", "driver_push_tokens", "driver_tracking", "drivers", "expenses",
   "fuel_logs", "incident_reports", "locations", "maintenance_history", "mobile_device_tracking", "notifications",
-  "optimized_routes", "parcels", "parcels_for_pickup", "pickup_events", "role_change_audit", "route_plan_bookings",
+  "optimized_routes", "parcels", "inventory_items", "parcels_for_pickup", "pickup_events", "role_change_audit", "route_plan_bookings",
   "route_plan_parcels", "route_plans", "tracking_history", "trip_statistics", "trip_stops", "trips", "users", "vehicles",
   "vehicle_documents", "vehicle_gps_tracking",
 ];
 
 function parcelDatabaseConfigured() {
-  const url = process.env.FTM_PARCELS_SUPABASE_URL || process.env.PARCELS_SUPABASE_URL || process.env.NEXT_PUBLIC_FTM_PARCEL_SUPABASE_URL;
-  const key = process.env.FTM_PARCELS_SUPABASE_SERVICE_ROLE_KEY || process.env.FTM_PARCELS_SUPABASE_ANON_KEY || process.env.PARCELS_SUPABASE_SERVICE_ROLE_KEY || process.env.PARCELS_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_FTM_PARCEL_SUPABASE_ANON_KEY;
+  const url = process.env.FTM_PARCELS_SUPABASE_URL || process.env.PARCELS_SUPABASE_URL;
+  const key = process.env.FTM_PARCELS_SUPABASE_SERVICE_ROLE_KEY || process.env.PARCELS_SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.FTM_PARCELS_SUPABASE_ANON_KEY || process.env.PARCELS_SUPABASE_ANON_KEY;
   return Boolean(url && key);
 }
 
@@ -65,10 +66,12 @@ export async function GET(request: Request) {
     if (parcelDatabaseConfigured()) {
       const parcelSupabase = createFtmParcelClient();
       if (parcelSupabase) {
-        const result = await readAllRows(parcelSupabase, "parcels");
-        if (!result.skipped) {
-          tables.parcel_parcels = result.rows;
-          tableStatus.parcel_parcels = "Included from parcel Supabase";
+        for (const [sourceTable, backupName] of [["parcels", "parcel_parcels"], ["inventory_items", "parcel_inventory_items"]]) {
+          const result = await readAllRows(parcelSupabase, sourceTable);
+          if (!result.skipped) {
+            tables[backupName] = result.rows;
+            tableStatus[backupName] = "Included from configured parcel database";
+          }
         }
       }
     }
@@ -76,7 +79,7 @@ export async function GET(request: Request) {
     const exportedAt = new Date();
     const workbook = XLSX.utils.book_new();
     const summaryRows = [
-      ["Airship Express | FTM and Parcel Supabase Backup", "", ""],
+      ["Airship Express | FTM Supabase Backup", "", ""],
       ["Exported at", exportedAt.toLocaleString(), ""],
       ["Format", "Excel workbook with plain-text table values", ""],
       ["Included tables", String(Object.keys(tables).length), ""],

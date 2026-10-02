@@ -1,5 +1,4 @@
 import { supabase } from "./supabaseClient";
-import { parcelSupabase } from "./parcelSupabaseClient";
 import { getFtmApiUrl } from "./apiBase";
 
 export async function fetchJson(path: string, opts: RequestInit = {}) {
@@ -114,17 +113,6 @@ async function readSupabaseTable<T = Record<string, unknown>>(table: string, sel
     return (Array.isArray(data) ? data : []) as T[];
   } catch (error) {
     console.warn(`[api] ${table} unavailable`, error);
-    return [] as T[];
-  }
-}
-
-async function readParcelTable<T = Record<string, unknown>>(table: string, select = "*") {
-  try {
-    const { data, error } = await parcelSupabase.from(table).select(select).limit(200);
-    if (error) throw error;
-    return (Array.isArray(data) ? data : []) as T[];
-  } catch (error) {
-    console.warn(`[api] parcel table ${table} unavailable`, error);
     return [] as T[];
   }
 }
@@ -402,11 +390,17 @@ export async function createExpense(payload: Record<string, unknown>) {
 }
 
 export async function getPendingParcelsByCourier() {
-  return readParcelTable<any>("parcels", "*");
+  return getParcels({ history: true });
 }
 
 export async function getInventoryItems() {
-  return readParcelTable<any>("inventory_items", "*");
+  try {
+    const items = await fetchJson("/api/inventory");
+    return Array.isArray(items) ? items : [];
+  } catch (error) {
+    reportBackendLoadFailure("inventory items", error);
+    return [] as any[];
+  }
 }
 
 export async function getIncidentReports() {

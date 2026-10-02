@@ -45,6 +45,7 @@ export type RouteCalculationSnapshot = {
 };
 
 export type OptimizeResponse = {
+  costSource?: "osrm" | "estimated";
   orderedStopIds: string[];
   polyline: LatLng[];
   routes?: VehicleRouteResult[];

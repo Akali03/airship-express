@@ -40,7 +40,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }).eq("id", params.id).select("*").single();
   if (error) return NextResponse.json({ error: `Unable to confirm pickup: ${error.message}` }, { status: 500 });
 
-  if (trip.booking_id) await updateRemoteParcelStatus(context.serviceClient, trip.booking_id, "picked_up");
+  if (trip.booking_id) {
+    const [{ error: bookingError }, { error: assignmentError }] = await Promise.all([
+      context.serviceClient.from("bookings").update({ status: "Picked Up" }).eq("id", trip.booking_id),
+      context.serviceClient.from("booking_assignments").update({ status: "accepted", updated_at: now }).eq("booking_id", trip.booking_id),
+    ]);
+    if (bookingError || assignmentError) {
+      const syncError = bookingError || assignmentError;
+      return NextResponse.json({ error: `Pickup was recorded, but related records could not be synchronized: ${syncError.message}` }, { status: 500 });
+    }
+    await updateRemoteParcelStatus(context.serviceClient, trip.booking_id, "picked_up");
+  }
   if (body.picked_up_parcel_ids?.length) {
     const parcels = createFtmParcelClient();
     if (parcels) await parcels.from("parcels").update({ status: "picked_up" }).in("id", body.picked_up_parcel_ids);

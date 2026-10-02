@@ -30,15 +30,27 @@ export async function GET(request: Request) {
   const tripRows = trips || [];
   const bookingIds = [...new Set(tripRows.map((trip) => trip.booking_id).filter(Boolean))];
   const routePlanIds = [...new Set(tripRows.map((trip) => trip.route_plan_id).filter(Boolean))];
-  const [bookingsResult, stopsResult, routePlansResult] = await Promise.all([
+  const [bookingsResult, stopsResult, routePlansResult, eventsResult, proofResult] = await Promise.all([
     bookingIds.length ? context.serviceClient.from("bookings").select("id,pickup_location,pickup_latitude,pickup_longitude,dropoff_location,dropoff_latitude,dropoff_longitude,cargo_weight").in("id", bookingIds) : Promise.resolve({ data: [], error: null }),
     !light && tripRows.length ? context.serviceClient.from("trip_stops").select("trip_id,sequence,name,latitude,longitude,status").in("trip_id", tripRows.map((trip) => trip.id)) : Promise.resolve({ data: [], error: null }),
     routePlanIds.length ? context.serviceClient.from("route_plans").select("*").in("id", routePlanIds) : Promise.resolve({ data: [], error: null }),
+    !light && tripRows.length ? context.serviceClient.from("trip_events").select("*").in("trip_id", tripRows.map((trip) => trip.id)).order("created_at", { ascending: true }) : Promise.resolve({ data: [], error: null }),
+    !light && tripRows.length ? context.serviceClient.from("proof_of_delivery").select("*").in("trip_id", tripRows.map((trip) => trip.id)) : Promise.resolve({ data: [], error: null }),
   ]);
   if (routePlansResult.error && !isRoutePlanSchemaUnavailable(routePlansResult.error)) {
     return NextResponse.json({ error: `Unable to load trip route plans: ${routePlansResult.error.message}` }, { status: 500 });
   }
+  const isOptionalActivityTableMissing = (error: { message: string } | null) =>
+    Boolean(error && /could not find the table|schema cache|relation .* does not exist/i.test(error.message));
+  const activityError = [eventsResult.error, proofResult.error].find((error) => error && !isOptionalActivityTableMissing(error));
+  if (activityError) return NextResponse.json({ error: `Unable to load trip activity: ${activityError.message}` }, { status: 500 });
   const bookings = new Map((bookingsResult.data || []).map((booking) => [String(booking.id), booking]));
+  const eventsByTrip = new Map<string, Record<string, any>[]>();
+  (eventsResult.data || []).forEach((event) => {
+    const key = String(event.trip_id);
+    eventsByTrip.set(key, [...(eventsByTrip.get(key) || []), event]);
+  });
+  const proofByTrip = new Map((proofResult.data || []).map((proof) => [String(proof.trip_id), proof]));
   const stops = new Map<string, any[]>();
   (stopsResult.data || []).forEach((stop) => {
     const list = stops.get(String(stop.trip_id)) || [];
@@ -66,6 +78,9 @@ export async function GET(request: Request) {
       load_kg: trip.load_kg ?? booking?.cargo_weight,
       stops: resolvedStops,
       routePlanStops: resolvedStops,
+      events: eventsByTrip.get(String(trip.id)) || [],
+      proof_of_delivery: proofByTrip.get(String(trip.id)) || null,
+      proofOfDelivery: proofByTrip.get(String(trip.id)) || null,
     });
   }));
 }
@@ -128,22 +143,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Unable to create trip: ${error.message}` }, { status: forbidden ? 403 : 500 });
   }
 
+  const activeStatus = isInTransitStatus(data.status);
+  const assignmentStatus = activeStatus ? "in_progress" : "assigned";
+  const bookingStatus = activeStatus ? "In Transit" : "Dispatched";
+  if (data.booking_id && data.driver_id && data.vehicle_id) {
+    const assignedAt = data.updated_at || new Date().toISOString();
+    const { error: assignmentError } = await context.serviceClient.from("booking_assignments").upsert({
+      booking_id: data.booking_id,
+      driver_id: data.driver_id,
+      vehicle_id: data.vehicle_id,
+      route_plan_id: data.route_plan_id || payload.route_plan_id || null,
+      assigned_at: assignedAt,
+      status: assignmentStatus,
+      updated_at: assignedAt,
+    }, { onConflict: "booking_id" });
+    if (assignmentError) return NextResponse.json({ error: `Trip was created, but its shared booking assignment could not be saved: ${assignmentError.message}` }, { status: 500 });
+  }
   if (data.driver_id) await notifyDriverTripAssigned(context.serviceClient, data);
-  await updateTripResources(context.serviceClient, { driverId: data.driver_id, vehicleId: data.vehicle_id }, "Assigned");
+  await updateTripResources(context.serviceClient, { driverId: data.driver_id, vehicleId: data.vehicle_id }, activeStatus ? "In Transit" : "Assigned");
   if (data.booking_id) {
     await context.serviceClient.from("bookings").update({
       driver_id: data.driver_id || null,
       driver_name: payload.driver_name || null,
       vehicle_id: data.vehicle_id || null,
       vehicle_plate: body.vehicle_plate || null,
-      status: "Dispatched",
+      status: bookingStatus,
     }).eq("id", data.booking_id);
   }
   const routePlanId = data.route_plan_id || payload.route_plan_id;
   if (routePlanId) {
     await context.serviceClient.from("route_plans").update({ trip_id: data.id, status: isInTransitStatus(data.status) ? "in_progress" : "assigned" }).eq("id", routePlanId);
   }
-  if (data.booking_id) await updateRemoteParcelStatus(context.serviceClient, data.booking_id, isInTransitStatus(data.status) ? "in_transit" : "booked");
+  if (data.booking_id) await updateRemoteParcelStatus(context.serviceClient, data.booking_id, activeStatus ? "in_transit" : "booked");
   await persistTripStops(context.serviceClient, data.id, stops);
   return NextResponse.json(normalizeTrip({ ...data, stops }), { status: 201 });
 }

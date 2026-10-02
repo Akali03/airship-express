@@ -32,13 +32,21 @@ export async function GET(request: Request) {
   const bookingById = new Map((bookings || []).map((row) => [String(row.id), row]));
   const vehicleById = new Map((vehicles || []).map((row) => [String(row.id), row]));
   const routePlanById = new Map((routePlans || []).map((row) => [String(row.id), row]));
+  const parcelIdsByBooking = new Map<string, string[]>();
+  (bookings || []).forEach((booking) => {
+    const manifestIds = String(booking.cargo_description || "").match(/parcel_ids=([^;\s]+)/i)?.[1]
+      ?.split(",").map((id: string) => id.trim()).filter(Boolean) || [];
+    parcelIdsByBooking.set(String(booking.id), [...new Set(manifestIds)]);
+  });
+  const parcelIds = [...new Set([...parcelIdsByBooking.values()].flat())];
   const parcelsByBooking = new Map<string, any[]>();
   const parcelsSupabase = createFtmParcelClient();
-  if (parcelsSupabase && bookingIds.length) {
-    const { data: parcels } = await parcelsSupabase.from("parcels").select("*").in("booking_id", bookingIds);
-    (parcels || []).forEach((parcel) => {
-      const key = String(parcel.booking_id);
-      parcelsByBooking.set(key, [...(parcelsByBooking.get(key) || []), parcel]);
+  if (parcelsSupabase && parcelIds.length) {
+    const { data: parcels, error: parcelError } = await parcelsSupabase.from("parcels").select("*").in("id", parcelIds);
+    if (parcelError) return NextResponse.json({ error: `Unable to load assigned parcels: ${parcelError.message}` }, { status: 500 });
+    const parcelsById = new Map((parcels || []).map((parcel) => [String(parcel.id), parcel]));
+    parcelIdsByBooking.forEach((ids, bookingId) => {
+      parcelsByBooking.set(bookingId, ids.map((id) => parcelsById.get(id)).filter(Boolean));
     });
   }
 

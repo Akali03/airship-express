@@ -94,19 +94,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Booking ${booking.id} was saved, but its route-plan link failed: ${routeBookingLinkError.message}`, booking_id: booking.id }, { status: 500 });
   }
 
-  const attach = { booking_id: booking.id, route_plan_id: linkedRoutePlanId, status: "booked" };
-  let update = await parcelsSupabase.from("parcels").update(attach).in("id", parcelIds.map(String));
+  const parcelStatusUpdate = { status: "booked" };
+  let update = await parcelsSupabase.from("parcels").update(parcelStatusUpdate).in("id", parcelIds.map(String));
   let updateError = update.error;
   if (update.error && /invalid input value|status.*constraint|check constraint/i.test(update.error.message)) {
-    update = await parcelsSupabase.from("parcels").update({ ...attach, status: "picked_up" }).in("id", parcelIds.map(String));
+    update = await parcelsSupabase.from("parcels").update({ status: "picked_up" }).in("id", parcelIds.map(String));
     updateError = update.error;
   }
   if (updateError && /invalid input syntax for type bigint|type bigint|column .* does not exist|could not match/i.test(updateError.message)) {
     updateError = null;
     for (const id of parcelIds) {
-      let result = await parcelsSupabase.from("parcels").update(attach).eq("id", String(id));
+      let result = await parcelsSupabase.from("parcels").update(parcelStatusUpdate).eq("id", String(id));
       if (result.error && /invalid input value|status.*constraint|check constraint/i.test(result.error.message)) {
-        result = await parcelsSupabase.from("parcels").update({ ...attach, status: "picked_up" }).eq("id", String(id));
+        result = await parcelsSupabase.from("parcels").update({ status: "picked_up" }).eq("id", String(id));
       }
       if (result.error) {
         updateError = result.error;

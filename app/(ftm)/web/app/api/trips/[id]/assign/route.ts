@@ -40,6 +40,27 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }).eq("id", params.id).select("*").maybeSingle();
   if (error) return NextResponse.json({ error: "Failed to assign trip" }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+  if (data.booking_id && data.vehicle_id) {
+    const assignedAt = new Date().toISOString();
+    const { error: assignmentError } = await supabase.from("booking_assignments").upsert({
+      booking_id: data.booking_id,
+      driver_id: data.driver_id,
+      vehicle_id: data.vehicle_id,
+      route_plan_id: data.route_plan_id || null,
+      assigned_at: assignedAt,
+      status: "assigned",
+      updated_at: assignedAt,
+    }, { onConflict: "booking_id" });
+    if (assignmentError) return NextResponse.json({ error: `Trip was assigned, but the shared booking assignment could not be saved: ${assignmentError.message}` }, { status: 500 });
+    const { error: bookingError } = await supabase.from("bookings").update({
+      driver_id: data.driver_id,
+      driver_name: data.driver_name,
+      vehicle_id: data.vehicle_id,
+      vehicle_plate: data.vehicle_plate,
+      status: "Dispatched",
+    }).eq("id", data.booking_id);
+    if (bookingError) return NextResponse.json({ error: `Trip was assigned, but the booking could not be synchronized: ${bookingError.message}` }, { status: 500 });
+  }
   await notifyDriverTripAssigned(supabase, data);
   await updateTripResources(supabase, { driverId: data.driver_id, vehicleId: data.vehicle_id }, "Assigned");
   return NextResponse.json(normalizeTrip(data));

@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   }
   const payload = buildVehiclePayload(body);
   payload.status = "Available";
-  payload.availability = "Available";
+  payload.availability = "available";
   payload.assignment_status = payload.courier_id ? "pending" : null;
   if (!payload.id || !payload.plate_number || !payload.vehicle_type) {
     return NextResponse.json({ error: "id, plate_number, and vehicle_type are required" }, { status: 400 });

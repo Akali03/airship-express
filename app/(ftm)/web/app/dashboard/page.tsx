@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import GlobalNavbar from "../components/GlobalNavbar";
 import GlobalFooter from "../components/GlobalFooter";
-import { getTrips, getVehicles, getBookings, getDrivers, getFuelLogs, getCostEntries, getParcelHistory, getRoutePlan, getRoutePlans } from "../lib/api";
-import { useParcelStore } from "../lib/parcelStore";
+import { fetchJson, getFuelLogs, getCostEntries } from "../lib/api";
 import SpecializedLogistics from "./components/SpecializedLogistics";
 import PerformanceMetrics from "./components/PerformanceMetrics";
 import MissionLogs from "./components/MissionLogs";
@@ -12,7 +11,7 @@ import ResourceData from "./components/ResourceData";
 import SensorHub from "./components/SensorHub";
 import NewsAlerts from "./components/NewsAlerts";
 import MapSection from "./components/MapSection";
-import { isTripInTransitStatus } from "../lib/parcelTypes";
+import { isCompletedTripStatus, isOperationalTrip, isTripInTransitStatus } from "../lib/parcelTypes";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -34,6 +33,7 @@ import {
 
 export type DashboardVehicle = {
   id?: string;
+  plate_number?: string | null;
   plateNumber?: string | null;
   vehicleType?: string | null;
   status?: string | null;
@@ -43,6 +43,8 @@ export type DashboardVehicle = {
   capacityKg?: number | null;
   locationLat?: number | null;
   locationLng?: number | null;
+  locationRecordedAt?: string | null;
+  locationSource?: string | null;
 };
 
 export type DashboardTrip = {
@@ -54,6 +56,7 @@ export type DashboardTrip = {
   driverName?: string | null;
   progress?: number | null;
   vehicleId?: string | null;
+  vehicle_id?: string | null;
   fromLocation?: string | null;
   toLocation?: string | null;
   pickup_location?: string | null;
@@ -91,6 +94,11 @@ export type DashboardTrip = {
   updated_at?: string | null;
   createdAt?: string | null;
   created_at?: string | null;
+  currentLocation?: { lat: number; lng: number; recorded_at?: string | null; source?: string } | null;
+  proof_of_delivery?: Record<string, any> | null;
+  proofOfDelivery?: Record<string, any> | null;
+  events?: Array<{ status?: string | null; remarks?: string | null; created_at?: string | null }>;
+  pickup_proof_url?: string | null;
 };
 
 export type DashboardBooking = {
@@ -113,42 +121,6 @@ export type DashboardSnapshot = {
     vehicle_id?: string | null;
   }>;
 };
-const DASHBOARD_CACHE_KEY = "ftm-dashboard-cache";
-const DASHBOARD_CACHE_TTL_MS = 60_000;
-
-type DashboardCache = {
-  snapshot: DashboardSnapshot;
-  fuelLogs: any[];
-  costEntries: any[];
-  parcels: any[];
-  cachedAt: number;
-};
-
-let runtimeDashboardCache: DashboardCache | null = null;
-
-function readDashboardCache(): DashboardCache | null {
-  if (runtimeDashboardCache) return runtimeDashboardCache;
-  if (typeof window === "undefined") return null;
-  try {
-    const parsed = JSON.parse(window.sessionStorage.getItem(DASHBOARD_CACHE_KEY) || "null");
-    if (!parsed || Date.now() - Number(parsed.cachedAt) > DASHBOARD_CACHE_TTL_MS) return null;
-    runtimeDashboardCache = parsed as DashboardCache;
-    return runtimeDashboardCache;
-  } catch {
-    return null;
-  }
-}
-
-function writeDashboardCache(cache: Omit<DashboardCache, "cachedAt">) {
-  runtimeDashboardCache = { ...cache, cachedAt: Date.now() };
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(runtimeDashboardCache));
-  } catch {
-    // Storage can be unavailable in private browsing or when the payload is too large.
-  }
-}
-
 // Helper functions to calculate real data from API
 const calculateFuelConsumptionData = (fuelLogs: any[], trips: DashboardTrip[]) => {
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -410,129 +382,73 @@ const KPI_IDS = [
 ] as const;
 
 export default function Home() {
-  // Get data from parcel store (same as missions page)
-  const { bookings: storeBookings, parcels: storeParcels, drivers: storeDrivers } = useParcelStore();
   const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
   const [hiddenKPIs, setHiddenKPIs] = useState<Set<string>>(new Set(KPI_IDS));
 
-  const initialCache = readDashboardCache();
-  const [snapshot, setSnapshot] = useState<DashboardSnapshot>(initialCache?.snapshot ?? {
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot>({
     vehicles: [],
     trips: [],
     bookings: [],
     routePlans: [],
     drivers: [],
   });
-  const [fuelLogs, setFuelLogs] = useState<any[]>(initialCache?.fuelLogs ?? []);
-  const [costEntries, setCostEntries] = useState<any[]>(initialCache?.costEntries ?? []);
-  const [parcels, setParcels] = useState<any[]>(initialCache?.parcels ?? []);
+  const [fuelLogs, setFuelLogs] = useState<any[]>([]);
+  const [costEntries, setCostEntries] = useState<any[]>([]);
+  const [parcels, setParcels] = useState<any[]>([]);
   const [parcelTimeframe, setParcelTimeframe] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    const cached = readDashboardCache();
-    if (cached) {
-      setSnapshot({ ...cached.snapshot, routePlans: [] });
-      setFuelLogs(cached.fuelLogs);
-      setCostEntries(cached.costEntries);
-      setParcels(cached.parcels);
-      setIsLoading(false);
-      void getRoutePlans()
-        .then((routePlans) => {
-          if (active) setSnapshot((current) => ({ ...current, routePlans: Array.isArray(routePlans) ? routePlans : [] }));
-        })
-        .catch((error) => console.warn("Dashboard route plans are unavailable:", error));
-      return () => { active = false; };
-    }
-
-    const run = async () => {
-      setError(null);
-      setIsLoading(true);
-
-      const coreRequest = Promise.all([
-          getTrips({ light: true }),
-          getVehicles(),
-          getBookings(),
-          getRoutePlans().catch((routePlanError) => {
-            console.warn("Dashboard route plans are unavailable:", routePlanError);
-            return [];
-          }),
-      ]);
-      const analyticsRequest = Promise.all([
-        getDrivers(),
-        getFuelLogs(),
-        getCostEntries(),
-        // Dashboard counts must include assigned and completed parcels too.
-        getParcelHistory(),
-      ]);
-
+    let requestInFlight = false;
+    const loadSnapshot = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
       try {
-        const [trips, vehicles, bookings, routePlans] = await coreRequest;
+        const data = await fetchJson("/api/dashboard", { cache: "no-store" });
         if (!active) return;
-
-        const mergedBookings = Array.isArray(bookings) ? bookings : [...storeBookings];
         setSnapshot({
-          vehicles: Array.isArray(vehicles) ? vehicles : [],
-          trips: Array.isArray(trips) ? trips : [],
-          bookings: mergedBookings,
-          routePlans: Array.isArray(routePlans) ? routePlans : [],
-          drivers: [...storeDrivers],
+          vehicles: Array.isArray(data.vehicles) ? data.vehicles : [],
+          trips: Array.isArray(data.trips) ? data.trips : [],
+          bookings: Array.isArray(data.bookings) ? data.bookings : [],
+          routePlans: Array.isArray(data.routePlans) ? data.routePlans : [],
+          drivers: Array.isArray(data.drivers) ? data.drivers : [],
         });
-        writeDashboardCache({
-          snapshot: {
-            vehicles: Array.isArray(vehicles) ? vehicles : [],
-            trips: Array.isArray(trips) ? trips : [],
-            bookings: mergedBookings,
-            routePlans: Array.isArray(routePlans) ? routePlans : [],
-            drivers: [...storeDrivers],
-          },
-          fuelLogs: [],
-          costEntries: [],
-          parcels: storeParcels,
-        });
-        setIsLoading(false);
-
+        setParcels(Array.isArray(data.parcels) ? data.parcels : []);
+        setError(null);
       } catch (requestError) {
         console.error("Failed to load dashboard data:", requestError);
         if (active) setError(requestError instanceof Error ? requestError.message : "Failed to load dashboard data.");
       } finally {
+        requestInFlight = false;
         if (active) setIsLoading(false);
       }
+    };
 
+    const loadAnalytics = async () => {
       try {
-        const [drivers, fuelData, costData, parcelData] = await analyticsRequest;
+        const [fuelData, costData] = await Promise.all([getFuelLogs(), getCostEntries()]);
         if (!active) return;
-        const mergedDrivers = Array.isArray(drivers) ? drivers : [...storeDrivers];
-        const mergedParcels = Array.isArray(parcelData) ? [...parcelData, ...storeParcels] : [...storeParcels];
-        setSnapshot((current) => {
-          const nextSnapshot = { ...current, drivers: mergedDrivers };
-          writeDashboardCache({
-            snapshot: nextSnapshot,
-            fuelLogs: Array.isArray(fuelData) ? fuelData : [],
-            costEntries: Array.isArray(costData) ? costData : [],
-            parcels: mergedParcels,
-          });
-          return nextSnapshot;
-        });
         setFuelLogs(Array.isArray(fuelData) ? fuelData : []);
         setCostEntries(Array.isArray(costData) ? costData : []);
-        setParcels(mergedParcels);
       } catch (analyticsError) {
         console.warn("Dashboard analytics data is unavailable:", analyticsError);
       }
     };
 
-    const loadingTimeout = window.setTimeout(() => {
-      if (active) setIsLoading(false);
-    }, 3000);
-
-    void run();
+    void loadSnapshot();
+    void loadAnalytics();
+    const intervalId = window.setInterval(() => void loadSnapshot(), 30_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void loadSnapshot();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       active = false;
-      window.clearTimeout(loadingTimeout);
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 
@@ -577,49 +493,47 @@ export default function Home() {
     );
   }
 
-  const activeTripsCount = snapshot.trips.filter((trip) => isTripInTransitStatus(trip.status)).length;
-  const activeVehiclesCount = snapshot.vehicles.filter((v) => v.status === "active" || v.status === "moving").length;
-  const pendingBookingsCount = snapshot.bookings.filter((b) => b.status === "pending").length;
-  const totalVehiclesCount = snapshot.vehicles.length;
-  const totalTripsCount = snapshot.trips.length;
-  const totalBookingsCount = snapshot.bookings.length;
-  const tripDriverIds = new Set<string>();
-  snapshot.trips.forEach((trip) => {
-    const driverId = trip.driverId || trip.driver_id;
-    if (driverId) tripDriverIds.add(driverId);
+  const uniqueVehicles = Array.from(new Map(snapshot.vehicles.filter((vehicle) => vehicle.id)
+    .map((vehicle) => [String(vehicle.id), vehicle])).values());
+  const uniqueTrips = Array.from(new Map(snapshot.trips
+    .filter((trip) => trip.id)
+    .map((trip) => [String(trip.id), trip])).values());
+  const dashboardVehicleIds = new Set(uniqueVehicles.map((vehicle) => String(vehicle.id)));
+  const activeTripsByVehicle = new Map<string, DashboardTrip>();
+  uniqueTrips.filter((trip) => isOperationalTrip({ id: trip.id, status: trip.status })).forEach((trip) => {
+    const vehicleId = String(trip.vehicleId || trip.vehicle_id || "");
+    if (!vehicleId || !dashboardVehicleIds.has(vehicleId)) return;
+    const current = activeTripsByVehicle.get(vehicleId);
+    const timestamp = (value: DashboardTrip) => Date.parse(String(value.updatedAt || value.updated_at || value.createdAt || value.created_at || "")) || 0;
+    if (!current || timestamp(trip) > timestamp(current)) activeTripsByVehicle.set(vehicleId, trip);
   });
-  const assignedDriverKeys = new Set<string>();
-  if (tripDriverIds.size > 0) {
-    tripDriverIds.forEach((driverId) => assignedDriverKeys.add(`id:${driverId}`));
-  } else {
-    snapshot.drivers.forEach((driver) => {
-      if (driver.vehicle_id && driver.id) assignedDriverKeys.add(`id:${driver.id}`);
-    });
-    snapshot.vehicles.forEach((vehicle) => {
-      const driverKey = vehicle.driver_id || vehicle.driverName || vehicle.driver;
-      if (driverKey) assignedDriverKeys.add(`vehicle:${driverKey}`);
-    });
-  }
-  const totalDriversCount = assignedDriverKeys.size;
+  const activeTrips = Array.from(activeTripsByVehicle.values());
+  const activeTripsCount = activeTrips.length;
+  const activeVehiclesCount = uniqueVehicles.filter((vehicle) => /^(active|moving|in transit|assigned)$/i.test(String(vehicle.status ?? "").replace(/[_-]+/g, " ").trim())).length;
+  const pendingBookingsCount = snapshot.bookings.filter((booking) => /^pending$/i.test(String(booking.status ?? "").trim())).length;
+  const totalVehiclesCount = uniqueVehicles.length;
+  const totalTripsCount = uniqueTrips.length;
+  const totalBookingsCount = snapshot.bookings.length;
+  const totalDriversCount = new Set(snapshot.drivers.map((driver) => driver.id).filter(Boolean)).size;
 
   // Calculate real metrics
-  const fuelConsumptionData = calculateFuelConsumptionData(fuelLogs, snapshot.trips);
+  const fuelConsumptionData = calculateFuelConsumptionData(fuelLogs, uniqueTrips);
   const costBreakdownData = calculateCostBreakdownData(costEntries);
-  const fleetUtilizationData = calculateFleetUtilizationData(snapshot.vehicles);
-  const deliveryPerformanceData = calculateDeliveryPerformanceData(snapshot.trips);
+  const fleetUtilizationData = calculateFleetUtilizationData(uniqueVehicles);
+  const deliveryPerformanceData = calculateDeliveryPerformanceData(uniqueTrips);
   const parcelTrendData = calculateParcelTrendData(parcels, parcelTimeframe);
   const warehouseThroughputData = calculateWarehouseThroughputData(snapshot.bookings);
-  const routeCongestionData = calculateRouteCongestionData(snapshot.trips);
+  const routeCongestionData = calculateRouteCongestionData(uniqueTrips);
   const driverSafetyScoreData = calculateDriverSafetyScoreData(snapshot.drivers);
-  const driverPerformanceData = calculateDriverPerformanceData(snapshot.trips, snapshot.drivers);
+  const driverPerformanceData = calculateDriverPerformanceData(uniqueTrips, snapshot.drivers);
 
   // Calculate KPI values from real data
   const fleetEfficiency = fuelLogs.length > 0 && fuelLogs.reduce((sum, log) => sum + (log.liters || 0), 0) > 0
     ? (fuelLogs.reduce((sum, log) => sum + (log.cost || 0), 0) / fuelLogs.reduce((sum, log) => sum + (log.liters || 0), 1)).toFixed(1)
     : "0.0";
   
-  const completedTrips = snapshot.trips.filter(t => t.status === "completed").length;
-  const onTimeTrips = completedTrips - snapshot.trips.filter(t => t.status === "delayed").length;
+  const completedTrips = uniqueTrips.filter((trip) => isCompletedTripStatus(trip.status)).length;
+  const onTimeTrips = completedTrips - uniqueTrips.filter((trip) => /delayed|late/i.test(String(trip.status ?? ""))).length;
   const onTimeRate = completedTrips > 0 
     ? ((onTimeTrips / completedTrips) * 100).toFixed(1) 
     : "0.0";
@@ -630,8 +544,8 @@ export default function Home() {
 
   // Calculate parcel-related KPI values
   const totalParcelsCount = parcels.length;
-  const avgParcelsPerTrip = snapshot.trips.length > 0 
-    ? (totalParcelsCount / snapshot.trips.length).toFixed(1) 
+  const avgParcelsPerTrip = uniqueTrips.length > 0
+    ? (totalParcelsCount / uniqueTrips.length).toFixed(1)
     : "0.0";
   
   const totalParcelsWeight = parcels.reduce((sum, p) => sum + (p.weight_kg || 0), 0);
@@ -640,12 +554,12 @@ export default function Home() {
     : "0.0";
   
   const uniqueRoutes = new Set(
-    snapshot.trips
+    uniqueTrips
       .map(t => `${t.pickup_location || t.fromLocation || ""}->${t.destination_location || t.toLocation || ""}`)
       .filter(r => r !== "->")
   ).size;
   
-  const totalVehicleCapacity = snapshot.vehicles.reduce((sum, v) => sum + (v.capacityKg || 0), 0);
+  const totalVehicleCapacity = uniqueVehicles.reduce((sum, v) => sum + (v.capacityKg || 0), 0);
   const warehouseUtilization = totalVehicleCapacity > 0
     ? Math.round((totalParcelsWeight / totalVehicleCapacity) * 100)
     : 0;
@@ -658,11 +572,11 @@ export default function Home() {
   const fuelEfficiencyRatio = totalFuelConsumed > 0 
     ? (totalFuelCost / totalFuelConsumed).toFixed(2) 
     : "0.00";
-  const avgFuelPerTrip = snapshot.trips.length > 0 
-    ? (totalFuelConsumed / snapshot.trips.length).toFixed(2) 
+  const avgFuelPerTrip = uniqueTrips.length > 0
+    ? (totalFuelConsumed / uniqueTrips.length).toFixed(2)
     : "0.00";
-  const avgFuelCostPerTrip = snapshot.trips.length > 0 
-    ? (totalFuelCost / snapshot.trips.length).toFixed(2) 
+  const avgFuelCostPerTrip = uniqueTrips.length > 0
+    ? (totalFuelCost / uniqueTrips.length).toFixed(2)
     : "0.00";
 
   // Calculate cost analysis KPI values
@@ -673,8 +587,8 @@ export default function Home() {
   const maintenanceCost = costEntries.filter(e => /maintenance|service|repair/i.test(e.category || "")).reduce((sum, e) => sum + (e.amount || 0), 0);
   const driverAllowanceCost = costEntries.filter((entry) => /driver\s*allowance|allowance/i.test(String(entry.category || ""))).reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const mobileDataCost = costEntries.filter((entry) => /mobile\s*data|data\s*(?:&|and)?\s*internet|internet/i.test(String(entry.category || ""))).reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-  const avgCostPerVehicle = snapshot.vehicles.length > 0 
-    ? (totalOperatingCost / snapshot.vehicles.length).toFixed(2) 
+  const avgCostPerVehicle = uniqueVehicles.length > 0
+    ? (totalOperatingCost / uniqueVehicles.length).toFixed(2)
     : "0.00";
   const snapshotPercentage = (count: number, total: number) =>
     total > 0 ? `${((count / total) * 100).toFixed(1)}%` : "—";
@@ -726,6 +640,7 @@ export default function Home() {
           bookings={snapshot.bookings}
           parcels={parcels}
           drivers={snapshot.drivers}
+          routePlans={snapshot.routePlans ?? []}
           isFullscreen={true}
           onToggleFullscreen={() => setDashboardFullscreen(false)}
         />
@@ -940,53 +855,6 @@ export default function Home() {
 
         </div>
 
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Persisted Route Plans</h2>
-              <p className="text-xs text-slate-500">Saved route calculations from Supabase</p>
-            </div>
-            <span className="text-xs font-semibold text-slate-500">{snapshot.routePlans?.length ?? 0} plans</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] border-collapse text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-2 font-semibold">Route / IDs</th>
-                  <th className="px-3 py-2 font-semibold">Baseline</th>
-                  <th className="px-3 py-2 font-semibold">Optimized</th>
-                  <th className="px-3 py-2 font-semibold">Saved</th>
-                  <th className="px-3 py-2 font-semibold">Fuel</th>
-                  <th className="px-3 py-2 font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {(snapshot.routePlans || []).slice(0, 8).map((plan) => {
-                  const formatKm = (value: unknown) => Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} km` : "—";
-                  const formatMinutes = (value: unknown) => Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)} min` : "—";
-                  const distanceSaved = plan.distanceSavedKm ?? plan.distance_saved_km;
-                  return (
-                    <tr key={String(plan.id)} className="text-slate-700">
-                      <td className="px-4 py-2.5">
-                        <div className="font-semibold text-slate-900">{plan.courier || plan.id || "Route plan"}</div>
-                        <div className="mt-0.5 text-[10px] text-slate-500">{plan.id || "No route ID"} · {plan.vehicleId || plan.vehicle_id || "No vehicle"} · {plan.driverId || plan.driver_id || "No driver"}</div>
-                      </td>
-                      <td className="px-3 py-2.5">{formatKm(plan.baselineDistanceKm ?? plan.baseline_distance_km)}<div className="text-[10px] text-slate-500">{formatMinutes(plan.baselineDurationMinutes ?? plan.baseline_duration_min)}</div></td>
-                      <td className="px-3 py-2.5">{formatKm(plan.optimizedDistanceKm ?? plan.optimized_distance_km ?? plan.distanceKm ?? plan.distance_km)}<div className="text-[10px] text-slate-500">{formatMinutes(plan.optimizedDurationMinutes ?? plan.optimized_duration_min ?? plan.durationMinutes ?? plan.estimated_duration_min)}</div></td>
-                      <td className="px-3 py-2.5">{formatKm(distanceSaved)}</td>
-                      <td className="px-3 py-2.5">{Number.isFinite(Number(plan.fuelSavedLiters ?? plan.fuel_saved_liters)) ? `${Number(plan.fuelSavedLiters ?? plan.fuel_saved_liters).toFixed(2)} L` : "—"}</td>
-                      <td className="px-3 py-2.5">{plan.status || "—"}</td>
-                    </tr>
-                  );
-                })}
-                {(!snapshot.routePlans || snapshot.routePlans.length === 0) && (
-                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">No persisted route plans found.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
         {/* 12-Column Full-Width Responsive Dashboard Grid - Map Centered with Charts on Sides */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch w-full">
           
@@ -1073,6 +941,7 @@ export default function Home() {
                 bookings={snapshot.bookings}
                 parcels={parcels}
                 drivers={snapshot.drivers}
+                routePlans={snapshot.routePlans ?? []}
                 isFullscreen={false}
                 onToggleFullscreen={() => setDashboardFullscreen(true)}
               />

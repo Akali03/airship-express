@@ -5,8 +5,8 @@ Reads a JSON payload from stdin describing an origin, a destination, and a
 set of waypoints ("stops"), solves a single-vehicle open-path routing
 problem (a TSP variant) with OR-Tools' constraint solver, and writes the
 optimized stop order + resulting route metrics to stdout as JSON. Both OSRM
-distance and duration matrices are required; travel time is the primary
-objective and distance is a deterministic secondary objective.
+distance and duration matrices are required; optimizationMode selects the
+primary objective or balances normalized time and distance costs.
 
 This is invoked by the FTM Next.js API locally and by the colocated Python
 runtime in production. It runs OR-Tools whenever Python has the `ortools`
@@ -63,6 +63,9 @@ def solve(payload):
     stops = payload.get("stops", [])
     available_vehicles = payload.get("availableVehicles") or []
     vehicle_count = max(1, payload.get("vehicleCount") or len(available_vehicles) or min(3, max(1, len(stops))))
+    optimization_mode = payload.get("optimizationMode") or "fastest"
+    if optimization_mode not in {"fastest", "shortest", "fuel", "balanced"}:
+        optimization_mode = "fastest"
 
     if not stops:
         raise ValueError("At least one stop is required")
@@ -104,26 +107,39 @@ def solve(payload):
     manager = pywrapcp.RoutingIndexManager(location_count, vehicle_count, [0] * vehicle_count, [location_count - 1] * vehicle_count)
     routing = pywrapcp.RoutingModel(manager)
     max_distance_cost = max(
-        int(round(value * 1_609_344))
+        int(round(value * 1_609.344))
         for row in distance_matrix
         for value in row
     )
     max_route_arcs = len(stops) + vehicle_count
     distance_tiebreak_scale = max_distance_cost * max_route_arcs + 1
+    balanced_cost_scale = 1_000_000
     max_time_cost = max(
-        int(round(value * 60_000))
+        int(round(value * 60))
         for row in duration_matrix
         for value in row
     )
-    max_encoded_cost = max_time_cost * distance_tiebreak_scale + max_distance_cost
+    time_tiebreak_scale = max_time_cost * max_route_arcs + 1
+    if optimization_mode == "balanced":
+        max_encoded_cost = balanced_cost_scale * 2
+    elif optimization_mode in {"shortest", "fuel"}:
+        max_encoded_cost = max_distance_cost * time_tiebreak_scale + max_time_cost
+    else:
+        max_encoded_cost = max_time_cost * distance_tiebreak_scale + max_distance_cost
     if max_encoded_cost * max_route_arcs > 2**63 - 1:
         raise ValueError("The supplied route costs exceed OR-Tools' supported integer range")
 
     def cost_callback(from_index, to_index):
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
-        time_cost = int(round(duration_matrix[from_node][to_node] * 60_000))
-        distance_cost = int(round(distance_matrix[from_node][to_node] * 1_609_344))
+        time_cost = int(round(duration_matrix[from_node][to_node] * 60))
+        distance_cost = int(round(distance_matrix[from_node][to_node] * 1_609.344))
+        if optimization_mode == "balanced":
+            normalized_time = (time_cost * balanced_cost_scale + max(max_time_cost, 1) // 2) // max(max_time_cost, 1)
+            normalized_distance = (distance_cost * balanced_cost_scale + max(max_distance_cost, 1) // 2) // max(max_distance_cost, 1)
+            return normalized_time + normalized_distance
+        if optimization_mode in {"shortest", "fuel"}:
+            return distance_cost * time_tiebreak_scale + time_cost
         return time_cost * distance_tiebreak_scale + distance_cost
 
     transit_callback_index = routing.RegisterTransitCallback(cost_callback)

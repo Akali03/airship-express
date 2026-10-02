@@ -60,50 +60,76 @@ async function fetchOsrmCostMatrix(
 ): Promise<{ distanceMatrix: number[][]; durationMatrix: number[][] } | null> {
   const points = [origin, ...stops, destination];
   const coordinates = points.map((point) => `${point.lng},${point.lat}`).join(";");
-  const url = new URL(`https://router.project-osrm.org/table/v1/driving/${coordinates}`);
-  url.searchParams.set("annotations", "distance,duration");
+  const tableEndpoints = [
+    "https://router.project-osrm.org/table/v1/driving/",
+    "https://routing.openstreetmap.de/routed-car/table/v1/driving/",
+  ];
 
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(7000),
-    });
-    const responseText = await response.text();
-    if (!response.ok) {
-      console.warn("[optimize-route] OSRM table request failed", {
-        status: response.status,
-        details: responseText.slice(0, 1000),
+  for (const endpoint of tableEndpoints) {
+    const url = new URL(`${endpoint}${coordinates}`);
+    url.searchParams.set("annotations", "distance,duration");
+
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(7000),
       });
-      return null;
-    }
+      const responseText = await response.text();
+      if (!response.ok) {
+        console.warn("[optimize-route] OSRM table endpoint failed", {
+          endpoint,
+          status: response.status,
+          details: responseText.slice(0, 1000),
+        });
+        continue;
+      }
 
-    const result = JSON.parse(responseText);
-    if (result.code !== "Ok" || !Array.isArray(result.distances) || !Array.isArray(result.durations)) {
-      console.warn("[optimize-route] OSRM returned an invalid cost matrix", {
-        code: result.code,
-        details: responseText.slice(0, 1000),
+      const result = JSON.parse(responseText);
+      if (result.code !== "Ok" || !Array.isArray(result.distances) || !Array.isArray(result.durations)) {
+        console.warn("[optimize-route] OSRM returned an invalid cost matrix", {
+          endpoint,
+          code: result.code,
+          details: responseText.slice(0, 1000),
+        });
+        continue;
+      }
+
+      const validMatrix = (matrix: unknown[]) => matrix.length === points.length
+        && matrix.every((row) => Array.isArray(row)
+          && row.length === points.length
+          && row.every((value) => typeof value === "number" && Number.isFinite(value) && value >= 0));
+      if (!validMatrix(result.distances) || !validMatrix(result.durations)) {
+        console.warn("[optimize-route] OSRM returned null, negative, or non-finite matrix costs", { endpoint });
+        continue;
+      }
+      const distanceMatrix = result.distances.map((row: number[]) => row.map((value) => value / 1609.344));
+      const durationMatrix = result.durations.map((row: number[]) => row.map((value) => value / 60));
+      return { distanceMatrix, durationMatrix };
+    } catch (error) {
+      console.warn("[optimize-route] OSRM table endpoint failed", {
+        endpoint,
+        error: error instanceof Error ? error.message : String(error),
       });
-      return null;
     }
-
-    const validMatrix = (matrix: unknown[]) => matrix.length === points.length
-      && matrix.every((row) => Array.isArray(row)
-        && row.length === points.length
-        && row.every((value) => typeof value === "number" && Number.isFinite(value) && value >= 0));
-    if (!validMatrix(result.distances) || !validMatrix(result.durations)) {
-      console.warn("[optimize-route] OSRM returned null, negative, or non-finite matrix costs");
-      return null;
-    }
-    const distanceMatrix = result.distances.map((row: number[]) => row.map((value) => value / 1609.344));
-    const durationMatrix = result.durations.map((row: number[]) => row.map((value) => value / 60));
-    return { distanceMatrix, durationMatrix };
-  } catch (error) {
-    console.warn("[optimize-route] OSRM table request failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
   }
+
+  return null;
+}
+
+function estimateCostMatrices(points: Array<{ lat: number; lng: number }>): { distanceMatrix: number[][]; durationMatrix: number[][] } {
+  const distanceMatrix = points.map((from, fromIndex) => points.map((to, toIndex) => {
+    if (fromIndex === toIndex) return 0;
+    const radians = Math.PI / 180;
+    const latitudeDelta = (to.lat - from.lat) * radians;
+    const longitudeDelta = (to.lng - from.lng) * radians;
+    const haversine = Math.sin(latitudeDelta / 2) ** 2
+      + Math.cos(from.lat * radians) * Math.cos(to.lat * radians) * Math.sin(longitudeDelta / 2) ** 2;
+    const straightLineMiles = 2 * 3958.7613 * Math.asin(Math.sqrt(Math.min(1, haversine)));
+    return straightLineMiles * 1.3;
+  }));
+  const durationMatrix = distanceMatrix.map((row) => row.map((distanceMiles) => distanceMiles * 1.609344 / 30 * 60));
+  return { distanceMatrix, durationMatrix };
 }
 
 function computeFuelSavingsPct(baselineDistanceMi: number, optimizedDistanceMi: number): number {
@@ -153,15 +179,19 @@ export async function POST(req: NextRequest) {
 
   try {
     const roadCosts = await fetchOsrmCostMatrix(normalizedBody.origin, normalizedBody.destination, normalizedBody.stops);
+    const costSource = roadCosts ? "osrm" : "estimated";
+    const costMatrices = roadCosts ?? estimateCostMatrices([
+      normalizedBody.origin,
+      ...normalizedBody.stops,
+      normalizedBody.destination,
+    ]);
     if (!roadCosts) {
-      return NextResponse.json({
-        error: "Unable to optimize route because OSRM did not provide a complete travel-time and distance matrix.",
-      }, { status: 502 });
+      console.warn("[optimize-route] Using coordinate-based estimated costs because OSRM did not return a complete matrix.");
     }
-    const solved = await runOrTools({
+    let solved = await runOrTools({
       ...normalizedBody,
-      distanceMatrix: roadCosts.distanceMatrix,
-      durationMatrix: roadCosts.durationMatrix,
+      distanceMatrix: costMatrices.distanceMatrix,
+      durationMatrix: costMatrices.durationMatrix,
     });
     const routeStopIds = solved.routes.flatMap((route) => route.orderedStopIds || []);
     const selectedStopIds = normalizedBody.stops.map((stop: any) => stop.id);
@@ -172,6 +202,48 @@ export async function POST(req: NextRequest) {
       || new Set(routeStopIds).size !== selectedStopIds.length
       || routeStopIds.some((id, index) => !selectedStopIds.includes(id) || id !== solved.orderedStopIds[index])) {
       throw Object.assign(new Error("OR-Tools did not return every selected stop exactly once."), { status: 502 });
+    }
+    const stopIndex = new Map(normalizedBody.stops.map((stop: any, index: number) => [stop.id, index + 1]));
+    const matrixRouteCost = (orderedIds: string[], matrix: number[][]) => {
+      const indexes = [0, ...orderedIds.map((id) => stopIndex.get(id)!), normalizedBody.stops.length + 1];
+      return indexes.slice(0, -1).reduce((total, from, index) => total + (matrix[from][indexes[index + 1]] ?? 0), 0);
+    };
+    const matrixObjectiveCost = (orderedIds: string[], matrix: number[][], scale: number) => {
+      const indexes = [0, ...orderedIds.map((id) => stopIndex.get(id)!), normalizedBody.stops.length + 1];
+      return indexes.slice(0, -1).reduce(
+        (total, from, index) => total + Math.round(matrix[from][indexes[index + 1]] * scale),
+        0
+      );
+    };
+    if (solved.routes.length === 1) {
+      const baselineStopIds = normalizedBody.stops.map((stop: any) => stop.id);
+      const baselineTimeCost = matrixObjectiveCost(baselineStopIds, costMatrices.durationMatrix, 60);
+      const optimizedTimeCost = matrixObjectiveCost(solved.orderedStopIds, costMatrices.durationMatrix, 60);
+      const baselineDistanceCost = matrixObjectiveCost(baselineStopIds, costMatrices.distanceMatrix, 1609.344);
+      const optimizedDistanceCost = matrixObjectiveCost(solved.orderedStopIds, costMatrices.distanceMatrix, 1609.344);
+      const optimizationMode = normalizedBody.optimizationMode || "fastest";
+      const keepBaseline = optimizationMode === "balanced"
+        ? optimizedTimeCost > baselineTimeCost || optimizedDistanceCost > baselineDistanceCost
+        : optimizationMode === "shortest" || optimizationMode === "fuel"
+          ? optimizedDistanceCost > baselineDistanceCost
+            || (optimizedDistanceCost === baselineDistanceCost && optimizedTimeCost > baselineTimeCost)
+          : optimizedTimeCost > baselineTimeCost
+            || (optimizedTimeCost === baselineTimeCost && optimizedDistanceCost > baselineDistanceCost);
+      if (keepBaseline) {
+        const baselineDistanceMi = matrixRouteCost(baselineStopIds, costMatrices.distanceMatrix);
+        const baselineDurationMinutes = matrixRouteCost(baselineStopIds, costMatrices.durationMatrix);
+        solved = {
+          ...solved,
+          orderedStopIds: baselineStopIds,
+          routes: solved.routes.map((route) => ({
+            ...route,
+            orderedStopIds: baselineStopIds,
+            distanceMi: baselineDistanceMi,
+            etaMinutes: baselineDurationMinutes,
+          })),
+        };
+        console.warn("[optimize-route] Keeping the submitted stop order because the solver result scored worse.");
+      }
     }
     const orderedStops = solved.orderedStopIds
       .map((id: string) => normalizedBody.stops.find((s: any) => s.id === id))
@@ -212,20 +284,14 @@ export async function POST(req: NextRequest) {
         ...orderedStops.map((s: any) => ({ lat: s.lat, lng: s.lng })),
         normalizedBody.destination,
       ];
-    const matrixRouteCost = (orderedIds: string[], matrix: number[][] | undefined) => {
-      if (!matrix || matrix.length !== normalizedBody.stops.length + 2) return 0;
-      const stopIndex = new Map(normalizedBody.stops.map((stop: any, index: number) => [stop.id, index + 1]));
-      const indexes = [0, ...orderedIds.map((id) => stopIndex.get(id)!), normalizedBody.stops.length + 1];
-      return indexes.slice(0, -1).reduce((total, from, index) => total + (matrix[from][indexes[index + 1]] ?? 0), 0);
-    };
     const matrixRouteTotal = (matrix: number[][]) => solved.routes.reduce(
       (total, route) => total + matrixRouteCost(route.orderedStopIds || [], matrix),
       0
     );
-    const baselineRoadDistanceMi = matrixRouteCost(normalizedBody.stops.map((stop: any) => stop.id), roadCosts.distanceMatrix);
-    const displayedRoadDistanceMi = matrixRouteTotal(roadCosts.distanceMatrix);
-    const baselineRoadDurationMin = matrixRouteCost(normalizedBody.stops.map((stop: any) => stop.id), roadCosts.durationMatrix);
-    const displayedRoadDurationMin = Math.max(...solved.routes.map((route) => matrixRouteCost(route.orderedStopIds || [], roadCosts.durationMatrix)));
+    const baselineRoadDistanceMi = matrixRouteCost(normalizedBody.stops.map((stop: any) => stop.id), costMatrices.distanceMatrix);
+    const displayedRoadDistanceMi = matrixRouteTotal(costMatrices.distanceMatrix);
+    const baselineRoadDurationMin = matrixRouteCost(normalizedBody.stops.map((stop: any) => stop.id), costMatrices.durationMatrix);
+    const displayedRoadDurationMin = Math.max(...solved.routes.map((route) => matrixRouteCost(route.orderedStopIds || [], costMatrices.durationMatrix)));
     const baselineDistanceMi = baselineRoadDistanceMi;
     const selectedRoadDistanceMi = displayedRoadDistanceMi;
     const distanceSavedMi = baselineDistanceMi - selectedRoadDistanceMi;
@@ -246,6 +312,7 @@ export async function POST(req: NextRequest) {
       ? null
       : baselineFuelLiters - optimizedFuelLiters;
     const baselineEtaMinutes = baselineRoadDurationMin;
+    const baselineDisplayEtaMinutes = Math.round(baselineRoadDurationMin);
     const selectedRoadEtaMinutes = Math.round(displayedRoadDurationMin);
     const fuelSavingsPct = computeFuelSavingsPct(baselineDistanceMi, selectedRoadDistanceMi);
     const baselineRoute = {
@@ -265,7 +332,8 @@ export async function POST(req: NextRequest) {
       polyline,
     };
 
-    console.info("[optimize-route] OSRM route comparison", {
+    console.info("[optimize-route] Route comparison", {
+      costSource,
       vehicleId,
       stopCount: selectedStopIds.length,
       optimizedOrderChanged: solved.orderedStopIds.some((id, index) => id !== selectedStopIds[index]),
@@ -281,6 +349,7 @@ export async function POST(req: NextRequest) {
     });
 
     result = {
+      costSource,
       orderedStopIds: solved.orderedStopIds,
       routes: routeResults,
       vehicleId,
@@ -297,7 +366,7 @@ export async function POST(req: NextRequest) {
       baselineFuelLiters,
       optimizedFuelLiters,
       fuelSavedLiters,
-      etaImprovementMin: Math.max(0, baselineEtaMinutes - selectedRoadEtaMinutes),
+      etaImprovementMin: Math.max(0, baselineDisplayEtaMinutes - selectedRoadEtaMinutes),
       baselineDistanceMi,
       baselineEtaMinutes,
       engine: solved.engine,

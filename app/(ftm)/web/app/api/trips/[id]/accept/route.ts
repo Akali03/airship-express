@@ -33,5 +33,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data, error } = await supabase.from("trips").update(update).eq("id", params.id).select("*").maybeSingle();
   if (error) return NextResponse.json({ error: "Failed to accept trip" }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+  if (data.booking_id && data.driver_id && data.vehicle_id) {
+    const now = new Date().toISOString();
+    const { error: assignmentError } = await supabase.from("booking_assignments").upsert({
+      booking_id: data.booking_id,
+      driver_id: data.driver_id,
+      vehicle_id: data.vehicle_id,
+      route_plan_id: data.route_plan_id || null,
+      assigned_at: now,
+      status: "accepted",
+      updated_at: now,
+    }, { onConflict: "booking_id" });
+    if (assignmentError) return NextResponse.json({ error: `Trip accepted, but the shared assignment could not be synchronized: ${assignmentError.message}` }, { status: 500 });
+    const { error: bookingError } = await supabase.from("bookings").update({ status: "DRIVER_VEHICLE_ASSIGNED" }).eq("id", data.booking_id);
+    if (bookingError) return NextResponse.json({ error: `Trip accepted, but the booking status could not be synchronized: ${bookingError.message}` }, { status: 500 });
+  }
   return NextResponse.json(normalizeTrip(data));
 }

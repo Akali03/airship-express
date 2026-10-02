@@ -31,9 +31,13 @@ export function isTripInTransitStatus(status?: string | null) {
 
 export function isOperationalTrip(trip: { id?: string | null; trip_id?: string | null; status?: string | null }) {
   const status = String(trip.status ?? "").trim().toLowerCase();
-  if (!status) return Boolean(trip.id ?? trip.trip_id);
+  if (!status) return false;
   if (/completed|cancelled|canceled|delivered|failed|closed/.test(status)) return false;
-  return /transit|assigned|dispatch|scheduled|active|moving|in_transit|in transit|en route|route|delayed|late|critical/.test(status);
+  return /transit|assigned|accepted|pickup confirmed|pickup assigned|dispatch|scheduled|active|moving|in_transit|in transit|en route|route|delayed|late|critical/.test(status);
+}
+
+export function isCompletedTripStatus(status?: string | null) {
+  return /\b(completed|delivered|finished|arrived)\b/i.test(String(status ?? "").replace(/[_-]+/g, " "));
 }
 
 export type Parcel = {

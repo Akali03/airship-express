@@ -24,22 +24,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (!parcels) return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   const safeUpdate: Record<string, any> = {};
 
-  if (body.booking_id != null) {
-    const bookingId = String(body.booking_id);
-    const { data: booking, error } = await context.serviceClient.from("bookings").select("id").eq("id", bookingId).maybeSingle();
-    if (error) return NextResponse.json({ error: "Failed to validate booking_id" }, { status: 500 });
-    if (!booking) {
-      const { error: insertError } = await context.serviceClient.from("bookings").insert({
-        id: bookingId,
-        pickup_location: "Bulk Attach",
-        dropoff_location: "Multiple Destinations",
-        status: "Pending",
-      });
-      if (insertError) return NextResponse.json({ error: "Failed to create fallback booking", details: insertError.message }, { status: 500 });
-    }
-    safeUpdate.booking_id = bookingId;
+  if (body.booking_id != null || body.trip_id != null) {
+    return NextResponse.json({ error: "Link parcels through the booking manifest; parcel records do not store booking_id or trip_id." }, { status: 400 });
   }
-  if (body.trip_id != null) safeUpdate.trip_id = String(body.trip_id);
   if (body.status != null) {
     const allowed = await getAllowedParcelStatuses(parcels);
     const status = normalizeParcelStatus(body.status) || String(body.status);
