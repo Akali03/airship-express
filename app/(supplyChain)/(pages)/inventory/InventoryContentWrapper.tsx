@@ -374,37 +374,72 @@ export default function InventoryClient() {
         fetchRequestsData(true);
     }, [requestsPage, debouncedRequestsSearch, requestsStatusFilter, requestsTypeFilter, fetchRequestsData, activeTab]);
 
-    // Inventory filter/search effect (only runs when active tab is inventory)
+    // Reset inventory page to 1 when filters or search change
+    const prevInventoryFiltersRef = useRef({
+        search: debouncedSearchTerm,
+        category: categoryFilter,
+        status: statusFilter,
+    });
     useEffect(() => {
-        if (isInitialLoad.current || activeTab !== 'inventory') return;
-        setInventoryPage(1);
-        const timeoutId = setTimeout(() => {
-            fetchInventoryData(true);
-        }, 300);
-        return () => clearTimeout(timeoutId);
-    }, [debouncedSearchTerm, categoryFilter, statusFilter, fetchInventoryData, activeTab]);
+        const prev = prevInventoryFiltersRef.current;
+        const hasChanged =
+            prev.search !== debouncedSearchTerm ||
+            prev.category !== categoryFilter ||
+            prev.status !== statusFilter;
 
-    // Inventory page change
+        if (hasChanged) {
+            prevInventoryFiltersRef.current = {
+                search: debouncedSearchTerm,
+                category: categoryFilter,
+                status: statusFilter,
+            };
+            setInventoryPage(1);
+        }
+    }, [debouncedSearchTerm, categoryFilter, statusFilter]);
+
+    // Inventory fetch effect (runs when page, filters, or active tab changes)
     useEffect(() => {
         if (isInitialLoad.current || activeTab !== 'inventory') return;
         fetchInventoryData(true);
-    }, [inventoryPage, fetchInventoryData, activeTab]);
+    }, [inventoryPage, debouncedSearchTerm, categoryFilter, statusFilter, fetchInventoryData, activeTab]);
 
-    // Parcels filter/search effect (only runs when active tab is parcels)
+    // Reset parcel page to 1 when filters or search change
+    const prevParcelFiltersRef = useRef({
+        search: debouncedParcelSearch,
+        status: parcelStatusFilter,
+        driver: parcelDriverFilter,
+        dateFrom: effectiveParcelDateFrom,
+        dateTo: effectiveParcelDateTo,
+        scannedBy: parcelScannedByFilter,
+    });
     useEffect(() => {
-        if (isInitialLoad.current || activeTab !== 'parcels') return;
-        setParcelPage(1);
-        const timeoutId = setTimeout(() => {
-            fetchParcelsData(true);
-        }, 300);
-        return () => clearTimeout(timeoutId);
-    }, [debouncedParcelSearch, parcelStatusFilter, parcelDriverFilter, effectiveParcelDateFrom, effectiveParcelDateTo, parcelScannedByFilter, fetchParcelsData, activeTab]);
+        const prev = prevParcelFiltersRef.current;
+        const hasChanged =
+            prev.search !== debouncedParcelSearch ||
+            prev.status !== parcelStatusFilter ||
+            prev.driver !== parcelDriverFilter ||
+            prev.dateFrom !== effectiveParcelDateFrom ||
+            prev.dateTo !== effectiveParcelDateTo ||
+            prev.scannedBy !== parcelScannedByFilter;
 
-    // Parcels page change
+        if (hasChanged) {
+            prevParcelFiltersRef.current = {
+                search: debouncedParcelSearch,
+                status: parcelStatusFilter,
+                driver: parcelDriverFilter,
+                dateFrom: effectiveParcelDateFrom,
+                dateTo: effectiveParcelDateTo,
+                scannedBy: parcelScannedByFilter,
+            };
+            setParcelPage(1);
+        }
+    }, [debouncedParcelSearch, parcelStatusFilter, parcelDriverFilter, effectiveParcelDateFrom, effectiveParcelDateTo, parcelScannedByFilter]);
+
+    // Parcels fetch effect (runs when page, filters, or active tab changes)
     useEffect(() => {
         if (isInitialLoad.current || activeTab !== 'parcels') return;
         fetchParcelsData(true);
-    }, [parcelPage, fetchParcelsData, activeTab]);
+    }, [parcelPage, debouncedParcelSearch, parcelStatusFilter, parcelDriverFilter, effectiveParcelDateFrom, effectiveParcelDateTo, parcelScannedByFilter, fetchParcelsData, activeTab]);
 
     // Realtime Supabase Subscription for Parcels - smoothly updates local state without full re-fetch or page reload
     useEffect(() => {

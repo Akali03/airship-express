@@ -182,9 +182,9 @@ export const ParcelsTab = memo(function ParcelsTab({
             const isCompleted = state === 'completed';
             const isCurrent = state === 'current';
             const isPending = state === 'pending';
-            let timestamp = null;
-            let formattedDate = null;
-            let relativeTime = null;
+            let timestamp: Date | null = null;
+            let formattedDate: string | null = null;
+            let relativeTime: string | null = null;
             if (isCompleted || isCurrent) {
                 if (isCurrent) {
                     timestamp = new Date(parcel.updated_at);
