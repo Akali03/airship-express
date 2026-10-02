@@ -34,7 +34,6 @@ export default async function Register() {
 
                 <div className="flex items-center gap-3 relative z-10">
                     <Image src={AirshipExpressLogo} alt="Logo" width={100} height={100} className="h-auto"/>
-                    <span className="text-foreground text-lg font-semibold tracking-wide">Airship</span>
                 </div>
 
               <div className="relative z-10 max-w-sm mb-auto mt-auto">

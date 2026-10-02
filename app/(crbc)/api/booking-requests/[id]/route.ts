@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAnyStaff } from "../../../library/auth/rbac";
 import { createClient } from "../../../library/supabase/server";
 import { adminCreateClient } from "../../../library/supabase/admin";
 import { isServiceCall } from "../../../library/auth/service-call";
@@ -55,7 +56,7 @@ export async function PATCH(
         .eq("id", user.id)
         .maybeSingle();
 
-      const isStaff = profile?.role === "staff";
+      const isStaff = isAnyStaff(profile?.role);
 
       if (isStaff && !STAFF_ALLOWED_STATUSES.includes(status)) {
         return NextResponse.json(
@@ -89,7 +90,7 @@ export async function PATCH(
         .select("role")
         .eq("id", (await supabase.auth.getUser()).data.user?.id)
         .maybeSingle();
-      const isStaff = profile?.role === "staff";
+      const isStaff = isAnyStaff(profile?.role);
 
       if (!isStaff) {
         // Ownership is carried by customers.auth_user_id. customers.id is a
@@ -167,7 +168,7 @@ export async function GET(
       .eq("id", user.id)
       .maybeSingle();
 
-    const isStaff = !profileError && profile?.role === "staff";
+    const isStaff = !profileError && isAnyStaff(profile?.role);
 
     // Check if user has a customer profile
     const { data: customer, error: customerError } = await supabase

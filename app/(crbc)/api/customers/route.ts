@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAnyStaff } from "../../library/auth/rbac";
 import { createClient } from "@/app/(crbc)/library/supabase/server";
 
 export async function POST(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const isStaff = !profileError && profile?.role === "staff";
+    const isStaff = !profileError && isAnyStaff(profile?.role);
 
     if (!isStaff) {
       return NextResponse.json(

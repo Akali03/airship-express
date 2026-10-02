@@ -7,7 +7,12 @@ import type {
 } from "../../types/booking-request";
 import { isValidEmail, isValidPhone, normalizePhone } from "./customer.data.validate";
 
-const CHANNELS: InteractionChannel[] = ["WALK_IN", "PHONE_CALL", "PORTAL"];
+const CHANNELS: InteractionChannel[] = [
+  "WALK_IN",
+  "PHONE_CALL",
+  "PORTAL",
+  "MESSENGER",
+];
 const PACKAGE_TYPES: PackageType[] = ["box", "parcel", "document"];
 
 export interface BookingRequestDraft {

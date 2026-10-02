@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../library/supabase/server";
+import { isAnyStaff } from "../../../library/auth/rbac";
 
 export async function POST(request: Request) {
   try {
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     }
 
     // Make sure this is a staff account
-    if (!profile || profile.role !== "staff") {
+    if (!profile || !isAnyStaff(profile.role)) {
       await supabase.auth.signOut();
 
       return NextResponse.json(

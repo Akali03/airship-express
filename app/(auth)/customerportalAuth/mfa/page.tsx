@@ -78,6 +78,8 @@ export default function CustomerMfaPage() {
 
           // Auto-send OTP
           await sendOtp();
+        } else if (data.reason === "already_verified") {
+          setIsLoading(false);
         } else if (data.redirectTo === "dashboard") {
           router.push("/customer/dashboard");
           router.refresh();

@@ -3,6 +3,7 @@
 import { createClient } from "../library/supabase/server";
 import { sendMfaCodeEmail } from "../lib/email/sendMfaCode";
 import { generateOtp, hashOtp, verifyOtp } from "../lib/utils/otp";
+import { recordAudit } from "../services/audit.service";
 
 export interface MfaActionResult {
   success: boolean;
@@ -213,12 +214,12 @@ export async function enableMfaWithPassword(
     return { success: false, error: "Invalid password" };
   }
 
-  // Enable MFA (no backup codes for simplified flow)
+
   const { error: updateError } = await supabase
     .from("profiles")
     .update({
       mfa_enabled: true,
-      mfa_email_verified: true,
+      mfa_email_verified: false,
       mfa_secret_hash: null,
       mfa_backup_codes: [],
       mfa_last_used_at: new Date().toISOString(),
@@ -229,6 +230,13 @@ export async function enableMfaWithPassword(
     console.error("MFA enable error:", updateError);
     return { success: false, error: "Failed to enable MFA" };
   }
+
+  await recordAudit({
+    action: "mfa.enabled",
+    targetType: "profile",
+    targetId: userId,
+    description: "Multi-factor authentication enabled",
+  });
 
   // Send MFA enabled notification email
   try {
@@ -363,6 +371,13 @@ export async function disableMfa(
     console.error("MFA disable error:", updateError);
     return { success: false, error: "Failed to disable MFA" };
   }
+
+  await recordAudit({
+    action: "mfa.disabled",
+    targetType: "profile",
+    targetId: userId,
+    description: "Multi-factor authentication disabled",
+  });
 
   return { success: true };
 }

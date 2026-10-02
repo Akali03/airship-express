@@ -158,3 +158,125 @@ export async function getAnalyticsSummary() {
     shipmentDataSource: shipments[0]?.source ?? "mock",
   };
 }
+
+export type BookingAnalytics = {
+  totalBookings: number;
+  /** counts keyed by request_channel: PORTAL | WALK_IN | PHONE_CALL */
+  bookingsByChannel: { channel: string; label: string; count: number }[];
+  /** counts keyed by booking_requests.status */
+  bookingsByStatus: { status: string; count: number }[];
+  /** Monthly booking volume for the last 6 months. */
+  bookingTrend: { month: string; count: number }[];
+  totalInteractions: number;
+  interactionsByType: { type: string; label: string; count: number }[];
+  interactionTrend: { month: string; count: number }[];
+};
+
+const CHANNEL_LABELS: Record<string, string> = {
+  PORTAL: "Portal",
+  WALK_IN: "Walk-in",
+  PHONE_CALL: "Phone",
+};
+
+const INTERACTION_LABELS: Record<string, string> = {
+  PORTAL: "Portal",
+  WALK_IN: "Walk-in",
+  PHONE_CALL: "Phone",
+  MESSENGER: "Messenger",
+};
+
+/** Six consecutive month keys, oldest first, e.g. "2026-05". */
+function recentMonthKeys(count: number): { key: string; label: string }[] {
+  const out: { key: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleString("en-PH", { month: "short" }),
+    });
+  }
+  return out;
+}
+
+export async function getBookingAnalytics(): Promise<BookingAnalytics> {
+  const supabase = await createClient();
+
+  const { data: bookings, error: bookingError } = await supabase
+    .from("booking_requests")
+    .select("request_channel, status, created_at");
+
+  if (bookingError) {
+    console.error("Booking analytics error:", bookingError);
+    // Analytics must not take down the page; report zeroed shapes instead.
+    return emptyBookingAnalytics();
+  }
+
+  const { data: interactions, error: interactionError } = await supabase
+    .from("customer_interactions")
+    .select("interaction_type, created_at");
+
+  if (interactionError) {
+    console.error("Interaction analytics error:", interactionError);
+  }
+
+  const rows = bookings ?? [];
+  const interactionRows = interactions ?? [];
+
+  // Channel counts, in a fixed display order so the chart does not
+  // reshuffle between renders.
+  const bookingsByChannel = Object.keys(CHANNEL_LABELS).map((channel) => ({
+    channel,
+    label: CHANNEL_LABELS[channel],
+    count: rows.filter((r) => r.request_channel === channel).length,
+  }));
+
+  const statusKeys = [...new Set(rows.map((r) => r.status))].sort();
+  const bookingsByStatus = statusKeys.map((status) => ({
+    status,
+    count: rows.filter((r) => r.status === status).length,
+  }));
+
+  const interactionsByType = Object.keys(INTERACTION_LABELS).map((type) => ({
+    type,
+    label: INTERACTION_LABELS[type],
+    count: interactionRows.filter((r) => r.interaction_type === type).length,
+  }));
+
+  // Monthly trends, bucketed from created_at. Rows are bucketed in JS rather
+  // than grouped in SQL so one query serves both the chart and the export.
+  const months = recentMonthKeys(6);
+  const bucket = (iso: string) => iso.slice(0, 7);
+
+  const bookingTrend = months.map(({ key, label }) => ({
+    month: label,
+    count: rows.filter((r) => bucket(r.created_at) === key).length,
+  }));
+
+  const interactionTrend = months.map(({ key, label }) => ({
+    month: label,
+    count: interactionRows.filter((r) => bucket(r.created_at) === key).length,
+  }));
+
+  return {
+    totalBookings: rows.length,
+    bookingsByChannel,
+    bookingsByStatus,
+    bookingTrend,
+    totalInteractions: interactionRows.length,
+    interactionsByType,
+    interactionTrend,
+  };
+}
+
+function emptyBookingAnalytics(): BookingAnalytics {
+  return {
+    totalBookings: 0,
+    bookingsByChannel: [],
+    bookingsByStatus: [],
+    bookingTrend: [],
+    totalInteractions: 0,
+    interactionsByType: [],
+    interactionTrend: [],
+  };
+}

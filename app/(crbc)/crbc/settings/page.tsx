@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/app/(crbc)/library/auth/getCurrentUser";
+import { isAnyStaff } from "../../library/auth/rbac";
 import { redirect } from "next/navigation";
 import StaffSettingsClient from "./StaffSettingsClient";
 
@@ -9,7 +10,7 @@ export default async function SettingsPage() {
     redirect("/crbcAuth/login");
   }
 
-  if (currentUser.profile.role !== "staff") {
+  if (!isAnyStaff(currentUser.profile.role)) {
     redirect("/customer/dashboard");
   }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAnyStaff } from "../../library/auth/rbac";
 import { createClient } from "../../library/supabase/server";
 import { adminCreateClient } from "../../library/supabase/admin";
 import { isServiceCall } from "../../library/auth/service-call";
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
         .eq("id", user.id)
         .maybeSingle();
 
-      const isStaff = !profileError && profile?.role === "staff";
+      const isStaff = !profileError && isAnyStaff(profile?.role);
 
       // Check if user has a customer profile
       const { data: customer, error: customerError } = await supabase
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const isStaff = !profileError && profile?.role === "staff";
+    const isStaff = !profileError && isAnyStaff(profile?.role);
 
     // Check if user has a customer profile
     const { data: customer, error: customerError } = await supabase

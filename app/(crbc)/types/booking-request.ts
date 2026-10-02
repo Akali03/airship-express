@@ -1,15 +1,17 @@
-export type InteractionChannel = "WALK_IN" | "PHONE_CALL" | "PORTAL";
+export type InteractionChannel = "WALK_IN" | "PHONE_CALL" | "PORTAL" | "MESSENGER";
 
 export const INTERACTION_CHANNELS: InteractionChannel[] = [
   "WALK_IN",
   "PHONE_CALL",
   "PORTAL",
+  "MESSENGER",
 ];
 
 export const CHANNEL_LABELS: Record<InteractionChannel, string> = {
   WALK_IN: "Walk-in",
   PHONE_CALL: "Phone Call",
   PORTAL: "Portal",
+  MESSENGER: "Messenger",
 };
 
 export type PackageType = "box" | "parcel" | "document";

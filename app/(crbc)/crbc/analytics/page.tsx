@@ -1,133 +1,321 @@
-import { getAnalyticsSummary } from "../../services/analytics.service"
-import { TrendingUp, Users, Package, CheckCircle } from "lucide-react"
+import Link from "next/link";
+import { FileText } from "lucide-react";
+import { requirePermission } from "../../library/auth/rbac.server";
+import { getAnalyticsSummary, getBookingAnalytics } from "../../services/analytics.service";
+import AnalyticsSection from "../../components/analytics/AnalyticsSection";
+import {
+  ChartEmpty,
+  CountBarChart,
+  DonutChart,
+  KpiCard,
+  TrendBarChart,
+  TrendLineChart,
+} from "../../components/analytics/Charts";
 
-function BarChart({ data, valueKey, labelKey }: { data: Record<string, unknown>[], valueKey: string, labelKey: string }) {
-  const max = Math.max(...data.map((d) => d[valueKey] as number), 1)
-  return (
-    <div className="flex items-end gap-2 h-28 pt-2">
-      {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-foreground text-xs">{d[valueKey] as number}</span>
-          <div
-            className="w-full bg-indigo-100 rounded-t-sm"
-            style={{ height: `${((d[valueKey] as number) / max) * 80}px` }}
-          />
-          <span className="text-foreground text-xs">{d[labelKey] as string}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function PillRow({ items }: { items: { label: string; value: number; color: string }[] }) {
-  const total = items.reduce((s, i) => s + i.value, 0)
-  return (
-    <div className="space-y-2 mt-2">
-      {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-3">
-          <span className="text-foreground text-xs w-28 shrink-0">{item.label}</span>
-          <div className="flex-1 bg-zinc-100 rounded-full h-2">
-            <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${total > 0 ? (item.value / total) * 100 : 0}%` }} />
-          </div>
-          <span className="text-foreground text-xs w-6 text-right">{item.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 export default async function AnalyticsPage() {
-  const data = await getAnalyticsSummary()
+  await requirePermission("analytics.view");
 
-  const kpis = [
-    { label: "Total Customers", value: data.totalCustomers, icon: Users, color: "text-indigo-500" },
-    { label: "Active Customers", value: data.activeCustomers, icon: TrendingUp, color: "text-emerald-500" },
-    { label: "Total Shipments", value: data.totalShipments, icon: Package, color: "text-blue-500" },
-    { label: "SLA Compliance", value: `${data.slaCompliance}%`, icon: CheckCircle, color: "text-purple-500" },
-  ]
+  const [data, booking] = await Promise.all([
+    getAnalyticsSummary(),
+    getBookingAnalytics(),
+  ]);
+
+  const statusColors: Record<string, string> = {
+    Booked: "#f59e0b",
+    "In Transit": "#3b82f6",
+    "Handed Over": "#06b6d4",
+    Batched: "#14b8a6",
+    Delivered: "#10b981",
+    Delayed: "#f97316",
+    "Customs Hold": "#a855f7",
+    Cancelled: "#6b7280",
+    Archived: "#9ca3af",
+    Intake: "#d4d4d8",
+  };
+
+  const slaDonut = [
+    { name: "On time", value: data.onTimeShipments, color: "#10b981" },
+    { name: "Late", value: data.lateShipments, color: "#f97316" },
+    { name: "Overdue in-flight", value: data.overdueInFlight, color: "#ef4444" },
+  ];
+
+  const bookingStatusDonut = [
+    {
+      name: "Pending",
+      value: booking.bookingsByStatus.find((s) => s.status === "PENDING")?.count ?? 0,
+      color: "#f59e0b",
+    },
+    {
+      name: "Accepted",
+      value: booking.bookingsByStatus.find((s) => s.status === "ACCEPTED")?.count ?? 0,
+      color: "#10b981",
+    },
+    {
+      name: "Rejected",
+      value: booking.bookingsByStatus.find((s) => s.status === "REJECTED")?.count ?? 0,
+      color: "#ef4444",
+    },
+    {
+      name: "Cancelled",
+      value: booking.bookingsByStatus.find((s) => s.status === "CANCELLED")?.count ?? 0,
+      color: "#6b7280",
+    },
+  ];
 
   return (
-    <div className="w-full py-4 space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 py-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-foreground text-xl font-semibold">
+            BI &amp; Freight Analytics
+          </h1>
+          <p className="text-muted mt-0.5 text-sm">
+            Business and operational performance across CRBC and Freight
+            Operations.
+          </p>
+        </div>
+        <Link
+          href="/crbc/analytics/reports"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-muted transition-colors hover:bg-line/50 hover:text-foreground"
+        >
+          <FileText size={14} />
+          Reports &amp; Export
+        </Link>
+      </div>
+
+      {/* ── 1. OVERVIEW ──────────────────────────────────────────── */}
       <div>
-        <h1 className="text-foreground text-xl font-semibold">BI & Freight Analytics</h1>
-        <p className="text-muted text-sm mt-0.5">Business intelligence and freight performance reports</p>
+        <h2 className="text-foreground text-sm font-semibold">Overview</h2>
+        <p className="text-muted mt-0.5 mb-3 text-xs">
+          What is happening in the business right now.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <KpiCard
+            label="Total Customers"
+            value={data.totalCustomers.toLocaleString("en-PH")}
+            hint={`${data.activeCustomers} active`}
+          />
+          <KpiCard
+            label="Total Bookings"
+            value={booking.totalBookings.toLocaleString("en-PH")}
+            hint="all channels"
+          />
+          <KpiCard
+            label="Total Shipments"
+            value={data.totalShipments.toLocaleString("en-PH")}
+            hint="Freight Ops"
+          />
+          <KpiCard
+            label="On-Time Rate"
+            value={`${data.slaCompliance}%`}
+            hint="of delivered shipments"
+            tone={
+              data.slaCompliance >= 90
+                ? "good"
+                : data.slaCompliance >= 75
+                  ? "warn"
+                  : "bad"
+            }
+          />
+          <KpiCard
+            label="Overdue In-Flight"
+            value={data.overdueInFlight.toLocaleString("en-PH")}
+            hint="past due, still moving"
+            tone={data.overdueInFlight > 0 ? "warn" : "default"}
+          />
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <AnalyticsSection
+            title="Booking Trends"
+            description="Requests created per month"
+          >
+            <TrendBarChart
+              data={booking.bookingTrend.map((m) => ({
+                label: m.month,
+                value: m.count,
+              }))}
+              valueKey="value"
+              categoryKey="label"
+            />
+          </AnalyticsSection>
+
+          <AnalyticsSection
+            title="Booking by Channel"
+            description="Where requests originate"
+          >
+            <CountBarChart
+              data={booking.bookingsByChannel.map((c) => ({
+                label: c.label,
+                value: c.count,
+              }))}
+              valueKey="value"
+              categoryKey="label"
+              color="#4f46e5"
+            />
+          </AnalyticsSection>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <AnalyticsSection
+            title="Booking by Status"
+            description="Intake state of every request"
+          >
+            <DonutChart data={bookingStatusDonut} valueKey="value" nameKey="name" />
+          </AnalyticsSection>
+
+          <AnalyticsSection
+            title="Customer Growth"
+            description="New customers per month"
+          >
+            <TrendLineChart
+              data={data.customerGrowth.map((m) => ({
+                label: m.month,
+                value: m.customers,
+              }))}
+              valueKey="value"
+              categoryKey="label"
+              color="#0ea5e9"
+            />
+          </AnalyticsSection>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {kpis.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-background border border-line rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-foreground text-xs font-bold">{label}</span>
-              <Icon size={14} className={color} />
-            </div>
-            <p className="text-foreground text-2xl font-semibold">{value}</p>
-          </div>
-        ))}
+      {/* ── 2. FREIGHT PERFORMANCE ────────────────────────────────── */}
+      <div className="pt-2">
+        <h2 className="text-foreground text-sm font-semibold">
+          Freight Performance
+        </h2>
+        <p className="text-muted mt-0.5 mb-3 text-xs">
+          Operational and SLA outcomes from the Freight Operations adapter.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiCard
+            label="SLA Compliance"
+            value={`${data.slaCompliance}%`}
+            hint="delivered only"
+          />
+          <KpiCard label="On Time" value={data.onTimeShipments} tone="good" />
+          <KpiCard label="Late Delivery" value={data.lateShipments} tone="warn" />
+          <KpiCard label="Delivered" value={data.completedShipments} />
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <AnalyticsSection
+            title="SLA Performance"
+            description="Outcome split across evaluated shipments"
+          >
+            <DonutChart data={slaDonut} valueKey="value" nameKey="name" />
+          </AnalyticsSection>
+
+          <AnalyticsSection
+            title="Shipment Status"
+            description="Current state of every shipment"
+          >
+            {data.statusDistribution.length === 0 ? (
+              <ChartEmpty message="No shipments correlated yet." />
+            ) : (
+              <DonutChart
+                data={data.statusDistribution.map((s) => ({
+                  name: s.status,
+                  value: s.count,
+                  color: statusColors[s.status] ?? "#a1a1aa",
+                }))}
+                valueKey="value"
+                nameKey="name"
+              />
+            )}
+          </AnalyticsSection>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <AnalyticsSection
+            title="Delivery Performance by Region"
+            description="Where CRBC's SLA tiers apply"
+          >
+            <CountBarChart
+              data={data.regionalDistribution.map((r) => ({
+                label: r.region,
+                value: r.count,
+              }))}
+              valueKey="value"
+              categoryKey="label"
+              color="#0ea5e9"
+            />
+          </AnalyticsSection>
+
+          <AnalyticsSection
+            title="Monthly Shipment Volume"
+            description="Shipments correlated per month"
+          >
+            <TrendBarChart
+              data={data.monthlyShipments.map((m) => ({
+                label: m.month,
+                value: m.count,
+              }))}
+              valueKey="value"
+              categoryKey="label"
+              color="#0ea5e9"
+            />
+          </AnalyticsSection>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Customer Growth */}
-        <div className="bg-background border border-line rounded-xl p-5">
-          <h2 className="text-foreground text-sm font-medium mb-1">Customer Growth</h2>
-          <p className="text-foreground text-xs mb-3">Monthly customer count</p>
-          <BarChart data={data.customerGrowth} valueKey="customers" labelKey="month" />
+      {/* ── 3. CUSTOMER & BOOKING ────────────────────────────────── */}
+      <div className="pt-2">
+        <h2 className="text-foreground text-sm font-semibold">
+          Customer &amp; Booking
+        </h2>
+        <p className="text-muted mt-0.5 mb-3 text-xs">
+          CRBC-owned customer and interaction activity.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiCard label="Total Customers" value={data.totalCustomers} />
+          <KpiCard label="Active (30d)" value={data.activeCustomers} tone="good" />
+          <KpiCard label="Inactive" value={data.inactiveCustomers} />
+          <KpiCard
+            label="Interactions"
+            value={booking.totalInteractions}
+            hint="all channels"
+          />
         </div>
 
-        {/* Monthly Shipments */}
-        <div className="bg-background border border-line rounded-xl p-5">
-          <h2 className="text-foreground text-sm font-medium mb-1">Monthly Shipments</h2>
-          <p className="text-foreground text-xs mb-3">Shipments booked per month</p>
-          <BarChart data={data.monthlyShipments} valueKey="count" labelKey="month" />
-        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <AnalyticsSection
+            title="Interaction Analytics"
+            description="Customer contact volume per month"
+          >
+            <TrendLineChart
+              data={booking.interactionTrend.map((m) => ({
+                label: m.month,
+                value: m.count,
+              }))}
+              valueKey="value"
+              categoryKey="label"
+              color="#14b8a6"
+            />
+          </AnalyticsSection>
 
-        {/* Shipments by Destination */}
-        <div className="bg-background border border-line rounded-xl p-5">
-          <h2 className="text-foreground text-sm font-medium mb-1">Shipments by Destination</h2>
-          <PillRow items={data.shipmentsByDestination.map((d) => ({ label: d.region, value: d.count, color: "bg-indigo-400" }))} />
-        </div>
-
-        {/* Shipments by Status */}
-        <div className="bg-background border border-line rounded-xl p-5">
-          <h2 className="text-foreground text-sm font-medium mb-1">Shipments by Status</h2>
-          <PillRow items={data.shipmentsByStatus.map((d) => ({
-            label: d.status,
-            value: d.count,
-            color: d.color,
-          }))} />
-        </div>
-
-        {/* Customer Breakdown */}
-        <div className="bg-background border border-line rounded-xl p-5">
-          <h2 className="text-foreground text-sm font-medium mb-1">Active vs Inactive Customers</h2>
-          <PillRow items={[
-            { label: "Active", value: data.activeCustomers, color: "bg-emerald-400" },
-            { label: "Inactive", value: data.inactiveCustomers, color: "bg-zinc-300" },
-          ]} />
-        </div>
-
-        {/* SLA Performance */}
-        <div className="bg-background border border-line rounded-xl p-5">
-          <h2 className="text-foreground text-sm font-medium mb-1">SLA Performance</h2>
-          <div className="mt-4 flex items-center justify-center">
-            <div className="relative w-28 h-28">
-              <svg viewBox="0 0 36 36" className="w-28 h-28 -rotate-90">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f4f4f5" strokeWidth="3" />
-                <circle
-                  cx="18" cy="18" r="15.9" fill="none"
-                  stroke="#818cf8" strokeWidth="3"
-                  strokeDasharray={`${data.slaCompliance} ${100 - data.slaCompliance}`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-foreground text-xl font-bold">{data.slaCompliance}%</span>
-                <span className="text-foreground text-xs">Compliant</span>
-              </div>
-            </div>
-          </div>
+          <AnalyticsSection
+            title="Customer Activity by Channel"
+            description="Where recorded interactions came from"
+          >
+            <CountBarChart
+              data={booking.interactionsByType.map((c) => ({
+                label: c.label,
+                value: c.count,
+              }))}
+              valueKey="value"
+              categoryKey="label"
+              color="#14b8a6"
+            />
+          </AnalyticsSection>
         </div>
       </div>
     </div>
-  )
+  );
 }

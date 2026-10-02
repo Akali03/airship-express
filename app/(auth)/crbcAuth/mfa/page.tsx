@@ -80,6 +80,8 @@ export default function StaffMfaPage() {
 
           // Auto-send OTP
           await sendOtp();
+        } else if (data.reason === "already_verified") {
+          setIsLoading(false);
         } else if (data.redirectTo === "dashboard") {
           router.push("/crbc/dashboard");
           router.refresh();

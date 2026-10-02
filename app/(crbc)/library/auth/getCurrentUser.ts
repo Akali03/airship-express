@@ -2,13 +2,15 @@ import { createClient } from "../supabase/server";
 import type { User } from "@supabase/supabase-js";
 import type { Customers } from "../../types/customer";
 
+export type ProfileRole = "super_admin" | "admin" | "staff" | "customer";
+
 export type CurrentUser = {
   authUser: User;
   profile: {
     id: string;
     email: string;
     full_name: string | null;
-    role: "staff" | "customer";
+    role: ProfileRole;
     mfa_enabled: boolean;
     mfa_email_verified: boolean;
   };

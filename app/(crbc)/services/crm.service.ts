@@ -3,10 +3,16 @@ import type {
   BookingRequest,
   CustomerInteraction,
 } from "../types/booking-request"
+import {
+  INTERACTION_CHANNELS,
+  type InteractionChannel,
+} from "../types/booking-request"
 import { createClient } from "../library/supabase/server";
 
-export const INTERACTION_TYPES = ["WALK_IN", "PHONE_CALL", "PORTAL"] as const;
-export type InteractionType = (typeof INTERACTION_TYPES)[number];
+type InteractionType = InteractionChannel
+const INTERACTION_TYPES = INTERACTION_CHANNELS
+export { INTERACTION_TYPES }
+export type { InteractionType }
 
 export const DATE_PRESETS = ["today", "week", "month", "year"] as const;
 export type DatePreset = (typeof DATE_PRESETS)[number];

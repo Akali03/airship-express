@@ -26,14 +26,21 @@ export async function POST() {
       return NextResponse.json({ success: false, redirectTo: "login" });
     }
 
-    // If MFA is not enabled, user should not be here
     if (!profile.mfa_enabled) {
-      return NextResponse.json({ success: false, redirectTo: "dashboard" });
+      return NextResponse.json({
+        success: false,
+        redirectTo: "dashboard",
+        reason: "not_required",
+      });
     }
 
-    // If MFA already verified in this session
+    // Already verified in this session — the OTP gate is satisfied.
     if (profile.mfa_email_verified) {
-      return NextResponse.json({ success: false, redirectTo: "dashboard" });
+      return NextResponse.json({
+        success: false,
+        redirectTo: "dashboard",
+        reason: "already_verified",
+      });
     }
 
     // Valid MFA challenge - user has MFA enabled but not verified

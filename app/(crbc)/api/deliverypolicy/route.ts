@@ -1,7 +1,8 @@
 import { createClient } from "../../library/supabase/server";
 import { mapDeliveryPolicyRow } from "../../types/delivery-policy";
 import { NextRequest, NextResponse } from "next/server";
-import { validatePolicyInput, validateId, getStaffClient } from "../../library/validation/delivery.policy.validate";
+import { validatePolicyInput, validateId, getStaffClient, getPolicyAdminClient } from "../../library/validation/delivery.policy.validate";
+import { recordAudit } from "../../services/audit.service";
 
 export async function GET() {
   const { client: supabase, error: authError } = await getStaffClient(createClient);
@@ -27,7 +28,7 @@ export async function GET() {
 
 
 export async function POST(request: NextRequest) {
-  const { client: supabase, error: authError } = await getStaffClient(createClient);
+  const { client: supabase, error: authError } = await getPolicyAdminClient(createClient);
 
   if (!supabase) {
     return NextResponse.json(
@@ -82,6 +83,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  await recordAudit({
+    action: "sla_policy.created",
+    targetType: "delivery_policy",
+    targetId: data.id,
+    description: `Created SLA policy "${data.policy}" (${data.region}, ${data.min_days}-${data.max_days} days)`,
+    metadata: { region: data.region, minDays: data.min_days, maxDays: data.max_days },
+  });
+
   return NextResponse.json(
     mapDeliveryPolicyRow(data),
     { status: 201 }
@@ -89,7 +98,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const { client: supabase, error: authError } = await getStaffClient(createClient);
+  const { client: supabase, error: authError } = await getPolicyAdminClient(createClient);
 
   if (!supabase) {
     return NextResponse.json(
@@ -163,13 +172,21 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  await recordAudit({
+    action: "sla_policy.updated",
+    targetType: "delivery_policy",
+    targetId: id,
+    description: `Updated SLA policy to "${data.policy}" (${data.region}, ${data.min_days}-${data.max_days} days)`,
+    metadata: { region: data.region, minDays: data.min_days, maxDays: data.max_days },
+  });
+
   return NextResponse.json(
     mapDeliveryPolicyRow(data)
   );
 }
 
 export async function DELETE(request: NextRequest) {
-  const { client: supabase, error: authError } = await getStaffClient(createClient);
+  const { client: supabase, error: authError } = await getPolicyAdminClient(createClient);
 
   if (!supabase) {
     return NextResponse.json(
@@ -212,6 +229,13 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  await recordAudit({
+    action: "sla_policy.deleted",
+    targetType: "delivery_policy",
+    targetId: id,
+    description: "Deleted an SLA policy",
+  });
 
   return NextResponse.json({
     message: "Delivery policy deleted successfully.",

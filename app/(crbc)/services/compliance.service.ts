@@ -1,4 +1,5 @@
 import { createClient } from "../library/supabase/server";
+import { isAnyStaff } from "../library/auth/rbac";
 import { getCurrentUser } from "../library/auth/getCurrentUser";
 import { getSLAPoliciesFromStore } from "./sla-policies.store";
 import { getShipmentsByRequestIds } from "./freight-ops.service";
@@ -19,7 +20,7 @@ interface BookingCustomer {
 
 async function currentReviewer(): Promise<string | null> {
   const currentUser = await getCurrentUser();
-  if (!currentUser || currentUser.profile.role !== "staff") return null;
+  if (!currentUser || !isAnyStaff(currentUser.profile.role)) return null;
   return (
     currentUser.profile.full_name ??
     currentUser.profile.email ??

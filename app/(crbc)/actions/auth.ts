@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "../library/supabase/server";
 import { bootstrapPortalCustomer } from "../library/auth/bootstrap-customer";
+import { recordAudit } from "../services/audit.service";
+import { isAnyStaff } from "../library/auth/rbac";
 
 export const login = async (formData: FormData) => {
   const supabase = await createClient();
@@ -18,14 +20,21 @@ export const login = async (formData: FormData) => {
     return { error: error.message };
   }
 
-  // Fetch unified profile
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role, mfa_enabled, mfa_email_verified")
     .eq("id", authData.user.id)
-    .single();
+    .maybeSingle();
 
-  if (profileError || !profile) {
+  if (profileError) {
+    console.error("Login: profiles read failed:", profileError.message);
+    await supabase.auth.signOut();
+    return {
+      error: `Account lookup failed (${profileError.code ?? "RLS"}). Contact administrator.`,
+    };
+  }
+
+  if (!profile) {
     if (authData.user.email_confirmed_at) {
       const healed = await bootstrapPortalCustomer();
       if (healed.ok) {
@@ -58,30 +67,38 @@ async function routeAuthenticatedUser(
     role: string;
     mfa_enabled: boolean;
     mfa_email_verified: boolean;
+
   }
 ) {
-  if (profile.role === "staff" && profile.mfa_enabled && !profile.mfa_email_verified) {
+
+  const mfaRequired =
+    profile.mfa_enabled && isAnyStaff(profile.role)
+      ? "/crbcAuth/mfa"
+      : profile.mfa_enabled && profile.role === "customer"
+        ? "/customerportalAuth/mfa"
+        : null;
+
+  if (mfaRequired) {
     await supabase
       .from("profiles")
       .update({ mfa_email_verified: false })
       .eq("id", userId);
 
     revalidatePath("/", "layout");
-    redirect("/crbcAuth/mfa");
+    redirect(mfaRequired);
   }
 
-  if (profile.role === "customer" && profile.mfa_enabled && !profile.mfa_email_verified) {
-    await supabase
-      .from("profiles")
-      .update({ mfa_email_verified: false })
-      .eq("id", userId);
+  await recordAudit({
+    action: "auth.login",
+    targetType: "session",
+    description: `${profile.role} signed in`,
+    metadata: { role: profile.role },
+  });
 
-    revalidatePath("/", "layout");
-    redirect("/customerportalAuth/mfa");
-  }
 
-  // Role-based redirect
-  const redirectTo = profile.role === "staff" ? "/crbc/dashboard" : "/customer/dashboard";
+  const redirectTo = isAnyStaff(profile.role)
+    ? "/crbc/dashboard"
+    : "/customer/dashboard";
   revalidatePath("/", "layout");
   redirect(redirectTo);
 }
@@ -173,9 +190,17 @@ export const logout = async () => {
 
     if (profile?.role === "customer") {
       redirectTo = "/customerportalAuth/login";
-    } else if (profile?.role === "staff") {
+    } else if (isAnyStaff(profile?.role)) {
       redirectTo = "/crbcAuth/login";
     }
+  }
+
+  if (user) {
+    await recordAudit({
+      action: "auth.logout",
+      targetType: "session",
+      description: "Signed out",
+    });
   }
 
   await supabase.auth.signOut();

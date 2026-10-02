@@ -1,6 +1,8 @@
 import { createClient } from "../library/supabase/server";
 import { validateDraft, normalizeDraft, validatePortalDraft, normalizePortalDraft } from "../library/validation/booking-request.validate";
 import type { BookingRequestDraft } from "../library/validation/booking-request.validate";
+import { recordAudit } from "./audit.service";
+import type { PackageType } from "../types/booking-request";
 
 export interface BookingRequest {
   id: string;
@@ -15,7 +17,7 @@ export interface BookingRequest {
   receiver_barangay: string | null;
   receiver_full_address: string | null;
   package_quantity: number;
-  package_type: string;
+  package_type: PackageType;
   item_category: string | null;
   weight: number | null;
   dimensions: {
@@ -145,27 +147,43 @@ export async function createBookingRequestForStaff(
     customerUuid = existing.id;
     customerIdCode = existing.customer_id;
   } else if (normalizedDraft.new_customer) {
-    //Create new customer
-    const { data: created, error: createError } = await supabase
-      .from("customers")
-      .insert({
-        full_name: normalizedDraft.new_customer.full_name.trim(),
-        email: normalizedDraft.new_customer.email?.trim() || null,
-        phone: normalizedDraft.new_customer.phone || null,
-        province: normalizedDraft.new_customer.province?.trim() || null,
-        city: normalizedDraft.new_customer.city?.trim() || null,
-        barangay: normalizedDraft.new_customer.barangay?.trim() || null,
-        full_address: normalizedDraft.new_customer.full_address?.trim() || null,
-      })
-      .select("id, customer_id")
-      .single();
+    const email = normalizedDraft.new_customer.email?.trim().toLowerCase() || null;
 
-    if (createError || !created) {
-      console.error("Create customer error:", createError);
-      return { success: false, error: "Failed to create the customer record." };
+    const { data: existingByEmail } = email
+      ? await supabase
+          .from("customers")
+          .select("id, customer_id")
+          .eq("email", email)
+          .maybeSingle()
+      : { data: null };
+
+    if (existingByEmail) {
+      // Reuse the record instead of duplicating it. This is the CRM walk-in /
+      // phone path landing on a customer who already has a portal account.
+      customerUuid = existingByEmail.id;
+      customerIdCode = existingByEmail.customer_id;
+    } else {
+      const { data: created, error: createError } = await supabase
+        .from("customers")
+        .insert({
+          full_name: normalizedDraft.new_customer.full_name.trim(),
+          email: normalizedDraft.new_customer.email?.trim() || null,
+          phone: normalizedDraft.new_customer.phone || null,
+          province: normalizedDraft.new_customer.province?.trim() || null,
+          city: normalizedDraft.new_customer.city?.trim() || null,
+          barangay: normalizedDraft.new_customer.barangay?.trim() || null,
+          full_address: normalizedDraft.new_customer.full_address?.trim() || null,
+        })
+        .select("id, customer_id")
+        .single();
+
+      if (createError || !created) {
+        console.error("Create customer error:", createError);
+        return { success: false, error: "Failed to create the customer record." };
+      }
+      customerUuid = created.id;
+      customerIdCode = created.customer_id;
     }
-    customerUuid = created.id;
-    customerIdCode = created.customer_id;
   } else {
     return { success: false, error: "Customer is required." };
   }
@@ -214,6 +232,14 @@ export async function createBookingRequestForStaff(
     console.error("Create booking request error:", requestError);
     return { success: false, error: "Failed to create the booking request." };
   }
+
+  await recordAudit({
+    action: "booking.created",
+    targetType: "booking_request",
+    targetId: request.request_id,
+    description: `Booking ${request.request_id} created via ${normalizedDraft.request_channel} for ${customerIdCode}`,
+    metadata: { channel: normalizedDraft.request_channel, customerId: customerIdCode },
+  });
 
   return {
     success: true,
@@ -292,6 +318,14 @@ export async function createBookingRequestForPortal(
     return { success: false, error: "Failed to create the booking request." };
   }
 
+  await recordAudit({
+    action: "booking.created",
+    targetType: "booking_request",
+    targetId: request.request_id,
+    description: `Booking ${request.request_id} created via ${normalizedDraft.request_channel} for ${customerIdCode}`,
+    metadata: { channel: normalizedDraft.request_channel, customerId: customerIdCode },
+  });
+
   return {
     success: true,
     request_id: request.request_id,
@@ -363,7 +397,7 @@ export async function getBookingRequests(
   }
 
   const { data, error } = await query;
-
+  console.log(data)
   if (error) {
     console.error("Fetch booking requests error:", error);
     throw new Error("Failed to fetch booking requests");
@@ -381,7 +415,7 @@ export async function getBookingRequests(
     receiver_barangay: string | null;
     receiver_full_address: string | null;
     package_quantity: number;
-    package_type: string;
+    package_type: PackageType;
     item_category: string | null;
     weight: number | null;
     dimensions: { length_cm: number; width_cm: number; height_cm: number } | null;

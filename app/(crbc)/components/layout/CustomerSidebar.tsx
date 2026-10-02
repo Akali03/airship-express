@@ -7,6 +7,7 @@ import {
     Package,
     PlusCircle,
     FileText,
+    ClipboardList,
     Bell,
     User,
     Settings,
@@ -25,10 +26,18 @@ import type { User as AuthUser } from "@supabase/supabase-js"
 import Image from "next/image"
 import AirshipExpressLogo from "../../../../public/images/airship.png"
 
+// Portal navigation.
+//
+// "Shipment History" is the customer's record of every parcel request on their
+// account, whether they submitted it or a CSR recorded it at the counter.
+// "Active Shipments" is only what Freight Operations is actually moving, and is
+// where tracking lives. The two are separate pages because a request is not
+// automatically a shipment — keeping both labels avoids implying otherwise.
 const nav = [
     { href: "/customer/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/customer/shipments", label: "My Shipments", icon: Package },
-    { href: "/customer/shipments/new", label: "Request Shipment", icon: PlusCircle },
+    { href: "/customer/shipments/new", label: "Shipment Request", icon: PlusCircle },
+    { href: "/customer/shipment-history", label: "Shipment History", icon: ClipboardList },
+    { href: "/customer/shipments", label: "Active Shipments", icon: Package },
     { href: "/customer/documents", label: "Documents", icon: FileText },
     { href: "/customer/notifications", label: "Notifications", icon: Bell },
 ]

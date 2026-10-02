@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { hasPermission, isAnyStaff } from "../auth/rbac";
 import { SLA_TIERS } from "../../services/delivery-policy";
 
 
@@ -82,7 +83,35 @@ export async function getStaffClient(createClient: () => Promise<SupabaseClient>
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "staff") {
+  // Any staff rank may READ a policy. isAnyStaff() so super_admin and admin are
+  // not rejected by an equality check against the literal "staff".
+  if (!isAnyStaff(profile?.role)) {
+    return { client: null, error: "Forbidden" as const };
+  }
+
+  return { client: supabase, error: null };
+}
+
+export async function getPolicyAdminClient(
+  createClient: () => Promise<SupabaseClient>
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { client: null, error: "Unauthorized" as const };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!hasPermission(profile?.role, "policies.manage")) {
     return { client: null, error: "Forbidden" as const };
   }
 

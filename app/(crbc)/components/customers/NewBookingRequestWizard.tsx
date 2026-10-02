@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getQuote, type Quote } from "../../services/pricing.service";
 import {
   CHANNEL_LABELS,
   type InteractionChannel,
@@ -145,7 +146,11 @@ const PACKAGE_TYPES: { value: PackageType; label: string }[] = [
 
 const CUSTOMER_TYPES = ["Individual", "Business"] as const;
 
-const CRM_CHANNELS: InteractionChannel[] = ["WALK_IN", "PHONE_CALL"];
+const CRM_CHANNELS: InteractionChannel[] = [
+  "WALK_IN",
+  "PHONE_CALL",
+  "MESSENGER",
+];
 
 const MIN_SEARCH_LENGTH = 2;
 const DEBOUNCE_MS = 300;
@@ -358,6 +363,52 @@ export default function NewBookingRequestWizard({
     setWizard((w) => ({ ...w, receiver: { ...w.receiver, ...patch } }));
   const patchPackage = (patch: Partial<PackageState>) =>
     setWizard((w) => ({ ...w, package: { ...w.package, ...patch } }));
+
+  //estimated total - sample only for now 
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+
+  const weightKg = parseFloat(wizard.package.weight) || 0;
+  const dimLength = parseFloat(wizard.package.dim_length) || 0;
+  const dimWidth = parseFloat(wizard.package.dim_width) || 0;
+  const dimHeight = parseFloat(wizard.package.dim_height) || 0;
+  const declaredValueNum =  0;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = await getQuote({
+          actualWeightKg: weightKg,
+          dimensionsCm:
+            dimLength > 0 && dimWidth > 0 && dimHeight > 0
+              ? { length: dimLength, width: dimWidth, height: dimHeight }
+              : undefined,
+          declaredValue: declaredValueNum > 0 ? declaredValueNum : undefined,
+          packagingProvided: wizard.package.airship_packaging_requested,
+        });
+        if (!cancelled) {
+          setQuote(q);
+          setQuoteError(null);
+        }
+      } catch {
+        if (!cancelled) setQuoteError("Could not load the tariff estimate.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    weightKg,
+    dimLength,
+    dimWidth,
+    dimHeight,
+    declaredValueNum,
+    wizard.package.airship_packaging_requested,
+  ]);
+
+  const peso = (n: number) =>
+    `₱${n.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -1157,6 +1208,59 @@ export default function NewBookingRequestWizard({
                     className={`${inputBase} pl-8`}
                   />
                 </div>
+              </div>
+
+              {/* Estimated Total — same getQuote() as the Customer Portal. */}
+              <div className="rounded-xl border border-line bg-background/50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-foreground">
+                    Estimated Total
+                  </p>
+                  {quote && (
+                    <p className="text-lg font-semibold text-accent">
+                      {peso(quote.total)}
+                    </p>
+                  )}
+                </div>
+
+                {quoteError ? (
+                  <p className="text-xs text-muted">{quoteError}</p>
+                ) : !quote ? (
+                  <p className="text-xs text-muted">Calculating estimate…</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {quote.lineItems.map((li) => (
+                      <div
+                        key={li.label}
+                        className="flex items-start justify-between gap-3 text-xs"
+                      >
+                        <span className="text-muted">
+                          {li.label}
+                          {li.explanation && (
+                            <span className="block text-[11px] text-muted/70">
+                              {li.explanation}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-foreground whitespace-nowrap">
+                          {peso(li.amount)}
+                        </span>
+                      </div>
+                    ))}
+                    {quote.volumetricWeightKg > 0 && (
+                      <p className="text-[11px] text-muted">
+                        Chargeable weight:{" "}
+                        <span className="text-foreground">
+                          {quote.chargeableWeightKg.toFixed(2)} kg
+                        </span>
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted">
+                      Estimate only. Final charges are confirmed after the
+                      branch weigh-in.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

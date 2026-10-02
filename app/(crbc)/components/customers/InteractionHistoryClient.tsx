@@ -17,6 +17,7 @@ const TYPE_LABELS: Record<InteractionType, string> = {
   WALK_IN: "Walk-in",
   PHONE_CALL: "Phone call",
   PORTAL: "Portal",
+  MESSENGER: "Messenger",
 };
 
 const RANGE_LABELS: Record<string, string> = {

@@ -7,35 +7,41 @@ import { useState } from "react"
 import { logout } from "../../actions/auth"
 import {
     Users, FileText, FolderOpen, BarChart2, LogOut,
-    ChevronDown, Menu, Settings,
+    ChevronDown, Menu, Settings, ShieldCheck,
 } from "lucide-react"
 import AirshipExpressLogo from "../../../../public/images/airship.png"
+import { hasPermission, type StaffPermission } from "../../library/auth/rbac"
 
 const topModules = [
-    { href: "/crbc/dashboard", label: "Dashboard", icon: BarChart2 },
+    { href: "/crbc/dashboard", label: "Dashboard", icon: BarChart2, permission: "dashboard.view" as StaffPermission },
 ]
 
 const crmSubModules = [
-    { href: "/crbc/customers", label: "Customer Management" },
-    { href: "/crbc/customers/interactions", label: "Interaction History" },
+    { href: "/crbc/customers", label: "Customer Management", permission: "crm.view" as StaffPermission },
+    { href: "/crbc/customers/interactions", label: "Interaction History", permission: "crm.view" as StaffPermission },
 ]
 
 const contractModules = [
-    { href: "/crbc/delivery-policies", label: "Delivery Policies" },
-    { href: "/crbc/sla-monitoring", label: "SLA Monitoring" },
+    { href: "/crbc/delivery-policies", label: "Delivery Policies", permission: "sla.view" as StaffPermission },
+    { href: "/crbc/sla-monitoring", label: "SLA Monitoring", permission: "sla.view" as StaffPermission },
 ]
 
 const docModules = [
-    { href: "/crbc/documents", label: "E-Documentation" },
-    { href: "/crbc/compliance", label: "Compliance Manager" },
+    { href: "/crbc/documents", label: "E-Documentation", permission: "documents.view" as StaffPermission },
+    { href: "/crbc/compliance", label: "Compliance Manager", permission: "compliance.view" as StaffPermission },
 ]
 
 const insightModules = [
-    { href: "/crbc/analytics", label: "BI & Analytics", icon: BarChart2 },
+    { href: "/crbc/analytics", label: "BI & Analytics", icon: BarChart2, permission: "analytics.view" as StaffPermission },
+]
+
+const adminSubModules = [
+    { href: "/crbc/user-management", label: "User Management", permission: "users.manage" as StaffPermission },
+    { href: "/crbc/audit-trail", label: "Audit Trail", permission: "audit.view" as StaffPermission },
 ]
 
 const systemModules = [
-    { href: "/crbc/settings", label: "Settings", icon: Settings },
+    { href: "/crbc/settings", label: "Settings", icon: Settings, permission: "dashboard.view" as StaffPermission },
 ]
 
 const navItem = (isActive: boolean, collapsed: boolean) =>
@@ -53,14 +59,18 @@ function SectionLabel({ children, collapsed }: { children: React.ReactNode; coll
     )
 }
 
-export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: boolean, setCollapsed: (v: boolean) => void }) {
+export default function CrbcSidebar({ collapsed, setCollapsed, role }: { collapsed: boolean, setCollapsed: (v: boolean) => void; role: string }) {
+    const showAdmin = hasPermission(role, "users.manage")
+    const showAudit = hasPermission(role, "audit.view")
     const pathname = usePathname()
     const isDocActive = pathname.startsWith("/crbc/documents") || pathname.startsWith("/crbc/compliance")
     const isContractActive = pathname.startsWith("/crbc/contracts") || pathname.startsWith("/crbc/delivery-policies") || pathname.startsWith("/crbc/sla-monitoring")
     const isCrmActive = pathname.startsWith("/crbc/customers")
+    const isAdminActive = pathname.startsWith("/crbc/user-management") || pathname.startsWith("/crbc/audit-trail")
     const [docOpen, setDocOpen] = useState(isDocActive)
     const [contractOpen, setContractOpen] = useState(isContractActive)
     const [crmOpen, setCrmOpen] = useState(isCrmActive)
+    const [adminOpen, setAdminOpen] = useState(isAdminActive)
 
     return (
         <>
@@ -126,7 +136,8 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                         {crmOpen && !collapsed && (
                             <div className="ml-4 mt-0.5 space-y-0.5 border-l border-line pl-3">
                                 {crmSubModules.map(({ href, label }) => {
-                                    const isActive = pathname.startsWith(href)
+                                    const isActive = pathname === href || (pathname.startsWith(href + "/") && 
+                                                    !crmSubModules.some(s => s.href !== href && pathname.startsWith(s.href)))
                                     return (
                                         <Link key={href} href={href}
                                             className={`flex items-center gap-2 py-1.5 px-2 text-xs rounded-md transition-colors ${isActive ? "text-accent font-medium" : "text-muted hover:text-foreground"}`}
@@ -215,7 +226,44 @@ export default function CrbcSidebar({ collapsed, setCollapsed }: { collapsed: bo
                         )
                     })}
 
-                    <SectionLabel collapsed={collapsed}>System</SectionLabel>
+                    {/* System Administration */}
+                    {(showAdmin || showAudit) && (
+                        <>
+                            <SectionLabel collapsed={collapsed}>System Administration</SectionLabel>
+                            <div>
+                                <button
+                                    onClick={() => collapsed ? (setCollapsed(false), setAdminOpen(true)) : setAdminOpen(!adminOpen)}
+                                    title={collapsed ? "System Administration" : undefined}
+                                    className={groupBtn(isAdminActive, collapsed)}
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <ShieldCheck size={15} className="shrink-0" />
+                                        {!collapsed && <span>System Administration</span>}
+                                    </div>
+                                    {!collapsed && <ChevronDown size={12} className={`transition-transform text-muted ${adminOpen ? "rotate-180" : ""}`} />}
+                                </button>
+                                {adminOpen && !collapsed && (
+                                    <div className="ml-4 mt-0.5 space-y-0.5 border-l border-line pl-3">
+                                        {adminSubModules
+                                            .filter(({ permission }) => hasPermission(role, permission))
+                                            .map(({ href, label }) => {
+                                                const isActive = pathname.startsWith(href)
+                                                return (
+                                                    <Link key={href} href={href}
+                                                        className={`flex items-center gap-2 py-1.5 px-2 text-xs rounded-md transition-colors ${isActive ? "text-accent font-medium" : "text-muted hover:text-foreground"}`}
+                                                    >
+                                                        <span className="w-1 h-1 rounded-full bg-current shrink-0" />
+                                                        {label}
+                                                    </Link>
+                                                )
+                                            })}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    <SectionLabel collapsed={collapsed}>Account</SectionLabel>
                     {systemModules.map(({ href, label, icon: Icon }) => {
                         const isActive = pathname.startsWith(href)
                         return (

@@ -298,13 +298,14 @@ export default function   RequestShipmentForm({ customer }: { customer: Customer
           </p>
 
           <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-            <a
-              href="/customer/shipments"
+            {/* Next.js Link now that /customer/shipments is a real page. */}
+            <Link
+              href="/customer/shipment-history"
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-background/50"
             >
               <FileText size={15} />
-              View My Shipments
-            </a>
+              View My Shipment History
+            </Link>
             <button
               type="button"
               onClick={() => {
@@ -375,10 +376,19 @@ export default function   RequestShipmentForm({ customer }: { customer: Customer
               <dd className="text-foreground">{customer.phone}</dd>
             </div>
           )}
-          {customer.address && customer.address.trim() !== "" && (
+          {customer.full_address && customer.full_address.trim() !== "" && (
             <div className="space-y-0.5 sm:col-span-2">
               <dt className={labelCls}>Address</dt>
-              <dd className="text-foreground">{customer.full_address?.trim()}</dd>
+              <dd className="text-foreground">
+                {[
+                  customer.full_address?.trim(),
+                  customer.barangay,
+                  customer.city,
+                  customer.province,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+              </dd>
             </div>
           )}
           {addressMissing && (

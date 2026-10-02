@@ -198,3 +198,49 @@ body {
     cursor: none !important;
   }
 }
+
+/* ==========================================================================
+   Print
+   Used by CRBC > Analytics > Reports. The browser's own
+   "Print -> Save as PDF" produces a clean document; the application's own
+   PDF export lives in components/analytics/ExportButtons.tsx.
+   ========================================================================== */
+@media print {
+  /* Chrome and Safari both need the page background forced off, or the
+     dark surface prints as a black block. */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+
+  /* Navigation and the sidebar are not part of a report. */
+  aside,
+  nav,
+  header.fixed,
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  /* Release the layout offset the fixed sidebar reserves. */
+  main,
+  .flex-1 {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Keep report blocks from being split across a page boundary. */
+  section,
+  table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Print URLs after links, so a reader can follow them. */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9px;
+    color: #666;
+  }
+}

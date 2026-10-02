@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isAnyStaff } from "./rbac";
 import { createClient } from "../supabase/server";
 
 type RequiredRole = "customer" | "staff";
@@ -32,9 +33,13 @@ export async function protectRoute(requiredRole: RequiredRole) {
     );
   }
 
-  // Wrong role
-  if (profile.role !== requiredRole) {
-    if (profile.role === "staff") {
+
+  const roleSatisfies = isAnyStaff(profile.role)
+    ? requiredRole === "staff"
+    : profile.role === requiredRole;
+
+  if (!roleSatisfies) {
+    if (isAnyStaff(profile.role)) {
       redirect("/crbc");
     }
     if (profile.role === "customer") {

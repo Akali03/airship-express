@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/(crbc)/library/supabase/server";
 import { verifyMfaCode, disableMfa, enableMfaWithPassword } from "@/app/(crbc)/actions/mfa";
+import { isAnyStaff } from "@/app/(crbc)/library/auth/rbac";
 
 /** OTP must be exactly 6 digits, 0-9 only. */
 const OTP_PATTERN = /^[0-9]{6}$/;
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      redirectTo: profile?.role === "staff" ? "/crbc/dashboard" : "/customer/dashboard",
+      redirectTo: isAnyStaff(profile?.role) ? "/crbc/dashboard" : "/customer/dashboard",
     });
   } catch (error) {
     console.error("MFA verify error:", error);
