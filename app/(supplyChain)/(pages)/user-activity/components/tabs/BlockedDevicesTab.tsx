@@ -1,6 +1,7 @@
 'use client';
+
 import React from 'react';
-import { Undo, Trash2 } from 'lucide-react';
+import { Undo, Trash2, Search } from 'lucide-react';
 import { Pagination } from '../../../../components/global/pagination';
 import { TableRowsSkeleton } from '../../../../components/ui/SkeletonLoader';
 import { CrudActionButton } from '../../../../components/ui/CrudActionButton';
@@ -8,9 +9,14 @@ import { StatusBadge } from '../../../../components/ui/StatusBadge';
 import { AppButton } from '../../../../components/ui/AppButton';
 import { BlockedDevice } from '../../types';
 import { formatDate } from '../../utils/formatters';
+
 interface BlockedDevicesTabProps {
     devices: BlockedDevice[];
     isLoading: boolean;
+    searchTerm?: string;
+    onSearchTermChange?: (term: string) => void;
+    isRealtimeActive?: boolean;
+    onRefresh?: () => void;
     selectedDevices: Set<string>;
     onToggleSelectDevice: (id: string) => void;
     onSelectAllDevices: () => void;
@@ -21,12 +27,79 @@ interface BlockedDevicesTabProps {
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
+    unblockingDeviceId?: string | null;
+    deletingDeviceId?: string | null;
+    isBulkUnblocking?: boolean;
+    isBulkDeleting?: boolean;
 }
-export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, isLoading, selectedDevices, onToggleSelectDevice, onSelectAllDevices, onUnblockDevice, onDeleteDevice, onBulkUnblock, onBulkDelete, currentPage, totalPages, onPageChange, }) => {
+
+export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({
+    devices,
+    isLoading,
+    searchTerm = '',
+    onSearchTermChange,
+    isRealtimeActive = true,
+    onRefresh,
+    selectedDevices,
+    onToggleSelectDevice,
+    onSelectAllDevices,
+    onUnblockDevice,
+    onDeleteDevice,
+    onBulkUnblock,
+    onBulkDelete,
+    currentPage,
+    totalPages,
+    onPageChange,
+    unblockingDeviceId = null,
+    deletingDeviceId = null,
+    isBulkUnblocking = false,
+    isBulkDeleting = false,
+}) => {
     const allBlockedSelected = devices.length > 0 && selectedDevices.size === devices.length;
     const someBlockedSelected = selectedDevices.size > 0 && selectedDevices.size < devices.length;
+
     return (
         <div className="rounded-3xl bg-[#f0f3f8] dark:bg-[#191a24] border border-white/80 dark:border-[#2c2d3c] shadow-[8px_8px_24px_rgba(166,175,195,0.4),-8px_-8px_24px_rgba(255,255,255,0.95)] dark:shadow-[10px_10px_30px_rgba(0,0,0,0.75)] overflow-hidden">
+            {/* search and live realtime status banner */}
+            <div className="p-4 border-b border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:max-w-md">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 h-4 w-4 pointer-events-none" />
+                    <input
+                        type="text"
+                        placeholder="Search blocked devices by name, IP, email, or user agent..."
+                        value={searchTerm}
+                        onChange={(e) => onSearchTermChange?.(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 text-xs bg-[#ebf0f7] dark:bg-[#14151c] border border-slate-200/60 dark:border-slate-800 rounded-xl text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all shadow-[inset_2px_2px_5px_rgba(166,175,195,0.35),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.65),inset_-1px_-1px_4px_rgba(255,255,255,0.05)]"
+                    />
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {/* Live Realtime Indicator */}
+                    <div
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-[#ebf0f7] dark:bg-[#1d1e28] border border-white/80 dark:border-[#2a2b38] shadow-[2px_2px_5px_rgba(166,175,195,0.3),-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)] shrink-0"
+                        title={isRealtimeActive ? 'Realtime sync connected: Instant updates for blocked device access' : 'Reconnecting realtime...'}
+                    >
+                        <span className="relative flex h-2 w-2">
+                            {isRealtimeActive && (
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            )}
+                            <span className={`relative inline-flex rounded-full h-2 w-2 ${isRealtimeActive ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                        </span>
+                        <span className="text-slate-600 dark:text-slate-300">Live</span>
+                        {onRefresh && (
+                            <button
+                                type="button"
+                                onClick={onRefresh}
+                                className="ml-1 text-slate-400 hover:text-pink-600 dark:hover:text-pink-400 cursor-pointer transition-colors p-0.5"
+                                title="Sync now"
+                            >
+                                <i className={`fas fa-rotate-right text-[10px] ${isLoading ? 'fa-spin text-pink-500' : ''}`} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
             {/* bulk actions banner */}
             {selectedDevices.size > 0 && (
                 <div className="p-3 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
@@ -34,13 +107,25 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
                         {selectedDevices.size} device(s) selected
                     </span>
                     <div className="flex items-center gap-2 flex-wrap">
-                        <AppButton type="button" variant="success" size="xs" onClick={onBulkUnblock}>
+                        <AppButton
+                            type="button"
+                            variant="success"
+                            size="xs"
+                            loading={isBulkUnblocking}
+                            onClick={onBulkUnblock}
+                        >
                             <Undo className="w-3 h-3" />
-                            <span>Unblock Selected</span>
+                            <span>{isBulkUnblocking ? 'Unblocking...' : 'Unblock Selected'}</span>
                         </AppButton>
-                        <AppButton type="button" variant="danger" size="xs" onClick={onBulkDelete}>
+                        <AppButton
+                            type="button"
+                            variant="danger"
+                            size="xs"
+                            loading={isBulkDeleting}
+                            onClick={onBulkDelete}
+                        >
                             <Trash2 className="w-3 h-3" />
-                            <span>Delete Selected</span>
+                            <span>{isBulkDeleting ? 'Deleting...' : 'Delete Selected'}</span>
                         </AppButton>
                     </div>
                 </div>
@@ -105,6 +190,8 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
                         ) : (
                             devices.map((device) => {
                                 const isSelected = selectedDevices.has(device.id);
+                                const isRowBusy = unblockingDeviceId === device.id || deletingDeviceId === device.id;
+
                                 return (
                                     <tr
                                         key={device.id}
@@ -154,9 +241,22 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
                                         <td data-label="Actions" className="py-3 px-4 text-right whitespace-nowrap w-[130px] min-w-[130px]">
                                             <div className="flex items-center justify-end gap-2.5">
                                                 {device.status === 'blocked' && (
-                                                    <CrudActionButton action="restore" label="Unblock" title="Unblock Device" onClick={() => onUnblockDevice(device.id, device.email)} />
+                                                    <CrudActionButton
+                                                        action="restore"
+                                                        label="Unblock"
+                                                        title="Unblock Device"
+                                                        disabled={isRowBusy}
+                                                        loading={unblockingDeviceId === device.id}
+                                                        onClick={() => onUnblockDevice(device.id, device.email)}
+                                                    />
                                                 )}
-                                                <CrudActionButton action="delete" title="Delete Record" onClick={() => onDeleteDevice(device.id)} />
+                                                <CrudActionButton
+                                                    action="delete"
+                                                    title="Delete Record"
+                                                    disabled={isRowBusy}
+                                                    loading={deletingDeviceId === device.id}
+                                                    onClick={() => onDeleteDevice(device.id)}
+                                                />
                                             </div>
                                         </td>
                                     </tr>
@@ -177,3 +277,4 @@ export const BlockedDevicesTab: React.FC<BlockedDevicesTabProps> = ({ devices, i
         </div>
     );
 };
+

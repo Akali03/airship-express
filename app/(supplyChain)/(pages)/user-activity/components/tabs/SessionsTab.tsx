@@ -25,6 +25,9 @@ interface SessionsTabProps {
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
+    blockingSessionId?: string | null;
+    isBulkBlocking?: boolean;
+    isBulkDeleting?: boolean;
 }
 
 export const SessionsTab: React.FC<SessionsTabProps> = ({
@@ -42,6 +45,9 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
     currentPage,
     totalPages,
     onPageChange,
+    blockingSessionId = null,
+    isBulkBlocking = false,
+    isBulkDeleting = false,
 }) => {
     const selectableSessions = sessions.filter(s => !s.is_blocked && s.users?.role !== 'Admin');
     const allSessionsSelected = selectableSessions.length > 0 && selectedSessions.size === selectableSessions.length;
@@ -74,19 +80,21 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
                             type="button"
                             variant="danger"
                             size="xs"
+                            loading={isBulkBlocking}
                             onClick={onBulkBlock}
                         >
                             <Ban className="w-3 h-3" />
-                            <span>Block Selected</span>
+                            <span>{isBulkBlocking ? 'Blocking...' : 'Block Selected'}</span>
                         </AppButton>
                         <AppButton
                             type="button"
                             variant="neutral"
                             size="xs"
+                            loading={isBulkDeleting}
                             onClick={onBulkDelete}
                         >
                             <Trash2 className="w-3 h-3" />
-                            <span>Delete Selected</span>
+                            <span>{isBulkDeleting ? 'Deleting...' : 'Delete Selected'}</span>
                         </AppButton>
                     </div>
                 </div>
@@ -295,11 +303,12 @@ export const SessionsTab: React.FC<SessionsTabProps> = ({
                                                     </span>
                                                 ) : (
                                                     <CrudActionButton
-                                                        action="delete"
+                                                        action="block"
                                                         variant="pink"
                                                         label="Block"
                                                         title={isProtectedRole ? 'Cannot block Admin or Executive users' : 'Block this device'}
-                                                        disabled={isProtectedRole}
+                                                        disabled={isProtectedRole || Boolean(blockingSessionId)}
+                                                        loading={blockingSessionId === session.id}
                                                         onClick={() =>
                                                             onBlockDevice(
                                                                 session.id,

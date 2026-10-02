@@ -38,6 +38,9 @@ export default function UserActivityContentWrapper() {
     const editEmailParam = searchParams.get('edit_email') || searchParams.get('edit_user') || searchParams.get('search');
     const [accessControlSearchTerm, setAccessControlSearchTerm] = useState(editEmailParam || '');
     const [activeUserSearchTerm, setActiveUserSearchTerm] = useState('');
+    const [blockedSearchTerm, setBlockedSearchTerm] = useState('');
+    const [appealSearchTerm, setAppealSearchTerm] = useState('');
+    const [appealStatusFilter, setAppealStatusFilter] = useState('all');
     const [activitySearchTerm, setActivitySearchTerm] = useState('');
     const [activityFilter, setActivityFilter] = useState<string>('all');
 
@@ -50,6 +53,8 @@ export default function UserActivityContentWrapper() {
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
     const debouncedAccessControlSearchTerm = useDebounce(accessControlSearchTerm, 300);
     const debouncedActiveUserSearchTerm = useDebounce(activeUserSearchTerm, 300);
+    const debouncedBlockedSearchTerm = useDebounce(blockedSearchTerm, 300);
+    const debouncedAppealSearchTerm = useDebounce(appealSearchTerm, 300);
     const debouncedActivitySearchTerm = useDebounce(activitySearchTerm, 300);
 
     // appeal response modal
@@ -65,9 +70,11 @@ export default function UserActivityContentWrapper() {
         activeUsers,
         filteredActiveUsers,
         blockedDevices,
+        filteredBlockedDevices,
         activities,
         filteredActivities,
         appeals,
+        filteredAppeals,
         isLoading,
         isRefreshing,
         isRealtimeActive,
@@ -75,6 +82,24 @@ export default function UserActivityContentWrapper() {
         queuedUsersCount,
         queuedRolesCount,
         slotStats,
+
+        // Action loading states
+        blockingSessionId,
+        isBulkBlockingSessions,
+        isBulkDeletingSessions,
+        unblockingDeviceId,
+        deletingDeviceId,
+        isBulkUnblockingDevices,
+        isBulkDeletingDevices,
+        approvingAppealId,
+        rejectingAppealId,
+        deletingAppealId,
+        isBulkApprovingAppeals,
+        isBulkRejectingAppeals,
+        isBulkDeletingAppeals,
+        terminatingSessionId,
+        isBulkTerminating,
+        isBulkDeletingActivities,
 
         selectedSessions,
         setSelectedSessions,
@@ -111,6 +136,8 @@ export default function UserActivityContentWrapper() {
         filterSessions,
         filterAccessControl,
         filterActiveUsers,
+        filterBlockedDevices,
+        filterAppeals,
         filterActivities,
         fetchAllData,
         fetchSessions,
@@ -179,6 +206,18 @@ export default function UserActivityContentWrapper() {
         setSessionPage(1);
     }, [debouncedSearchTerm, filterSessions, setSessionPage]);
 
+    // filter blocked devices on debounced search
+    useEffect(() => {
+        filterBlockedDevices(debouncedBlockedSearchTerm);
+        setBlockedPage(1);
+    }, [debouncedBlockedSearchTerm, filterBlockedDevices, setBlockedPage]);
+
+    // filter appeals on debounced search or filter
+    useEffect(() => {
+        filterAppeals(debouncedAppealSearchTerm, appealStatusFilter);
+        setAppealPage(1);
+    }, [debouncedAppealSearchTerm, appealStatusFilter, filterAppeals, setAppealPage]);
+
     // filter activity logs on debounced search or filter
     useEffect(() => {
         filterActivities(debouncedActivitySearchTerm, activityFilter);
@@ -235,7 +274,7 @@ export default function UserActivityContentWrapper() {
     };
 
     const handleSelectAllBlocked = () => {
-        const paginated = getPaginatedData(blockedDevices, blockedPage);
+        const paginated = getPaginatedData(filteredBlockedDevices, blockedPage);
         if (selectedBlockedDevices.size === paginated.length) {
             setSelectedBlockedDevices(new Set());
         } else {
@@ -251,7 +290,7 @@ export default function UserActivityContentWrapper() {
     };
 
     const handleSelectAllAppeals = () => {
-        const paginated = getPaginatedData(appeals, appealPage);
+        const paginated = getPaginatedData(filteredAppeals, appealPage);
         if (selectedAppeals.size === paginated.length) {
             setSelectedAppeals(new Set());
         } else {
@@ -294,8 +333,8 @@ export default function UserActivityContentWrapper() {
     const paginatedActiveUsers = getPaginatedData(filteredActiveUsers, activeUserPage);
     const paginatedSessions = getPaginatedData(filteredSessions, sessionPage);
     const paginatedAccessControl = getPaginatedData(filteredAccessControl, accessControlPage);
-    const paginatedBlockedDevices = getPaginatedData(blockedDevices, blockedPage);
-    const paginatedAppeals = getPaginatedData(appeals, appealPage);
+    const paginatedBlockedDevices = getPaginatedData(filteredBlockedDevices, blockedPage);
+    const paginatedAppeals = getPaginatedData(filteredAppeals, appealPage);
     const paginatedActivities = getPaginatedData(filteredActivities, activityPage);
 
     const pendingAuthCount = accessControlList.filter(s => s.auth_requested).length;
@@ -356,6 +395,8 @@ export default function UserActivityContentWrapper() {
                     queuedUsersCount={queuedUsersCount}
                     queuedRolesCount={queuedRolesCount}
                     slotStats={slotStats}
+                    terminatingSessionId={terminatingSessionId}
+                    isBulkTerminating={isBulkTerminating}
                 />
             )}
 
@@ -375,6 +416,9 @@ export default function UserActivityContentWrapper() {
                     currentPage={sessionPage}
                     totalPages={sessionTotalPages}
                     onPageChange={setSessionPage}
+                    blockingSessionId={blockingSessionId}
+                    isBulkBlocking={isBulkBlockingSessions}
+                    isBulkDeleting={isBulkDeletingSessions}
                 />
             )}
 
@@ -396,6 +440,10 @@ export default function UserActivityContentWrapper() {
                 <BlockedDevicesTab
                     devices={paginatedBlockedDevices}
                     isLoading={isLoading}
+                    searchTerm={blockedSearchTerm}
+                    onSearchTermChange={setBlockedSearchTerm}
+                    isRealtimeActive={isRealtimeActive}
+                    onRefresh={() => fetchAllData(true)}
                     selectedDevices={selectedBlockedDevices}
                     onToggleSelectDevice={handleToggleSelectBlocked}
                     onSelectAllDevices={handleSelectAllBlocked}
@@ -406,6 +454,10 @@ export default function UserActivityContentWrapper() {
                     currentPage={blockedPage}
                     totalPages={blockedTotalPages}
                     onPageChange={setBlockedPage}
+                    unblockingDeviceId={unblockingDeviceId}
+                    deletingDeviceId={deletingDeviceId}
+                    isBulkUnblocking={isBulkUnblockingDevices}
+                    isBulkDeleting={isBulkDeletingDevices}
                 />
             )}
 
@@ -413,6 +465,12 @@ export default function UserActivityContentWrapper() {
                 <AppealsTab
                     appeals={paginatedAppeals}
                     isLoading={isLoading}
+                    searchTerm={appealSearchTerm}
+                    onSearchTermChange={setAppealSearchTerm}
+                    statusFilter={appealStatusFilter}
+                    onStatusFilterChange={setAppealStatusFilter}
+                    isRealtimeActive={isRealtimeActive}
+                    onRefresh={() => fetchAllData(true)}
                     selectedAppeals={selectedAppeals}
                     onToggleSelectAppeal={handleToggleSelectAppeal}
                     onSelectAllAppeals={handleSelectAllAppeals}
@@ -426,6 +484,12 @@ export default function UserActivityContentWrapper() {
                     currentPage={appealPage}
                     totalPages={appealTotalPages}
                     onPageChange={setAppealPage}
+                    approvingAppealId={approvingAppealId}
+                    rejectingAppealId={rejectingAppealId}
+                    deletingAppealId={deletingAppealId}
+                    isBulkApproving={isBulkApprovingAppeals}
+                    isBulkRejecting={isBulkRejectingAppeals}
+                    isBulkDeleting={isBulkDeletingAppeals}
                 />
             )}
 
@@ -445,6 +509,9 @@ export default function UserActivityContentWrapper() {
                     currentPage={activityPage}
                     totalPages={activityTotalPages}
                     onPageChange={setActivityPage}
+                    isBulkDeleting={isBulkDeletingActivities}
+                    isRealtimeActive={isRealtimeActive}
+                    onRefresh={() => fetchAllData(true)}
                 />
             )}
 

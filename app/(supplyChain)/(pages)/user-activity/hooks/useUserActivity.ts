@@ -26,12 +26,36 @@ export function useUserActivity() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isRealtimeActive, setIsRealtimeActive] = useState(false);
 
+    // action loading states
+    const [blockingSessionId, setBlockingSessionId] = useState<string | null>(null);
+    const [isBulkBlockingSessions, setIsBulkBlockingSessions] = useState(false);
+    const [isBulkDeletingSessions, setIsBulkDeletingSessions] = useState(false);
+
+    const [unblockingDeviceId, setUnblockingDeviceId] = useState<string | null>(null);
+    const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
+    const [isBulkUnblockingDevices, setIsBulkUnblockingDevices] = useState(false);
+    const [isBulkDeletingDevices, setIsBulkDeletingDevices] = useState(false);
+
+    const [approvingAppealId, setApprovingAppealId] = useState<string | null>(null);
+    const [rejectingAppealId, setRejectingAppealId] = useState<string | null>(null);
+    const [deletingAppealId, setDeletingAppealId] = useState<string | null>(null);
+    const [isBulkApprovingAppeals, setIsBulkApprovingAppeals] = useState(false);
+    const [isBulkRejectingAppeals, setIsBulkRejectingAppeals] = useState(false);
+    const [isBulkDeletingAppeals, setIsBulkDeletingAppeals] = useState(false);
+
+    const [terminatingSessionId, setTerminatingSessionId] = useState<string | null>(null);
+    const [isBulkTerminating, setIsBulkTerminating] = useState(false);
+    const [isBulkDeletingActivities, setIsBulkDeletingActivities] = useState(false);
+
     // search & filter state
     const [sessionSearchTerm, setSessionSearchTerm] = useState('');
     const [accessControlSearchTerm, setAccessControlSearchTerm] = useState('');
     const [activeUserSearchTerm, setActiveUserSearchTerm] = useState('');
     const [activitySearchTerm, setActivitySearchTerm] = useState('');
     const [activityActionFilter, setActivityActionFilter] = useState<string>('all');
+    const [blockedSearchTerm, setBlockedSearchTerm] = useState('');
+    const [appealSearchTerm, setAppealSearchTerm] = useState('');
+    const [appealStatusFilter, setAppealStatusFilter] = useState<string>('all');
 
     // selections
     const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
@@ -501,11 +525,14 @@ export function useUserActivity() {
                 }
             });
 
-        // live background polling interval: keeps active sessions, access control permissions, slots, and queued users updated in realtime
+        // live background polling interval: keeps active sessions, access control permissions, blocked devices, appeals, activities, slots, and queued users updated in realtime
         const liveQueueInterval = setInterval(() => {
             if (isMounted.current) {
                 fetchActiveUsers(true);
                 fetchSessions(true);
+                fetchBlockedDevices(true);
+                fetchAppeals(true);
+                fetchActivities(true);
             }
         }, 5000);
 
@@ -568,6 +595,39 @@ export function useUserActivity() {
         );
     }, [activeUsers, activeUserSearchTerm]);
 
+    const filteredBlockedDevices = useMemo(() => {
+        if (!blockedSearchTerm.trim()) return blockedDevices;
+        const term = blockedSearchTerm.toLowerCase();
+        return blockedDevices.filter(d =>
+            d.device_name?.toLowerCase().includes(term) ||
+            d.user_agent?.toLowerCase().includes(term) ||
+            d.ip_address?.toLowerCase().includes(term) ||
+            d.email?.toLowerCase().includes(term) ||
+            d.reason?.toLowerCase().includes(term) ||
+            d.status?.toLowerCase().includes(term)
+        );
+    }, [blockedDevices, blockedSearchTerm]);
+
+    const filteredAppeals = useMemo(() => {
+        let list = appeals;
+        if (appealSearchTerm.trim()) {
+            const term = appealSearchTerm.toLowerCase();
+            list = list.filter(a =>
+                a.user_name?.toLowerCase().includes(term) ||
+                a.user_email?.toLowerCase().includes(term) ||
+                a.appeal_message?.toLowerCase().includes(term) ||
+                a.response_message?.toLowerCase().includes(term) ||
+                a.status?.toLowerCase().includes(term)
+            );
+        }
+
+        if (appealStatusFilter !== 'all') {
+            list = list.filter(a => a.status === appealStatusFilter);
+        }
+
+        return list;
+    }, [appeals, appealSearchTerm, appealStatusFilter]);
+
     const filteredActivities = useMemo(() => {
         let list = activities;
         if (activitySearchTerm.trim()) {
@@ -593,8 +653,8 @@ export function useUserActivity() {
     const sessionTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE)), [filteredSessions]);
     const accessControlTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredAccessControl.length / ITEMS_PER_PAGE)), [filteredAccessControl]);
     const activeUserTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredActiveUsers.length / ITEMS_PER_PAGE)), [filteredActiveUsers]);
-    const blockedTotalPages = useMemo(() => Math.max(1, Math.ceil(blockedDevices.length / ITEMS_PER_PAGE)), [blockedDevices]);
-    const appealTotalPages = useMemo(() => Math.max(1, Math.ceil(appeals.length / ITEMS_PER_PAGE)), [appeals]);
+    const blockedTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredBlockedDevices.length / ITEMS_PER_PAGE)), [filteredBlockedDevices]);
+    const appealTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredAppeals.length / ITEMS_PER_PAGE)), [filteredAppeals]);
     const activityTotalPages = useMemo(() => Math.max(1, Math.ceil(filteredActivities.length / ITEMS_PER_PAGE)), [filteredActivities]);
 
     // Compatibility filter helpers for parent wrapper
@@ -611,6 +671,17 @@ export function useUserActivity() {
     const filterActiveUsers = useCallback((term: string) => {
         setActiveUserSearchTerm(term);
         setActiveUserPage(1);
+    }, []);
+
+    const filterBlockedDevices = useCallback((term: string) => {
+        setBlockedSearchTerm(term);
+        setBlockedPage(1);
+    }, []);
+
+    const filterAppeals = useCallback((term: string, filter = 'all') => {
+        setAppealSearchTerm(term);
+        setAppealStatusFilter(filter);
+        setAppealPage(1);
     }, []);
 
     const filterActivities = useCallback((term: string, filter: string) => {
@@ -659,6 +730,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setBlockingSessionId(sessionId);
         try {
             const userId = session?.user_id || currentUserId || '00000000-0000-0000-0000-000000000000';
             const userEmail = email || session?.email || session?.users?.email || '';
@@ -750,6 +822,10 @@ export function useUserActivity() {
         } catch (error: any) {
             console.error('Error blocking device:', error);
             toast.error(`Failed to block device: ${error?.message || 'Unknown error'}`);
+        } finally {
+            if (isMounted.current) {
+                setBlockingSessionId(null);
+            }
         }
     };
 
@@ -780,6 +856,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setUnblockingDeviceId(deviceId);
         try {
             await supabase
                 .from('blocked_devices')
@@ -796,6 +873,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error unblocking device:', error);
             toast.error('Failed to unblock device');
+        } finally {
+            if (isMounted.current) {
+                setUnblockingDeviceId(null);
+            }
         }
     };
 
@@ -810,6 +891,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setDeletingDeviceId(deviceId);
         try {
             await supabase
                 .from('blocked_devices')
@@ -821,6 +903,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error deleting device:', error);
             toast.error('Failed to delete device');
+        } finally {
+            if (isMounted.current) {
+                setDeletingDeviceId(null);
+            }
         }
     };
 
@@ -835,6 +921,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setApprovingAppealId(appealId);
         try {
             const appeal = appeals.find(a => a.id === appealId);
             if (!appeal) return;
@@ -863,6 +950,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error approving appeal:', error);
             toast.error('Failed to approve appeal');
+        } finally {
+            if (isMounted.current) {
+                setApprovingAppealId(null);
+            }
         }
     };
 
@@ -877,6 +968,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setRejectingAppealId(appealId);
         try {
             await supabase
                 .from('appeals')
@@ -893,6 +985,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error rejecting appeal:', error);
             toast.error('Failed to reject appeal');
+        } finally {
+            if (isMounted.current) {
+                setRejectingAppealId(null);
+            }
         }
     };
 
@@ -907,6 +1003,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setDeletingAppealId(appealId);
         try {
             await supabase
                 .from('appeals')
@@ -918,6 +1015,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error deleting appeal:', error);
             toast.error('Failed to delete appeal');
+        } finally {
+            if (isMounted.current) {
+                setDeletingAppealId(null);
+            }
         }
     };
 
@@ -986,6 +1087,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkBlockingSessions(true);
         try {
             let blockedCount = 0;
             let skippedCount = 0;
@@ -1091,6 +1193,10 @@ export function useUserActivity() {
         } catch (error: any) {
             console.error('Error bulk blocking devices:', error);
             toast.error(`Failed to block devices: ${error?.message || 'Unknown error'}`);
+        } finally {
+            if (isMounted.current) {
+                setIsBulkBlockingSessions(false);
+            }
         }
     };
 
@@ -1115,6 +1221,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkUnblockingDevices(true);
         try {
             await supabase
                 .from('blocked_devices')
@@ -1131,6 +1238,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error bulk unblocking devices:', error);
             toast.error('Failed to unblock devices');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkUnblockingDevices(false);
+            }
         }
     };
 
@@ -1150,6 +1261,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkDeletingDevices(true);
         try {
             await supabase
                 .from('blocked_devices')
@@ -1162,6 +1274,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error bulk deleting devices:', error);
             toast.error('Failed to delete devices');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkDeletingDevices(false);
+            }
         }
     };
 
@@ -1181,6 +1297,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkDeletingSessions(true);
         try {
             await supabase
                 .from('sessions')
@@ -1193,6 +1310,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error bulk deleting sessions:', error);
             toast.error('Failed to delete sessions');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkDeletingSessions(false);
+            }
         }
     };
 
@@ -1212,6 +1333,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkDeletingActivities(true);
         try {
             await supabase
                 .from('user_activity')
@@ -1224,6 +1346,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error bulk deleting activities:', error);
             toast.error('Failed to delete activities');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkDeletingActivities(false);
+            }
         }
     };
 
@@ -1243,6 +1369,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkDeletingAppeals(true);
         try {
             await supabase
                 .from('appeals')
@@ -1255,6 +1382,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error bulk deleting appeals:', error);
             toast.error('Failed to delete appeals');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkDeletingAppeals(false);
+            }
         }
     };
 
@@ -1271,6 +1402,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkApprovingAppeals(true);
         try {
             const appealIds = Array.from(selectedAppeals);
             const selectedAppealsList = appeals.filter(a => appealIds.includes(a.id));
@@ -1304,6 +1436,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error bulk approving appeals:', error);
             toast.error('Failed to approve appeals');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkApprovingAppeals(false);
+            }
         }
     };
 
@@ -1320,6 +1456,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkRejectingAppeals(true);
         try {
             const appealIds = Array.from(selectedAppeals);
             await supabase
@@ -1338,6 +1475,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error bulk rejecting appeals:', error);
             toast.error('Failed to reject appeals');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkRejectingAppeals(false);
+            }
         }
     };
 
@@ -1370,6 +1511,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setTerminatingSessionId(sessionId);
         try {
             const callerToken = user.getSessionToken() || '';
             const res = await fetch('/api/supplyChain/terminate-user-session', {
@@ -1392,6 +1534,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error terminating session:', error);
             toast.error('Failed to terminate user session');
+        } finally {
+            if (isMounted.current) {
+                setTerminatingSessionId(null);
+            }
         }
     };
 
@@ -1428,6 +1574,7 @@ export function useUserActivity() {
 
         if (!confirmed) return;
 
+        setIsBulkTerminating(true);
         try {
             let successCount = 0;
             const callerToken = user.getSessionToken() || '';
@@ -1449,6 +1596,10 @@ export function useUserActivity() {
         } catch (error) {
             console.error('Error in bulk termination:', error);
             toast.error('Failed to terminate some sessions');
+        } finally {
+            if (isMounted.current) {
+                setIsBulkTerminating(false);
+            }
         }
     };
 
@@ -1465,9 +1616,11 @@ export function useUserActivity() {
         activeUsers,
         filteredActiveUsers,
         blockedDevices,
+        filteredBlockedDevices,
         activities,
         filteredActivities,
         appeals,
+        filteredAppeals,
         isLoading,
         isRefreshing,
         isRealtimeActive,
@@ -1476,6 +1629,24 @@ export function useUserActivity() {
         queuedUsersCount,
         queuedRolesCount,
         slotStats,
+
+        // action loading states
+        blockingSessionId,
+        isBulkBlockingSessions,
+        isBulkDeletingSessions,
+        unblockingDeviceId,
+        deletingDeviceId,
+        isBulkUnblockingDevices,
+        isBulkDeletingDevices,
+        approvingAppealId,
+        rejectingAppealId,
+        deletingAppealId,
+        isBulkApprovingAppeals,
+        isBulkRejectingAppeals,
+        isBulkDeletingAppeals,
+        terminatingSessionId,
+        isBulkTerminating,
+        isBulkDeletingActivities,
 
         // selections
         selectedSessions,
@@ -1512,6 +1683,8 @@ export function useUserActivity() {
         filterSessions,
         filterAccessControl,
         filterActiveUsers,
+        filterBlockedDevices,
+        filterAppeals,
         filterActivities,
         fetchAllData,
         fetchActiveUsers,
@@ -1707,3 +1880,4 @@ export function useUserActivity() {
         handleBulkRejectAppeals,
     };
 }
+

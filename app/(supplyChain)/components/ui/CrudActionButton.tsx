@@ -14,6 +14,8 @@ import {
   Check,
   X,
   Send,
+  Ban,
+  Loader2,
   LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +37,7 @@ export type CrudActionType =
   | "account"
   | "lock"
   | "unlock"
+  | "block"
   | "custom";
 
 export type CrudActionVariant = "auto" | "pink" | "neutral";
@@ -49,6 +52,8 @@ export interface CrudActionButtonProps
   className?: string;
   size?: "sm" | "md";
   badgeCount?: number;
+  loading?: boolean;
+  isLoading?: boolean;
 }
 
 const ACTION_CONFIG: Record<
@@ -72,6 +77,7 @@ const ACTION_CONFIG: Record<
   account: { label: "Account", icon: Plus },
   lock: { label: "Disable", icon: X },
   unlock: { label: "Enable", icon: Check },
+  block: { label: "Block", icon: Ban },
 };
 
 const VARIANT_STYLES: Record<"pink" | "neutral", string> = {
@@ -95,7 +101,7 @@ const VARIANT_STYLES: Record<"pink" | "neutral", string> = {
  * - Solid, opaque surfaces with soft tactile top-highlight (zero transparency).
  * - Fixed layout slot: hovering never shifts sibling buttons or table columns.
  * - Symmetrical 200ms ease-in-out expansion and retraction.
- * - Color: Pink accent exclusively on Delete; clean solid pearl on all other actions.
+ * - Color: Pink accent on Delete & Block; clean solid pearl on all other actions.
  */
 export const CrudActionButton = React.forwardRef<
   HTMLButtonElement,
@@ -114,19 +120,26 @@ export const CrudActionButton = React.forwardRef<
       type = "button",
       disabled,
       badgeCount,
+      loading,
+      isLoading,
       onClick,
       ...restProps
     },
     ref
   ) => {
+    const isBusy = Boolean(loading || isLoading);
     const config = action !== "custom" ? ACTION_CONFIG[action] : null;
-    const label = customLabel || config?.label || "Action";
+    const label = isBusy ? "Loading..." : customLabel || config?.label || "Action";
     const IconComponent = CustomIcon || config?.icon || Eye;
     const accessibleLabel = ariaLabel || title || label;
 
-    // Pink only on delete by default, neutral for all others
+    // Pink on delete or block by default, neutral for all others
     const resolvedVariant: "pink" | "neutral" =
-      variant === "auto" ? (action === "delete" ? "pink" : "neutral") : variant;
+      variant === "auto"
+        ? action === "delete" || action === "block"
+          ? "pink"
+          : "neutral"
+        : variant;
 
     const slotDimensions =
       size === "sm" ? "w-7 h-7" : "w-8 h-8";
@@ -144,7 +157,8 @@ export const CrudActionButton = React.forwardRef<
           ref={ref}
           type={type}
           onClick={onClick}
-          disabled={disabled}
+          disabled={disabled || isBusy}
+          aria-busy={isBusy}
           aria-label={accessibleLabel}
           title={title || label}
           className={`group/crud-btn absolute right-0 top-0 inline-flex items-center justify-center font-medium rounded-full border
@@ -156,32 +170,37 @@ export const CrudActionButton = React.forwardRef<
             ${VARIANT_STYLES[resolvedVariant]}`}
           {...restProps}
         >
-          {/* Action Icon: soft fade and collapse on hover, smooth symmetrical restore on hover out */}
+          {/* Action Icon or Loading Spinner */}
           <span
-            className="inline-flex items-center justify-center shrink-0 pointer-events-none overflow-hidden
+            className={`inline-flex items-center justify-center shrink-0 pointer-events-none overflow-hidden
               max-w-[18px] opacity-100 translate-x-0
-              group-hover/crud-btn:max-w-0 group-hover/crud-btn:opacity-0 group-hover/crud-btn:-translate-x-1
-              group-focus-visible/crud-btn:max-w-0 group-focus-visible/crud-btn:opacity-0 group-focus-visible/crud-btn:-translate-x-1
-              transition-all duration-200 ease-in-out"
+              ${!isBusy ? 'group-hover/crud-btn:max-w-0 group-hover/crud-btn:opacity-0 group-hover/crud-btn:-translate-x-1 group-focus-visible/crud-btn:max-w-0 group-focus-visible/crud-btn:opacity-0 group-focus-visible/crud-btn:-translate-x-1' : ''}
+              transition-all duration-200 ease-in-out`}
             aria-hidden="true"
           >
-            <IconComponent className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+            {isBusy ? (
+              <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin text-current" strokeWidth={2.5} />
+            ) : (
+              <IconComponent className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+            )}
           </span>
 
-          {/* Action Text: soft slide & reveal on hover, smooth symmetrical collapse on hover out */}
-          <span
-            className="inline-flex items-center font-semibold leading-none whitespace-nowrap overflow-hidden pointer-events-none
-              max-w-0 opacity-0 translate-x-1
-              group-hover/crud-btn:max-w-[75px] group-hover/crud-btn:opacity-100 group-hover/crud-btn:translate-x-0 group-hover/crud-btn:px-1
-              group-focus-visible/crud-btn:max-w-[75px] group-focus-visible/crud-btn:opacity-100 group-focus-visible/crud-btn:translate-x-0 group-focus-visible/crud-btn:px-1
-              transition-all duration-200 ease-in-out"
-          >
-            {label}
-          </span>
+          {/* Action Text: soft slide & reveal on hover (hidden during busy state to maintain compact spinner) */}
+          {!isBusy && (
+            <span
+              className="inline-flex items-center font-semibold leading-none whitespace-nowrap overflow-hidden pointer-events-none
+                max-w-0 opacity-0 translate-x-1
+                group-hover/crud-btn:max-w-[75px] group-hover/crud-btn:opacity-100 group-hover/crud-btn:translate-x-0 group-hover/crud-btn:px-1
+                group-focus-visible/crud-btn:max-w-[75px] group-focus-visible/crud-btn:opacity-100 group-focus-visible/crud-btn:translate-x-0 group-focus-visible/crud-btn:px-1
+                transition-all duration-200 ease-in-out"
+            >
+              {label}
+            </span>
+          )}
         </button>
 
         {/* Unread / Notification Count Badge */}
-        {badgeCount !== undefined && badgeCount > 0 && (
+        {!isBusy && badgeCount !== undefined && badgeCount > 0 && (
           <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-pink-600 text-white font-black text-[9px] shadow-sm border border-white dark:border-[#191a24] pointer-events-none z-30 animate-pulse">
             {badgeCount > 99 ? "99+" : badgeCount}
           </span>
@@ -194,3 +213,4 @@ export const CrudActionButton = React.forwardRef<
 CrudActionButton.displayName = "CrudActionButton";
 
 export default CrudActionButton;
+
