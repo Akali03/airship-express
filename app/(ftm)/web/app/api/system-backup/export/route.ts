@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 import { authenticateFtmRequest } from "../../../lib/server/ftmRequestAuth";
 import { createFtmParcelClient } from "../../../lib/server/ftmSupabase";
 
@@ -45,28 +45,6 @@ function toPlainText(value: unknown): string {
   return /^[=+\-@]/.test(text) ? `'${text}` : text;
 }
 
-function styleHeader(row: ExcelJS.Row) {
-  row.height = 26;
-  row.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFBE185D" } };
-    cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
-    cell.border = { bottom: { style: "thin", color: { argb: "FF9F1239" } } };
-  });
-}
-
-function styleDataRows(sheet: ExcelJS.Worksheet, startRow: number) {
-  for (let index = startRow; index <= sheet.rowCount; index += 1) {
-    const row = sheet.getRow(index);
-    row.height = 22;
-    row.eachCell((cell) => {
-      cell.alignment = { vertical: "top", horizontal: "left", wrapText: true };
-      cell.border = { bottom: { style: "hair", color: { argb: "FFE2E8F0" } } };
-      if (index % 2 === 0) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
-    });
-  }
-}
-
 export async function GET(request: Request) {
   const auth = await authenticateFtmRequest(request);
   if (!("context" in auth)) return auth.response;
@@ -96,49 +74,41 @@ export async function GET(request: Request) {
     }
 
     const exportedAt = new Date();
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Airship Express";
-    workbook.created = exportedAt;
-    workbook.modified = exportedAt;
-    const summary = workbook.addWorksheet("Backup Summary", { views: [{ state: "frozen", ySplit: 6 }] });
-    summary.mergeCells("A1:C1");
-    summary.getCell("A1").value = "Airship Express | FTM and Parcel Supabase Backup";
-    summary.getCell("A1").font = { bold: true, color: { argb: "FFFFFFFF" }, size: 16 };
-    summary.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF831843" } };
-    summary.getCell("A1").alignment = { vertical: "middle", horizontal: "left" };
-    summary.getRow(1).height = 34;
-    summary.addRow(["Exported at", exportedAt.toLocaleString(), ""]);
-    summary.addRow(["Format", "Excel workbook with plain-text table values", ""]);
-    summary.addRow(["Included tables", String(Object.keys(tables).length), ""]);
-    summary.addRow([]);
-    summary.addRow(["Table", "Rows", "Status"]);
-    styleHeader(summary.getRow(6));
-    for (const [table, rows] of Object.entries(tables)) summary.addRow([table, String(rows.length), tableStatus[table]]);
-    styleDataRows(summary, 7);
-    summary.columns = [{ width: 34 }, { width: 42 }, { width: 30 }];
+    const workbook = XLSX.utils.book_new();
+    const summaryRows = [
+      ["Airship Express | FTM and Parcel Supabase Backup", "", ""],
+      ["Exported at", exportedAt.toLocaleString(), ""],
+      ["Format", "Excel workbook with plain-text table values", ""],
+      ["Included tables", String(Object.keys(tables).length), ""],
+      [],
+      ["Table", "Rows", "Status"],
+      ...Object.entries(tables).map(([table, rows]) => [table, String(rows.length), tableStatus[table]]),
+    ];
+    const summary = XLSX.utils.aoa_to_sheet(summaryRows);
+    summary["!cols"] = [{ wch: 34 }, { wch: 42 }, { wch: 30 }];
+    summary["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+    XLSX.utils.book_append_sheet(workbook, summary, "Backup Summary");
 
     for (const [table, rows] of Object.entries(tables)) {
-      const sheet = workbook.addWorksheet(table.slice(0, 31), { views: [{ state: "frozen", ySplit: 4 }] });
       const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
-      sheet.mergeCells(1, 1, 1, Math.max(columns.length, 1));
-      sheet.getCell(1, 1).value = `${table} | ${rows.length} records`;
-      sheet.getCell(1, 1).font = { bold: true, color: { argb: "FFFFFFFF" }, size: 14 };
-      sheet.getCell(1, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF831843" } };
-      sheet.getCell(1, 1).alignment = { vertical: "middle", horizontal: "left" };
-      sheet.getRow(1).height = 30;
-      sheet.addRow(["Status", tableStatus[table], `Exported ${exportedAt.toLocaleString()}`]);
-      sheet.addRow([]);
-      sheet.addRow(columns.length ? columns : ["message"]);
-      styleHeader(sheet.getRow(4));
-      if (!rows.length) sheet.addRow(["No rows found in this table."]);
-      else rows.forEach((row) => sheet.addRow(columns.map((column) => toPlainText(row[column]))));
-      styleDataRows(sheet, 5);
-      sheet.columns = (columns.length ? columns : ["message"]).map((column) => ({ key: column, width: Math.min(42, Math.max(16, column.length + 3)) }));
-      sheet.autoFilter = { from: "A4", to: `${sheet.getColumn(columns.length || 1).letter}4` };
+      const headers = columns.length ? columns : ["message"];
+      const sheetRows = [
+        [`${table} | ${rows.length} records`],
+        ["Status", tableStatus[table], `Exported ${exportedAt.toLocaleString()}`],
+        [],
+        headers,
+        ...(rows.length ? rows.map((row) => columns.map((column) => toPlainText(row[column]))) : [["No rows found in this table."]]),
+      ];
+      const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
+      const columnCount = Math.max(columns.length, 1);
+      sheet["!cols"] = headers.map((column) => ({ wch: Math.min(42, Math.max(16, column.length + 3)) }));
+      sheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: columnCount - 1 } }];
+      sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3, c: columnCount - 1 } }) };
+      XLSX.utils.book_append_sheet(workbook, sheet, table.slice(0, 31));
     }
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    return new NextResponse(buffer, {
+    const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="airship-express-supabase-backup-${exportedAt.toISOString().slice(0, 10)}.xlsx"`,
