@@ -97,8 +97,9 @@ export default function VrdsHistoryPage() {
       setOptimizationMessage(
         `OR-Tools reroute ready — ETA ${result.etaMinutes} min, ${result.distanceMi.toFixed(1)} mi.`
       );
-    } catch {
-      setOptimizationMessage("OR-Tools optimization unavailable, using fallback route.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown optimization error.";
+      setOptimizationMessage(`OR-Tools reroute failed: ${message}`);
     } finally {
       setOptimizing(false);
     }

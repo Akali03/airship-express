@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasPermission } from "../../lib/permissions";
 import { authenticateFtmRequest } from "../../lib/server/ftmRequestAuth";
-import { insertRoutePlanWithFallback, isOpenRoutePlan, isRoutePlanSchemaUnavailable, normalizeRoutePlan, prepareRoutePlanPayload, runFtmRouteOptimizer } from "../../lib/server/ftmRoutePlans";
+import { insertRoutePlanWithFallback, isOpenRoutePlan, isRoutePlanSchemaUnavailable, normalizeRoutePlan, prepareRoutePlanPayload } from "../../lib/server/ftmRoutePlans";
 
 export const dynamic = "force-dynamic";
 
@@ -42,38 +42,32 @@ export async function POST(request: Request) {
   }
 
   const depot = { name: body.pickup_location, lat: Number(body.pickup_latitude), lng: Number(body.pickup_longitude) };
-  const stops = body.delivery_destinations.map((stop: Record<string, any>, index: number) => {
-    const rawName = stop.name || stop.address || stop.delivery_address || `Stop ${index + 1}`;
-    const cityLabel = stop.city || stop.location || stop.area || "";
-    const uniqueName = `${rawName}${cityLabel ? ` \u2022 ${cityLabel}` : ""} \u2022 ${index + 1}`;
-    return {
-      ...stop,
-      id: stop.id || stop.stop_id || `${uniqueName}-${index}`,
-      name: uniqueName,
-      lat: Number(stop.lat ?? stop.latitude),
-      lng: Number(stop.lng ?? stop.longitude),
-    };
-  }).filter((stop: Record<string, any>) => stop.name && Number.isFinite(stop.lat) && Number.isFinite(stop.lng));
-
   if (!Number.isFinite(depot.lat) || !Number.isFinite(depot.lng)) {
     return NextResponse.json({ error: "pickup_latitude/pickup_longitude are required" }, { status: 400 });
   }
-  if (!stops.length) return NextResponse.json({ error: "delivery_destinations must include valid lat/lng for each stop" }, { status: 400 });
+  const finalStops = body.delivery_destinations.filter((stop: Record<string, any>) => {
+    const latitude = Number(stop.lat ?? stop.latitude);
+    const longitude = Number(stop.lng ?? stop.longitude);
+    return Number.isFinite(latitude) && Number.isFinite(longitude);
+  });
+  if (!finalStops.length) return NextResponse.json({ error: "delivery_destinations must include valid lat/lng for each stop" }, { status: 400 });
 
-  let optimized;
-  try {
-    optimized = await runFtmRouteOptimizer(depot, stops);
-  } catch (error) {
-    console.error("Route plan optimization failed:", error);
-    return NextResponse.json({ error: "Route optimization service failed" }, { status: 502 });
+  const routeGeojson = body.route_geojson || body.routeGeojson || {};
+  const featureProperties = routeGeojson.features?.[0]?.properties || {};
+  const distanceKm = Number(body.distance_km ?? body.distanceKm ?? Number(featureProperties.distanceMi) * 1.609344);
+  const durationMin = Number(body.estimated_duration_min ?? body.durationMinutes ?? featureProperties.etaMinutes);
+  if (!Number.isFinite(distanceKm) || !Number.isFinite(durationMin)) {
+    return NextResponse.json({ error: "Generate a valid route before saving the booking." }, { status: 400 });
   }
 
-  const stopsByName = new Map(stops.map((stop: Record<string, any>) => [stop.name, stop]));
-  const orderedStops = Array.isArray(optimized.order) && optimized.order.length
-    ? optimized.order.map((name: string) => stopsByName.get(name) || stops.find((stop: Record<string, any>) => stop.id === name)).filter(Boolean)
-    : stops;
-  orderedStops.forEach((stop: any) => stop?.name && stopsByName.delete(stop.name));
-  const finalStops = [...orderedStops, ...Array.from(stopsByName.values())];
+  const optimized = {
+    order: finalStops.map((stop: Record<string, any>) => stop.name || stop.address || stop.delivery_address),
+    routes: Array.isArray(routeGeojson.routes) ? routeGeojson.routes : null,
+    route_geometry: routeGeojson.route_geometry || routeGeojson.features?.[0]?.geometry || null,
+    distance_km: distanceKm,
+    duration_min: durationMin,
+    solver: body.generated_by || "or-tools",
+  };
   const payload = prepareRoutePlanPayload(body, optimized, finalStops);
   const { data, error } = await insertRoutePlanWithFallback(context.serviceClient, payload);
   if (error) {

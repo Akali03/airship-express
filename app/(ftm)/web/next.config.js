@@ -3,6 +3,7 @@ const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 
 const nextConfig = {
+  distDir: process.env.NEXT_BUILD_DIST_DIR || ".next",
   env: {
     NEXT_PUBLIC__FTM_SUPABASE_URL:
       process.env.NEXT_PUBLIC__FTM_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "",

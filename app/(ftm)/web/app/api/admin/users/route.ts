@@ -22,15 +22,16 @@ export async function GET(request: Request) {
     if (profileError) return NextResponse.json({ error: profileError.message || "Failed to fetch user profiles" }, { status: 500 });
 
     const profileById = new Map<string, Record<string, any>>((profiles || []).map((profile) => [profile.id, profile]));
-    const listPasskeys = (supabase.auth.admin as any).listPasskeys;
+    const { data: passkeyStatuses, error: passkeyStatusError } = await supabase
+      .from("ftm_passkey_enrollment_status")
+      .select("user_id, status, registered_at");
+    if (passkeyStatusError) return NextResponse.json({ error: passkeyStatusError.message || "Failed to fetch passkey statuses" }, { status: 500 });
+
+    const statusByUserId = new Map((passkeyStatuses || []).map((record) => [record.user_id, record]));
     const passkeyCounts = new Map<string, number | null>();
     await Promise.all((authData.users || []).map(async (user) => {
-      if (typeof listPasskeys !== "function") {
-        passkeyCounts.set(user.id, null);
-        return;
-      }
       try {
-        const { data, error } = await listPasskeys({ userId: user.id });
+        const { data, error } = await supabase.auth.admin.passkey.listPasskeys({ userId: user.id });
         passkeyCounts.set(user.id, error ? null : Array.isArray(data) ? data.length : 0);
       } catch {
         passkeyCounts.set(user.id, null);
@@ -39,6 +40,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json((authData.users || []).map((user) => {
       const profile = profileById.get(user.id) || {};
+      const passkeyCount = passkeyCounts.get(user.id) ?? null;
+      const storedPasskeyStatus = statusByUserId.get(user.id);
       return {
         id: user.id,
         email: user.email,
@@ -51,7 +54,11 @@ export async function GET(request: Request) {
         last_sign_in_at: user.last_sign_in_at || null,
         locked: Boolean(user.banned_until && new Date(user.banned_until).getTime() > Date.now()),
         banned_until: user.banned_until || null,
-        passkey_count: passkeyCounts.get(user.id) ?? null,
+        passkey_count: passkeyCount,
+        passkey_status: passkeyCount === null
+          ? storedPasskeyStatus?.status || "Pending"
+          : passkeyCount > 0 ? "Registered" : "Pending",
+        passkey_registered_at: passkeyCount !== null && passkeyCount > 0 ? storedPasskeyStatus?.registered_at || null : null,
       };
     }));
   } catch (error) {

@@ -1,9 +1,39 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OptimizeRequest } from "../optimize";
+import { runFtmPythonOptimizer } from "./ftmPythonOptimizer";
 
 type Point = { name?: string; lat: number; lng: number; [key: string]: any };
 type RoutePlan = Record<string, any>;
+type OsrmCostMatrices = { distanceMatrix: number[][]; durationMatrix: number[][] };
+
+async function fetchOsrmCostMatrices(points: Point[]): Promise<OsrmCostMatrices> {
+  const coordinates = points.map((point) => `${point.lng},${point.lat}`).join(";");
+  const url = new URL(`https://router.project-osrm.org/table/v1/driving/${coordinates}`);
+  url.searchParams.set("annotations", "distance,duration");
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(7000),
+  });
+  if (!response.ok) throw new Error(`OSRM table request failed with HTTP ${response.status}`);
+
+  const result = await response.json();
+  const isValidMatrix = (matrix: unknown) => Array.isArray(matrix)
+    && matrix.length === points.length
+    && matrix.every((row) => Array.isArray(row)
+      && row.length === points.length
+      && row.every((value) => typeof value === "number" && Number.isFinite(value) && value >= 0));
+  if (result?.code !== "Ok" || !isValidMatrix(result.distances) || !isValidMatrix(result.durations)) {
+    throw new Error("OSRM did not return complete distance and duration matrices for every selected stop.");
+  }
+
+  return {
+    distanceMatrix: result.distances.map((row: number[]) => row.map((meters) => meters / 1609.344)),
+    durationMatrix: result.durations.map((row: number[]) => row.map((seconds) => seconds / 60)),
+  };
+}
 
 const LEGACY_COLUMNS = [
   "id", "trip_id", "courier", "courier_id", "pickup_location", "pickup_latitude", "pickup_longitude",
@@ -61,111 +91,61 @@ function buildRoutePlanPayload(record: RoutePlan) {
   };
 }
 
-function distanceMeters(a: Point, b: Point) {
-  const radians = (value: number) => value * Math.PI / 180;
-  const lat1 = radians(Number(a.lat) || 0);
-  const lon1 = radians(Number(a.lng) || 0);
-  const lat2 = radians(Number(b.lat) || 0);
-  const lon2 = radians(Number(b.lng) || 0);
-  const dLat = lat2 - lat1;
-  const dLon = lon2 - lon1;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 6371000 * 2 * Math.asin(Math.sqrt(h));
-}
-
-async function routeMetrics(points: Point[]) {
-  const coordinates = points.map((point) => `${point.lng},${point.lat}`).join(";");
-  const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=false`, {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
+export async function runFtmRouteOptimizer(
+  depot: Point,
+  stops: Point[],
+  options: { numVehicles?: number; vehicleCapacities?: number[] } = {}
+) {
+  const stopById = new Map<string, Point>();
+  const solverStops = stops.map((stop, index) => {
+    const id = String(stop.id || stop.name || `stop-${index + 1}`);
+    stopById.set(id, stop);
+    return { ...stop, id, lat: Number(stop.lat), lng: Number(stop.lng) };
   });
-  if (!response.ok) throw new Error(`OSRM route request failed with HTTP ${response.status}`);
-  const result = await response.json();
-  const route = result?.routes?.[0];
-  if (result?.code !== "Ok" || !route) throw new Error("OSRM route request returned no route");
-  return { distance: Number(route.distance || 0), duration: Number(route.duration || 0), geometry: route.geometry || null };
-}
+  const vehicleCount = Math.max(1, Math.min(25, Math.floor(options.numVehicles || 1)));
+  const availableVehicles = options.vehicleCapacities?.length === vehicleCount
+    ? options.vehicleCapacities.map((capacityKg, index) => ({ id: `vehicle-${index + 1}`, capacityKg }))
+    : [];
+  const solverPayload: OptimizeRequest = {
+    origin: { lat: Number(depot.lat), lng: Number(depot.lng) },
+    destination: { lat: Number(depot.lat), lng: Number(depot.lng) },
+    stops: solverStops,
+    vehicleCount,
+    availableVehicles,
+    optimizationMode: "fastest",
+  };
+  const osrmCosts = await fetchOsrmCostMatrices([
+    solverPayload.origin,
+    ...solverStops,
+    solverPayload.destination,
+  ]);
+  Object.assign(solverPayload, osrmCosts);
+  const solved = await runFtmPythonOptimizer(solverPayload);
+  const order = solved.orderedStopIds.map((id) => stopById.get(id)?.name || id);
+  const distanceKm = Number((solved.distanceMi * 1.609344).toFixed(2));
+  const durationMin = Number(solved.etaMinutes.toFixed(1));
+  const routes = (solved.routes || []).map((route, index) => ({
+    vehicle_id: index,
+    stops: route.orderedStopIds.map((id) => stopById.get(id)?.name || id),
+    distance_km: Number((route.distanceMi * 1.609344).toFixed(2)),
+  }));
+  const firstPolyline = solved.routes?.[0]?.polyline || [];
 
-export async function runFtmRouteOptimizer(depot: Point, stops: Point[], options: { useService?: boolean } = {}) {
-  const serviceUrl = process.env.ORTOOLS_SERVICE_URL || "http://localhost:8000/optimize";
-  const serviceEnabled = options.useService ?? process.env.USE_ORTOOLS !== "false";
-  const serviceAvailable = Boolean(process.env.ORTOOLS_SERVICE_URL) || process.env.NODE_ENV !== "production";
-  if (serviceEnabled && serviceAvailable) {
-    try {
-      const response = await fetch(serviceUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(process.env.OPTIMIZER_API_KEY ? { "X-API-Key": process.env.OPTIMIZER_API_KEY } : {}),
-        },
-        body: JSON.stringify({
-          depot,
-          stops,
-          num_vehicles: 1,
-          use_road_distance: true,
-          time_limit_secs: 5,
-          distance_matrix_provider: "osrm",
-          route_provider: "osrm",
-          include_traffic: false,
-        }),
-        cache: "no-store",
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!response.ok) throw new Error(`Optimizer service returned HTTP ${response.status}`);
-      return { ...(await response.json()), used_ortools: true };
-    } catch (error) {
-      console.warn("OR-Tools service unavailable; falling back to nearest-neighbor routing:", error);
-    }
-  }
-
-  const remaining = stops.map((stop) => ({ ...stop }));
-  const order: string[] = [];
-  const ordered: Point[] = [];
-  let current = depot;
-  let totalDistance = 0;
-  while (remaining.length) {
-    let nearestIndex = 0;
-    let nearestDistance = Infinity;
-    remaining.forEach((stop, index) => {
-      const distance = distanceMeters(current, stop);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = index;
-      }
-    });
-    const nextStop = remaining.splice(nearestIndex, 1)[0];
-    order.push(nextStop.name || `Stop ${order.length + 1}`);
-    ordered.push(nextStop);
-    totalDistance += nearestDistance;
-    current = nextStop;
-  }
-
-  const naiveDistance = stops.reduce((total, stop, index) => total + distanceMeters(index ? stops[index - 1] : depot, stop), 0);
-  let distanceKm = Number((totalDistance / 1000).toFixed(2));
-  let durationMin = Number((distanceKm * 1.5).toFixed(1));
-  let routeGeometry = null;
-  try {
-    const metrics = await routeMetrics([depot, ...ordered]);
-    distanceKm = Number((metrics.distance / 1000).toFixed(2));
-    durationMin = Number((metrics.duration / 60).toFixed(1));
-    routeGeometry = metrics.geometry;
-  } catch (error) {
-    console.warn("OSRM fallback route request failed:", error);
-  }
   return {
     depot: depot.name || "Depot",
     order,
-    routes: [{ vehicle_id: 0, stops: order, distance_km: distanceKm }],
+    routes,
     distance_km: distanceKm,
     duration_min: durationMin,
-    naive_distance_km: Number((naiveDistance / 1000).toFixed(2)),
-    pct_shorter: naiveDistance > 0 ? Math.round(((naiveDistance - totalDistance) / naiveDistance) * 100) : 0,
-    distance_source: "straight-line-fallback",
-    route_provider: "osrm",
-    route_geometry: routeGeometry,
-    solver: "nearest-neighbor heuristic (OSRM route fallback)",
-    used_ortools: false,
+    naive_distance_km: distanceKm,
+    pct_shorter: 0,
+    distance_source: "osrm-road-distance",
+    route_provider: "osrm-table-costs",
+    route_geometry: firstPolyline.length
+      ? { type: "LineString", coordinates: firstPolyline.map((point) => [point.lng, point.lat]) }
+      : null,
+    solver: "OR-Tools (GUIDED_LOCAL_SEARCH)",
+    used_ortools: true,
   };
 }
 

@@ -162,7 +162,8 @@ export default function VrdsDashboardPage() {
         `OR-Tools optimized route with ${result.orderedStopIds.length} stops. ETA ${result.etaMinutes} min.`
       );
     } catch (err) {
-      setOptimizationMessage("Route optimization unavailable. Using fallback path.");
+      const message = err instanceof Error ? err.message : "Unknown optimization error.";
+      setOptimizationMessage(`Route optimization failed: ${message}`);
     } finally {
       setOptimizing(false);
     }

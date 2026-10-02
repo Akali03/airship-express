@@ -5,10 +5,11 @@ import RoleRestricted from "../components/RoleRestricted";
 import GlobalNavbar from "../components/GlobalNavbar";
 import { getAdminUsers, lockAdminUser, unlockAdminUser, updateAdminUserRole } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import { createAdminTargetPasskey } from "../lib/adminPasskeyWebAuthn";
 import { useFtmProfileAvatar } from "../components/FtmProfileAvatarProvider";
 import FtmProfileAvatar from "../components/FtmProfileAvatar";
 
-type FtmUser = { id: string; email?: string; full_name?: string; avatar_url?: string | null; role?: string | null; last_sign_in_at?: string | null; created_at?: string | null; locked?: boolean; banned_until?: string | null; passkey_count?: number | null };
+type FtmUser = { id: string; email?: string; full_name?: string; avatar_url?: string | null; role?: string | null; last_sign_in_at?: string | null; created_at?: string | null; locked?: boolean; banned_until?: string | null; passkey_count?: number | null; passkey_status?: "Pending" | "Registered"; passkey_registered_at?: string | null };
 const ROLES = ["admin", "fleet_manager", "dispatcher", "driver"];
 type AccessFilter = "all" | "active" | "locked" | "never_signed_in";
 type SortOption = "recent" | "name" | "role";
@@ -24,7 +25,16 @@ export default function ManageUsersPage() {
   const [verificationError, setVerificationError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [selectedUser, setSelectedUser] = useState<FtmUser | null>(null);
+  const [passkeyActionUserId, setPasskeyActionUserId] = useState<string | null>(null);
+  const [passkeyNotice, setPasskeyNotice] = useState<{ message: string; tone: "good" | "bad" } | null>(null);
+  const [passkeyFlow, setPasskeyFlow] = useState<{
+    userId: string;
+    challengeId: string;
+    expiresAt: number;
+    options: Parameters<typeof createAdminTargetPasskey>[0];
+  } | null>(null);
   const [lockChange, setLockChange] = useState<{ user: FtmUser; locked: boolean } | null>(null);
+  const [passkeyTargetUser, setPasskeyTargetUser] = useState<FtmUser | null>(null);
   const [roleFilter, setRoleFilter] = useState("all");
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("all");
   const [sortOption, setSortOption] = useState<SortOption>("recent");
@@ -33,6 +43,21 @@ export default function ManageUsersPage() {
   const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const fetchPasskeyAdminApi = async (url: string, init: RequestInit = {}) => {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.access_token) throw new Error("Your admin session has expired. Sign in again.");
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${session.access_token}`);
+    return fetch(url, { ...init, headers });
+  };
+
+  const cancelPasskeyFlow = (userId?: string) => {
+    if (!passkeyFlow || (userId && passkeyFlow.userId !== userId)) return;
+    const path = `/api/admin/users/${encodeURIComponent(passkeyFlow.userId)}/passkey`;
+    void fetchPasskeyAdminApi(path, { method: "DELETE" }).catch(() => undefined);
+    setPasskeyFlow(null);
+  };
 
   const handleModalPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("button")) return;
@@ -68,6 +93,9 @@ export default function ManageUsersPage() {
   };
 
   const closeUserDetails = () => {
+    if (selectedUser && passkeyActionUserId === selectedUser.id) return;
+    cancelPasskeyFlow(selectedUser?.id);
+    setPasskeyNotice(null);
     setSelectedUser(null);
     setModalOffset({ x: 0, y: 0 });
     setDragStart(null);
@@ -90,22 +118,9 @@ export default function ManageUsersPage() {
           const { data: currentUserData } = await supabase.auth.getUser();
           if (currentUserData.user) {
             setCurrentUserId(currentUserData.user.id);
-            const { data: ownPasskeys } = await supabase.auth.passkey.list();
-            let storedRegistration: { userId?: string; email?: string; count?: number } = {};
-            try {
-              storedRegistration = JSON.parse(window.localStorage.getItem("ftm-passkey-registration") || "{}");
-            } catch {
-              storedRegistration = {};
-            }
-            const ownPasskeyCount = Array.isArray(ownPasskeys)
-              ? ownPasskeys.length
-              : storedRegistration.userId === currentUserData.user.id || storedRegistration.email === currentUserData.user.email
-                ? Math.max(1, Number(storedRegistration.count) || 1)
-                : null;
             setUsers(nextUsers.map((user) => user.id === currentUserData.user?.id
               ? {
                 ...user,
-                passkey_count: ownPasskeyCount,
                 avatar_url: currentAvatarUrl || user.avatar_url || null,
               }
               : user));
@@ -126,6 +141,79 @@ export default function ManageUsersPage() {
     void loadUsers();
     return () => { active = false; };
   }, [currentAvatarUrl, refreshNonce]);
+
+  const preparePasskeyForUser = async (user: FtmUser) => {
+    if (user.id === currentUserId) {
+      setPasskeyNotice({ message: "Choose another user. Register your own passkey from Account Settings.", tone: "bad" });
+      return;
+    }
+    if (user.passkey_count === null || user.passkey_count === undefined) {
+      setPasskeyNotice({ message: "Passkey status is unavailable. Try refreshing the user directory before continuing.", tone: "bad" });
+      return;
+    }
+    if (user.passkey_count > 0 || user.passkey_status === "Registered") {
+      setPasskeyNotice({ message: "This user already has a passkey registered.", tone: "bad" });
+      return;
+    }
+
+    setPasskeyActionUserId(user.id);
+    setPasskeyNotice(null);
+    cancelPasskeyFlow();
+    try {
+      const response = await fetchPasskeyAdminApi(`/api/admin/users/${encodeURIComponent(user.id)}/passkey`, { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.details || result.error || `Unable to prepare registration (HTTP ${response.status}).`);
+      setPasskeyFlow({ userId: user.id, challengeId: result.challengeId, expiresAt: result.expiresAt, options: result.options });
+      setPasskeyNotice({ message: `Ready for ${user.full_name || user.email || "the selected user"}. Have them complete the device prompt within five minutes.`, tone: "good" });
+    } catch (requestError) {
+      setPasskeyNotice({ message: requestError instanceof Error ? requestError.message : "Unable to prepare passkey registration.", tone: "bad" });
+    } finally {
+      setPasskeyActionUserId(null);
+    }
+  };
+
+  const completePasskeyForUser = async (user: FtmUser) => {
+    const enrollment = passkeyFlow;
+    if (!enrollment || enrollment.userId !== user.id) {
+      await preparePasskeyForUser(user);
+      return;
+    }
+    if (Date.now() >= enrollment.expiresAt) {
+      cancelPasskeyFlow(user.id);
+      setPasskeyNotice({ message: "The registration request expired. Prepare a new passkey request and try again.", tone: "bad" });
+      return;
+    }
+
+    setPasskeyActionUserId(user.id);
+    setPasskeyNotice(null);
+    try {
+      const credentialPromise = createAdminTargetPasskey(enrollment.options);
+      const credential = await credentialPromise;
+      const response = await fetchPasskeyAdminApi(`/api/admin/users/${encodeURIComponent(user.id)}/passkey/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId: enrollment.challengeId, credential }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.details || result.error || `Passkey registration failed (HTTP ${response.status}).`);
+
+      const updatedUser: FtmUser = {
+        ...user,
+        passkey_count: result.passkeyCount,
+        passkey_status: "Registered",
+        passkey_registered_at: result.registeredAt,
+      };
+      setUsers((current) => current.map((item) => item.id === user.id ? updatedUser : item));
+      setSelectedUser((current) => current?.id === user.id ? updatedUser : current);
+      setPasskeyFlow(null);
+      setPasskeyNotice({ message: `Passkey registered for ${user.full_name || user.email || "the selected user"}.`, tone: "good" });
+    } catch (requestError) {
+      cancelPasskeyFlow(user.id);
+      setPasskeyNotice({ message: requestError instanceof Error ? requestError.message : "Passkey registration failed.", tone: "bad" });
+    } finally {
+      setPasskeyActionUserId(null);
+    }
+  };
 
   useEffect(() => {
     const updateOwnAvatar = (avatarUrl: string | null) => {
@@ -185,6 +273,37 @@ export default function ManageUsersPage() {
     setLockChange({ user, locked: !user.locked });
   };
 
+  const requestPasskeyRegistration = (user: FtmUser) => {
+    if (user.id === currentUserId) {
+      setPasskeyNotice({ message: "Register your own passkey from Account Settings.", tone: "bad" });
+      return;
+    }
+    setVerificationError("");
+    setVerificationPassword("");
+    setPasskeyTargetUser(user);
+  };
+
+  const verifyAndPreparePasskey = async () => {
+    if (!passkeyTargetUser || !verificationPassword) return;
+    setVerificationError("");
+    setVerifying(true);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser?.email) throw new Error("The current admin session has no email address.");
+      const { error: passwordError } = await supabase.auth.signInWithPassword({ email: currentUser.email, password: verificationPassword });
+      if (passwordError) throw new Error("Password verification failed. Passkey registration was not started.");
+
+      const targetUser = passkeyTargetUser;
+      setPasskeyTargetUser(null);
+      setVerificationPassword("");
+      await preparePasskeyForUser(targetUser);
+    } catch (requestError) {
+      setVerificationError(requestError instanceof Error ? requestError.message : "Unable to verify the administrator password.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const verifyAndChangeLockState = async () => {
     if (!lockChange || !verificationPassword) return;
     setError("");
@@ -213,6 +332,7 @@ export default function ManageUsersPage() {
     if (verifying) return;
     setRoleChange(null);
     setLockChange(null);
+    setPasskeyTargetUser(null);
     setVerificationPassword("");
     setVerificationError("");
   };
@@ -339,13 +459,13 @@ export default function ManageUsersPage() {
                     <tr><th className="px-5 py-4">User</th><th className="px-5 py-4">Role</th><th className="px-5 py-4">Passkey</th><th className="px-5 py-4">Last sign-in</th><th className="px-5 py-4">Access</th><th className="px-5 py-4">Actions</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredUsers.map((user) => <tr key={user.id} onClick={() => setSelectedUser(user)} className="cursor-pointer transition-colors hover:bg-pink-50/50">
+                    {filteredUsers.map((user) => <tr key={user.id} onClick={() => { cancelPasskeyFlow(); setPasskeyNotice(null); setSelectedUser(user); }} className="cursor-pointer transition-colors hover:bg-pink-50/50">
                       <td className="px-5 py-4"><div className="flex items-center gap-3"><FtmProfileAvatar name={user.full_name || user.email || "User"} userId={user.id} src={user.avatar_url} className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-[#b80049] text-xs font-black text-white" /><div><div className="font-bold text-slate-900">{user.full_name || "Unnamed user"}</div><div className="text-xs text-slate-500">{user.email || "No email"}</div></div></div></td>
                       <td className="px-5 py-4"><div className="flex items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${roleBadge(user.role)}`}>{formatRole(user.role)}</span><select value={user.role || ""} onClick={(event) => event.stopPropagation()} onChange={(event) => requestRoleChange(user, event.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-600" aria-label={`Change role for ${user.email || user.id}`}>{ROLES.map((role) => <option key={role} value={role}>{formatRole(role)}</option>)}</select></div></td>
-                      <td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${user.passkey_count === null || user.passkey_count === undefined ? "bg-slate-100 text-slate-600" : user.passkey_count > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}><span className="material-symbols-outlined text-[14px]">key</span>{user.passkey_count === null || user.passkey_count === undefined ? "Unavailable" : user.passkey_count > 0 ? `Registered${user.passkey_count > 1 ? ` (${user.passkey_count})` : ""}` : "Not registered"}</span></td>
+                      <td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${user.passkey_count === null || user.passkey_count === undefined ? "bg-slate-100 text-slate-600" : user.passkey_count > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}><span className="material-symbols-outlined text-[14px]">key</span>{user.passkey_count === null || user.passkey_count === undefined ? "Unavailable" : user.passkey_status || (user.passkey_count > 0 ? "Registered" : "Pending")}{user.passkey_count !== null && user.passkey_count > 1 ? ` (${user.passkey_count})` : ""}</span></td>
                       <td className="px-5 py-4 text-xs text-slate-500">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : "Never signed in"}</td>
                       <td className="px-5 py-4"><div className="flex items-center gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${user.locked ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}><span className={`h-1.5 w-1.5 rounded-full ${user.locked ? "bg-rose-500" : "bg-emerald-500"}`} />{user.locked ? "Locked" : "Active"}</span><button type="button" onClick={(event) => { event.stopPropagation(); requestLockChange(user); }} className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold transition ${user.locked ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50" : "border-rose-200 text-rose-700 hover:bg-rose-50"}`}>{user.locked ? "Unlock" : "Lock"}</button></div></td>
-                      <td className="px-5 py-4"><button type="button" onClick={(event) => { event.stopPropagation(); setSelectedUser(user); }} className="inline-flex items-center gap-1 rounded-lg border border-pink-200 bg-pink-50 px-2.5 py-1.5 text-xs font-bold text-pink-700 hover:bg-pink-100"><span className="material-symbols-outlined text-[15px]">visibility</span>View</button></td>
+                      <td className="px-5 py-4"><button type="button" onClick={(event) => { event.stopPropagation(); cancelPasskeyFlow(); setPasskeyNotice(null); setSelectedUser(user); }} className="inline-flex items-center gap-1 rounded-lg border border-pink-200 bg-pink-50 px-2.5 py-1.5 text-xs font-bold text-pink-700 hover:bg-pink-100"><span className="material-symbols-outlined text-[15px]">visibility</span>View</button></td>
                     </tr>)}
                   </tbody>
                 </table>
@@ -354,19 +474,19 @@ export default function ManageUsersPage() {
           </section>
         </div>
       </main>
-      {(roleChange || lockChange) && (
+      {(roleChange || lockChange || passkeyTargetUser) && (
         <div className="fixed inset-0 z-[1400] flex items-start justify-center overflow-y-auto bg-slate-950/40 px-4 py-4 backdrop-blur-sm sm:items-center sm:px-5 sm:py-8" role="dialog" aria-modal="true" aria-labelledby="role-verification-title">
           <div className="ftm-soft-panel my-auto w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 sm:max-h-[calc(100vh-4rem)]">
             <div className="flex items-start gap-3">
               <span className="material-symbols-outlined flex h-11 w-11 items-center justify-center rounded-xl bg-pink-100 text-pink-700">password</span>
-              <div><h2 id="role-verification-title" className="text-lg font-black text-slate-900">Verify security action</h2><p className="mt-1 text-sm text-slate-500">Enter your admin password to {roleChange ? <>change {roleChange.user.email || "this user"} to <strong>{formatRole(roleChange.role)}</strong></> : <>{lockChange?.locked ? "lock" : "unlock"} {lockChange?.user.email || "this account"}</>}.</p></div>
+              <div><h2 id="role-verification-title" className="text-lg font-black text-slate-900">Verify security action</h2><p className="mt-1 text-sm text-slate-500">Enter your admin password to {roleChange ? <>change {roleChange.user.email || "this user"} to <strong>{formatRole(roleChange.role)}</strong></> : lockChange ? <>{lockChange.locked ? "lock" : "unlock"} {lockChange.user.email || "this account"}</> : <>prepare a passkey for <strong>{passkeyTargetUser?.email || "the selected user"}</strong></>}.</p></div>
             </div>
             <label htmlFor="role-verification-password" className="mt-5 block text-xs font-bold uppercase tracking-wider text-slate-600">Admin password</label>
-            <input id="role-verification-password" type="password" autoFocus value={verificationPassword} onChange={(event) => setVerificationPassword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void verifyAndChangeRole(); }} className="ftm-soft-control mt-2 w-full rounded-xl px-4 py-3 text-sm text-slate-900" placeholder="Enter your password" />
+            <input id="role-verification-password" type="password" autoFocus value={verificationPassword} onChange={(event) => setVerificationPassword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void (roleChange ? verifyAndChangeRole() : lockChange ? verifyAndChangeLockState() : verifyAndPreparePasskey()); }} className="ftm-soft-control mt-2 w-full rounded-xl px-4 py-3 text-sm text-slate-900" placeholder="Enter your password" />
             {verificationError && <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{verificationError}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={cancelSecurityVerification} disabled={verifying} className="ftm-soft-button rounded-xl bg-slate-100/70 px-4 py-2.5 text-sm font-bold text-slate-600 disabled:opacity-50">Cancel</button>
-              <button type="button" onClick={() => void (roleChange ? verifyAndChangeRole() : verifyAndChangeLockState())} disabled={verifying || !verificationPassword} className="ftm-soft-button rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{verifying ? "Verifying..." : roleChange ? "Verify & change role" : "Verify & update account"}</button>
+              <button type="button" onClick={() => void (roleChange ? verifyAndChangeRole() : lockChange ? verifyAndChangeLockState() : verifyAndPreparePasskey())} disabled={verifying || !verificationPassword} className="ftm-soft-button rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{verifying ? "Verifying..." : roleChange ? "Verify & change role" : lockChange ? "Verify & update account" : "Verify & prepare passkey"}</button>
             </div>
           </div>
         </div>
@@ -376,7 +496,7 @@ export default function ManageUsersPage() {
           <div ref={modalRef} style={{ transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)` }} className="ftm-soft-panel my-auto w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl transition-transform sm:max-h-[calc(100dvh-4rem)]" onClick={(event) => event.stopPropagation()}>
             <div className={`flex touch-none items-start justify-between gap-4 border-b border-white/70 bg-white/35 px-6 py-5 ${dragStart ? "cursor-grabbing" : "cursor-grab"}`} onPointerDown={handleModalPointerDown} onPointerMove={handleModalPointerMove} onPointerUp={handleModalPointerUp} onPointerCancel={handleModalPointerUp}>
               <div className="flex items-center gap-3"><FtmProfileAvatar name={selectedUser.full_name || selectedUser.email || "User"} userId={selectedUser.id} src={selectedUser.avatar_url} className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-[#b80049] text-sm font-black text-white" /><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-pink-700">User details</p><h2 id="user-details-title" className="mt-1 text-xl font-black text-slate-900">{selectedUser.full_name || "Unnamed user"}</h2></div></div>
-              <button type="button" onClick={closeUserDetails} aria-label="Close user details" className="material-symbols-outlined rounded-full p-1.5 text-slate-400 hover:bg-pink-100 hover:text-pink-700">close</button>
+              <button type="button" onClick={closeUserDetails} disabled={passkeyActionUserId === selectedUser.id} aria-label="Close user details" className="material-symbols-outlined rounded-full p-1.5 text-slate-400 hover:bg-pink-100 hover:text-pink-700 disabled:cursor-not-allowed disabled:opacity-40">close</button>
             </div>
             <div className="space-y-4 p-6">
               <div>
@@ -387,14 +507,14 @@ export default function ManageUsersPage() {
               </div>
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                 <h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink-700">Security status</h3>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3"><div><p className="text-xs text-slate-500">Access</p><p className="mt-1 font-bold text-slate-900">{selectedUser.locked ? "Locked" : "Active"}</p></div><div><p className="text-xs text-slate-500">Passkey</p><p className="mt-1 font-bold text-slate-900">{selectedUser.passkey_count === null || selectedUser.passkey_count === undefined ? "Unavailable" : selectedUser.passkey_count > 0 ? `Registered (${selectedUser.passkey_count})` : "Not registered"}</p></div><div><p className="text-xs text-slate-500">Banned until</p><p className="mt-1 font-bold text-slate-900">{selectedUser.banned_until ? new Date(selectedUser.banned_until).toLocaleString() : "Not banned"}</p></div></div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3"><div><p className="text-xs text-slate-500">Access</p><p className="mt-1 font-bold text-slate-900">{selectedUser.locked ? "Locked" : "Active"}</p></div><div><p className="text-xs text-slate-500">Passkey status</p><p className="mt-1 font-bold text-slate-900">{selectedUser.passkey_count === null || selectedUser.passkey_count === undefined ? "Unavailable" : selectedUser.passkey_status || (selectedUser.passkey_count > 0 ? "Registered" : "Pending")}</p>{selectedUser.passkey_registered_at && <p className="mt-1 text-xs text-slate-500">Registered {new Date(selectedUser.passkey_registered_at).toLocaleString()}</p>}</div><div><p className="text-xs text-slate-500">Banned until</p><p className="mt-1 font-bold text-slate-900">{selectedUser.banned_until ? new Date(selectedUser.banned_until).toLocaleString() : "Not banned"}</p></div></div>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"><h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink-700">Permissions</h3><p className="mt-2 text-sm font-bold text-slate-900">{formatRole(selectedUser.role)}</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Permissions are derived from the assigned role.</p></div>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"><h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink-700">Active sessions</h3><p className="mt-2 text-sm font-bold text-slate-900">Not exposed</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Session inventory is managed by Supabase Auth.</p></div>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"><h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink-700">Activity history</h3><p className="mt-2 text-sm font-bold text-slate-900">{selectedUser.last_sign_in_at ? "Sign-in recorded" : "No sign-in recorded"}</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Detailed audit events are not exposed by this endpoint.</p></div>
               </div>
-              <div className="rounded-2xl border border-pink-100 bg-pink-50/50 p-4"><h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink-700">Security actions</h3><p className="mt-2 text-xs leading-relaxed text-slate-600">Passkeys are device-bound. The user must register their own Windows Hello PIN on their device; an administrator cannot create or copy that credential remotely.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => { closeUserDetails(); requestLockChange(selectedUser); }} className={`rounded-xl px-3 py-2 text-xs font-bold ${selectedUser.locked ? "border border-emerald-200 bg-white text-emerald-700" : "bg-rose-600 text-white"}`}>{selectedUser.locked ? "Unlock account" : "Lock account"}</button><button type="button" onClick={() => { closeUserDetails(); requestRoleChange(selectedUser, selectedUser.role || "driver"); }} className="rounded-xl border border-pink-200 bg-white px-3 py-2 text-xs font-bold text-pink-700">Change role</button></div></div>
+              <div className="rounded-2xl border border-pink-100 bg-pink-50/50 p-4"><h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink-700">Security actions</h3><p className="mt-2 text-xs leading-relaxed text-slate-600">The selected user must be present to complete the device’s WebAuthn prompt. The credential is registered to this user’s Supabase Auth account; its private key never leaves the authenticator.</p>{passkeyNotice && <p role="status" className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${passkeyNotice.tone === "good" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{passkeyNotice.message}</p>}<div className="mt-3 flex flex-wrap gap-2">{selectedUser.id !== currentUserId && selectedUser.passkey_count === 0 && <button type="button" onClick={() => passkeyFlow?.userId === selectedUser.id && Date.now() < passkeyFlow.expiresAt ? void completePasskeyForUser(selectedUser) : requestPasskeyRegistration(selectedUser)} disabled={passkeyActionUserId === selectedUser.id} className="rounded-xl bg-pink-600 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{passkeyActionUserId === selectedUser.id ? "Preparing device..." : passkeyFlow?.userId === selectedUser.id ? "Register on device" : "Prepare passkey"}</button>}{selectedUser.id === currentUserId && <p className="self-center text-xs font-semibold text-slate-500">Use Account Settings to manage your own passkey.</p>}<button type="button" onClick={() => { closeUserDetails(); requestLockChange(selectedUser); }} className={`rounded-xl px-3 py-2 text-xs font-bold ${selectedUser.locked ? "border border-emerald-200 bg-white text-emerald-700" : "bg-rose-600 text-white"}`}>{selectedUser.locked ? "Unlock account" : "Lock account"}</button><button type="button" onClick={() => { closeUserDetails(); requestRoleChange(selectedUser, selectedUser.role || "driver"); }} className="rounded-xl border border-pink-200 bg-white px-3 py-2 text-xs font-bold text-pink-700">Change role</button></div>{selectedUser.passkey_count !== null && selectedUser.passkey_count !== undefined && selectedUser.passkey_count > 0 && selectedUser.id !== currentUserId && <p className="mt-2 text-xs font-semibold text-emerald-700">A passkey is already registered for this user.</p>}</div>
             </div>
             <div className="flex justify-end border-t border-white/70 px-6 py-4"><button type="button" onClick={closeUserDetails} className="ftm-soft-button rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-bold text-white">Close</button></div>
           </div>

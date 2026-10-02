@@ -11,7 +11,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { canRegisterPasskeyForDevice, getOtpExpirationPolicy, getPasskeyDeviceLimitMessage, getUserFriendlyAuthError, recordPasskeyUserOnDevice, updateOtpExpirationPolicy } from "../../lib/auth";
 import { useFtmProfileAvatar } from "../../components/FtmProfileAvatarProvider";
 import FtmProfileAvatar from "../../components/FtmProfileAvatar";
-import { exportSystemBackup, getAdminUsers, getBookings, getDrivers, getTrips } from "../../lib/api";
+import { exportSystemBackup, getBookings, getDrivers, getTrips } from "../../lib/api";
 import * as XLSX from "xlsx";
 
 /* ------------------------------------------------------------------ */
@@ -74,14 +74,6 @@ type ManagedUser = {
   name: string;
   role: string;
   status: "Active" | "Invited" | "Suspended";
-};
-
-type SystemUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  status: string;
 };
 
 type SecuritySettingKey = keyof FtmSystemSettings["security"];
@@ -293,7 +285,6 @@ export default function ProfilePage() {
   // Workspace data
   const [dispatchQueue, setDispatchQueue] = useState<DispatchLoad[]>([]);
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
-  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -321,16 +312,6 @@ export default function ProfilePage() {
   const [passkeyActionId, setPasskeyActionId] = useState<string | null>(null);
   const [passkeyRegistrationOpen, setPasskeyRegistrationOpen] = useState(false);
   const [passkeyAccountConfirmed, setPasskeyAccountConfirmed] = useState(false);
-  const [selectedSystemUserIds, setSelectedSystemUserIds] = useState<string[]>([]);
-  const [pendingSystemUserIds, setPendingSystemUserIds] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = JSON.parse(window.localStorage.getItem("ftm-pending-passkey-users") || "[]");
-      return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === "string") : [];
-    } catch {
-      return [];
-    }
-  });
   const [backupVerificationOpen, setBackupVerificationOpen] = useState(false);
   const [backupPassword, setBackupPassword] = useState("");
   const [backupBusy, setBackupBusy] = useState(false);
@@ -540,30 +521,6 @@ export default function ProfilePage() {
   const normalizedRole = useMemo(() => String(role).toLowerCase().replace(/[_\s]/g, ""), [role]);
   const isAdmin = normalizedRole.includes("admin");
 
-  useEffect(() => {
-    if (!isAdmin) return;
-
-    let active = true;
-    const loadSystemUsers = async () => {
-      try {
-        const users = await getAdminUsers();
-        if (!active) return;
-        const records = Array.isArray(users) ? (users as Record<string, unknown>[]) : [];
-        setSystemUsers(records.map((user) => ({
-          id: String(user.id ?? ""),
-          name: String(user.full_name ?? user.email ?? "Unnamed user"),
-          email: String(user.email ?? "No email"),
-          role: String(user.role ?? "User").replace(/_/g, " "),
-          status: String(user.banned_until ? "Suspended" : "Active"),
-        })).filter((user) => user.id));
-      } catch (error) {
-        if (active) showToast(error instanceof Error ? error.message : "Unable to load system users.", "bad");
-      }
-    };
-
-    void loadSystemUsers();
-    return () => { active = false; };
-  }, [isAdmin, showToast]);
   const isDispatcher = normalizedRole.includes("dispatch");
   const isManager = normalizedRole.includes("manager");
   const hasWorkspaceTools = isAdmin || isDispatcher || isManager;
@@ -636,7 +593,6 @@ export default function ProfilePage() {
     }
     setPasskeyRegistrationOpen(false);
     setPasskeyAccountConfirmed(false);
-    setSelectedSystemUserIds([]);
     setPasskeyBusy(true);
     const { error } = await supabase.auth.registerPasskey();
     setPasskeyBusy(false);
@@ -661,40 +617,16 @@ export default function ProfilePage() {
 
   const openPasskeyRegistration = () => {
     setPasskeyAccountConfirmed(false);
-    setSelectedSystemUserIds(currentUserId ? [currentUserId] : []);
     setPasskeyRegistrationOpen(true);
   };
 
-  const toggleSystemUserSelection = (userId: string) => {
-    setSelectedSystemUserIds((current) => current.includes(userId)
-      ? current.filter((id) => id !== userId)
-      : [...current, userId]);
-  };
-
-  const toggleAllSystemUsers = () => {
-    setSelectedSystemUserIds((current) => current.length === systemUsers.length ? [] : systemUsers.map((user) => user.id));
-  };
-
   const confirmPasskeyRegistration = () => {
-    const pendingIds = selectedSystemUserIds.filter((userId) => userId !== currentUserId);
-    if (pendingIds.length > 0) {
-      const nextPendingIds = Array.from(new Set([...pendingSystemUserIds, ...pendingIds]));
-      setPendingSystemUserIds(nextPendingIds);
-      window.localStorage.setItem("ftm-pending-passkey-users", JSON.stringify(nextPendingIds));
-    }
-
-    if (currentUserId && selectedSystemUserIds.includes(currentUserId)) {
+    if (currentUserId) {
       void registerSoftwarePasskey();
-      if (pendingIds.length > 0) {
-        showToast("This account is ready for registration. The other selected accounts are pending until they sign in.");
-      }
       return;
     }
 
-    setPasskeyRegistrationOpen(false);
-    setPasskeyAccountConfirmed(false);
-    setSelectedSystemUserIds([]);
-    showToast("The selected accounts are pending. Each user can finish registration from their own account session.");
+    showToast("Your account session has expired. Sign in again before registering a passkey.", "bad");
   };
 
   const renamePasskey = async (device: PasskeyDevice) => {
@@ -1617,7 +1549,6 @@ export default function ProfilePage() {
             if (passkeyBusy) return;
             setPasskeyRegistrationOpen(false);
             setPasskeyAccountConfirmed(false);
-            setSelectedSystemUserIds([]);
           }}
         >
           <div className="space-y-4">
@@ -1628,32 +1559,7 @@ export default function ProfilePage() {
               <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-pink-600">{String(role).replace(/_/g, " ")}</p>
               <p className="mt-3 text-[11px] font-semibold leading-5 text-slate-500">The device will be registered to this system user. Their existing passkeys remain available, and this device can be used for the same account.</p>
             </div>
-            {isAdmin && (
-              <div className="rounded-[22px] border border-white/80 bg-white/60 p-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">System users</p>
-                  <button type="button" onClick={toggleAllSystemUsers} className="text-[10px] font-black text-pink-600 hover:text-pink-800">
-                    {selectedSystemUserIds.length === systemUsers.length && systemUsers.length > 0 ? "Clear all" : "Select all"}
-                  </button>
-                </div>
-                <div className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
-                  {systemUsers.map((user) => (
-                    <label key={user.id} className={`flex cursor-pointer items-center gap-2 rounded-[14px] px-3 py-2 ${user.id === currentUserId ? "border border-pink-200 bg-pink-50" : "bg-white/70"}`}>
-                      <input type="checkbox" checked={selectedSystemUserIds.includes(user.id)} onChange={() => toggleSystemUserSelection(user.id)} className="h-4 w-4 accent-pink-600" />
-                      <div className="min-w-0">
-                        <p className="truncate text-[11px] font-black text-slate-800">{user.name}</p>
-                        <p className="truncate text-[10px] font-semibold text-slate-500">{user.email}</p>
-                      </div>
-                      <span className={`ml-auto shrink-0 text-[9px] font-black uppercase tracking-wider ${pendingSystemUserIds.includes(user.id) ? "text-amber-600" : "text-slate-400"}`}>
-                        {pendingSystemUserIds.includes(user.id) ? "Pending" : user.id === currentUserId ? "Current" : user.role}
-                      </span>
-                    </label>
-                  ))}
-                  {systemUsers.length === 0 && <p className="px-2 py-3 text-[10px] font-semibold text-slate-500">The system user list is unavailable.</p>}
-                </div>
-                <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-500">Select one or all users. The current user can register now; other selected users are marked pending and can finish when they sign in.</p>
-              </div>
-            )}
+            {isAdmin && <p className="rounded-[18px] border border-white/80 bg-white/70 p-3 text-xs font-semibold leading-5 text-slate-600">This dialog registers a passkey only for your signed-in account. To register one for another user, open User Management and select that user.</p>}
             <label className="flex cursor-pointer items-start gap-3 rounded-[18px] border border-white/80 bg-white/70 p-3 text-xs font-bold text-slate-700 shadow-[inset_1px_1px_0_rgba(255,255,255,0.9)]">
               <input
                 type="checkbox"
@@ -1661,12 +1567,12 @@ export default function ProfilePage() {
                 onChange={(event) => setPasskeyAccountConfirmed(event.target.checked)}
                 className="mt-0.5 h-4 w-4 accent-pink-600"
               />
-              <span>I confirm this is the system user I want to register on this device.</span>
+              <span>I confirm this is my signed-in account and I want to register this device passkey.</span>
             </label>
             <button
               type="button"
               onClick={confirmPasskeyRegistration}
-              disabled={!passkeyAccountConfirmed || passkeyBusy || selectedSystemUserIds.length === 0}
+              disabled={!passkeyAccountConfirmed || passkeyBusy || !currentUserId}
               className={`w-full rounded-[18px] bg-gradient-to-b from-pink-500 to-pink-600 px-4 py-2.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50 ${INFLATED_BUTTON}`}
             >
               {passkeyBusy ? "Waiting for device registration..." : "Okay, register this device"}

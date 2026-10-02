@@ -20,13 +20,23 @@ export async function POST(request: Request) {
   const stops = body.stops.filter((stop: Record<string, any>) => stop && stop.name && stop.lat != null && stop.lng != null);
   if (!stops.length) return NextResponse.json({ error: "At least one stop with coordinates is required" }, { status: 400 });
 
-  const useService = process.env.USE_ORTOOLS === "true" || Boolean(process.env.ORTOOLS_SERVICE_URL);
   let result;
   try {
-    result = await runFtmRouteOptimizer(body.depot, stops, { useService });
+    result = await runFtmRouteOptimizer(body.depot, stops, {
+      numVehicles: Number(body.num_vehicles || 1),
+      vehicleCapacities: Array.isArray(body.vehicle_capacities) ? body.vehicle_capacities.map(Number) : undefined,
+    });
   } catch (error) {
-    console.error("Route optimization failed:", error);
-    return NextResponse.json({ error: "Unable to optimize route" }, { status: 502 });
+    const failure = error as Error & { status?: number; details?: unknown };
+    console.error("[optimize] Python OR-Tools optimization failed", {
+      message: failure.message || String(error),
+      status: failure.status,
+      details: failure.details,
+    });
+    return NextResponse.json({
+      error: "Unable to optimize route.",
+      details: failure.message || "Python OR-Tools failed to solve this route.",
+    }, { status: failure.status || 502 });
   }
 
   if (result.used_ortools) {

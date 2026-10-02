@@ -62,30 +62,22 @@ export const SAMPLE_OPTIMIZATION_PAYLOAD: OptimizeRequest = {
 export async function optimizeRoute(
   payload: OptimizeRequest
 ): Promise<OptimizeResponse> {
-  try {
-    const response = await fetch("/api/optimize-route", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Optimization failed: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error("Error optimizing route:", error);
-    // Return fallback response
-    return {
-      orderedStopIds: payload.stops.map((s) => s.id),
-      polyline: [],
-      routes: [],
-      distanceMi: 0,
-      etaMinutes: 0,
-      fuelSavingsPct: 0,
-      etaImprovementMin: 0,
-      engine: "heuristic-fallback",
-    };
+  const response = await fetch("/api/optimize-route", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({})) as Partial<OptimizeResponse> & { error?: string; details?: string };
+  if (!response.ok) {
+    throw new Error(result.details || result.error || `Optimization failed: ${response.statusText}`);
   }
+  const expectedIds = payload.stops.map((stop) => stop.id);
+  if (result.engine !== "or-tools"
+    || !Array.isArray(result.orderedStopIds)
+    || result.orderedStopIds.length !== expectedIds.length
+    || new Set(result.orderedStopIds).size !== expectedIds.length
+    || result.orderedStopIds.some((id) => !expectedIds.includes(id))) {
+    throw new Error("The optimizer did not return a valid OR-Tools route for every selected stop.");
+  }
+  return result as OptimizeResponse;
 }

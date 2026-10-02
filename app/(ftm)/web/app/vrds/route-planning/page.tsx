@@ -296,21 +296,6 @@ function ensureWarehouseFirst(stops: RouteStop[]) {
   return [...warehouseStops, ...parcelStops];
 }
 
-function routePolylineNeedsWarehouseRebuild(stops: RouteStop[], polyline?: LatLng[] | null, orderedIds?: string[]) {
-  if (!polyline || polyline.length <= 2) return true;
-
-  const stopIds = new Set((orderedIds && orderedIds.length ? orderedIds : stops.map((stop) => stop.id)).filter(Boolean));
-  const waypointCount = stops.filter((stop) => stop.kind === "warehouse" || stopIds.has(stop.id)).length;
-  if (waypointCount === 0) return false;
-
-  const hasWarehouseWaypoint = stops.some((stop) => {
-    if (stop.kind !== "warehouse") return false;
-    return polyline.some((point) => Math.abs(point.lat - stop.lat) < 1e-6 && Math.abs(point.lng - stop.lng) < 1e-6);
-  });
-
-  return !hasWarehouseWaypoint;
-}
-
 function getNearestWarehouseForParcel(courier: string, parcelPosition: LatLng) {
   const warehouseOptions = listCourierWarehouses(courier);
   if (!warehouseOptions.length) return null;
@@ -1002,48 +987,10 @@ export default function VrdsRoutePlanningPage() {
       const settled: { courier: string; stopIds: string[]; data: OptimizeResponse }[] = [];
       for (const [courier, courierStops] of stopsByCourier.entries()) {
         const data = await requestOptimizedRoute(courierStops);
-        const safeOrderedIds = prioritizeWarehouseFirst(courierStops, data.orderedStopIds);
-        const normalizedData: OptimizeResponse = {
-          ...data,
-          orderedStopIds: safeOrderedIds,
-          routes: Array.isArray(data.routes)
-            ? data.routes.map((route) => ({
-                ...route,
-                orderedStopIds: prioritizeWarehouseFirst(courierStops, route.orderedStopIds),
-              }))
-            : data.routes,
-        };
-        settled.push({ courier, stopIds: courierStops.map((s) => s.id), data: normalizedData });
+        settled.push({ courier, stopIds: courierStops.map((s) => s.id), data });
       }
 
-      const normalizedSettled = settled.map((entry) => {
-        const polyline = entry.data.polyline?.length
-          ? entry.data.polyline
-          : entry.data.routes?.[0]?.polyline || [];
-        const polylineMetrics = polyline.length > 1 ? calculatePolylineMetrics(polyline) : null;
-        const distanceMi = entry.data.distanceMi > 0 ? entry.data.distanceMi : polylineMetrics?.distanceMi || 0;
-        const etaMinutes = entry.data.etaMinutes > 0
-          ? entry.data.etaMinutes
-          : polylineMetrics?.etaMinutes || calculateEtaMinutes(distanceMi) || 0;
-        const fuelSavingsPct = entry.data.fuelSavingsPct > 0
-          ? entry.data.fuelSavingsPct
-          : calculateFuelSavingsPct(initialMetrics?.distanceMi ?? null, distanceMi);
-        const etaImprovementMin = entry.data.etaImprovementMin > 0
-          ? entry.data.etaImprovementMin
-          : Math.max(0, (initialMetrics?.etaMinutes || calculateEtaMinutes(initialMetrics?.distanceMi ?? null) || 0) - etaMinutes);
-
-        return {
-          ...entry,
-          data: {
-            ...entry.data,
-            distanceMi,
-            etaMinutes,
-            fuelSavingsPct,
-            etaImprovementMin,
-            polyline: entry.data.polyline?.length ? entry.data.polyline : polyline,
-          },
-        };
-      });
+      const normalizedSettled = settled;
 
       setCourierRoutes((prev) => {
         const next = new Map(prev);
@@ -1136,42 +1083,7 @@ export default function VrdsRoutePlanningPage() {
 
   const currentResult = useMemo(() => {
     if (selectedCourier && courierRoutes.has(selectedCourier)) {
-      const result = courierRoutes.get(selectedCourier)!;
-      if (result.etaMinutes > 0 || selectedCourierStops.length === 0) {
-        const normalizedOrderedIds = prioritizeWarehouseFirst(selectedCourierStops, result.orderedStopIds);
-        return {
-          ...result,
-          orderedStopIds: normalizedOrderedIds,
-          routes: Array.isArray(result.routes)
-            ? result.routes.map((route) => ({
-                ...route,
-                orderedStopIds: prioritizeWarehouseFirst(selectedCourierStops, route.orderedStopIds),
-              }))
-            : result.routes,
-        } satisfies OptimizeResponse;
-      }
-
-      const preferredOrderedIds = prioritizeWarehouseFirst(selectedCourierStops, result.orderedStopIds?.length ? result.orderedStopIds : selectedCourierStops.map((stop) => stop.id));
-      const rebuiltPolyline = buildWarehouseFirstPolyline({
-        stops: selectedCourierStops,
-        origin,
-        destination,
-        orderedIds: preferredOrderedIds,
-      });
-      const polyline = routePolylineNeedsWarehouseRebuild(selectedCourierStops, result.polyline, preferredOrderedIds)
-        ? rebuiltPolyline
-        : result.polyline?.length
-        ? result.polyline
-        : rebuiltPolyline;
-      const metrics = calculatePolylineMetrics(polyline);
-      return {
-        ...result,
-        orderedStopIds: preferredOrderedIds,
-        polyline,
-        distanceMi: result.distanceMi || metrics.distanceMi,
-        etaMinutes: Math.max(1, metrics.etaMinutes),
-        engine: "heuristic-fallback" as const,
-      } satisfies OptimizeResponse;
+      return courierRoutes.get(selectedCourier)!;
     }
     if (!selectedCourier && courierRoutes.size > 0) {
       const results = Array.from(courierRoutes.values());
