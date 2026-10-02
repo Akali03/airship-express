@@ -1,6 +1,5 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { scanReceipt } from "../../../../backend/services/receiptOcr.js";
 import { hasPermission } from "../../lib/permissions";
 import { authenticateFtmRequest } from "../../lib/server/ftmRequestAuth";
 
@@ -103,7 +102,7 @@ export async function POST(request: Request) {
   }
 
   const vehicleId = typeof body.vehicle_id === "string" ? body.vehicle_id.trim() || null : body.vehicle_id || null;
-  let amount = Number(body.amount);
+  const amount = Number(body.amount);
   let category = CATEGORY_MAP[String(body.category || "").toLowerCase()] || body.category;
   let note = body.note;
   let liters = body.liters;
@@ -112,37 +111,6 @@ export async function POST(request: Request) {
   let location = body.location;
   let paymentMethod = body.payment_method;
   let referenceNumber = body.reference_number;
-  let ocrMeta: Record<string, any> | null = null;
-
-  if (body.photo_base64 && (!Number.isFinite(amount) || !category || !referenceNumber || !paymentMethod || !location || !note || liters == null || pricePerLiter == null || !fuelStation)) {
-    const ocr = await scanReceipt(body.photo_base64);
-    if (ocr.ok) {
-      ocrMeta = {
-        confidence: ocr.confidence,
-        location: ocr.location || null,
-        referenceNumber: ocr.referenceNumber || null,
-        paymentMethod: ocr.paymentMethod || null,
-        currency: ocr.currency || null,
-        amountText: ocr.amountText || null,
-        liters: Number.isFinite(Number(ocr.liters)) ? Number(ocr.liters) : null,
-        pricePerLiter: Number.isFinite(Number(ocr.price_per_liter)) ? Number(ocr.price_per_liter) : Number.isFinite(Number(ocr.pricePerLiter)) ? Number(ocr.pricePerLiter) : null,
-        fuelStation: ocr.fuel_station || ocr.fuelStation || null,
-      };
-      if (ocr.confidence === "high") {
-        if (!Number.isFinite(amount) && ocr.amount != null) amount = ocr.amount;
-        if (!category && ocr.category) category = CATEGORY_MAP[ocr.category];
-        if (!note && ocr.note) note = ocr.note;
-        if (!location && ocr.location) location = ocr.location;
-        if (!referenceNumber && ocr.referenceNumber) referenceNumber = ocr.referenceNumber;
-        if (!paymentMethod && ocr.paymentMethod) paymentMethod = ocr.paymentMethod;
-        if (liters == null || liters === "") liters = ocr.liters ?? liters;
-        if (pricePerLiter == null || pricePerLiter === "") pricePerLiter = ocr.price_per_liter ?? ocr.pricePerLiter ?? pricePerLiter;
-        if (!fuelStation) fuelStation = ocr.fuel_station || ocr.fuelStation || fuelStation;
-      } else {
-        console.warn("Expense receipt OCR confidence was not high; skipping automatic backfill:", ocr.confidence, ocr.source);
-      }
-    }
-  }
   if (!Number.isFinite(amount) || amount < 0) return NextResponse.json({ error: "A valid amount is required" }, { status: 400 });
   if (!category) return NextResponse.json({ error: "A valid category is required" }, { status: 400 });
 
@@ -180,5 +148,5 @@ export async function POST(request: Request) {
   if (detailsError && !/column .*category_details|does not exist|not found/i.test(detailsError.message)) {
     return NextResponse.json({ error: `Unable to create category cost: ${detailsError.message}` }, { status: 500 });
   }
-  return NextResponse.json({ ...normalizeExpense(result.data), driver_id: body.driver_id || null, ocr: ocrMeta }, { status: 201 });
+  return NextResponse.json({ ...normalizeExpense(result.data), driver_id: body.driver_id || null }, { status: 201 });
 }
